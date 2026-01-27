@@ -1,0 +1,116 @@
+@model List<PharmaCare.Domain.Models.SaleManagement.Quotation>
+@{
+    ViewData["Title"] = "Quotations";
+}
+
+<div class="container-fluid p-0">
+    <!-- Page Header -->
+    <div class="d-flex justify-content-between align-items-center mb-3">
+        <h4><i class="fas fa-file-alt me-2"></i>Quotations</h4>
+        <a href="@Url.Action("AddQuotation")" class="btn btn-primary">
+            <i class="fas fa-plus me-1"></i> New Quotation
+        </a>
+    </div>
+
+    <!-- Filters -->
+    <div class="card mb-3">
+        <div class="card-body">
+            <form method="get" class="row g-3">
+                <div class="col-md-4">
+                    <label class="form-label">Status</label>
+                    @Html.DropDownList("status", ViewBag.StatusList as SelectList, "All", new { @class = "form-select"
+                    })
+                </div>
+                <div class="col-md-2 d-flex align-items-end">
+                    <button type="submit" class="btn btn-secondary w-100">
+                        <i class="fas fa-filter me-1"></i> Filter
+                    </button>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <!-- Quotations Table -->
+    <div class="card">
+        <div class="card-body p-0">
+            <table id="quotationsTable" class="table table-hover table-striped table-bordered dataTable">
+                <thead class="table-dark">
+                    <tr>
+                        <th>Quote #</th>
+                        <th>Date</th>
+                        <th>Valid Until</th>
+                        <th>Customer</th>
+                        <th>Items</th>
+                        <th class="text-end">Total</th>
+                        <th>Status</th>
+                        <th>Actions</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    @foreach (var q in Model)
+                    {
+                        <tr>
+                            <td>@q.QuotationNumber</td>
+                            <td>@q.QuotationDate.ToString("dd-MMM-yyyy")</td>
+                            <td class="@(q.ValidUntil < DateTime.Now && q.Status == "Draft" ? "text-danger" : "")">
+                                @q.ValidUntil.ToString("dd-MMM-yyyy")
+                            </td>
+                            <td>@(q.Party?.PartyName ?? q.CustomerName ?? "Walk-in")</td>
+                            <td class="text-center">@q.QuotationLines.Count</td>
+                            <td class="text-end fw-bold">@q.GrandTotal.ToString("N2")</td>
+                            <td>
+                                @{
+                                    var badgeClass = q.Status switch
+                                    {
+                                        "Draft" => "bg-info",
+                                        "Converted" => "bg-success",
+                                        "Expired" => "bg-warning",
+                                        "Cancelled" => "bg-danger",
+                                        _ => "bg-secondary"
+                                    };
+                                }
+                                <span class="badge @badgeClass">@q.Status</span>
+                            </td>
+                            <td>
+                                <a href="@Url.Action("QuotationDetails", new { id = Utility.EncryptURL(q.QuotationID.ToString()) })"
+                                    class="btn btn-sm btn-info" title="View Details">
+                                    <i class="bx bx-show"></i>
+                                </a>
+                                @if (q.Status == "Draft")
+                                {
+                                    <form asp-action="ConvertToSale"
+                                        asp-route-id="@Utility.EncryptURL(q.QuotationID.ToString())" method="post"
+                                        style="display:inline;" onsubmit="return confirm('Convert this quotation to a sale?');">
+                                        @Html.AntiForgeryToken()
+                                        <button type="submit" class="btn btn-sm btn-success" title="Convert to Sale">
+                                            <i class="fas fa-shopping-cart"></i>
+                                        </button>
+                                    </form>
+                                    <form asp-action="CancelQuotation"
+                                        asp-route-id="@Utility.EncryptURL(q.QuotationID.ToString())" method="post"
+                                        style="display:inline;" onsubmit="return confirm('Cancel this quotation?');">
+                                        @Html.AntiForgeryToken()
+                                        <button type="submit" class="btn btn-sm btn-danger" title="Cancel">
+                                            <i class="bx bx-x-circle"></i>
+                                        </button>
+                                    </form>
+                                }
+                            </td>
+                        </tr>
+                    }
+                </tbody>
+            </table>
+        </div>
+    </div>
+</div>
+
+@section Scripts {
+    <script>
+        $(document).ready(function () {
+            $('#quotationsTable').DataTable({
+                order: [[1, 'desc']],
+                pageLength: 25
+            });
+        });
+    </script>
+}

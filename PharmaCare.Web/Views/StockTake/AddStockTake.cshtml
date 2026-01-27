@@ -1,0 +1,48 @@
+@model PharmaCare.Web.Models.Inventory.InitiateStockTakeViewModel
+@inject PharmaCare.Infrastructure.Interfaces.IComboBoxRepository _comboBox
+
+@{
+    ViewData["Title"] = "Initiate Stock Take";
+}
+
+
+<div class="card mb-4">
+    <div class="card-header d-flex justify-content-between align-items-center">
+        <h5 class="mb-0">Initiate Item Count</h5>
+        <small class="text-muted float-end">Filter by category for partial counts</small>
+    </div>
+    <div class="card-body mt-3">
+        <form asp-action="AddStockTake" method="post">
+            <div class="row">
+                <div class="col-md-6 mb-3">
+                    <label asp-for="Store_ID" class="form-label">Store</label>
+                    <select asp-for="Store_ID" class="form-select select2"
+                        asp-items="@_comboBox.GetStoresByLoginUserID((int)ViewBag.LoginUserID, Model?.Store_ID)">
+                        <option value="">-- Select Store --</option>
+                    </select>
+                    <span asp-validation-for="Store_ID" class="text-danger"></span>
+                </div>
+                <div class="col-md-6 mb-3">
+                    <label asp-for="CategoryID" class="form-label">Category (Optional)</label>
+                    <select asp-for="CategoryID" class="form-select select2"
+                        asp-items="@_comboBox.GetRootCategories(Model?.CategoryID)">
+                        <option value="">-- All Categories --</option>
+                    </select>
+                    <span asp-validation-for="CategoryID" class="text-danger"></span>
+                    <div class="form-text">Leave blank to count all items in store.</div>
+                </div>
+            </div>
+            <div class="mb-3">
+                <label asp-for="Remarks" class="form-label">Remarks</label>
+                <textarea asp-for="Remarks" class="form-control" rows="3"
+                    placeholder="e.g. End of year audit, Category specific count"></textarea>
+            </div>
+            <div class="mt-3 d-flex justify-content-end gap-2">
+                <a asp-action="StockTakeIndex" class="btn btn-secondary"><i class="bx bx-arrow-back me-1"></i>Back to
+                    list</a>
+                <button type="submit" class="btn btn-success">Start Stock Take</button>
+            </div>
+        </form>
+    </div>
+</div>
+

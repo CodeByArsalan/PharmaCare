@@ -1,0 +1,118 @@
+@using PharmaCare.Domain.Models.Configuration
+@model IEnumerable<Party>
+@{
+    ViewData["Title"] = "Parties";
+}
+
+<div class="row">
+    <div class="col-12">
+        <div class="card card-outline rounded-0 card-navy">
+            <div class="card-header d-flex justify-content-between align-items-center">
+                <h5 class="card-title mb-0">Parties (Customers / Suppliers)</h5>
+                <div class="d-flex gap-2">
+                    <div class="btn-group" role="group">
+                        <a asp-action="PartyIndex"
+                            class="btn btn-sm @(ViewBag.SelectedType == null ? "btn-primary" : "btn-outline-primary")">All</a>
+                        <a asp-action="PartyIndex" asp-route-type="Customer"
+                            class="btn btn-sm @(ViewBag.SelectedType == "Customer" ? "btn-primary" : "btn-outline-primary")">Customers</a>
+                        <a asp-action="PartyIndex" asp-route-type="Supplier"
+                            class="btn btn-sm @(ViewBag.SelectedType == "Supplier" ? "btn-primary" : "btn-outline-primary")">Suppliers</a>
+                    </div>
+                    <a asp-action="AddParty" class="btn btn-success btn-sm">
+                        <i class="bx bx-plus"></i> Add Party
+                    </a>
+                </div>
+            </div>
+            <div class="card-body p-0">
+                <div class="table-responsive">
+                    <table class="table table-hover table-striped table-bordered dataTable" id="partyTable">
+                        <thead class="table-dark">
+                            <tr>
+                                <th>Name</th>
+                                <th>Type</th>
+                                <th>Contact</th>
+                                <th>Account No.</th>
+                                <th>Status</th>
+                                <th>Actions</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            @foreach (var item in Model)
+                            {
+                                <tr>
+                                    <td>@item.PartyName</td>
+                                    <td>
+                                        <span
+                                            class="badge @(item.PartyType == "Customer" ? "bg-info" : item.PartyType == "Supplier" ? "bg-warning" : "bg-success")">
+                                            @item.PartyType
+                                        </span>
+                                    </td>
+                                    <td>@item.ContactNumber</td>
+                                    <td>@item.AccountNumber</td>
+                                    <td>
+                                        @if (item.IsActive)
+                                        {
+                                            <span class="badge rounded-pill bg-success">Active</span>
+                                        }
+                                        else
+                                        {
+                                            <span class="badge rounded-pill bg-danger">Inactive</span>
+                                        }
+                                    </td>
+                                    <td>
+                                        <div class="d-flex gap-2">
+                                            <a asp-action="EditParty" asp-route-id="@item.PartyID.EncryptId()"
+                                               class="btn btn-sm btn-info text-white" title="Edit">
+                                                <i class="bx bx-edit"></i>
+                                            </a>
+                                            <form asp-action="DeleteParty" asp-route-id="@item.PartyID.EncryptId()"
+                                                method="post" style="display:inline;">
+                                                @Html.AntiForgeryToken()
+                                                <button type="button" class="btn btn-danger btn-sm" title="Delete"
+                                                    onclick="confirmDelete(this)">
+                                                    <i class="bx bx-trash"></i>
+                                                </button>
+                                            </form>
+                                        </div>
+                                    </td>
+                                </tr>
+                            }
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+@section Scripts {
+    <script>
+        $(document).ready(function () {
+            $('#partyTable').DataTable({
+                "paging": true,
+                "lengthChange": true,
+                "searching": true,
+                "ordering": true,
+                "info": true,
+                "autoWidth": false,
+                "responsive": true
+            });
+        });
+
+        function confirmDelete(btn) {
+            Swal.fire({
+                title: 'Are you sure?',
+                text: "You won't be able to revert this!",
+                icon: 'warning',
+                showCancelButton: true,
+                confirmButtonColor: '#d33',
+                cancelButtonColor: '#3085d6',
+                confirmButtonText: 'Yes, delete it!'
+            }).then((result) => {
+                if (result.isConfirmed) {
+                    $(btn).closest('form').submit();
+                }
+            });
+        }
+    </script>
+}

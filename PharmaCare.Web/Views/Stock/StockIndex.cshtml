@@ -1,0 +1,231 @@
+@model PharmaCare.Web.Models.Inventory.StockOverviewViewModel
+@inject PharmaCare.Infrastructure.Interfaces.IComboBoxRepository _comboBox
+
+@{
+    ViewData["Title"] = "Stock Overview";
+    Layout = "~/Views/Shared/_Layout.cshtml";
+    int RowNo = 0;
+}
+
+<div class="container-fluid p-0">
+    <!-- Header with Breadcrumbs -->
+    <div class="d-flex justify-content-between align-items-center mb-4">
+        <div>
+            <h4 class="fw-bold mb-0">
+                <span class="text-muted fw-light"></span> Stock Overview
+            </h4>
+        </div>
+        <div class="d-flex gap-2">
+            <a asp-action="AddStockAdjustment" asp-controller="StockAdjustment" class="btn btn-outline-primary">
+                <i class="bx bx-adjust me-1"></i> Adjust Stock
+            </a>
+            <a asp-action="AddGrn" asp-controller="Grn" class="btn btn-primary">
+                <i class="bx bx-plus me-1"></i> Receive Stock
+            </a>
+        </div>
+    </div>
+
+    <!-- Inventory Summary Metrics -->
+    <div class="row mb-4">
+        <div class="col-sm-6 col-lg-3 mb-4">
+            <div class="card metric-card">
+                <div class="d-flex align-items-center">
+                    <div class="metric-icon bg-label-primary me-3">
+                        <i class="bx bx-package"></i>
+                    </div>
+                    <div>
+                        <p class="metric-label">Total Products</p>
+                        <h4 class="metric-value">@Model.Summary.TotalProducts</h4>
+                    </div>
+                </div>
+            </div>
+        </div>
+        <div class="col-sm-6 col-lg-3 mb-4">
+            <div class="card metric-card">
+                <div class="d-flex align-items-center">
+                    <div class="metric-icon bg-label-warning me-3">
+                        <i class="bx bx-error"></i>
+                    </div>
+                    <div>
+                        <p class="metric-label">Low Stock Items</p>
+                        <h4 class="metric-value text-warning">@Model.Summary.LowStockItems</h4>
+                    </div>
+                </div>
+            </div>
+        </div>
+        <div class="col-sm-6 col-lg-3 mb-4">
+            <div class="card metric-card">
+                <div class="d-flex align-items-center">
+                    <div class="metric-icon bg-label-danger me-3">
+                        <i class="bx bx-calendar-x"></i>
+                    </div>
+                    <div>
+                        <p class="metric-label">Expired Items</p>
+                        <h4 class="metric-value text-danger">@Model.Summary.ExpiredItems</h4>
+                    </div>
+                </div>
+            </div>
+        </div>
+        <div class="col-sm-6 col-lg-3 mb-4">
+            <div class="card metric-card">
+                <div class="d-flex align-items-center">
+                    <div class="metric-icon bg-label-success me-3">
+                        <i class="bx bx-dollar"></i>
+                    </div>
+                    <div>
+                        <p class="metric-label">Stock Value</p>
+                        <h4 class="metric-value text-success">@Model.Summary.TotalInventoryValue.ToString("C0")</h4>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Filters and Table -->
+    <div class="card shadow-sm">
+        <div class="card-header border-bottom">
+            <div class="row align-items-center">
+                <div class="col-md-6">
+                    <h5 class="card-title mb-0">Current Stock Levels</h5>
+                </div>
+                <div class="col-md-6">
+                    <form method="get" class="d-flex gap-2">
+                        <select name="storeId" class="form-select form-select-sm" onchange="this.form.submit()">
+                            <option value="">All Stores</option>
+                            @foreach (var store in _comboBox.GetStoresByLoginUserID((int)ViewBag.LoginUserID,
+                            Model.SelectedStore_ID))
+                            {
+                                <option value="@store.Value" selected="@(Model.SelectedStore_ID.ToString() == store.Value)">
+                                    @store.Text</option>
+                            }
+                        </select>
+                        <input type="text" id="tableSearch" class="form-control form-select-sm"
+                            placeholder="Search product..." />
+                    </form>
+                </div>
+            </div>
+        </div>
+        <div class="card-body p-0">
+            <div class="table-responsive">
+                <table class="table table-hover align-middle mb-0" id="stockTable">
+                    <thead class="table-light text-nowrap">
+                        <tr>
+                            <th width="50">#</th>
+                            <th>Product Information</th>
+                            <th>Batch Details</th>
+                            <th>Store Location</th>
+                            <th class="text-end">Qty On Hand</th>
+                            <th class="text-end">Unit Amount</th>
+                            <th class="text-end">Total Amount</th>
+                            <th class="text-center">Status</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        @if (Model.StockItems.Any())
+                        {
+                            @foreach (var item in Model.StockItems)
+                            {
+                                RowNo++;
+                                var reorderLevel = item.ProductBatch?.Product?.ReorderLevel ?? 10;
+                                var isLowStock = item.QuantityOnHand <= reorderLevel && item.QuantityOnHand > 0;
+                                var isOutOfStock = item.QuantityOnHand <= 0;
+                                var isExpired = item.ProductBatch?.ExpiryDate <= DateTime.Now;
+                                var expiresSoon = !isExpired && item.ProductBatch?.ExpiryDate <= DateTime.Now.AddMonths(3);
+
+                                <tr class="@(isExpired ? "table-danger-light" : "")">
+                                    <td>@RowNo</td>
+                                    <td>
+                                        <div class="d-flex flex-column">
+                                            <span
+                                                class="fw-semibold text-primary">@item.ProductBatch?.Product?.ProductName</span>
+                                            <small class="text-muted">SKU: @item.ProductBatch?.Product?.Sku</small>
+                                        </div>
+                                    </td>
+                                    <td>
+                                        <div class="d-flex flex-column">
+                                            <span><i class="bx bx-barcode me-1"></i>@item.ProductBatch?.BatchNumber</span>
+                                            <small
+                                                class="@(isExpired ? "text-danger fw-bold" : expiresSoon ? "text-warning fw-bold" : "text-muted")">
+                                                Exp: @item.ProductBatch?.ExpiryDate.ToShortDateString()
+                                                @if (isExpired)
+                                                {
+                                                    <span class="badge bg-danger ms-1">Expired</span>
+                                                }
+                                                else if (expiresSoon)
+                                                {
+                                                    <span class="badge bg-warning ms-1">Expiring
+                                                        Soon</span>
+                                                }
+                                            </small>
+                                        </div>
+                                    </td>
+                                    <td>
+                                        <span class="badge bg-label-secondary">
+                                            <i class="bx bx-store-alt me-1"></i>@item.Store?.Name
+                                        </span>
+                                    </td>
+                                    <td class="text-end fw-bold">
+                                        @item.QuantityOnHand.ToString("N0")
+                                    </td>
+                                    <td class="text-end">
+                                        @((item.ProductBatch?.CostPrice ?? 0).ToString("N2"))
+                                    </td>
+                                    <td class="text-end fw-bold text-success">
+                                        @((item.QuantityOnHand * (item.ProductBatch?.CostPrice ?? 0)).ToString("N2"))
+                                    </td>
+                                    <td class="text-center">
+                                        @if (isOutOfStock)
+                                        {
+                                            <span class="badge bg-danger">Out of Stock</span>
+                                        }
+                                        else if (isLowStock)
+                                        {
+                                            <span class="badge bg-warning">Low Stock</span>
+                                        }
+                                        else
+                                        {
+                                            <span class="badge bg-success">In Stock</span>
+                                        }
+                                    </td>
+                                </tr>
+                            }
+                        }
+                        else
+                        {
+                            <tr>
+                                <td colspan="8" class="text-center py-5">
+                                    <div class="empty-state">
+                                        <i class="bx bx-package empty-state-icon"></i>
+                                        <h5 class="mt-3">No stock found</h5>
+                                        <p class="text-muted">Try adjusting your filters or adding new stock.</p>
+                                    </div>
+                                </td>
+                            </tr>
+                        }
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    </div>
+</div>
+
+@section Scripts {
+    <script>
+        $(document).ready(function () {
+            // Simple search filter
+            $("#tableSearch").on("keyup", function () {
+                var value = $(this).val().toLowerCase();
+                $("#stockTable tbody tr").filter(function () {
+                    $(this).toggle($(this).text().toLowerCase().indexOf(value) > -1)
+                });
+            });
+        });
+    </script>
+    <style>
+        .table-danger-light {
+            background-color: rgba(239, 68, 68, 0.05) !important;
+        }
+
+        /* bg-label-* classes are now defined in custom-theme.css */
+    </style>
+}

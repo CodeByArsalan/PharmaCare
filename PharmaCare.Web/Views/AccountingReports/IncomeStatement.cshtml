@@ -1,0 +1,147 @@
+@model PharmaCare.Application.DTOs.Accounting.IncomeStatementDto
+@{
+    ViewData["Title"] = "Income Statement";
+}
+
+<div class="row page-titles mb-2 mt-2 d-print-none">
+    <div class="col-md-5 align-self-center">
+        <h3 class="text-primary fw-bold text-uppercase mb-0">Income Statement</h3>
+    </div>
+    <div class="col-md-7 align-self-center text-end">
+        <button onclick="window.print()" class="btn btn-info">
+            <i class="bx bx-print me-1"></i> Print Report
+        </button>
+    </div>
+</div>
+
+<div class="container-fluid p-0">
+    <div class="card border-0 shadow-sm rounded-3 mb-4 d-print-none">
+        <div class="card-body p-3">
+            <form asp-action="IncomeStatement" method="get" class="row g-3 align-items-end">
+                <div class="col-md-3">
+                    <label class="form-label small fw-bold text-secondary">From Date</label>
+                    <input type="date" name="fromDate" value="@Model.FromDate.ToString("yyyy-MM-dd")"
+                        class="form-control rounded-3 shadow-sm" />
+                </div>
+                <div class="col-md-3">
+                    <label class="form-label small fw-bold text-secondary">To Date</label>
+                    <input type="date" name="toDate" value="@Model.ToDate.ToString("yyyy-MM-dd")"
+                        class="form-control rounded-3 shadow-sm" />
+                </div>
+                <div class="col-md-4">
+                    <button type="submit" class="btn btn btn-primary btn-lg">
+                        <i class="bx bx-sync-alt me-1"></i> Regenerate
+                    </button>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <!-- Header (Print Only) -->
+    <div class="d-none d-print-block text-center mb-5">
+        <h1 class="fw-bold mb-1">PharmaCare</h1>
+        <h3 class="text-uppercase mb-2">Income Statement</h3>
+        <p class="text-muted">Period: @Model.FromDate.ToString("dd MMM yyyy") to @Model.ToDate.ToString("dd MMM yyyy")
+        </p>
+        <hr />
+    </div>
+
+    <div class="row justify-content-center">
+        <div class="col-xl-12 col-lg-12">
+            <div class="card border-0 shadow-sm rounded-3 overflow-hidden">
+                <div class="card-body p-4 p-md-5">
+
+                    <!-- REVENUE -->
+                    <div class="mb-5">
+                        <h4 class="fw-bold text-primary mb-3 border-bottom pb-2">REVENUE</h4>
+                        <div class="table-responsive">
+                            <table class="table table-borderless align-middle mb-0">
+                                <tbody>
+                                    @foreach (var rev in Model.Revenue)
+                                    {
+                                        <tr>
+                                            <td class="ps-0 h5">@rev.AccountName</td>
+                                            <td class="text-end h5 fw-bold">@rev.Amount.ToString("N2")</td>
+                                        </tr>
+                                    }
+                                </tbody>
+                                <tfoot class="border-top border-dark">
+                                    <tr class="fw-bold">
+                                        <td class="ps-0 h5 pt-3">Total Revenue</td>
+                                        <td class="text-end h5 pt-3 text-primary">@Model.TotalRevenue.ToString("N2")
+                                        </td>
+                                    </tr>
+                                </tfoot>
+                            </table>
+                        </div>
+                    </div>
+
+                    <!-- COGS -->
+                    <div class="mb-5">
+                        <h4 class="fw-bold text-secondary mb-3 border-bottom pb-2 text-uppercase small">Cost of Goods
+                            Sold</h4>
+                        <div class="table-responsive">
+                            <table class="table table-borderless align-middle mb-0">
+                                <tbody>
+                                    @foreach (var cogs in Model.CostOfGoodsSold)
+                                    {
+                                        <tr>
+                                            <td class="ps-0">@cogs.AccountName</td>
+                                            <td class="text-end">(@cogs.Amount.ToString("N2"))</td>
+                                        </tr>
+                                    }
+                                </tbody>
+                                <tfoot class="border-top">
+                                    <tr>
+                                        <td class="ps-0 fw-bold">Total COGS</td>
+                                        <td class="text-end fw-bold">(@Model.TotalCOGS.ToString("N2"))</td>
+                                    </tr>
+                                </tfoot>
+                            </table>
+                        </div>
+                    </div>
+
+                    <!-- GROSS PROFIT -->
+                    <div
+                        class="alert alert-primary bg-light-soft border-0 shadow-sm p-4 d-flex justify-content-between align-items-center mb-5 rounded-3">
+                        <h4 class="mb-0 fw-bold">GROSS PROFIT</h4>
+                        <h4 class="mb-0 fw-bold text-primary">@Model.GrossProfit.ToString("N2")</h4>
+                    </div>
+
+                    <!-- OPERATING EXPENSES -->
+                    <div class="mb-5">
+                        <h4 class="fw-bold text-danger mb-3 border-bottom pb-2">OPERATING EXPENSES</h4>
+                        <div class="table-responsive">
+                            <table class="table table-borderless align-middle mb-0">
+                                <tbody>
+                                    @foreach (var exp in Model.Expenses)
+                                    {
+                                        <tr>
+                                            <td class="ps-0">@exp.AccountName</td>
+                                            <td class="text-end">@exp.Amount.ToString("N2")</td>
+                                        </tr>
+                                    }
+                                </tbody>
+                                <tfoot class="border-top">
+                                    <tr class="fw-bold">
+                                        <td class="ps-0 h5 pt-3">Total Operating Expenses</td>
+                                        <td class="text-end h5 pt-3 text-danger">@Model.TotalExpenses.ToString("N2")
+                                        </td>
+                                    </tr>
+                                </tfoot>
+                            </table>
+                        </div>
+                    </div>
+
+                    <!-- NET INCOME -->
+                    <div
+                        class="alert @(Model.NetIncome >= 0 ? "alert-success" : "alert-danger") shadow border-0 p-4 d-flex justify-content-between align-items-center rounded-3">
+                        <h3 class="mb-0 fw-bold">NET INCOME</h3>
+                        <h3 class="mb-0 fw-bold">@Model.NetIncome.ToString("N2")</h3>
+                    </div>
+
+                </div>
+            </div>
+        </div>
+    </div>
+</div>

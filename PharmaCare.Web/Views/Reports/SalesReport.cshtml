@@ -1,0 +1,211 @@
+@using PharmaCare.Domain.Models.Configuration
+@model PharmaCare.Application.DTOs.Reports.SalesReportDto
+
+@{
+    ViewData["Title"] = "Sales Report";
+    Layout = "~/Views/Shared/_Layout.cshtml";
+}
+
+<div class="card p-0">
+    <div class="card-header">
+        <h3 class="card-title">Sales Report</h3>
+    </div>
+    <div class="card-body">
+        <!-- Date Filter -->
+        <form method="get" asp-action="SalesReport" class="mb-4">
+            <div class="row mt-3">
+                <div class="col-md-3">
+                    <label class="form-label">Store</label>
+                    <select name="storeId" class="form-select">
+                        @if (ViewBag.IsAdmin == true)
+                        {
+                            <option value="">All Stores</option>
+                        }
+                        @if (ViewBag.Stores != null)
+                        {
+                            foreach (var store in (IEnumerable<Store>)ViewBag.Stores)
+                            {
+                                if (ViewBag.SelectedStoreId == store.StoreID)
+                                {
+                                    <option value="@Utility.EncryptURL(store.StoreID.ToString2())" selected>@store.Name (@store.Code)</option>
+                                }
+                                else
+                                {
+                                    <option value="@Utility.EncryptURL(store.StoreID.ToString2())">@store.Name (@store.Code)</option>
+                                }
+                            }
+                        }
+                    </select>
+                </div>
+                <div class="col-md-3">
+                    <label class="form-label">Start Date</label>
+                    <input type="date" name="startDate" class="form-control" value="@ViewBag.StartDate" required />
+                </div>
+                <div class="col-md-3">
+                    <label class="form-label">End Date</label>
+                    <input type="date" name="endDate" class="form-control" value="@ViewBag.EndDate" required />
+                </div>
+                <div class="col-md-3">
+                    <label class="form-label">&nbsp;</label>
+                    <button type="submit" class="btn btn-primary d-block w-100">Generate Report</button>
+                </div>
+            </div>
+        </form>
+
+        <!-- Summary Cards -->
+        <div class="row mb-4">
+            <div class="col-md-4">
+                <div class="card bg-primary text-white">
+                    <div class="card-body">
+                        <h6>Total Sales</h6>
+                        <h3>@Model.TotalSales.ToString("C")</h3>
+                    </div>
+                </div>
+            </div>
+            <div class="col-md-4">
+                <div class="card bg-success text-white">
+                    <div class="card-body">
+                        <h6>Total Transactions</h6>
+                        <h3>@Model.TotalTransactions</h3>
+                    </div>
+                </div>
+            </div>
+            <div class="col-md-4">
+                <div class="card bg-info text-white">
+                    <div class="card-body">
+                        <h6>Average Transaction</h6>
+                        <h3>@Model.AverageTransactionValue.ToString("C")</h3>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Charts Row -->
+        <div class="row mb-4">
+            <div class="col-md-8">
+                <div class="card">
+                    <div class="card-header">
+                        <h5>Daily Sales Trend</h5>
+                    </div>
+                    <div class="card-body">
+                        <canvas id="salesTrendChart"></canvas>
+                    </div>
+                </div>
+            </div>
+            <div class="col-md-4">
+                <div class="card">
+                    <div class="card-header">
+                        <h5>Payment Methods</h5>
+                    </div>
+                    <div class="card-body">
+                        <canvas id="paymentMethodChart"></canvas>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Top Products Table -->
+        <div class="card rounded-0">
+            <div class="card-header">
+                <h5>Top 10 Products</h5>
+            </div>
+            <div class="card-body p-0">
+                <table class="table table-hover table-striped table-bordered">
+                    <thead class="table-dark">
+                        <tr>
+                            <th>#</th>
+                            <th>Product Name</th>
+                            <th>Quantity Sold</th>
+                            <th>Total Revenue</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        @if (Model.TopProducts.Any())
+                        {
+                            int i = 0;
+                            @foreach (var product in Model.TopProducts)
+                            {
+                                i++;
+                                <tr>
+                                    <td>@i</td>
+                                    <td>@product.ProductName</td>
+                                    <td>@product.QuantitySold</td>
+                                    <td>@product.TotalRevenue.ToString("C")</td>
+                                </tr>
+                            }
+                        }
+                        else
+                        {
+                            <tr>
+                                <td colspan="4" class="text-center">No data available</td>
+                            </tr>
+                        }
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    </div>
+</div>
+
+@section Scripts {
+    <script src="~/assets/vendor/libs/chartjs/chart.min.js"></script>
+    <script>
+        // Sales Trend Chart
+        const salesTrendCtx = document.getElementById('salesTrendChart').getContext('2d');
+        new Chart(salesTrendCtx, {
+            type: 'line',
+            data: {
+                labels: [@Html.Raw(string.Join(",", Model.DailySales.Select(d => $"'{d.Date:MMM dd}'")))],
+                datasets: [{
+                    label: 'Sales Amount',
+                    data: [@Html.Raw(string.Join(",", Model.DailySales.Select(d => d.TotalAmount)))],
+                    borderColor: 'rgb(14, 165, 233)',
+                    backgroundColor: 'rgba(14, 165, 233, 0.1)',
+                    tension: 0.4,
+                    fill: true
+                }]
+            },
+            options: {
+                responsive: true,
+                plugins: {
+                    legend: {
+                        display: false
+                    }
+                },
+                scales: {
+                    y: {
+                        beginAtZero: true,
+                        ticks: {
+                            callback: function (value) {
+                                return 'PKR ' + value.toLocaleString();
+                            }
+                        }
+                    }
+                }
+            }
+        });
+
+        // Payment Method Chart
+        const paymentMethodCtx = document.getElementById('paymentMethodChart').getContext('2d');
+        new Chart(paymentMethodCtx, {
+            type: 'doughnut',
+            data: {
+                labels: [@Html.Raw(string.Join(",", Model.PaymentMethodBreakdown.Select(p => $"'{p.PaymentMethod}'")))],
+                datasets: [{
+                    data: [@Html.Raw(string.Join(",", Model.PaymentMethodBreakdown.Select(p => p.TotalAmount)))],
+                    backgroundColor: [
+                        'rgb(14, 165, 233)',
+                        'rgb(34, 197, 94)',
+                        'rgb(245, 158, 11)',
+                        'rgb(139, 92, 246)',
+                        'rgb(239, 68, 68)'
+                    ]
+                }]
+            },
+            options: {
+                responsive: true,
+                maintainAspectRatio: true
+            }
+        });
+    </script>
+}

@@ -1,0 +1,94 @@
+@model List<PharmaCare.Application.DTOs.POS.SaleHistoryDto>
+@{
+    ViewData["Title"] = "Select Sale for Return";
+}
+
+<div class="container-fluid p-0">
+    <!-- Page Header -->
+    <div class="d-flex justify-content-between align-items-center mb-3">
+        <h4><i class="fas fa-search me-2"></i>Select Sale for Return</h4>
+        <a href="@Url.Action("SalesReturnIndex")" class="btn btn-secondary">
+            <i class="fas fa-arrow-left me-1"></i> Back to Returns
+        </a>
+    </div>
+
+    <!-- Filters -->
+    <div class="card mb-3">
+        <div class="card-body">
+            <form method="get" class="row g-3">
+                <div class="col-md-4">
+                    <label class="form-label">Start Date</label>
+                    <input type="date" name="startDate" value="@ViewBag.StartDate" class="form-control" />
+                </div>
+                <div class="col-md-4">
+                    <label class="form-label">End Date</label>
+                    <input type="date" name="endDate" value="@ViewBag.EndDate" class="form-control" />
+                </div>
+                <div class="col-md-2 d-flex align-items-end">
+                    <button type="submit" class="btn btn-secondary w-100">
+                        <i class="fas fa-filter me-1"></i> Filter
+                    </button>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <!-- Sales Table -->
+    <div class="card">
+        <div class="card-header bg-primary text-white">
+            <h5 class="mb-0">Select a sale to process return</h5>
+        </div>
+        <div class="card-body p-0">
+            <table id="salesTable" class="table table-hover table-striped table-bordered dataTable">
+                <thead class="table-dark">
+                    <tr>
+                        <th>Sale #</th>
+                        <th>Date</th>
+                        <th>Customer</th>
+                        <th>Phone</th>
+                        <th>Total</th>
+                        <th>Items</th>
+                        <th>Status</th>
+                        <th>Action</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    @foreach (var sale in Model)
+                    {
+                        <tr>
+                            <td>@sale.SaleNumber</td>
+                            <td>@sale.SaleDate.ToString("dd-MMM-yyyy HH:mm")</td>
+                            <td>@sale.CustomerName</td>
+                            <td>@sale.CustomerPhone</td>
+                            <td class="text-end fw-bold">@sale.TotalAmount.ToString("N2")</td>
+                            <td class="text-center">@sale.ItemCount</td>
+                            <td>
+                                <span
+                                    class="badge @(sale.Status == "Completed" ? "bg-success" : sale.Status == "Returned" ? "bg-warning" : "bg-secondary")">
+                                    @sale.Status
+                                </span>
+                            </td>
+                            <td>
+                                <a href="@Url.Action("AddSalesReturn", new { saleId = Utility.EncryptURL(sale.SaleID.ToString()) })"
+                                    class="btn btn-sm btn-warning">
+                                    <i class="fas fa-undo me-1"></i> Return
+                                </a>
+                            </td>
+                        </tr>
+                    }
+                </tbody>
+            </table>
+        </div>
+    </div>
+</div>
+
+@section Scripts {
+    <script>
+        $(document).ready(function () {
+            $('#salesTable').DataTable({
+                order: [[1, 'desc']],
+                pageLength: 25
+            });
+        });
+    </script>
+}

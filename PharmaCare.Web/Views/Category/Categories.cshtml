@@ -1,0 +1,202 @@
+@using PharmaCare.Domain.Models.Configuration
+@using PharmaCare.Domain.ViewModels
+@using PharmaCare.Web.Utilities
+@model CategoriesViewModel
+
+@{
+    ViewData["Title"] = "Categories";
+}
+
+<!-- Add/Edit Category Card -->
+<div class="card card-outline rounded-0 card-navy mb-4">
+    <div class="card-header">
+        <h5 class="card-title mb-0">
+            <i class='bx @(Model.IsEditMode ? "bx-edit" : "bx-plus-circle") me-1'></i>
+            @(Model.IsEditMode ? "Edit Category" : "Add Category")
+        </h5>
+    </div>
+    <div class="card-body mt-2">
+        <form asp-action="@(Model.IsEditMode ? "EditCategory" : "AddCategory")" method="post">
+            @Html.AntiForgeryToken()
+            <input type="hidden" asp-for="CurrentCategory.CategoryID" />
+            <input type="hidden" asp-for="IsEditMode" />
+
+            <div asp-validation-summary="ModelOnly" class="alert alert-danger"></div>
+
+            <!-- Label Row -->
+            <div class="row">
+                <div class="col-md-3"><label class="form-label">Category Name</label></div>
+                <div class="col-md-2"><label class="form-label">Sales Account</label></div>
+                <div class="col-md-2"><label class="form-label">Stock Account</label></div>
+                <div class="col-md-2"><label class="form-label">COGS Account</label></div>
+                <div class="col-md-2"><label class="form-label">Damage Account</label></div>
+                <div class="col-md-1"></div>
+            </div>
+
+            <!-- Input and Button Row -->
+            <div class="row">
+                <div class="col-md-3 col-lg-3 mb-2">
+                    <input asp-for="CurrentCategory.CategoryName" class="form-control"
+                        placeholder="Enter Category Name" autofocus />
+                    <span asp-validation-for="CurrentCategory.CategoryName" class="text-danger small"></span>
+                </div>
+                <div class="col-md-2 col-lg-2 mb-2">
+                    <select asp-for="CurrentCategory.SaleAccount_ID" asp-items="Model.SaleAccounts"
+                        class="form-select select2">
+                        <option value="">-- Select Account -- </option>
+                    </select>
+                </div>
+                <div class="col-md-2 col-lg-2 mb-2">
+                    <select asp-for="CurrentCategory.StockAccount_ID" asp-items="Model.StockAccounts"
+                        class="form-select select2">
+                        <option value="">-- Select Account --</option>
+                    </select>
+                </div>
+                <div class="col-md-2 col-lg-2 mb-2">
+                    <select asp-for="CurrentCategory.COGSAccount_ID" asp-items="Model.COGSAccounts"
+                        class="form-select select2">
+                        <option value="">-- Select Account --</option>
+                    </select>
+                </div>
+                <div class="col-md-2 col-lg-2 mb-2">
+                    <select asp-for="CurrentCategory.DamageExpenseAccount_ID"
+                        asp-items="Model.DamageExpenseAccounts" class="form-select select2">
+                        <option value="">-- Select Account --</option>
+                    </select>
+                </div>
+
+                <div class="col-md-1 col-lg-1 mb-2">
+                    <div class="d-flex gap-2">
+                        <button type="submit" class="btn @(Model.IsEditMode ? "btn-info" : "btn-success")">
+                            <i class='bx @(Model.IsEditMode ? "bx-check" : "bx-plus") me-1'></i>
+                            @(Model.IsEditMode ? "Update" : "Add")
+                        </button>
+                        @if (Model.IsEditMode)
+                        {
+                            <a asp-action="Categories" class="btn btn-secondary">
+                                <i class='bx bx-x'></i>
+                            </a>
+                        }
+                    </div>
+                </div>
+            </div>
+        </form>
+    </div>
+</div>
+
+<!-- Categories List Card -->
+<div class="card card-outline rounded-0 card-navy">
+    <div class="card-header">
+        <h5 class="card-title mb-0">
+            <i class='bx bx-list-ul me-1'></i> Category List
+        </h5>
+    </div>
+    <div class="card-body p-0">
+        @if (Model.CategoryList.Any())
+        {
+            <div class="table-responsive">
+                <table class="table table-hover table-striped table-bordered dataTable">
+                    <thead class="table-dark">
+                        <tr>
+                            <th>S.No</th>
+                            <th>Category Name</th>
+                            <th>Status</th>
+                            <th>Actions</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        @{
+                            int index = 1;
+                        }
+                        @foreach (var item in Model.CategoryList)
+                        {
+                            <tr class="@(!item.IsActive ? "table-secondary" : "")">
+                                <td>
+                                    <span class="badge bg-light text-dark">@index</span>
+                                </td>
+                                <td>
+                                    <strong>@item.CategoryName</strong>
+                                </td>
+                                <td>
+                                    @if (item.IsActive)
+                                    {
+                                        <span class="badge bg-success"><i class='bx bx-check-circle me-1'></i>Active</span>
+                                    }
+                                    else
+                                    {
+                                        <span class="badge bg-danger"><i class='bx bx-x-circle me-1'></i>Inactive</span>
+                                    }
+                                </td>
+                                <td>
+                                    <div class="d-flex gap-2">
+                                        <a asp-action="EditCategory"
+                                            asp-route-id="@Utility.EncryptURL(item.CategoryID.ToString2())"
+                                            class="btn btn-sm btn-info text-white" title="Edit">
+                                            <i class='bx bx-edit'></i>
+                                        </a>
+                                        <form asp-action="DeleteCategory"
+                                            asp-route-id="@Utility.EncryptURL(item.CategoryID.ToString2())" method="post"
+                                            class="d-inline">
+                                            @Html.AntiForgeryToken()
+                                            <button type="button"
+                                                class="btn btn-sm @(item.IsActive ? "btn-warning" : "btn-success") delete-btn"
+                                                title="@(item.IsActive ? "Deactivate" : "Activate")"
+                                                data-name="@item.CategoryName" data-active="@item.IsActive">
+                                                <i class='bx @(item.IsActive ? "bx-power-off" : "bx-check")'></i>
+                                            </button>
+                                        </form>
+                                    </div>
+                                </td>
+                            </tr>
+                            index++;
+                        }
+                    </tbody>
+                </table>
+            </div>
+        }
+        else
+        {
+            <div class="text-center py-5">
+                <i class='bx bx-category display-1 text-muted'></i>
+                <p class="text-muted mt-3">No categories found.</p>
+            </div>
+        }
+    </div>
+</div>
+
+@section Scripts {
+    <partial name="_ValidationScriptsPartial" />
+    <script>
+        $(document).ready(function () {
+            $('.delete-btn').click(function (e) {
+                e.preventDefault();
+                var form = $(this).closest('form');
+                var name = $(this).data('name');
+                var isActive = $(this).data('active') === 'True';
+                var action = isActive ? "Deactivate" : "Activate";
+                var btnColor = isActive ? "#d33" : "#28a745";
+
+                Swal.fire({
+                    title: `${action} Category?`,
+                    text: `Are you sure you want to ${action.toLowerCase()} "${name}"?`,
+                    icon: 'warning',
+                    showCancelButton: true,
+                    confirmButtonColor: btnColor,
+                    cancelButtonColor: "#6B7280",
+                    confirmButtonText: `Yes, ${action}!`
+                }).then(function (result) {
+                    if (result.value) {
+                        form.submit();
+                    }
+                });
+            });
+
+        @if (Model.IsEditMode)
+        {
+            <text>
+                        $('#CurrentCategory_CategoryName').focus().select();
+            </text>
+        }
+                });
+    </script>
+}

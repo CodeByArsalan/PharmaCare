@@ -1,0 +1,60 @@
+@model IEnumerable<PharmaCare.Domain.Models.Inventory.StockTake>
+
+@{
+    ViewData["Title"] = "Stock Takes";
+}
+
+
+<div class="card rounded-0">
+    <div class="card-header d-flex justify-content-between align-items-center">
+        <h4 class="mb-0">Stock Take History</h4>
+        <a asp-action="AddStockTake" class="btn btn-primary">
+            <i class="bx bx-plus me-1"></i> New Stock Take
+        </a>
+    </div>
+    <div class="card-body p-0">
+        <div class="table-responsive">
+            <table class="table table-hover table-striped table-bordered dataTable" id="stockTakesTable">
+                <thead class="table-dark">
+                    <tr>
+                        <th>Date</th>
+                        <th>Store</th>
+                        <th>Status</th>
+                        <th>Remarks</th>
+                        <th>Actions</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    @foreach (var item in Model)
+                    {
+                        <tr>
+                            <td>@item.CreatedDate.ToShortDateString()</td>
+                            <td>@(item.Store?.Name ?? item.Store_ID.ToString())</td>
+                            <td>
+                                <span class="badge bg-@(item.Status == "Open" ? "primary" : "success")">@item.Status</span>
+                            </td>
+                            <td>@item.Remarks</td>
+                            <td>
+                                <a asp-action="StockTakeDetails"
+                                    asp-route-id="@Utility.EncryptURL(item.StockTakeID.ToString2())"
+                                    class="btn btn-sm btn-info">
+                                    <i class="bx bx-show"></i>
+                                </a>
+                                @if (item.Status == "Open")
+                                {
+                                    <form asp-action="Complete" asp-route-id="@Utility.EncryptURL(item.StockTakeID.ToString2())"
+                                        method="post" class="d-inline"
+                                        onsubmit="return confirm('Complete this stock take and post adjustments?');">
+                                        <button type="submit" class="btn btn-sm btn-success">
+                                            <i class="bx bx-check-circle"></i> Complete
+                                        </button>
+                                    </form>
+                                }
+                            </td>
+                        </tr>
+                    }
+                </tbody>
+            </table>
+        </div>
+    </div>
+</div>

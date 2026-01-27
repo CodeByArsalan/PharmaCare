@@ -1,0 +1,302 @@
+@model PharmaCare.Domain.Models.Inventory.StockTake
+
+@{
+    ViewData["Title"] = "Stock Take Details";
+}
+
+<div class="container-fluid p-0">
+    <!-- Header -->
+    <div class="d-flex justify-content-between align-items-center mb-4 text-start">
+        <div>
+            <h4 class="fw-bold mb-0">#@Model.StockTakeID</h4>
+            <p class="text-muted small mb-0">Stock Take Details & Physical Reconciliation</p>
+        </div>
+        <div class="d-flex align-items-center gap-2">
+            <a asp-action="StockTakeIndex" class="btn btn-outline-secondary">
+                <i class="bx bx-arrow-back me-1"></i> Back
+            </a>
+            @if (Model.Status == "Open")
+            {
+                <form id="completeStockTakeForm" asp-action="Complete" asp-route-id="@Model.StockTakeID" method="post" class="d-inline">
+                    <button type="button" class="btn btn-success" id="btnCompletePost">
+                        <i class="bx bx-check-double me-1"></i> Complete & Post
+                    </button>
+                </form>
+            }
+            <span class="badge bg-@(Model.Status == "Open" ? "label-primary" : "label-success") fs-6 px-3">@Model.Status</span>
+        </div>
+    </div>
+
+    <!-- Process Overview Stats -->
+    <div class="row mb-4">
+        <div class="col-md-3">
+            <div class="card shadow-sm border-0 h-100">
+                <div class="card-body">
+                    <div class="d-flex align-items-center mb-2">
+                        <div class="badge bg-label-info p-2 rounded me-3"><i class="bx bx-store fs-4"></i></div>
+                        <h6 class="mb-0">Location</h6>
+                    </div>
+                    <h5 class="fw-bold mb-0">@(Model.Store?.Name ?? Model.Store_ID.ToString())</h5>
+                    <small class="text-muted">@Model.CreatedDate.ToString("dd MMM yyyy")</small>
+                </div>
+            </div>
+        </div>
+        <div class="col-md-3">
+            <div class="card shadow-sm border-0 h-100">
+                <div class="card-body">
+                    <div class="d-flex align-items-center mb-2">
+                        <div class="badge bg-label-primary p-2 rounded me-3"><i class="bx bx-list-check fs-4"></i></div>
+                        <h6 class="mb-0">Total Items</h6>
+                    </div>
+                    <h5 class="fw-bold mb-0">@Model.StockTakeItems.Count</h5>
+                    <small class="text-muted">System records found</small>
+                </div>
+            </div>
+        </div>
+        <div class="col-md-3">
+            <div class="card shadow-sm border-0 h-100">
+                <div class="card-body">
+                    <div class="d-flex align-items-center mb-2">
+                        <div class="badge bg-label-warning p-2 rounded me-3"><i class="bx bx-analyse fs-4"></i></div>
+                        <h6 class="mb-0">Count Progress</h6>
+                    </div>
+                    @{
+                        var countedCount = Model.StockTakeItems.Count(i => i.PhysicalQuantity > 0);
+                        var progressPct = Model.StockTakeItems.Any() ? (countedCount * 100) / Model.StockTakeItems.Count : 0;
+                    }
+                    <h5 class="fw-bold mb-1">@progressPct%</h5>
+                    <div class="progress" style="height: 6px;">
+                        <div class="progress-bar bg-warning" role="progressbar" style="width: @progressPct%" aria-valuenow="@progressPct" aria-valuemin="0" aria-valuemax="100"></div>
+                    </div>
+                </div>
+            </div>
+        </div>
+        <div class="col-md-3">
+            @{
+                var totalVariancePct = Model.StockTakeItems.Any() ? 
+                    (Model.StockTakeItems.Sum(i => Math.Abs(i.PhysicalQuantity - i.SystemQuantity)) * 100) / Model.StockTakeItems.Sum(i => i.SystemQuantity == 0 ? 1 : i.SystemQuantity) : 0;
+            }
+            <div class="card shadow-sm border-0 h-100 bg-label-danger">
+                <div class="card-body">
+                    <div class="d-flex align-items-center mb-2">
+                        <div class="badge bg-white text-danger p-2 rounded me-3"><i class="bx bx-error-alt fs-4"></i></div>
+                        <h6 class="mb-0 text-danger">Total Variance</h6>
+                    </div>
+                    <h5 class="fw-bold mb-0 text-danger">@totalVariancePct%</h5>
+                    <small class="text-muted">Total physical vs system</small>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Integrated Scanner Area -->
+    <div class="card shadow-sm border-0 mb-4 bg-primary text-white">
+        <div class="card-body py-3 px-4">
+            <div class="row align-items-center">
+                <div class="col-md-5">
+                    <div class="d-flex align-items-center gap-3">
+                        <div class="bg-white text-primary rounded p-2"><i class="bx bx-barcode-reader fs-3"></i></div>
+                        <div>
+                            <h6 class="mb-0 text-white fw-bold">Active Batch Scanning</h6>
+                            <small class="text-white-50">Focus here to reconcile via barcode</small>
+                        </div>
+                    </div>
+                </div>
+                <div class="col-md-7">
+                    <div class="input-group input-group-merge shadow-none border-0">
+                        <span class="input-group-text bg-white border-0 text-primary"><i class="bx bx-search"></i></span>
+                        <input type="text" id="barcodeScanner" class="form-control border-0 py-2" placeholder="Scan Item Barcode (Focuses matching row)..." autofocus />
+                        <button class="btn btn-light" type="button" onclick="document.getElementById('barcodeScanner').value = ''; document.getElementById('barcodeScanner').focus();">Clear</button>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Items Table -->
+    <div class="card shadow-sm border-0">
+        <div class="card-header border-bottom bg-transparent d-flex justify-content-between align-items-center">
+            <h5 class="card-title mb-0">Reconciliation Worksheet</h5>
+            @if (!string.IsNullOrEmpty(Model.Remarks))
+            {
+                <span class="text-muted small"><strong>Notes:</strong> @Model.Remarks</span>
+            }
+        </div>
+        <div class="card-body p-0">
+            <div class="table-responsive text-nowrap">
+                @if (!Model.StockTakeItems.Any())
+                {
+                    <div class="p-5 text-center">
+                        <div class="badge bg-label-warning p-3 rounded-circle mb-3"><i class="bx bx-ghost fs-1"></i></div>
+                        <h4>No items to count</h4>
+                        <p class="text-muted">System inventory records for this store are currently empty.</p>
+                    </div>
+                }
+                else
+                {
+                    <table class="table table-hover align-middle mb-0">
+                        <thead class="bg-light">
+                            <tr>
+                                <th class="ps-4">Product Detail</th>
+                                <th>Batch No</th>
+                                <th class="text-center">System Qty</th>
+                                <th class="text-center" style="width: 160px;">Physical Qty</th>
+                                <th class="text-center">Variance</th>
+                                <th class="text-end pe-4">Estimated Value</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            @foreach (var item in Model.StockTakeItems)
+                            {
+                                var variance = item.PhysicalQuantity - item.SystemQuantity;
+                                var varClass = variance < 0 ? "text-danger" : (variance > 0 ? "text-success" : "text-muted");
+                                var productName = item.ProductBatch?.Product?.ProductName ?? $"Unknown Item (Batch ID: {item.ProductBatch_ID})";
+                                var batchNo = item.ProductBatch?.BatchNumber ?? "N/A";
+                                
+                                <tr data-barcode="@(item.ProductBatch?.Product?.Barcode ?? "")">
+                                    <td class="ps-4">
+                                        <div class="d-flex flex-column">
+                                            <span class="fw-bold text-heading">@productName</span>
+                                            <small class="text-muted">Barcode: @(item.ProductBatch?.Product?.Barcode ?? "N/A")</small>
+                                        </div>
+                                    </td>
+                                    <td><span class="badge bg-label-info">@batchNo</span></td>
+                                    <td class="text-center fw-medium">@item.SystemQuantity</td>
+                                    <td class="text-center">
+                                        @if (Model.Status == "Open")
+                                        {
+                                            <input type="number" class="form-control form-control-sm text-center fw-bold border-primary-focus" value="@item.PhysicalQuantity"
+                                                onchange="updateQty(@item.StockTakeItemID, this.value, @item.SystemQuantity, this)" />
+                                        }
+                                        else
+                                        {
+                                            <span class="fw-bold">@item.PhysicalQuantity</span>
+                                        }
+                                    </td>
+                                    <td class="text-center @varClass fw-bold" id="var-@item.StockTakeItemID">
+                                        @(variance > 0 ? "+" : "")@variance
+                                    </td>
+                                    <td class="text-end pe-4 fw-bold">@item.VarianceCost.ToString("C")</td>
+                                </tr>
+                            }
+                        </tbody>
+                    </table>
+                }
+            </div>
+        </div>
+    </div>
+</div>
+
+<style>
+    .bg-label-primary { background-color: #E0F2FE !important; color: #0EA5E9 !important; }
+    .bg-label-success { background-color: #DCFCE7 !important; color: #22C55E !important; }
+    .bg-label-danger { background-color: #FEE2E2 !important; color: #EF4444 !important; }
+    .bg-label-warning { background-color: #FEF3C7 !important; color: #F59E0B !important; }
+    .bg-label-info { background-color: #E0E7FF !important; color: #8B5CF6 !important; }
+    .bg-label-secondary { background-color: #F1F5F9 !important; color: #64748B !important; }
+    .text-heading { color: #0C4A6E; }
+    .text-white-50 { color: rgba(255, 255, 255, 0.7) !important; }
+    .border-primary-focus:focus { border-color: #0EA5E9; box-shadow: 0 0 0.25rem rgba(14, 165, 233, 0.25); }
+    tr.table-active { background-color: #E0F2FE !important; }
+</style>
+
+@section Scripts {
+    <script>
+        $(document).ready(function() {
+            $('#btnCompletePost').on('click', function(e) {
+                confirmPosting();
+            });
+        });
+
+        function confirmPosting() {
+            Swal.fire({
+                title: 'Confirm Stock Take?',
+                text: "This will adjust system inventory to match physical counts. This action is final!",
+                icon: 'warning',
+                showCancelButton: true,
+                confirmButtonColor: '#22C55E',
+                cancelButtonColor: '#64748B',
+                confirmButtonText: 'Yes, Post Adjustments!',
+                customClass: {
+                    confirmButton: 'btn btn-success me-3',
+                    cancelButton: 'btn btn-outline-secondary'
+                },
+                buttonsStyling: false
+            }).then((result) => {
+                if (result.isConfirmed) {
+                    document.getElementById('completeStockTakeForm').submit();
+                }
+            });
+        }
+
+        async function updateQty(itemId, qty, sysQty, inputElem) {
+            try {
+                let variance = qty - sysQty;
+                let varCell = document.getElementById('var-' + itemId);
+                varCell.innerText = (variance > 0 ? '+' : '') + variance;
+                varCell.className = 'text-center fw-bold ' + (variance < 0 ? 'text-danger' : (variance > 0 ? 'text-success' : 'text-muted'));
+
+                const response = await fetch('/StockTake/UpdateItem', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ itemID: itemId, physicalQty: parseInt(qty) })
+                });
+
+                if (response.ok) {
+                    inputElem.classList.add('border-success');
+                    setTimeout(() => inputElem.classList.remove('border-success'), 1000);
+                } else {
+                    inputElem.classList.add('border-danger');
+                }
+            } catch (err) {
+                console.error(err);
+            }
+        }
+
+        // Barcode Scanner Logic
+        document.addEventListener('DOMContentLoaded', function () {
+            const barcodeInput = document.getElementById('barcodeScanner');
+
+            barcodeInput.addEventListener('keydown', function (e) {
+                if (e.key === 'Enter') {
+                    e.preventDefault();
+                    handleScan(this.value.trim());
+                }
+            });
+
+            function handleScan(code) {
+                if (!code) return;
+                const row = document.querySelector(`tr[data-barcode="${code}"]`);
+                if (row) {
+                    document.querySelectorAll('tr.table-active').forEach(r => r.classList.remove('table-active'));
+                    row.classList.add('table-active');
+                    row.scrollIntoView({ behavior: 'smooth', block: 'center' });
+
+                    const qtyInput = row.querySelector('input[type="number"]');
+                    if (qtyInput) {
+                        setTimeout(() => {
+                            qtyInput.focus();
+                            qtyInput.select();
+                        }, 100);
+                        setupQtyReturn(qtyInput);
+                    }
+                    barcodeInput.value = '';
+                } else {
+                    barcodeInput.select();
+                }
+            }
+
+            function setupQtyReturn(input) {
+                if (input.dataset.hasReturnListener) return;
+                input.addEventListener('keydown', function (e) {
+                    if (e.key === 'Enter') {
+                        e.preventDefault();
+                        this.blur();
+                        barcodeInput.focus();
+                    }
+                });
+                input.dataset.hasReturnListener = "true";
+            }
+        });
+    </script>
+}

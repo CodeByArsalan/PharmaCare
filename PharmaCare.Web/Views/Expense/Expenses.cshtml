@@ -1,0 +1,106 @@
+@model List<PharmaCare.Domain.Models.Finance.Expense>
+@inject PharmaCare.Infrastructure.Interfaces.IComboBoxRepository _comboBox
+
+@{
+    ViewData["Title"] = "Expenses";
+    Layout = "~/Views/Shared/_Layout.cshtml";
+    var selectedCategory = ViewBag.SelectedCategory as int?;
+    var fromDate = ViewBag.FromDate as DateTime?;
+    var toDate = ViewBag.ToDate as DateTime?;
+    int RowNo = 0;
+}
+
+<div class="card card-outline rounded-0 card-navy">
+    <div class="card-header d-flex justify-content-between align-items-center">
+        <h3 class="card-title">Expenses</h3>
+        <div class="card-tools">
+            <a asp-action="AddExpense" class="btn btn-flat btn-primary">
+                <span class="fas fa-plus"></span> Add Expense
+            </a>
+            <a asp-action="ExpenseCategories" class="btn btn-flat btn-secondary">
+                <span class="fas fa-tags"></span> Categories
+            </a>
+            <a asp-action="ExpenseReport" class="btn btn-flat btn-info">
+                <span class="fas fa-chart-pie"></span> Summary
+            </a>
+        </div>
+    </div>
+    <div class="card-body p-0">
+        <!-- Filters -->
+        <form method="get" class="mb-4">
+            <div class="row m-1 g-2">
+                <div class="col-md-3">
+                    <select name="categoryId" class="form-select"
+                        asp-items="@_comboBox.GetExpenseCategories(selectedCategory)">
+                        <option value="">All Categories</option>
+                    </select>
+                </div>
+                <div class="col-md-3">
+                    <input type="date" name="fromDate" class="form-control" value="@fromDate?.ToString("yyyy-MM-dd")" />
+                </div>
+                <div class="col-md-3">
+                    <input type="date" name="toDate" class="form-control" value="@toDate?.ToString("yyyy-MM-dd")" />
+                </div>
+                <div class="col-md-3">
+                    <button type="submit" class="btn btn-primary">Filter</button>
+                    <a asp-action="Expenses" class="btn btn-secondary">Reset</a>
+                </div>
+            </div>
+        </form>
+
+        <table class="table table-hover table-striped table-bordered dataTable" id="expensesTable">
+            <thead>
+                <tr>
+                    <th>S.No</th>
+                    <th>Date</th>
+                    <th>Category</th>
+                    <th>Description</th>
+                    <th>Vendor</th>
+                    <th>Payment Account</th>
+                    <th class="text-end">Amount</th>
+                    <th>Action</th>
+                </tr>
+            </thead>
+            <tbody>
+                @if (Model != null && Model.Any())
+                {
+                    @foreach (var item in Model)
+                    {
+                        RowNo++;
+                        <tr>
+                            <td>@RowNo</td>
+                            <td>@item.ExpenseDate.ToString("dd MMM yyyy")</td>
+                            <td>@item.ExpenseCategory?.Name</td>
+                            <td>@item.Description</td>
+                            <td>@item.VendorName</td>
+                            <td>
+                                <span class="badge bg-primary">@(item.SourceAccount?.AccountName ?? "N/A")</span>
+                            </td>
+                            <td class="text-end text-danger">@item.Amount.ToString("C")</td>
+                            <td>
+                                <a asp-action="EditExpense" asp-route-id="@item.ExpenseID"
+                                    class="btn btn-sm btn-info text-white">
+                                    <i class="bx bx-edit"></i>
+                                </a>
+                                <form asp-action="DeleteExpense" asp-route-id="@item.ExpenseID" method="post" class="d-inline"
+                                    onsubmit="return confirm('Are you sure you want to delete this expense?');">
+                                    <button type="submit" class="btn btn-sm btn-danger"><i class="bx bx-trash"></i></button>
+                                </form>
+                            </td>
+                        </tr>
+                    }
+                }
+            </tbody>
+            @if (Model != null && Model.Any())
+            {
+                <tfoot>
+                    <tr class="table-warning">
+                        <td colspan="6" class="text-end"><strong>Total:</strong></td>
+                        <td class="text-end text-danger"><strong>@Model.Sum(m => m.Amount).ToString("C")</strong></td>
+                        <td></td>
+                    </tr>
+                </tfoot>
+            }
+        </table>
+    </div>
+</div>

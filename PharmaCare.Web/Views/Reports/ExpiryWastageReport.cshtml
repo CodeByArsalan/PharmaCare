@@ -1,0 +1,136 @@
+@using PharmaCare.Domain.Models.Configuration
+@model PharmaCare.Application.DTOs.Reports.ExpiryWastageReportDto
+@{
+    ViewData["Title"] = "Expiry & Wastage Report";
+}
+
+<div class="container-fluid flex-grow-1 p-0">
+    <div class="row align-items-center mb-4">
+        <div class="col-md-3">
+            <h4 class="fw-bold mb-1"><i class='bx bx-error-circle text-danger'></i> Expiry & Wastage Report</h4>
+            <p class="text-muted mb-0">Track expired and near-expiry inventory</p>
+        </div>
+        <div class="col-md-9">
+            <div class="d-flex flex-wrap gap-3 align-items-center justify-content-end">
+                <form method="get" asp-action="ExpiryWastageReport" class="d-flex gap-2 align-items-center">
+                    <label class="form-label mb-0">Store:</label>
+                    <div style="min-width: 300px;">
+                        <select name="storeId" class="form-select form-select-lg" onchange="this.form.submit()">
+                            @if (ViewBag.IsAdmin == true)
+                            {
+                                <option value="">All Stores</option>
+                            }
+                            @if (ViewBag.Stores != null)
+                            {
+                                foreach (var store in (IEnumerable<Store>)ViewBag.Stores)
+                                {
+                                    if (ViewBag.SelectedStoreId == store.StoreID)
+                                    {
+                                        <option value="@Utility.EncryptURL(store.StoreID.ToString2())" selected>@store.Name</option>
+                                    }
+                                    else
+                                    {
+                                        <option value="@Utility.EncryptURL(store.StoreID.ToString2())">@store.Name</option>
+                                    }
+                                }
+                            }
+                        </select>
+                    </div>
+                    <button type="submit" class="btn btn-primary btn-lg" style="min-width: 100px;">Filter</button>
+                </form>
+            </div>
+        </div>
+    </div>
+
+    <div class="row mb-4">
+        <div class="col-md-3">
+            <div class="card bg-danger bg-opacity-10 border-0">
+                <div class="card-body text-center">
+                    <h3 class="text-white fw-bold">@Model.ExpiredItemCount</h3>
+                    <small class="text-muted">Expired Items</small>
+                </div>
+            </div>
+        </div>
+        <div class="col-md-3">
+            <div class="card bg-danger bg-opacity-10 border-0">
+                <div class="card-body text-center">
+                    <h3 class="text-white fw-bold">Rs. @Model.TotalExpiredValue.ToString("N0")</h3>
+                    <small class="text-muted">Expired Value (Loss)</small>
+                </div>
+            </div>
+        </div>
+        <div class="col-md-3">
+            <div class="card bg-warning bg-opacity-10 border-0">
+                <div class="card-body text-center">
+                    <h3 class="text-white fw-bold">@Model.NearExpiryCount</h3>
+                    <small class="text-muted">Expiring within 90 days</small>
+                </div>
+            </div>
+        </div>
+        <div class="col-md-3">
+            <div class="card bg-warning bg-opacity-10 border-0">
+                <div class="card-body text-center">
+                    <h3 class="text-white fw-bold">Rs. @Model.NearExpiryValue.ToString("N0")</h3>
+                    <small class="text-muted">At-Risk Value</small>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    @if (Model.ExpiredItems.Any())
+    {
+        <div class="card mb-4 border-danger">
+            <div class="card-header bg-danger text-white">
+                <h5 class="mb-0"><i class='bx bx-x-circle'></i> Expired Items</h5>
+            </div>
+            <div class="card-body">
+                <table class="table table-sm">
+                    <thead class="table-dark">
+                        <tr>
+                            <th>Product</th>
+                            <th>Batch</th>
+                            <th>Expired On</th>
+                            <th>Days Expired</th>
+                            <th>Qty</th>
+                            <th class="text-end">Loss Value</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        @foreach (var item in Model.ExpiredItems.Take(20))
+                        {
+                            <tr>
+                                <td><strong>@item.ProductName</strong></td>
+                                <td>@item.BatchNumber</td>
+                                <td>@item.ExpiryDate.ToString("MMM dd, yyyy")</td>
+                                <td><span class="badge bg-danger">@item.DaysExpired days</span></td>
+                                <td>@item.Quantity</td>
+                                <td class="text-end text-danger fw-bold">Rs. @item.TotalValue.ToString("N0")</td>
+                            </tr>
+                        }
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    }
+
+    <ul class="nav nav-tabs mb-3" role="tablist">
+        <li class="nav-item"><a class="nav-link active" data-bs-toggle="tab" href="#tab30">Next 30 Days
+                (@Model.NearExpiryItems30Days.Count)</a></li>
+        <li class="nav-item"><a class="nav-link" data-bs-toggle="tab" href="#tab60">Next 60 Days
+                (@Model.NearExpiryItems60Days.Count)</a></li>
+        <li class="nav-item"><a class="nav-link" data-bs-toggle="tab" href="#tab90">Next 90 Days
+                (@Model.NearExpiryItems90Days.Count)</a></li>
+    </ul>
+
+    <div class="tab-content">
+        <div class="tab-pane fade show active" id="tab30">
+            @await Html.PartialAsync("_NearExpiryTable", Model.NearExpiryItems30Days)
+        </div>
+        <div class="tab-pane fade" id="tab60">
+            @await Html.PartialAsync("_NearExpiryTable", Model.NearExpiryItems60Days)
+        </div>
+        <div class="tab-pane fade" id="tab90">
+            @await Html.PartialAsync("_NearExpiryTable", Model.NearExpiryItems90Days)
+        </div>
+    </div>
+</div>

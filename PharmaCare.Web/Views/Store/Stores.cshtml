@@ -1,0 +1,191 @@
+@using PharmaCare.Domain.Models.Configuration
+@using PharmaCare.Domain.ViewModels
+@using PharmaCare.Web.Utilities
+@model StoresViewModel
+
+@{
+    ViewData["Title"] = "Stores";
+}
+
+<!-- Add/Edit Store Card -->
+<div class="card card-outline rounded-0 card-navy mb-4">
+    <div class="card-header">
+        <h5 class="card-title mb-0">
+            <i class='bx @(Model.IsEditMode ? "bx-edit" : "bx-plus-circle") me-1'></i>
+            @(Model.IsEditMode ? "Edit Store" : "Add Store")
+        </h5>
+    </div>
+    <div class="card-body mt-2">
+        <form asp-action="@(Model.IsEditMode ? "EditStore" : "AddStore")" method="post" id="storeForm">
+            @Html.AntiForgeryToken()
+            <input type="hidden" asp-for="CurrentStore.StoreID" />
+            <input type="hidden" asp-for="IsEditMode" />
+
+            <div asp-validation-summary="ModelOnly" class="alert alert-danger"></div>
+
+            <!-- Label Row -->
+            <div class="row">
+                <div class="col-md-5">
+                    <label asp-for="CurrentStore.Name" class="form-label">Store Name <span
+                            class="text-danger">*</span></label>
+                </div>
+                <div class="col-md-5">
+                    <label asp-for="CurrentStore.Code" class="form-label">Store Code <span
+                            class="text-danger">*</span></label>
+                </div>
+            </div>
+
+            <!-- Input and Button Row -->
+            <div class="row">
+                <div class="col-md-5 col-lg-5">
+                    <div class="input-group input-group-merge">
+                        <span class="input-group-text"><i class="bx bx-store"></i></span>
+                        <input asp-for="CurrentStore.Name" class="form-control" placeholder="e.g. Main Branch"
+                            autofocus />
+                    </div>
+                </div>
+                <div class="col-md-5 col-lg-5">
+                    <div class="input-group input-group-merge">
+                        <span class="input-group-text"><i class="bx bx-hash"></i></span>
+                        <input asp-for="CurrentStore.Code" class="form-control" placeholder="e.g. STR-001" />
+                    </div>
+                </div>
+                <div class="col-md-2 col-lg-2">
+                    <div class="d-flex gap-2">
+                        <button type="submit" class="btn @(Model.IsEditMode ? "btn-info" : "btn-success")">
+                            <i class='bx @(Model.IsEditMode ? "bx-check" : "bx-plus") me-1'></i>
+                            @(Model.IsEditMode ? "Update" : "Add")
+                        </button>
+                        @if (Model.IsEditMode)
+                        {
+                            <a asp-action="Stores" class="btn btn-secondary">
+                                <i class='bx bx-x me-1'></i> Cancel
+                            </a>
+                        }
+                    </div>
+                </div>
+            </div>
+
+            <!-- Validation Message Row -->
+            <div class="row">
+                <div class="col-md-5">
+                    <span asp-validation-for="CurrentStore.Name" class="text-danger small"></span>
+                </div>
+                <div class="col-md-5">
+                    <span asp-validation-for="CurrentStore.Code" class="text-danger small"></span>
+                </div>
+            </div>
+        </form>
+    </div>
+</div>
+
+<!-- Stores List Card -->
+<div class="card card-outline rounded-0 card-navy">
+    <div class="card-header">
+        <h5 class="card-title mb-0">
+            <i class='bx bx-list-ul me-1'></i> Store List
+        </h5>
+    </div>
+    <div class="card-body p-0">
+        @if (Model.StoreList.Any())
+        {
+            <div class="table-responsive">
+                <table class="table table-hover table-striped table-bordered dataTable" id="userTypesTable">
+                    <thead class="table-dark">
+                        <tr>
+                            <th>S.No</th>
+                            <th>Store Name</th>
+                            <th>Code</th>
+                            <th>Actions</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        @{
+                            int index = 1;
+                        }
+                        @foreach (var store in Model.StoreList)
+                        {
+                            <tr>
+                                <td>
+                                    <span class="badge bg-light text-dark">@index</span>
+                                </td>
+                                <td>
+                                    <div class="d-flex align-items-center">
+                                        <div class="icon-circle icon-circle-blue me-3">
+                                            <i class='bx bx-store-alt'></i>
+                                        </div>
+                                        <strong>@store.Name</strong>
+                                    </div>
+                                </td>
+                                <td>
+                                    <span class="badge bg-label-primary">@store.Code</span>
+                                </td>
+                                <td>
+                                    <div class="d-flex gap-2">
+                                        <a asp-action="EditStore" asp-route-id="@Utility.EncryptURL(store.StoreID.ToString2())"
+                                            class="btn btn-sm btn-info text-white" title="Edit">
+                                            <i class='bx bx-edit'></i>
+                                        </a>
+                                        <form asp-action="DeleteStore"
+                                            asp-route-id="@Utility.EncryptURL(store.StoreID.ToString2())" method="post"
+                                            class="d-inline">
+                                            @Html.AntiForgeryToken()
+                                            <button type="button" class="btn btn-danger btn-sm delete-btn" title="Delete"
+                                                data-name="@store.Name">
+                                                <i class="bx bx-trash"></i>
+                                            </button>
+                                        </form>
+                                    </div>
+                                </td>
+                            </tr>
+                            index++;
+                        }
+                    </tbody>
+                </table>
+            </div>
+        }
+        else
+        {
+            <div class="text-center py-5">
+                <i class='bx bx-store display-1 text-muted'></i>
+                <p class="text-muted mt-3">No stores found. Add your first store using the form above.</p>
+            </div>
+        }
+    </div>
+</div>
+
+@section Scripts {
+    <partial name="_ValidationScriptsPartial" />
+    <script>
+        $(document).ready(function () {
+            // Delete confirmation with SweetAlert
+            $('.delete-btn').click(function (e) {
+                e.preventDefault();
+                var form = $(this).closest('form');
+                var name = $(this).data('name');
+
+                Swal.fire({
+                    title: "Delete Store?",
+                    text: `Are you sure you want to delete "${name}"? This action cannot be undone.`,
+                    icon: 'warning',
+                    showCancelButton: true,
+                    confirmButtonColor: "#EF4444",
+                    cancelButtonColor: "#6B7280",
+                    confirmButtonText: "Yes, Delete!"
+                }).then(function (result) {
+                    if (result.value) {
+                        form.submit();
+                    }
+                });
+            });
+
+            // Focus on input if in edit mode
+        @if (Model.IsEditMode)
+        {
+            <text>
+                        $('#CurrentStore_Name').focus().select();
+            </text>
+        }
+            });
+    </script>
+}

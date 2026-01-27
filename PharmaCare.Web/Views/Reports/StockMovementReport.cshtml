@@ -1,0 +1,206 @@
+@using PharmaCare.Domain.Models.Configuration
+@model List<PharmaCare.Application.DTOs.Reports.StockMovementDto>
+
+@{
+    ViewData["Title"] = "Stock Movement Report";
+    Layout = "~/Views/Shared/_Layout.cshtml";
+}
+
+<div class="card">
+    <div class="card-header">
+        <h3 class="card-title">Stock Movement Report</h3>
+    </div>
+    <div class="card-body">
+        <!-- Date Filter -->
+        <form method="get" asp-action="StockMovementReport" class="mb-4">
+            <div class="row mt-3">
+                <div class="col-md-2">
+                    <label class="form-label">Select Store</label>
+                    <select name="storeId" class="form-select">
+                        @if (ViewBag.IsAdmin == true)
+                        {
+                            <option value="">All Stores</option>
+                        }
+                        @if (ViewBag.Stores != null)
+                        {
+                            foreach (var store in (IEnumerable<Store>)ViewBag.Stores)
+                            {
+                                if (ViewBag.SelectedStoreId == store.StoreID)
+                                {
+                                    <option value="@Utility.EncryptURL(store.StoreID.ToString2())" selected>@store.Name
+                                        (@store.Code)</option>
+                                }
+                                else
+                                {
+                                    <option value="@Utility.EncryptURL(store.StoreID.ToString2())">@store.Name (@store.Code)
+                                    </option>
+                                }
+                            }
+                        }
+                    </select>
+                </div>
+                <div class="col-md-3">
+                    <label class="form-label">Start Date</label>
+                    <input type="date" name="startDate" class="form-control" value="@ViewBag.StartDate" required />
+                </div>
+                <div class="col-md-3">
+                    <label class="form-label">End Date</label>
+                    <input type="date" name="endDate" class="form-control" value="@ViewBag.EndDate" required />
+                </div>
+                <div class="col-md-2">
+                    <label class="form-label">Product Name (Optional)</label>
+                    <input type="text" name="productName" class="form-control" placeholder="Search by name..."
+                        value="@ViewBag.ProductName" />
+                </div>
+                <div class="col-md-2">
+                    <label class="form-label">&nbsp;</label>
+                    <button type="submit" class="btn btn-primary d-block w-100">Filter</button>
+                </div>
+            </div>
+        </form>
+
+        <!-- Movement Summary -->
+        @if (Model.Any())
+        {
+            var totalIn = Model.Where(m => m.Quantity > 0).Sum(m => m.Quantity);
+            var totalOut = Math.Abs(Model.Where(m => m.Quantity < 0).Sum(m => m.Quantity));
+
+            <div class="row mb-4">
+                <div class="col-md-4">
+                    <div class="card bg-success text-white">
+                        <div class="card-body">
+                            <h6>Total Stock In</h6>
+                            <h3>@totalIn</h3>
+                        </div>
+                    </div>
+                </div>
+                <div class="col-md-4">
+                    <div class="card bg-danger text-white">
+                        <div class="card-body">
+                            <h6>Total Stock Out</h6>
+                            <h3>@totalOut</h3>
+                        </div>
+                    </div>
+                </div>
+                <div class="col-md-4">
+                    <div class="card bg-info text-white">
+                        <div class="card-body">
+                            <h6>Net Movement</h6>
+                            <h3>@(totalIn - totalOut)</h3>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        }
+
+        <!-- Movement Table -->
+        <div class="table-responsive">
+            <table class="table table-bordered table-hover table-sm">
+                <thead class="table-dark">
+                    <tr>
+                        <th>#</th>
+                        <th>Date</th>
+                        <th>Product Name</th>
+                        <th>Batch Number</th>
+                        <th>Movement Type</th>
+                        <th>Quantity</th>
+                        <th>Reference</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    @if (Model.Any())
+                    {
+                        int i = 0;
+                        @foreach (var movement in Model)
+                        {
+                            i++;
+                            var rowClass = movement.Quantity > 0 ? "table-success" : "table-danger";
+                            var quantityDisplay = movement.Quantity > 0 ? $"+{movement.Quantity}" :
+                            movement.Quantity.ToString();
+
+                            <tr class="@rowClass">
+                                <td>@i</td>
+                                <td>@movement.MovementDate.ToString("dd MMM yyyy HH:mm")</td>
+                                <td>@movement.ProductName</td>
+                                <td>@movement.BatchNumber</td>
+                                <td>
+                                    <span class="badge @(movement.Quantity > 0 ? "bg-success" : "bg-danger")">
+                                        @movement.MovementType
+                                    </span>
+                                </td>
+                                <td><strong>@quantityDisplay</strong></td>
+                                <td>@movement.Reference</td>
+                            </tr>
+                        }
+                    }
+                    else
+                    {
+                        <tr>
+                            <td colspan="7" class="text-center">No stock movements found for the selected period</td>
+                        </tr>
+                    }
+                </tbody>
+            </table>
+        </div>
+
+        <!-- Movement Chart -->
+        @if (Model.Any())
+        {
+            <div class="card mt-4">
+                <div class="card-header">
+                    <h5>Movement Trend</h5>
+                </div>
+                <div class="card-body">
+                    <canvas id="movementChart"></canvas>
+                </div>
+            </div>
+        }
+    </div>
+</div>
+
+@section Scripts {
+    @if (Model.Any())
+    {
+        <script src="~/assets/vendor/libs/chartjs/chart.min.js"></script>
+        <script>
+            // Group movements by date
+            const movements = @Html.Raw(System.Text.Json.JsonSerializer.Serialize(
+        Model.GroupBy(m => m.MovementDate.Date)
+        .Select(g => new {
+        date = g.Key.ToString("yyyy-MM-dd"),
+        stockIn = g.Where(m => m.Quantity > 0).Sum(m => m.Quantity),
+        stockOut = Math.Abs(g.Where(m => m.Quantity < 0).Sum(m => m.Quantity))
+        })
+        ));
+
+            const ctx = document.getElementById('movementChart').getContext('2d');
+            new Chart(ctx, {
+                type: 'bar',
+                data: {
+                    labels: movements.map(m => new Date(m.date).toLocaleDateString()),
+                    datasets: [{
+                        label: 'Stock In',
+                        data: movements.map(m => m.stockIn),
+                        backgroundColor: 'rgba(34, 197, 94, 0.8)',
+                        borderColor: 'rgb(34, 197, 94)',
+                        borderWidth: 1
+                    }, {
+                        label: 'Stock Out',
+                        data: movements.map(m => m.stockOut),
+                        backgroundColor: 'rgba(239, 68, 68, 0.8)',
+                        borderColor: 'rgb(239, 68, 68)',
+                        borderWidth: 1
+                    }]
+                },
+                options: {
+                    responsive: true,
+                    scales: {
+                        y: {
+                            beginAtZero: true
+                        }
+                    }
+                }
+            });
+        </script>
+    }
+}

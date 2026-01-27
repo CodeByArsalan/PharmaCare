@@ -1,0 +1,284 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    @await Html.PartialAsync("_header_scripts")
+    <title>Pharma Care</title>
+    <link rel="stylesheet" href="~/css/custom.css" />
+    <link href="~/assets/vendor/libs/sweetalert2/sweetalert2.min.css" rel="stylesheet">
+    <link rel="stylesheet" href="~/css/custom-theme.css" />
+    @RenderSection("Styles", required: false)
+</head>
+
+<body>
+
+    <!-- Layout wrapper -->
+    <div class="layout-wrapper layout-content-navbar">
+        <div class="layout-container">
+
+            @if (User.Identity?.IsAuthenticated == true)
+            {
+                <!-- Sidebar -->
+                @await Html.PartialAsync("_Sidebar")
+
+                <!-- Layout container -->
+                <div class="layout-page">
+
+                    <!-- Navbar -->
+                @await Html.PartialAsync("_Navbar")
+
+                    <!-- Page Content -->
+                    <div class="content-wrapper">
+                        <div class="container-fluid flex-grow-1 px-10 py-3">
+                            <!-- Breadcrumb -->
+                            <nav aria-label="breadcrumb">
+                                <ol class="breadcrumb">
+                                    <li class="breadcrumb-item"><a href="/">Home</a></li>
+                                    @if (ViewContext.RouteData.Values["Controller"]?.ToString() != "Home")
+                                    {
+                                        <li class="breadcrumb-item active">@ViewContext.RouteData.Values["Controller"]</li>
+                                    }
+                                </ol>
+                            </nav>
+
+                            @RenderBody()
+                        </div>
+
+                        <!-- Footer -->
+                        <footer class="content-footer footer bg-footer-theme">
+                            <div
+                                class="container-xxl d-flex flex-wrap justify-content-between py-2 flex-md-row flex-column">
+                                <div class="mb-2 mb-md-0">
+                                    © @DateTime.Now.Year PharmaCare - Professional Pharmacy Management System
+                                </div>
+                                <div>
+
+                                </div>
+                            </div>
+                        </footer>
+
+                    </div>
+
+                </div>
+            }
+            else
+            {
+                <!-- Redirect to login if not authenticated -->
+                <script>
+                    window.location.href = '@Url.Action("Login", "Account")';
+                </script>
+            }
+        </div>
+    </div>
+
+    <!-- Toast Notification Container -->
+    <div class="toast-container"></div>
+
+    @await Html.PartialAsync("_footer_scripts")
+    <script src="~/assets/vendor/libs/sweetalert2/sweetalert2.all.min.js"></script>
+
+    <!-- Stock Alerts Auto-Update Script -->
+    <script>
+        async function updateAlertCount() {
+            try {
+                const response = await fetch('/StockAlerts/GetAlertCount');
+                const count = await response.json();
+                const badge = document.getElementById('alert-count');
+                if (badge) {
+                    if (count > 0) {
+                        badge.textContent = count;
+                        badge.style.display = 'inline';
+                    } else {
+                        badge.style.display = 'none';
+                    }
+                }
+            } catch (error) {
+                console.error('Error fetching alert count:', error);
+            }
+        }
+
+        // Update on page load
+        if (document.readyState === 'loading') {
+            document.addEventListener('DOMContentLoaded', updateAlertCount);
+        } else {
+            updateAlertCount();
+        }
+
+        // Refresh every 60 seconds
+        setInterval(updateAlertCount, 60000);
+    </script>
+    
+    @* <!-- Custom Toast Notification Script --> *@
+    <style>
+        .custom-toast {
+            position: fixed;
+            top: 20px;
+            right: 20px;
+            min-width: 300px;
+            max-width: 500px;
+            background: white;
+            border-radius: 8px;
+            box-shadow: 0 4px 12px rgba(0,0,0,0.15);
+            padding: 16px 20px;
+            display: flex;
+            align-items: center;
+            gap: 12px;
+            z-index: 9999;
+            animation: slideIn 0.3s ease-out;
+            border-left: 4px solid;
+        }
+
+            .custom-toast.success {
+                border-left-color: #22C55E;
+            }
+
+            .custom-toast.error {
+                border-left-color: #EF4444;
+            }
+
+            .custom-toast.warning {
+                border-left-color: #F59E0B;
+            }
+
+            .custom-toast.info {
+                border-left-color: #8B5CF6;
+            }
+
+        .custom-toast-icon {
+            font-size: 24px;
+            flex-shrink: 0;
+        }
+
+        .custom-toast.success .custom-toast-icon {
+            color: #22C55E;
+        }
+
+        .custom-toast.error .custom-toast-icon {
+            color: #EF4444;
+        }
+
+        .custom-toast.warning .custom-toast-icon {
+            color: #F59E0B;
+        }
+
+        .custom-toast.info .custom-toast-icon {
+            color: #8B5CF6;
+        }
+
+        .custom-toast-message {
+            flex: 1;
+            font-size: 14px;
+            color: #333;
+        }
+
+        .custom-toast-close {
+            background: none;
+            border: none;
+            font-size: 20px;
+            color: #999;
+            cursor: pointer;
+            padding: 0;
+            width: 24px;
+            height: 24px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            flex-shrink: 0;
+        }
+
+            .custom-toast-close:hover {
+                color: #333;
+            }
+
+        @@keyframes slideIn {
+            from {
+                transform: translateX(400px);
+                opacity: 0;
+            }
+
+            to {
+                transform: translateX(0);
+                opacity: 1;
+            }
+        }
+
+        @@keyframes slideOut {
+            from {
+                transform: translateX(0);
+                opacity: 1;
+            }
+
+            to {
+                transform: translateX(400px);
+                opacity: 0;
+            }
+        }
+
+        .custom-toast.hiding {
+            animation: slideOut 0.3s ease-out forwards;
+        }
+    </style>
+
+    <script>
+        function showMessage(type, message) {
+            var iconClass = '';
+            if (type == 'success') {
+                iconClass = 'bx bx-check-circle';
+            } else if (type == 'error') {
+                iconClass = 'bx bx-x-circle';
+            } else if (type == 'warning') {
+                iconClass = 'bx bx-error';
+            } else if (type == 'info') {
+                iconClass = 'bx bx-info-circle';
+            }
+
+            // Create toast element
+            var toast = document.createElement('div');
+            toast.className = 'custom-toast ' + type;
+            toast.innerHTML = `
+                <i class="${iconClass} custom-toast-icon"></i>
+                <div class="custom-toast-message">${message}</div>
+                <button class="custom-toast-close" onclick="closeToast(this)">&times;</button>
+            `;
+
+            // Add to body
+            document.body.appendChild(toast);
+
+            // Auto remove after 5 seconds
+            setTimeout(function() {
+                closeToast(toast.querySelector('.custom-toast-close'));
+            }, 5000);
+        }
+
+        function closeToast(button) {
+            var toast = button.closest ? button.closest('.custom-toast') : button.parentElement;
+            if (toast) {
+                toast.classList.add('hiding');
+                setTimeout(function() {
+                    toast.remove();
+                }, 300);
+            }
+        }
+
+        $(document).ready(function () {
+            @if (TempData["Message"] != null && TempData["Type"] != null)
+            {
+                <text>showMessage("@TempData["Type"]", "@Html.Raw(TempData["Message"])");</text>
+            }
+
+            @if (TempData["SuccessMessage"] != null)
+            {
+                <text>showMessage("success", "@Html.Raw(TempData["SuccessMessage"])");</text>
+            }
+
+            @if (TempData["ErrorMessage"] != null)
+            {
+                <text>showMessage("error", "@Html.Raw(TempData["ErrorMessage"])");</text>
+            }
+        });
+    </script>
+
+    @RenderSection("Scripts", required: false)
+</body>
+
+</html>

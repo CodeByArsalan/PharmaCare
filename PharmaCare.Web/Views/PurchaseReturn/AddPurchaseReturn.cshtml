@@ -1,0 +1,174 @@
+@model PharmaCare.Domain.Models.PurchaseManagement.PurchaseReturn
+@inject PharmaCare.Infrastructure.Interfaces.IComboBoxRepository _comboBox
+
+@{
+    ViewData["Title"] = "New Purchase Return";
+    Layout = "~/Views/Shared/_Layout.cshtml";
+}
+
+<div class="card">
+    <div class="card-header">
+        <h4>New Purchase Return</h4>
+    </div>
+    <div class="card-body mt-3">
+        <form asp-action="AddPurchaseReturn" id="createForm">
+            <div class="row mb-3">
+                <input type="hidden" asp-for="Grn_ID" id="grnIdHidden" />
+                <div class="col-md-4">
+                    <label class="form-label">Store</label>
+                    <select asp-for="Store_ID" class="form-select"
+                        asp-items="@_comboBox.GetStoresByLoginUserID((int)ViewBag.LoginUserID, Model?.Store_ID)"
+                        id="storeSelect"></select>
+                </div>
+                <div class="col-md-4">
+                    <label class="form-label">Supplier</label>
+                    <select asp-for="Party_ID" class="form-select" asp-items="@_comboBox.GetSuppliers(Model?.Party_ID)"
+                        id="supplierSelect">
+                        <option value="">-- Select Supplier --</option>
+                    </select>
+                </div>
+                <div class="col-md-4">
+                    <label class="form-label">Date</label>
+                    <input asp-for="ReturnDate" class="form-control" type="date" />
+                </div>
+            </div>
+
+            <div class="mb-3">
+                <label class="form-label">Remarks</label>
+                <textarea asp-for="Remarks" class="form-control"></textarea>
+            </div>
+
+            <hr />
+            <h5>Return Items</h5>
+            <div id="itemsContainer" style="display:none;">
+                <table class="table table-sm table-bordered">
+                    <thead class="table-dark">
+                        <tr>
+                            <th>Select</th>
+                            <th>Product</th>
+                            <th>Batch</th>
+                            <th>Expiry</th>
+                            <th>Stock Qty</th>
+                            <th>Cost</th>
+                            <th>Return Qty</th>
+                            <th>Reason</th>
+                        </tr>
+                    </thead>
+                    <tbody id="itemsBody">
+                        <!-- Items populated via AJAX -->
+                    </tbody>
+                </table>
+            </div>
+
+            <div id="noItemsMsg" class="alert alert-info" style="display:none;">
+                Select a Supplier to view returnable items.
+            </div>
+
+            <div class="mt-3 d-flex justify-content-end gap-2">
+                <a asp-action="PurchaseReturnIndex" class="btn btn-secondary"><i class="bx bx-arrow-back me-1"></i>Back
+                    to list</a>
+                <button type="submit" class="btn btn-success">Create Return</button>
+            </div>
+        </form>
+    </div>
+</div>
+
+@section Scripts {
+    <script>
+        $(document).ready(function () {
+            // Initial UI state
+            $('#itemsContainer').hide();
+            $('#noItemsMsg').show();
+
+            function loadItems() {
+                var supplierId = $('#supplierSelect').val();
+                var storeId = $('#storeSelect').val();
+
+                if (!supplierId) {
+                    $('#itemsContainer').hide();
+                    $('#noItemsMsg').show();
+                    return;
+                }
+
+                $.get('/PurchaseReturn/GetBatchesForSupplier', { supplierId: supplierId, storeId: storeId })
+                    .done(function (data) {
+                        var tbody = $('#itemsBody');
+                        tbody.empty();
+
+                        if (data.length === 0) {
+                            tbody.append('<tr><td colspan="8" class="text-center">No returnable stock found for this supplier in the selected store.</td></tr>');
+                        }
+
+                        $.each(data, function (i, item) {
+                            var row = `
+                                                                <tr>
+                                                                    <td class="text-center">
+                                                                        <input type="checkbox" class="item-check" data-index="${i}" data-grnid="${item.grnID || ''}" />
+                                                                        <!-- Hidden Index field to ensure proper binding of non-sequential lists -->
+                                                                        <input type="hidden" name="PurchaseReturnItems.Index" value="${i}" disabled class="input-index" />
+                                                                        <!-- Hidden Inputs to bind to PurchaseReturnItems list if checked -->
+                                                                        <input type="hidden" name="PurchaseReturnItems[${i}].ProductBatch_ID" value="${item.productBatchID}" disabled class="input-id" />
+                                                                        <input type="hidden" name="PurchaseReturnItems[${i}].UnitPrice" value="${item.costPrice}" disabled class="input-price" />
+                                                                    </td>
+                                                                    <td>${item.productName}</td>
+                                                                    <td>${item.batchNumber}</td>
+                                                                    <td>${new Date(item.expiryDate).toLocaleDateString()}</td>
+                                                                    <td>${item.quantityOnHand}</td>
+                                                                    <td>${item.costPrice}</td>
+                                                                    <td>
+                                                                        <input type="number" name="PurchaseReturnItems[${i}].Quantity" class="form-control form-control-sm input-qty" min="1" max="${item.quantityOnHand}" disabled />
+                                                                    </td>
+                                                                    <td>
+                                                                        <input type="text" name="PurchaseReturnItems[${i}].Reason" class="form-control form-control-sm input-reason" placeholder="Reason" disabled />
+                                                                    </td>
+                                                                </tr>
+                                                            `;
+                            tbody.append(row);
+                        });
+
+                        $('#itemsContainer').show();
+                        $('#noItemsMsg').hide();
+                    })
+                    .fail(function () {
+                        alert('Failed to load items. Please try again.');
+                    });
+            }
+
+            // Run on load in case values are pre-selected
+            loadItems();
+
+            $('#supplierSelect').change(loadItems);
+            $('#storeSelect').change(loadItems);
+
+            // Enable inputs only when checkbox is checked
+            $(document).on('change', '.item-check', function () {
+                var row = $(this).closest('tr');
+                var inputs = row.find('input:not(.item-check), select');
+                if ($(this).is(':checked')) {
+                    inputs.removeAttr('disabled');
+                    row.find('.input-qty').focus();
+                } else {
+                    inputs.attr('disabled', 'disabled');
+                    inputs.not('[type="hidden"]').val(''); // Clear visible inputs
+                }
+
+                // Update the main Grn_ID
+                var checkedItems = $('.item-check:checked');
+                if (checkedItems.length > 0) {
+                    var firstGrnId = checkedItems.first().data('grnid');
+                    $('#grnIdHidden').val(firstGrnId);
+                } else {
+                    $('#grnIdHidden').val('');
+                }
+            });
+
+            // Validate form: at least one item selected
+            $('#createForm').submit(function (e) {
+                if ($('.item-check:checked').length === 0) {
+                    alert('Please select at least one item to return.');
+                    e.preventDefault();
+                }
+            });
+        });
+    </script>
+}

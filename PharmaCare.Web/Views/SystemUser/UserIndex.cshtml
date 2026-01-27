@@ -1,0 +1,115 @@
+@using PharmaCare.Domain.Models.Membership
+@using PharmaCare.Web.Utilities
+@model List<SystemUser>
+@{
+    ViewData["Title"] = "All Users";
+    Layout = "~/Views/Shared/_Layout.cshtml";
+    int RowNo = 0;
+}
+
+<div class="card card-outline card-navy">
+    <div class="card-header d-flex justify-content-between align-items-center">
+        <h4 class="card-title mb-0">List of Users</h4>
+        <a asp-action="AddUser" class="btn btn-primary">
+            <span class="bx bx-user-plus me-1"></span> Add User
+        </a>
+    </div>
+
+    <div class="card-body p-0">
+        <div class="table-responsive-md">
+            <table class="table table-hover table-striped table-bordered dataTable">
+                <thead class="table-dark">
+                    <tr>
+                        <th>S.No</th>
+                        <th>Full Name</th>
+                        <th>User Name</th>
+                        <th>User Type</th>
+                        <th>Store</th>
+                        <th>Status</th>
+                        <th>Action</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    @if (Model != null)
+                    {
+                        @foreach (SystemUser dr in Model)
+                        {
+                            RowNo += 1;
+                            <tr>
+                                <td>@RowNo</td>
+                                <td>@dr.FullName</td>
+                                <td>@dr.UserName</td>
+                                <td>@dr.UserType?.UserType</td>
+                                <td>@dr.Store?.Name</td>
+                                <td>
+                                    @if (dr.IsActive)
+                                    {
+                                        <h6>
+                                            <span class="badge rounded-pill bg-success">Active</span>
+                                        </h6>
+                                    }
+                                    else
+                                    {
+                                        <h6>
+                                            <span class="badge rounded-pill bg-danger">Inactive</span>
+                                        </h6>
+                                    }
+                                </td>
+                                <td>
+                                    <div class="d-flex gap-2">
+                                        <a class="btn btn-primary btn-sm" title="Edit" asp-action="EditUser"
+                                            asp-controller="SystemUser" asp-route-id="@Utility.EncryptURL(dr.Id.ToString2())">
+                                            <i class="bx bx-edit"></i>
+                                        </a>
+
+                                        <form asp-action="DeleteUser" asp-route-id="@Utility.EncryptURL(dr.Id.ToString2())"
+                                            method="post" class="d-inline">
+                                            <button type="button" class="btn btn-danger btn-sm delete-btn" title="Delete">
+                                                <i class="bx bx-trash"></i>
+                                            </button>
+                                        </form>
+                                    </div>
+                                </td>
+                            </tr>
+                        }
+
+                    }
+                </tbody>
+            </table>
+        </div>
+    </div>
+</div>
+
+@section Scripts
+    {
+    <script type="text/javascript">
+        $(document).ready(function () {
+
+            // ParentID - keeping existing logic
+            $('#1').addClass('active');
+            $('#1').closest('li').find('ul').attr('style', 'display:block;');
+            // WebPageID
+            $('#2').addClass('active');
+
+            $('.delete-btn').click(function (e) {
+                e.preventDefault();
+                var form = $(this).closest('form');
+
+                Swal.fire({
+                    title: "Attention",
+                    text: "Are you sure you want to deactivate this user?",
+                    type: "warning",
+                    icon: 'warning',
+                    showCancelButton: true,
+                    confirmButtonColor: "#22C55E",
+                    cancelButtonColor: "#EF4444",
+                    confirmButtonText: "Yes, Deactivate!"
+                }).then(function (result) {
+                    if (result.value) {
+                        form.submit();
+                    }
+                });
+            });
+        })
+    </script>
+}

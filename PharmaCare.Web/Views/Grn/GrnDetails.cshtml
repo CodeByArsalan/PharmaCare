@@ -1,0 +1,179 @@
+@model PharmaCare.Domain.Models.PurchaseManagement.Grn
+
+@{
+    ViewData["Title"] = "GRN Details";
+    Layout = "~/Views/Shared/_Layout.cshtml";
+}
+
+<div class="container-fluid p-0">
+    <!-- Header & Breadcrumbs -->
+    <div class="d-flex justify-content-between align-items-center mb-4">
+        <div>
+            <h4 class="fw-bold mb-0">@Model.GrnNumber</h4>
+        </div>
+        <div class="d-flex gap-2">
+            <a asp-action="GrnIndex" class="btn btn-secondary">
+                <i class="bx bx-arrow-back me-1"></i> Back to list
+            </a>
+            <button class="btn btn-primary" onclick="window.print()">
+                <i class="bx bx-printer me-1"></i> Print GRN
+            </button>
+        </div>
+    </div>
+
+    <div class="row mb-4">
+        <!-- Main Details Card -->
+        <div class="col-lg-8">
+            <div class="card shadow-sm border-0 mb-4 h-100">
+                <div class="card-header border-bottom bg-transparent">
+                    <h5 class="card-title mb-0">Receipt Information</h5>
+                </div>
+                <div class="card-body pt-4">
+                    <div class="row g-4">
+                        <div class="col-sm-6">
+                            <div class="d-flex align-items-start">
+                                <span class="badge bg-label-primary p-2 rounded me-3">
+                                    <i class="bx bx-store fs-4"></i>
+                                </span>
+                                <div>
+                                    <h6 class="mb-1">Destination Store</h6>
+                                    <p class="mb-0 fw-bold">@(Model.Store?.Name ?? "N/A")</p>
+                                </div>
+                            </div>
+                        </div>
+                        <div class="col-sm-6">
+                            <div class="d-flex align-items-start">
+                                <span class="badge bg-label-info p-2 rounded me-3">
+                                    <i class="bx bx-link fs-4"></i>
+                                </span>
+                                <div>
+                                    <h6 class="mb-1">Reference PO</h6>
+                                    <p class="mb-0 fw-bold">@(Model.PurchaseOrder?.PurchaseOrderNumber ?? "Direct Receipt")</p>
+                                </div>
+                            </div>
+                        </div>
+                        <div class="col-sm-6">
+                            <div class="d-flex align-items-start">
+                                <span class="badge bg-label-success p-2 rounded me-3">
+                                    <i class="bx bx-user fs-4"></i>
+                                </span>
+                                <div>
+                                    <h6 class="mb-1">Supplier</h6>
+                                    <p class="mb-0 fw-bold">@(Model.PurchaseOrder?.Party?.PartyName ?? Model.Party?.PartyName ?? "N/A")</p>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Sidebar Info Card -->
+        <div class="col-lg-4">
+            <div class="card shadow-sm border-0 h-100">
+                <div class="card-header border-bottom bg-transparent">
+                    <h5 class="card-title mb-0">Timeline & Docs</h5>
+                </div>
+                <div class="card-body pt-4">
+                    <div class="mb-4">
+                        <label class="text-muted small d-block mb-1">Received Date</label>
+                        <h6 class="fw-bold"><i class="bx bx-calendar me-2 text-primary"></i>@Model.CreatedDate.ToString("dd MMM yyyy")</h6>
+                    </div>
+                    <div class="mb-4">
+                        <label class="text-muted small d-block mb-1">Invoice Number</label>
+                        <h6 class="fw-bold"><i class="bx bx-receipt me-2 text-info"></i>@(Model.InvoiceNumber ?? "Not Provided")</h6>
+                    </div>
+                    @if (Model.ReturnedAmount > 0)
+                    {
+                            <div class="mb-4">
+                                <label class="text-muted small d-block mb-1">Returned Amount</label>
+                                <h6 class="fw-bold text-warning"><i class="bx bx-undo me-2"></i>Rs. @Model.ReturnedAmount.ToString("N2")</h6>
+                            </div>
+                    }
+                    <div>
+                        <span class="badge bg-label-success w-100 py-2">
+                            <i class="bx bx-check-circle me-1"></i> Inventory Updated
+                        </span>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Items Table -->
+    <div class="card shadow-sm border-0">
+        <div class="card-header border-bottom bg-transparent">
+            <h5 class="card-title mb-0">Received Items & Batching</h5>
+        </div>
+        <div class="card-body p-0">
+            <div class="table-responsive">
+                <table class="table table-hover align-middle mb-0">
+                    <thead class="bg-light">
+                        <tr>
+                            <th class="ps-4">Product</th>
+                            <th>Batch No</th>
+                            <th>Expiry</th>
+                            <th class="text-center">Qty Received</th>
+                            <th class="text-end">Cost Price</th>
+                            <th class="text-end pe-4">Selling Price (MRP)</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        @if (Model.GrnItems != null && Model.GrnItems.Any())
+                        {
+                            foreach (var item in Model.GrnItems)
+                            {
+                                        <tr>
+                                            <td class="ps-4">
+                                                <span class="fw-bold">@item.Product?.ProductName</span>
+                                            </td>
+                                            <td>
+                                                <span class="badge bg-label-secondary"><i class="bx bx-barcode me-1"></i>@item.BatchNumber</span>
+                                            </td>
+                                            <td>
+                                        @{
+                                            var isExpired = item.ExpiryDate < DateTime.Now;
+                                            var isSoon = !isExpired && item.ExpiryDate < DateTime.Now.AddMonths(6);
+                                        }
+                                                <span class="@(isExpired ? "text-danger fw-bold" : isSoon ? "text-warning fw-bold" : "")">
+                                            @item.ExpiryDate.ToString("MMM yyyy")
+                                                </span>
+                                            </td>
+                                            <td class="text-center fw-bold">@item.QuantityReceived</td>
+                                            <td class="text-end">@item.CostPrice.ToString("N2")</td>
+                                            <td class="text-end pe-4 fw-bold text-success">@item.SellingPrice.ToString("N2")</td>
+                                        </tr>
+                            }
+                        }
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    </div>
+</div>
+
+<style>
+    .bg-label-primary {
+        background-color: #e7e7ff !important;
+        color: #0EA5E9 !important;
+    }
+    .bg-label-info {
+        background-color: #d7f5fc !important;
+        color: #03c3ec !important;
+    }
+    .bg-label-success {
+        background-color: #e8fadf !important;
+        color: #71dd37 !important;
+    }
+    .bg-label-secondary {
+        background-color: #ebedef !important;
+        color: #64748B !important;
+    }
+    .breadcrumb-style1 .breadcrumb-item a {
+        color: #0EA5E9;
+        text-decoration: none;
+    }
+    .breadcrumb-style1 .breadcrumb-item.active {
+        color: #a1acb8;
+    }
+</style>

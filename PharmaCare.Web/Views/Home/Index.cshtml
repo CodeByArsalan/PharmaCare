@@ -1,0 +1,205 @@
+@{
+    ViewData["Title"] = "Dashboard";
+    int userType = ViewBag.LoginUserRole;
+}
+
+<div class="row mb-4">
+    <div class="col-md-8">
+        <div class="card bg-transparent shadow-none border-0">
+            <div class="card-body p-0">
+                <h3 class="fw-bold mb-1">Passionate About Healthcare</h3>
+                <p class="text-muted mb-1">Here's what's happening in <strong>@ViewBag.SelectedStoreName</strong> today.
+                </p>
+            </div>
+        </div>
+    </div>
+    <div class="col-md-4">
+        <form method="get" action="@Url.Action("Index")" id="storeSelectorForm">
+            <div class="input-group shadow-sm">
+                <span class="input-group-text bg-white border-end-0"><i class='bx bx-store-alt'></i></span>
+                <select name="storeId" class="form-select border-start-0 ps-0"
+                    onchange="document.getElementById('storeSelectorForm').submit()">
+                    <option value="">All Stores</option>
+                    @if (ViewBag.Stores != null)
+                    {
+                        foreach (var store in (IEnumerable<SelectListItem>)ViewBag.Stores)
+                        {
+                            if (ViewBag.SelectedStoreId != null && ViewBag.SelectedStoreId.ToString() == store.Value)
+                            {
+                                <option value="@store.Value" selected>@store.Text</option>
+                            }
+                            else
+                            {
+                                <option value="@store.Value">@store.Text</option>
+                            }
+                        }
+                    }
+                </select>
+            </div>
+        </form>
+    </div>
+</div>
+
+<!-- Stats Cards -->
+@if (userType == 1)
+{
+    <div class="row g-4 mb-4">
+        <!-- Total Sales -->
+        <div class="col-md-6 col-lg-4">
+            <div class="card h-100 border-0 shadow-sm">
+                <div class="card-body">
+                    <div class="d-flex align-items-center justify-content-between mb-3">
+                        <div class="avatar avatar-md bg-light-primary rounded">
+                            <i class='bx bx-dollar fs-3 text-primary'></i>
+                        </div>
+                        <span class="badge bg-label-success rounded-pill">+12% <i class='bx bx-up-arrow-alt'></i></span>
+                    </div>
+                    <h5 class="fw-bold mb-1">@ViewBag.TotalSalesToday.ToString("C")</h5>
+                    <p class="text-muted mb-0 small">Total Sales Today</p>
+                </div>
+            </div>
+        </div>
+
+        <!-- Transactions -->
+        <div class="col-md-6 col-lg-4">
+            <div class="card h-100 border-0 shadow-sm">
+                <div class="card-body">
+                    <div class="d-flex align-items-center justify-content-between mb-3">
+                        <div class="avatar avatar-md bg-light-info rounded">
+                            <i class='bx bx-receipt fs-3 text-info'></i>
+                        </div>
+                        <span class="badge bg-label-secondary rounded-pill">Daily</span>
+                    </div>
+                    <h5 class="fw-bold mb-1">@ViewBag.TransactionsToday</h5>
+                    <p class="text-muted mb-0 small">Transactions Today</p>
+                </div>
+            </div>
+        </div>
+
+        @* <!-- Customers -->
+        <div class="col-md-6 col-lg-3">
+            <div class="card h-100 border-0 shadow-sm">
+                <div class="card-body">
+                    <div class="d-flex align-items-center justify-content-between mb-3">
+                        <div class="avatar avatar-md bg-light-warning rounded">
+                            <i class='bx bx-user fs-3 text-warning'></i>
+                        </div>
+                        <span class="badge bg-label-success rounded-pill">+5 <i class='bx bx-user-plus'></i></span>
+                    </div>
+                    <h5 class="fw-bold mb-1">@ViewBag.TotalCustomers</h5>
+                    <p class="text-muted mb-0 small">Total Customers</p>
+                </div>
+            </div>
+        </div> *@
+
+        <!-- Low Stock -->
+        <div class="col-md-6 col-lg-4">
+            <div class="card h-100 border-0 shadow-sm">
+                <div class="card-body">
+                    <div class="d-flex align-items-center justify-content-between mb-3">
+                        <div class="avatar avatar-md bg-light-danger rounded">
+                            <i class='bx bx-error-circle fs-3 text-danger'></i>
+                        </div>
+                        <span class="badge bg-label-danger rounded-pill">Action Needed</span>
+                    </div>
+                    <h5 class="fw-bold mb-1">@ViewBag.LowStockItems</h5>
+                    <p class="text-muted mb-0 small">Low Stock Items</p>
+                </div>
+            </div>
+        </div>
+    </div>
+}
+
+
+<!-- Quick Actions -->
+<div class="row">
+    <div class="col-12">
+        <div class="card border-0 shadow-sm">
+            <div class="card-header bg-white py-3">
+                <h5 class="mb-0 fw-bold"><i class='bx bx-rocket text-primary'></i> Quick Actions</h5>
+            </div>
+            <div class="card-body mt-2">
+                <div class="row g-3">
+                    <div class="col-md-4">
+                        <a href="/Pos/Index"
+                            class="card h-100 bg-light border-0 hover-lift text-decoration-none text-dark">
+                            <div class="card-body text-center py-4">
+                                <i class='bx bx-cart-add fs-1 text-primary mb-2'></i>
+                                <h6 class="fw-bold mb-0">New Sale</h6>
+                            </div>
+                        </a>
+                    </div>
+                    @* <div class="col-md-3">
+                        <a href="/Customer/AddCustomer"
+                            class="card h-100 bg-light border-0 hover-lift text-decoration-none text-dark">
+                            <div class="card-body text-center py-4">
+                                <i class='bx bx-user-plus fs-1 text-success mb-2'></i>
+                                <h6 class="fw-bold mb-0">Add Customer</h6>
+                            </div>
+                        </a>
+                    </div> *@
+                    <div class="col-md-4">
+                        <a href="/Grn/AddGrn"
+                            class="card h-100 bg-light border-0 hover-lift text-decoration-none text-dark">
+                            <div class="card-body text-center py-4">
+                                <i class='bx bx-import fs-1 text-info mb-2'></i>
+                                <h6 class="fw-bold mb-0">Stock In (GRN)</h6>
+                            </div>
+                        </a>
+                    </div>
+                    <div class="col-md-4">
+                        <a href="/Reports/ReportsIndex"
+                            class="card h-100 bg-light border-0 hover-lift text-decoration-none text-dark">
+                            <div class="card-body text-center py-4">
+                                <i class='bx bx-bar-chart-alt-2 fs-1 text-warning mb-2'></i>
+                                <h6 class="fw-bold mb-0">View Reports</h6>
+                            </div>
+                        </a>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Recent Activity & Charts could go here (Placeholder for future) -->
+@if (userType == 1)
+{
+    <div class="row mt-4">
+        <div class="col-md-12 mb-4">
+            <div class="card h-100 border-0 shadow-sm">
+                <div class="card-header bg-white py-3 d-flex justify-content-between align-items-center">
+                    <h5 class="mb-0 fw-bold">Recent Sales</h5>
+                    <a href="/Reports/ReportsIndex" class="btn btn-sm btn-outline-primary">View All</a>
+                </div>
+                <div class="card-body text-center py-5">
+                    <div class="empty-state">
+                        <i class='bx bx-bar-chart-square display-4 text-muted opacity-25'></i>
+                        <p class="text-muted mt-3">Sales chart will appear here once populated.</p>
+                    </div>
+                </div>
+            </div>
+        </div>
+        @* <div class="col-md-4 mb-4">
+            <div class="card h-100 bg-primary text-white border-0 shadow-sm"
+                style="background: linear-gradient(135deg, #0EA5E9 0%, #06B6D4 100%);">
+                <div class="card-body">
+                    <h5 class="fw-bold text-white mb-4">System Status</h5>
+                    <ul class="list-unstyled">
+                        <li class="mb-3 d-flex align-items-center">
+                            <i class='bx bx-check-circle fs-4 me-2'></i> Database Connected
+                        </li>
+                        <li class="mb-3 d-flex align-items-center">
+                            <i class='bx bx-check-circle fs-4 me-2'></i> Services Running
+                        </li>
+                        <li class="mb-3 d-flex align-items-center">
+                            <i class='bx bx-time fs-4 me-2'></i> Last Backup: Today
+                        </li>
+                    </ul>
+                    <hr class="bg-white opacity-25">
+                    <small class="opacity-75">PharmaCare v1.0.0</small>
+                </div>
+            </div>
+        </div> *@
+    </div>
+}

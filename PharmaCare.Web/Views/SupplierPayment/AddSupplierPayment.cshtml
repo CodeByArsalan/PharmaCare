@@ -1,0 +1,226 @@
+@model PharmaCare.Domain.Models.Finance.SupplierPayment
+@inject PharmaCare.Infrastructure.Interfaces.IComboBoxRepository _comboBox
+@using PharmaCare.Application.DTOs.Finance
+@{
+    ViewData["Title"] = "Create Supplier Payment";
+    var grnInfo = ViewBag.GrnInfo as GrnOutstandingDto;
+    var outstandingGrns = ViewBag.OutstandingGrns as List<GrnOutstandingDto>;
+}
+
+<div class="row">
+    <div class="col-md-12">
+        <div class="card mb-4">
+            <h4 class="card-header">Record Supplier Payment</h4>
+            <div class="card-body mt-2">
+                <form asp-action="AddSupplierPayment" method="post">
+                    @Html.AntiForgeryToken()
+
+                    <!-- Supplier Selection -->
+                    <div class="row mb-3">
+                        <div class="col-md-6">
+                            <label asp-for="Party_ID" class="form-label">Supplier <span
+                                    class="text-danger">*</span></label>
+                            <select asp-for="Party_ID" asp-items="@_comboBox.GetSuppliers(Model.Party_ID)"
+                                class="form-select" id="supplierDropdown" required>
+                                <option value="">-- Select Supplier --</option>
+                            </select>
+                        </div>
+                        <div class="col-md-6">
+                            <label asp-for="Grn_ID" class="form-label">GRN <span class="text-danger">*</span></label>
+                            <select asp-for="Grn_ID" class="form-select" id="grnDropdown" required>
+                                <option value="">-- Select GRN --</option>
+                                @if (outstandingGrns != null)
+                                {
+                                    foreach (var grn in outstandingGrns)
+                                    {
+                                        <option value="@grn.GrnID" data-total="@grn.TotalAmount" data-paid="@grn.AmountPaid"
+                                            data-balance="@grn.BalanceAmount" data-supplier="@grn.SupplierId"
+                                            selected="@(Model.Grn_ID == grn.GrnID)">
+                                            @grn.GrnNumber - Balance: @grn.BalanceAmount.ToString("N2")
+                                        </option>
+                                    }
+                                }
+                            </select>
+                        </div>
+                    </div>
+
+                    <!-- GRN Info Display -->
+                    <div class="card bg-light mb-3" id="grnInfoCard"
+                        style="display: @(grnInfo != null ? "block" : "none");">
+                        <div class="card-body">
+                            <div class="row">
+                                <div class="col-md-4">
+                                    <small class="text-muted">GRN Total Amount</small>
+                                    <h5 id="displayTotalAmount">@(grnInfo?.TotalAmount.ToString("N2") ?? "0.00")</h5>
+                                </div>
+                                <div class="col-md-4">
+                                    <small class="text-muted">Amount Already Paid</small>
+                                    <h5 id="displayAmountPaid" class="text-success">@(grnInfo?.AmountPaid.ToString("N2")
+                                        ?? "0.00")</h5>
+                                </div>
+                                <div class="col-md-4">
+                                    <small class="text-muted">Balance Outstanding</small>
+                                    <h5 id="displayBalance" class="text-danger">@(grnInfo?.BalanceAmount.ToString("N2")
+                                        ?? "0.00")</h5>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <hr />
+
+                    <!-- Payment Details -->
+                    <div class="row mb-3">
+                        <div class="col-md-6">
+                            <label asp-for="PaymentDate" class="form-label">Payment Date <span
+                                    class="text-danger">*</span></label>
+                            <input asp-for="PaymentDate" type="date" class="form-control" required
+                                value="@Model.PaymentDate.ToString("yyyy-MM-dd")" />
+                        </div>
+                        <div class="col-md-6">
+                            <label asp-for="PaymentMethod" class="form-label">Payment Method <span
+                                    class="text-danger">*</span></label>
+                            <select asp-for="PaymentMethod" class="form-select" id="paymentMethodDropdown" required>
+                                <option value="Cash">Cash</option>
+                                <option value="Bank">Bank Transfer</option>
+                                <option value="Cheque">Cheque</option>
+                            </select>
+                        </div>
+                    </div>
+
+                    <!-- Bank/Cheque Details (Conditional) -->
+                    <div class="row mb-3" id="chequeDetails" style="display: none;">
+                        <div class="col-md-6">
+                            <label asp-for="ChequeNumber" class="form-label">Cheque Number</label>
+                            <input asp-for="ChequeNumber" class="form-control" placeholder="Enter cheque number" />
+                        </div>
+                        <div class="col-md-6">
+                            <label asp-for="ChequeDate" class="form-label">Cheque Date</label>
+                            <input asp-for="ChequeDate" type="date" class="form-control" />
+                        </div>
+                    </div>
+
+                    <div class="row mb-3" id="bankRefSection" style="display: none;">
+                        <div class="col-md-12">
+                            <label asp-for="BankReference" class="form-label">Bank Reference / Transaction ID</label>
+                            <input asp-for="BankReference" class="form-control" placeholder="Enter bank reference" />
+                        </div>
+                    </div>
+
+                    <!-- Amount -->
+                    <div class="row mb-3">
+                        <div class="col-md-6">
+                            <label asp-for="AmountPaid" class="form-label">Amount to Pay <span
+                                    class="text-danger">*</span></label>
+                            <div class="input-group">
+                                <span class="input-group-text">Rs.</span>
+                                <input asp-for="AmountPaid" type="number" step="0.01" min="0.01" class="form-control"
+                                    id="amountPaidInput" required value="@(grnInfo?.BalanceAmount ?? 0)" />
+                            </div>
+                            <small class="text-muted">Enter amount less than balance for partial payment</small>
+                        </div>
+                        <div class="col-md-6">
+                            <label class="form-label">Payment Type</label>
+                            <input type="text" class="form-control" id="paymentTypeDisplay" readonly
+                                value="@(grnInfo != null && Model.AmountPaid >= grnInfo.BalanceAmount ? "Full Payment" : "Partial Payment")" />
+                        </div>
+                    </div>
+
+                    <!-- Notes -->
+                    <div class="row mb-3">
+                        <div class="col-md-12">
+                            <label asp-for="Notes" class="form-label">Notes</label>
+                            <textarea asp-for="Notes" class="form-control" rows="2"
+                                placeholder="Optional notes..."></textarea>
+                        </div>
+                    </div>
+
+                    <!-- Submit -->
+                    <div class="mt-3 d-flex justify-content-end gap-2">
+                        <a href="@Url.Action("SupplierPaymentIndex")" class="btn btn-secondary"><i
+                                class="fas fa-arrow-left me-1"></i> Back </a>
+                        <button type="submit" class="btn btn-success btn-lg"><i class="fas fa-check me-1"></i> Record
+                            Payment </button>
+                    </div>
+                </form>
+            </div>
+        </div>
+    </div>
+</div>
+
+@section Scripts {
+    <script>
+        $(document).ready(function () {
+            var currentBalance = @(grnInfo?.BalanceAmount ?? 0);
+
+            // Supplier dropdown change - load GRNs
+            $('#supplierDropdown').change(function () {
+                var supplierId = $(this).val();
+                if (supplierId) {
+                    $.get('@Url.Action("GetSupplierGrns")', { supplierId: supplierId }, function (data) {
+                        var grnDropdown = $('#grnDropdown');
+                        grnDropdown.empty().append('<option value="">-- Select GRN --</option>');
+                        $.each(data, function (i, grn) {
+                            grnDropdown.append($('<option>', {
+                                value: grn.grnID,
+                                text: grn.grnNumber + ' - Balance: ' + grn.balanceAmount.toFixed(2),
+                                'data-total': grn.totalAmount,
+                                'data-paid': grn.amountPaid,
+                                'data-balance': grn.balanceAmount
+                            }));
+                        });
+                    });
+                }
+            });
+
+            // GRN dropdown change - update display
+            $('#grnDropdown').change(function () {
+                var selected = $(this).find(':selected');
+                if (selected.val()) {
+                    currentBalance = parseFloat(selected.data('balance'));
+                    $('#displayTotalAmount').text(parseFloat(selected.data('total')).toFixed(2));
+                    $('#displayAmountPaid').text(parseFloat(selected.data('paid')).toFixed(2));
+                    $('#displayBalance').text(currentBalance.toFixed(2));
+                    $('#amountPaidInput').val(currentBalance.toFixed(2)).attr('max', currentBalance);
+                    $('#grnInfoCard').show();
+                    updatePaymentType();
+                } else {
+                    $('#grnInfoCard').hide();
+                }
+            });
+
+            // Amount change - update payment type
+            $('#amountPaidInput').on('input', updatePaymentType);
+
+            function updatePaymentType() {
+                var amount = parseFloat($('#amountPaidInput').val()) || 0;
+                if (amount >= currentBalance && currentBalance > 0) {
+                    $('#paymentTypeDisplay').val('Full Payment');
+                } else {
+                    $('#paymentTypeDisplay').val('Partial Payment');
+                }
+            }
+
+            // Payment method change
+            $('#paymentMethodDropdown').change(function () {
+                var method = $(this).val();
+                if (method === 'Cheque') {
+                    $('#chequeDetails').show();
+                    $('#bankRefSection').hide();
+                } else if (method === 'Bank') {
+                    $('#chequeDetails').hide();
+                    $('#bankRefSection').show();
+                } else {
+                    $('#chequeDetails').hide();
+                    $('#bankRefSection').hide();
+                }
+            });
+
+            // Initialize
+            $('#paymentMethodDropdown').trigger('change');
+            if ($('#grnDropdown').val()) {
+                $('#grnDropdown').trigger('change');
+            }
+        });
+    </script>
+}

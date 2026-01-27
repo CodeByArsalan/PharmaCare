@@ -1,0 +1,106 @@
+@model PharmaCare.Domain.Models.AccountManagement.ChartOfAccount
+@{
+    ViewData["Title"] = "Edit Account";
+    ViewData["Title"] = "Edit Account";
+}
+
+<div class="row">
+    <div class="col-xl-12 col-lg-12 col-md-12">
+        <div class="card mb-4">
+            <h4 class="card-header">Edit Chart of Account</h4>
+            <div class="card-body">
+                <form asp-action="EditChartOfAccount" method="post" class="needs-validation">
+                    <div asp-validation-summary="ModelOnly" class="alert alert-danger mb-4"></div>
+                    <input type="hidden" asp-for="AccountID" />
+
+                    <div class="row mt-2 g-4">
+                        <div class="col-md-6">
+                            <label asp-for="Head_ID" class="form-label fw-bold">Head <span
+                                    class="text-danger">*</span></label>
+                            <select asp-for="Head_ID" asp-items="ViewBag.Heads" class="form-select" required
+                                id="headDropdown">
+                                <option value="">-- Select Head --</option>
+                            </select>
+                            <span asp-validation-for="Head_ID" class="text-danger small"></span>
+                        </div>
+                        <div class="col-md-6">
+                            <label asp-for="Subhead_ID" class="form-label fw-bold">Subhead <span
+                                    class="text-danger">*</span></label>
+                            <select asp-for="Subhead_ID" asp-items="ViewBag.Subheads" class="form-select" required
+                                id="subheadDropdown">
+                                <option value="">-- Select Subhead --</option>
+                            </select>
+                            <span asp-validation-for="Subhead_ID" class="text-danger small"></span>
+                        </div>
+                        <div class="col-md-6">
+                            <label asp-for="AccountName" class="form-label fw-bold">Account Name <span
+                                    class="text-danger">*</span></label>
+                            <input asp-for="AccountName" class="form-control" placeholder="e.g., Cash in Hand"
+                                required />
+                            <span asp-validation-for="AccountName" class="text-danger small"></span>
+                        </div>
+                        <div class="col-md-6">
+                            <label asp-for="AccountType_ID" class="form-label fw-bold">Account Type <span
+                                    class="text-danger">*</span></label>
+                            <select asp-for="AccountType_ID" asp-items="ViewBag.AccountTypes" class="form-select"
+                                required>
+                                <option value="">-- Select Type --</option>
+                            </select>
+                            <span asp-validation-for="AccountType_ID" class="text-danger small"></span>
+                        </div>
+                        <div class="col-md-4">
+                            <label asp-for="AccountNo" class="form-label fw-bold">Account No</label>
+                            <input asp-for="AccountNo" class="form-control" placeholder="Account number" />
+                            <span asp-validation-for="AccountNo" class="text-danger small"></span>
+                        </div>
+                        <div class="col-md-4">
+                            <label asp-for="IBAN" class="form-label fw-bold">IBAN</label>
+                            <input asp-for="IBAN" class="form-control"
+                                placeholder="International Bank Account Number" />
+                            <span asp-validation-for="IBAN" class="text-danger small"></span>
+                        </div>
+                        <div class="col-md-4">
+                            <label asp-for="AccountAddress" class="form-label fw-bold">Account Address</label>
+                            <input asp-for="AccountAddress" class="form-control" placeholder="Bank/Account address" />
+                            <span asp-validation-for="AccountAddress" class="text-danger small"></span>
+                        </div>
+                    </div>
+
+                    <hr class="my-4">
+
+                    <div class="d-flex justify-content-end gap-2">
+                        <a asp-action="ChartOfAccountIndex" class="btn btn-secondary">
+                            <i class="bx bx-arrow-back me-1"></i> Back to list
+                        </a>
+                        <button type="submit" class="btn btn-success">
+                            <i class="bx bx-save me-1"></i> Update Account
+                        </button>
+                    </div>
+                </form>
+            </div>
+        </div>
+    </div>
+</div>
+
+@section Scripts {
+    <partial name="_ValidationScriptsPartial" />
+    <script>
+        $(document).ready(function () {
+            $('#headDropdown').change(function () {
+                var headId = $(this).val();
+                var $subheadDropdown = $('#subheadDropdown');
+
+                if (headId) {
+                    $.get('@Url.Action("GetSubheadsByHead", "Subhead")', { headId: headId }, function (data) {
+                        $subheadDropdown.empty().append('<option value="">-- Select Subhead --</option>');
+                        $.each(data, function (i, item) {
+                            $subheadDropdown.append($('<option></option>').val(item.id).text(item.name));
+                        });
+                    });
+                } else {
+                    $subheadDropdown.empty().append('<option value="">-- Select Head First --</option>');
+                }
+            });
+        });
+    </script>
+}

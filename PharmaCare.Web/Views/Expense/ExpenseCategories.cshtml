@@ -1,0 +1,77 @@
+@model List<PharmaCare.Domain.Models.Finance.ExpenseCategory>
+
+@{
+    ViewData["Title"] = "Expense Categories";
+    Layout = "~/Views/Shared/_Layout.cshtml";
+    int RowNo = 0;
+}
+
+<div class="card card-outline rounded-0 card-navy">
+    <div class="card-header d-flex justify-content-between align-items-center">
+        <h5 class="card-title">Expense Categories</h5>
+        <a asp-action="AddExpenseCategory" class="btn btn-flat btn-primary">
+            <span class="fas fa-plus"></span> Add Expense Category
+        </a>
+    </div>
+    <div class="card-body p-0">
+        <table class="table table-hover table-striped table-bordered dataTable" id="categoriesTable">
+            <thead>
+                <tr>
+                    <th>S.No</th>
+                    <th>Name</th>
+                    <th>Parent Category</th>
+                    <th>Description</th>
+                    <th>Action</th>
+                </tr>
+            </thead>
+            <tbody>
+                @if (Model != null && Model.Any())
+                {
+                    var parentCategories = Model.Where(c => c.ParentCategory_ID == null);
+                    foreach (var parent in parentCategories)
+                    {
+                        RowNo++;
+                        <tr class="table-light">
+                            <td>@RowNo</td>
+                            <td><strong>@parent.Name</strong></td>
+                            <td>-</td>
+                            <td>@parent.Description</td>
+                            <td>
+                                <a asp-action="EditExpenseCategory" asp-route-id="@parent.ExpenseCategoryID"
+                                    class="btn btn-sm btn-info text-white">
+                                    <i class="bx bx-edit"></i>
+                                </a>
+                                <form asp-action="DeleteExpenseCategory" asp-route-id="@parent.ExpenseCategoryID" method="post"
+                                    class="d-inline" onsubmit="return confirm('Are you sure?');">
+                                    <button type="submit" class="btn btn-sm btn-danger"><i class="bx bx-trash"></i></button>
+                                </form>
+                            </td>
+                        </tr>
+                        var children = Model.Where(c => c.ParentCategory_ID == parent.ExpenseCategoryID);
+                        foreach (var child in children)
+                        {
+                            RowNo++;
+                            <tr>
+                                <td>@RowNo</td>
+                                <td class="ps-4">└─ @child.Name</td>
+                                <td>@parent.Name</td>
+                                <td>@child.Description</td>
+                                <td>
+                                    <a asp-action="EditExpenseCategory" asp-route-id="@child.ExpenseCategoryID"
+                                        class="btn btn-sm btn-info text-white">
+                                        <i class="bx bx-edit"></i>
+                                    </a>
+                                    <form asp-action="DeleteExpenseCategory" asp-route-id="@child.ExpenseCategoryID" method="post"
+                                        class="d-inline" onsubmit="return confirm('Are you sure?');">
+                                        <button type="submit" class="btn btn-sm btn-danger"><i class="bx bx-trash"></i></button>
+                                    </form>
+                                </td>
+                            </tr>
+                        }
+                    }
+                }
+            </tbody>
+        </table>
+    </div>
+</div>
+

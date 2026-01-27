@@ -1,0 +1,131 @@
+@model PharmaCare.Application.DTOs.Accounting.GeneralLedgerDto
+@{
+    ViewData["Title"] = $"General Ledger - {Model.Account.AccountName}";
+}
+
+<div class="row page-titles mb-2 mt-2 d-print-none">
+    <div class="col-md-5 align-self-center">
+        <h3 class="text-primary fw-bold text-uppercase mb-0">General Ledger</h3>
+    </div>
+    <div class="col-md-7 align-self-center text-end">
+        <button onclick="window.print()" class="btn btn-info btn-lg">
+            <i class="bx bx-print me-1"></i> Print GL
+        </button>
+        <a asp-action="SelectAccount" class="btn btn-primary btn-lg">
+            <i class="bx bx-search me-1"></i> Switch Account
+        </a>
+    </div>
+</div>
+
+<div class="container-fluid p-0">
+    <!-- Account Summary Card -->
+    <div class="card border-0 mb-3 shadow-sm">
+        <div class="card-body p-3">
+            <div class="row align-items-center">
+                <div class="col-md-8">
+                    <h3 class="fw-bold text-primary mb-1">@Model.Account.AccountName</h3>
+                    <h5 class="text-muted mb-0">Head: @Model.Account.HeadName</h5>
+                </div>
+                <div class="col-md-4 text-md-end mt-3 mt-md-0">
+                    <div class="text-secondary small fw-bold text-uppercase mb-1">Closing Balance</div>
+                    <h2 class="fw-bold mb-0">@Model.ClosingBalance.ToString("N2")</h2>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Filter Bar -->
+    <div class="card p-0 mb-3 d-print-none">
+        <div class="card-body p-3">
+            <form asp-action="GeneralLedger" method="get" class="row g-3 align-items-end">
+                <input type="hidden" name="accountId" value="@Model.Account.AccountID" />
+                <div class="col-md-3">
+                    <label class="form-label small fw-bold text-secondary">From Date</label>
+                    <input type="date" name="from" value="@Model.FromDate?.ToString("yyyy-MM-dd")" class="form-control rounded-3" />
+                </div>
+                <div class="col-md-3">
+                    <label class="form-label small fw-bold text-secondary">To Date</label>
+                    <input type="date" name="to" value="@Model.ToDate?.ToString("yyyy-MM-dd")" class="form-control rounded-3" />
+                </div>
+                <div class="col-md-3">
+                    <button type="submit" class="btn btn-info btn-lg">
+                        <i class="fas fa-filter me-1"></i> Apply Filter
+                    </button>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <!-- Ledger Table -->
+    <div class="card border-0 shadow-sm rounded-3 overflow-hidden">
+        <div class="card-body p-0">
+            <div class="table-responsive">
+                <table class="table table-hover align-middle mb-0">
+                    <thead class="bg-primary text-white border-bottom">
+                        <tr>
+                            <th class="ps-4">Date</th>
+                            <th>Entry #</th>
+                            <th style="width: 30%;">Description</th>
+                            <th class="text-end">Debit</th>
+                            <th class="text-end">Credit</th>
+                            <th class="text-end pe-4">Running Balance</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        <!-- Opening Balance Row if date filter applied -->
+                        @if (Model.FromDate.HasValue)
+                        {
+                            <tr class="bg-light-soft fw-bold">
+                                <td class="ps-4">@Model.FromDate.Value.ToString("dd-MMM-yyyy")</td>
+                                <td>-</td>
+                                <td>Opening Balance as of @Model.FromDate.Value.ToString("dd-MMM-yyyy")</td>
+                                <td class="text-end">-</td>
+                                <td class="text-end">-</td>
+                                <td class="text-end pe-4">@Model.OpeningBalance.ToString("N2")</td>
+                            </tr>
+                        }
+
+                        @if (Model.Transactions != null && Model.Transactions.Any())
+                        {
+                            decimal runningBalance = Model.OpeningBalance;
+                            foreach (var tx in Model.Transactions)
+                            {
+                                // Calculate running balance logic varies by account type normal balance
+                                // For simplicity here, let's assume the service calculates it 
+                                // (but the DTO doesn't have it on each line, so we calculate here)
+                                // Standard: Assets/Expenses increase with Debit, Liabilities/Equity/Revenue increase with Credit
+                                if (Model.Account.HeadName == "Asset" || Model.Account.HeadName == "Assets" || Model.Account.HeadName == "Expense" || Model.Account.HeadName == "Expenses" || Model.Account.HeadName == "Cost of Goods Sold" || Model.Account.HeadName == "COGS")
+                                    runningBalance += (tx.DebitAmount - tx.CreditAmount);
+                                else
+                                    runningBalance += (tx.CreditAmount - tx.DebitAmount);
+
+                                <tr>
+                                    <td class="ps-4">@tx.Date.ToString("dd-MMM-yyyy")</td>
+                                    <td class="fw-medium text-info"><a href="@Url.Action("Details", "JournalEntry", new { id = tx.EntryNumber })">@tx.EntryNumber</a></td>
+                                    <td>@tx.Description</td>
+                                    <td class="text-end text-primary">@(tx.DebitAmount > 0 ? tx.DebitAmount.ToString("N2") : "-")</td>
+                                    <td class="text-end text-success">@(tx.CreditAmount > 0 ? tx.CreditAmount.ToString("N2") : "-")</td>
+                                    <td class="text-end pe-4 fw-bold">@runningBalance.ToString("N2")</td>
+                                </tr>
+                            }
+                        }
+                        else
+                        {
+                            <tr>
+                                <td colspan="6" class="text-center py-5 text-muted">No transactions found for the selected period.</td>
+                            </tr>
+                        }
+                    </tbody>
+                    <tfoot class="bg-light border-top border-2">
+                        <tr class="fw-bold h5">
+                            <td colspan="3" class="text-end ps-4 py-3">Closing Totals</td>
+                            <td class="text-end text-primary py-3">@Model.Transactions.Sum(t => t.DebitAmount).ToString("N2")</td>
+                            <td class="text-end text-success py-3">@Model.Transactions.Sum(t => t.CreditAmount).ToString("N2")</td>
+                            <td class="text-end pe-4 py-3 text-dark">@Model.ClosingBalance.ToString("N2")</td>
+                        </tr>
+                    </tfoot>
+                </table>
+            </div>
+        </div>
+    </div>
+</div>

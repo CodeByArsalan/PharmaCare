@@ -1,0 +1,404 @@
+@using Microsoft.AspNetCore.Http
+@using Microsoft.AspNetCore.Identity
+@using PharmaCare.Domain.Models.Membership
+@using PharmaCare.Domain.ViewModels
+@using System.Text.Json
+@inject PharmaCare.Application.Interfaces.Membership.ISystemUserService _user;
+@inject Microsoft.AspNetCore.Http.IHttpContextAccessor HttpContextAccessor
+@inject SignInManager<SystemUser> _signInManager;
+
+@{
+    var userPagesJson = HttpContextAccessor.HttpContext?.Session.GetString("AspNetUserPage");
+    var menuItems = new List<MenuItemDto>();
+
+    if (!string.IsNullOrEmpty(userPagesJson))
+    {
+        try
+        {
+            menuItems = JsonSerializer.Deserialize<List<MenuItemDto>>(userPagesJson) ?? new List<MenuItemDto>();
+        }
+        catch
+        {
+            menuItems = new List<MenuItemDto>();
+        }
+    }
+    else if (User?.Identity?.IsAuthenticated == true)
+    {
+        // Session is empty but user is authenticated - try to load menu items
+        // First try from claims
+        var loginUserClaim = User?.Claims?.FirstOrDefault(d => d.Type == "LoginUserDetail")?.Value;
+        if (!string.IsNullOrEmpty(loginUserClaim))
+        {
+            try
+            {
+                var loginUserDetail = JsonSerializer.Deserialize<LoginUserViewModel>(loginUserClaim);
+                if (loginUserDetail != null)
+                {
+                    userPagesJson = _user.GetUserPagesJson(loginUserDetail.UserID);
+                    if (!string.IsNullOrEmpty(userPagesJson))
+                    {
+                        HttpContextAccessor.HttpContext?.Session.SetString("AspNetUserPage", userPagesJson);
+                        menuItems = JsonSerializer.Deserialize<List<MenuItemDto>>(userPagesJson) ?? new List<MenuItemDto>();
+                    }
+                }
+            }
+            catch
+            {
+                menuItems = new List<MenuItemDto>();
+            }
+        }
+        else
+        {
+            // Claims don't have LoginUserDetail - try to get user ID from Identity
+            var userIdClaim = User?.FindFirst(System.Security.Claims.ClaimTypes.NameIdentifier)?.Value;
+            if (!string.IsNullOrEmpty(userIdClaim) && int.TryParse(userIdClaim, out int userId))
+            {
+                try
+                {
+                    userPagesJson = _user.GetUserPagesJson(userId);
+                    if (!string.IsNullOrEmpty(userPagesJson))
+                    {
+                        HttpContextAccessor.HttpContext?.Session.SetString("AspNetUserPage", userPagesJson);
+                        menuItems = JsonSerializer.Deserialize<List<MenuItemDto>>(userPagesJson) ?? new List<MenuItemDto>();
+                    }
+                }
+                catch
+                {
+                    menuItems = new List<MenuItemDto>();
+                }
+            }
+        }
+    }
+
+    var currentController = ViewContext.RouteData.Values["Controller"]?.ToString();
+    var currentAction = ViewContext.RouteData.Values["Action"]?.ToString();
+}
+
+<aside id="layout-menu" class="layout-menu menu-vertical menu bg-menu-theme">
+    <div class="app-brand demo">
+        <a href="/" class="app-brand-link">
+            <span class="app-brand-logo demo">
+                <i class='bx bxs-first-aid' style="font-size: 2rem; color: #0EA5E9;"></i>
+            </span>
+            <span class="app-brand-text demo menu-text fw-bold ms-2">PharmaCare</span>
+        </a>
+
+        <a href="javascript:void(0);" class="layout-menu-toggle menu-link text-large ms-auto d-block d-xl-none">
+            <i class="bx bx-chevron-left bx-sm align-middle"></i>
+        </a>
+    </div>
+
+    <div class="menu-inner-shadow"></div>
+
+    <ul class="menu-inner py-1">
+        @if (menuItems.Any())
+        {
+            @foreach (var parent in menuItems)
+            {
+                var isParentActive = parent.ControllerName == currentController;
+                var hasChildren = parent.Children.Any();
+                var isChildActive = parent.Children.Any(c => c.ControllerName == currentController);
+                var isOpen = isParentActive || isChildActive;
+
+                @if (hasChildren)
+                {
+                    <!-- Parent with submenu -->
+                    <li class="menu-item @(isOpen ? "active open" : "")">
+                        <a href="javascript:void(0);" class="menu-link menu-toggle">
+                            <i class="menu-icon tf-icons @(parent.PageIcon ?? "bx bx-folder")"></i>
+                            <div>@parent.PageTitle</div>
+                        </a>
+                        <ul class="menu-sub">
+                            @foreach (var child in parent.Children)
+                            {
+                                var isActive = child.ControllerName == currentController &&
+                                (string.IsNullOrEmpty(child.ViewName) || child.ViewName == currentAction);
+                                <li class="menu-item @(isActive ? "active" : "")">
+                                    @if (!string.IsNullOrEmpty(child.ControllerName) && !string.IsNullOrEmpty(child.ViewName))
+                                    {
+                                        <a class="menu-link" asp-controller="@child.ControllerName" asp-action="@child.ViewName">
+                                            @* <i class="menu-icon tf-icons @(child.PageIcon ?? "bx bx-circle")"></i> *@
+                                            <div>@child.PageTitle</div>
+                                        </a>
+                                    }
+                                    else if (child.Urls.Any())
+                                    {
+                                        <a class="menu-link" href="@child.Urls.First()">
+                                            @* <i class="menu-icon tf-icons @(child.PageIcon ?? "bx bx-circle")"></i> *@
+                                            <div>@child.PageTitle</div>
+                                        </a>
+                                    }
+                                </li>
+                            }
+                        </ul>
+                    </li>
+                }
+                else
+                {
+                    <!-- Standalone menu item -->
+                    var isActive = parent.ControllerName == currentController &&
+                    (string.IsNullOrEmpty(parent.ViewName) || parent.ViewName == currentAction);
+                    <li class="menu-item @(isActive ? "active" : "")">
+                        @if (!string.IsNullOrEmpty(parent.ControllerName) && !string.IsNullOrEmpty(parent.ViewName))
+                        {
+                            <a class="menu-link" asp-controller="@parent.ControllerName" asp-action="@parent.ViewName">
+                                <i class="menu-icon tf-icons @(parent.PageIcon ?? "bx bx-home-circle")"></i>
+                                <div>@parent.PageTitle</div>
+                            </a>
+                        }
+                        else if (parent.Urls.Any())
+                        {
+                            <a class="menu-link" href="@parent.Urls.First()">
+                                <i class="menu-icon tf-icons @(parent.PageIcon ?? "bx bx-home-circle")"></i>
+                                <div>@parent.PageTitle</div>
+                            </a>
+                        }
+                    </li>
+                }
+            }
+        }
+        else
+        {
+            <!-- Fallback: Show basic menu when no pages are assigned -->
+            <li class="menu-item @(currentController == "Home" && currentAction == "Index" ? "active" : "")">
+                <a class="menu-link" asp-controller="Home" asp-action="Index">
+                    <i class="menu-icon tf-icons bx bx-home-circle"></i>
+                    <div>Dashboard</div>
+                </a>
+            </li>
+        }
+
+        @if (User?.IsInRole("Admin") == true)
+        {
+            <li class="menu-header small text-uppercase">
+                <span class="menu-header-text">Administration</span>
+            </li>
+
+            <li class="menu-item @(currentController == "SystemUser" ? "active" : "")">
+                <a class="menu-link" asp-controller="SystemUser" asp-action="UserIndex">
+                    <i class="menu-icon tf-icons bx bx-user"></i>
+                    <div>Users</div>
+                </a>
+            </li>
+            <li class="menu-item @(currentController == "UserType" ? "active" : "")">
+                <a class="menu-link" asp-controller="UserType" asp-action="Index">
+                    <i class="menu-icon tf-icons bx bxs-user-badge"></i>
+                    <div>User Types</div>
+                </a>
+            </li>
+            <li class="menu-item @(currentController == "Product" ? "active" : "")">
+                <a class="menu-link" asp-controller="Product" asp-action="Index">
+                    <i class="menu-icon tf-icons bx bx-box"></i>
+                    <div>Products</div>
+                </a>
+            </li>
+
+            <li class="menu-header small text-uppercase">
+                <span class="menu-header-text">Customers</span>
+            </li>
+            <li class="menu-item @(currentController == "Customer" ? "active" : "")">
+                <a class="menu-link" asp-controller="Customer" asp-action="Index">
+                    <i class="menu-icon tf-icons bx bx-group"></i>
+                    <div>Customer List</div>
+                </a>
+            </li>
+
+            <li class="menu-item @(currentController == "Stock" ? "active" : "")">
+                <a class="menu-link" asp-controller="Stock" asp-action="Index">
+                    <i class="menu-icon tf-icons bx bx-data"></i>
+                    <div>Stock Overview</div>
+                </a>
+            </li>
+            <li class="menu-item @(currentController == "Supplier" ? "active" : "")">
+                <a class="menu-link" asp-controller="Supplier" asp-action="Index">
+                    <i class="menu-icon tf-icons bx bx-briefcase"></i>
+                    <div>Suppliers</div>
+                </a>
+            </li>
+            <li class="menu-item @(currentController == "PurchaseOrder" ? "active" : "")">
+                <a class="menu-link" asp-controller="PurchaseOrder" asp-action="Index">
+                    <i class="menu-icon tf-icons bx bx-cart"></i>
+                    <div>Purchase Orders</div>
+                </a>
+            </li>
+            <li class="menu-item @(currentController == "Grn" ? "active" : "")">
+                <a class="menu-link" asp-controller="Grn" asp-action="Index">
+                    <i class="menu-icon tf-icons bx bx-import"></i>
+                    <div>GRN (Stock In)</div>
+                </a>
+            </li>
+            <li class="menu-item @(currentController == "StockTransfer" ? "active" : "")">
+                <a class="menu-link" asp-controller="StockTransfer" asp-action="Index">
+                    <i class="menu-icon tf-icons bx bx-transfer"></i>
+                    <div>Stock Transfers</div>
+                </a>
+            </li>
+            <li class="menu-item @(currentController == "StockAdjustment" ? "active" : "")">
+                <a class="menu-link" asp-controller="StockAdjustment" asp-action="Index">
+                    <i class="menu-icon tf-icons bx bx-slider-alt"></i>
+                    <div>Stock Adjustments</div>
+                </a>
+            </li>
+            <li class="menu-item @(currentController == "PurchaseReturn" ? "active" : "")">
+                <a class="menu-link" asp-controller="PurchaseReturn" asp-action="Index">
+                    <i class="menu-icon tf-icons bx bx-undo"></i>
+                    <div>Purchase Returns</div>
+                </a>
+            </li>
+            <li class="menu-item @(currentController == "StockTake" ? "active" : "")">
+                <a class="menu-link" asp-controller="StockTake" asp-action="Index">
+                    <i class="menu-icon tf-icons bx bx-list-check"></i>
+                    <div>Stock Take</div>
+                </a>
+            </li>
+            <li class="menu-item @(currentController == "StockAlerts" ? "active" : "")">
+                <a class="menu-link" asp-controller="StockAlerts" asp-action="Index">
+                    <i class="menu-icon tf-icons bx bx-error-circle"></i>
+                    <div>Stock Alerts</div>
+                </a>
+            </li>
+            <li class="menu-item @(currentController == "Store" ? "active" : "")">
+                <a class="menu-link" asp-controller="Store" asp-action="Index">
+                    <i class="menu-icon tf-icons bx bx-store-alt"></i>
+                    <div>Store Management</div>
+                </a>
+            </li>
+
+            <li class="menu-header small text-uppercase">
+                <span class="menu-header-text">Finance</span>
+            </li>
+            <li class="menu-item @(currentController == "Finance" ? "active" : "")">
+                <a class="menu-link" asp-controller="Finance" asp-action="Index">
+                    <i class="menu-icon tf-icons bx bx-home-circle"></i>
+                    <div>Finance Dashboard</div>
+                </a>
+            </li>
+            <li class="menu-item @(currentController == "CustomerPayment" ? "active" : "")">
+                <a class="menu-link" asp-controller="CustomerPayment" asp-action="CustomerPaymentIndex">
+                    <i class="menu-icon tf-icons bx bx-download"></i>
+                    <div>Customer Payments</div>
+                </a>
+            </li>
+            <li class="menu-item @(currentController == "SupplierPayment" ? "active" : "")">
+                <a class="menu-link" asp-controller="SupplierPayment" asp-action="SupplierPaymentIndex">
+                    <i class="menu-icon tf-icons bx bx-upload"></i>
+                    <div>Supplier Payments</div>
+                </a>
+            </li>
+            <li
+                class="menu-item @(currentController == "Expense" || currentController == "PettyCash" || currentController == "Bank" || currentController == "Cash" || currentController == "Reconciliation" ? "active open" : "")">
+                <a href="javascript:void(0);" class="menu-link menu-toggle">
+                    <i class="menu-icon tf-icons bx bx-wallet"></i>
+                    <div>Cash & Expenses</div>
+                </a>
+                <ul class="menu-sub">
+                    <li class="menu-item @(currentController == "Expense" ? "active" : "")">
+                        <a asp-controller="Expense" asp-action="Expenses" class="menu-link">
+                            <div>Manage Expenses</div>
+                        </a>
+                    </li>
+                    <li class="menu-item @(currentController == "PettyCash" ? "active" : "")">
+                        <a asp-controller="PettyCash" asp-action="Index" class="menu-link">
+                            <div>Petty Cash</div>
+                        </a>
+                    </li>
+                    <li class="menu-item @(currentController == "Bank" ? "active" : "")">
+                        <a asp-controller="Bank" asp-action="Index" class="menu-link">
+                            <div>Bank Transactions</div>
+                        </a>
+                    </li>
+                    <li class="menu-item @(currentController == "Cash" ? "active" : "")">
+                        <a asp-controller="Cash" asp-action="Index" class="menu-link">
+                            <div>Cash Registry</div>
+                        </a>
+                    </li>
+                </ul>
+            </li>
+
+            <li class="menu-header small text-uppercase">
+                <span class="menu-header-text">Accounting</span>
+            </li>
+            <li class="menu-item @(currentController == "ChartOfAccount" ? "active open" : "")">
+                <a href="javascript:void(0);" class="menu-link menu-toggle">
+                    <i class="menu-icon tf-icons bx bx-spreadsheet"></i>
+                    <div>Chart of Accounts</div>
+                </a>
+                <ul class="menu-sub">
+                    <li
+                        class="menu-item @(currentController == "ChartOfAccount" && currentAction == "Index" ? "active" : "")">
+                        <a asp-controller="ChartOfAccount" asp-action="Index" class="menu-link">
+                            <div>Manage Accounts</div>
+                        </a>
+                    </li>
+                    <li
+                        class="menu-item @(currentController == "ChartOfAccount" && currentAction == "Create" ? "active" : "")">
+                        <a asp-controller="ChartOfAccount" asp-action="Create" class="menu-link">
+                            <div>New Account</div>
+                        </a>
+                    </li>
+                </ul>
+            </li>
+            <li class="menu-item @(currentController == "JournalEntry" ? "active open" : "")">
+                <a href="javascript:void(0);" class="menu-link menu-toggle">
+                    <i class="menu-icon tf-icons bx bx-book-content"></i>
+                    <div>General Journal</div>
+                </a>
+                <ul class="menu-sub">
+                    <li
+                        class="menu-item @(currentController == "JournalEntry" && currentAction == "Index" ? "active" : "")">
+                        <a asp-controller="JournalEntry" asp-action="Index" class="menu-link">
+                            <div>Journal Entries</div>
+                        </a>
+                    </li>
+                    <li
+                        class="menu-item @(currentController == "JournalEntry" && currentAction == "Create" ? "active" : "")">
+                        <a asp-controller="JournalEntry" asp-action="Create" class="menu-link">
+                            <div>Manual Voucher</div>
+                        </a>
+                    </li>
+                </ul>
+            </li>
+            <li class="menu-item @(currentController == "AccountingReports" ? "active open" : "")">
+                <a href="javascript:void(0);" class="menu-link menu-toggle">
+                    <i class="menu-icon tf-icons bx bx-calculator"></i>
+                    <div>Financial Reports</div>
+                </a>
+                <ul class="menu-sub">
+                    <li class="menu-item @(currentAction == "TrialBalance" ? "active" : "")">
+                        <a asp-controller="AccountingReports" asp-action="TrialBalance" class="menu-link">
+                            <div>Trial Balance</div>
+                        </a>
+                    </li>
+                    <li class="menu-item @(currentAction == "BalanceSheet" ? "active" : "")">
+                        <a asp-controller="AccountingReports" asp-action="BalanceSheet" class="menu-link">
+                            <div>Balance Sheet</div>
+                        </a>
+                    </li>
+                    <li class="menu-item @(currentAction == "IncomeStatement" ? "active" : "")">
+                        <a asp-controller="AccountingReports" asp-action="IncomeStatement" class="menu-link">
+                            <div>Income Statement</div>
+                        </a>
+                    </li>
+                    <li
+                        class="menu-item @(currentAction == "SelectAccount" || currentAction == "GeneralLedger" ? "active" : "")">
+                        <a asp-controller="AccountingReports" asp-action="SelectAccount" class="menu-link">
+                            <div>General Ledger</div>
+                        </a>
+                    </li>
+                </ul>
+            </li>
+
+            <li class="menu-header small text-uppercase">
+                <span class="menu-header-text">Reports</span>
+            </li>
+
+            <li class="menu-item @(currentController == "Reports" ? "active" : "")">
+                <a class="menu-link" asp-controller="Reports" asp-action="Index">
+                    <i class="menu-icon tf-icons bx bx-bar-chart-alt-2"></i>
+                    <div>Reports Dashboard</div>
+                </a>
+            </li>
+        }
+    </ul>
+</aside>
+

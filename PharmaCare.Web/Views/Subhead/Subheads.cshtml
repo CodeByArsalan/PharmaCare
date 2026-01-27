@@ -1,0 +1,200 @@
+@model PharmaCare.Domain.ViewModels.SubheadsViewModel
+@inject PharmaCare.Infrastructure.Interfaces.IComboBoxRepository _comboBox
+@using PharmaCare.Web.Utilities
+
+@{
+    ViewData["Title"] = "Subheads";
+    Layout = "~/Views/Shared/_Layout.cshtml";
+}
+
+<!-- Add/Edit Subhead Card -->
+<div class="card card-outline rounded-0 card-navy mb-3">
+    <div class="card-header">
+        <h5 class="card-title mb-0">
+            <i class='bx @(Model.IsEditMode ? "bx-edit" : "bx-plus-circle") me-1'></i>
+            @(Model.IsEditMode ? "Edit Subhead" : "Add Subhead")
+        </h5>
+    </div>
+    <div class="card-body mt-2">
+        <form asp-action="@(Model.IsEditMode ? "EditSubhead" : "AddSubhead")" method="post" id="subheadForm">
+            @Html.AntiForgeryToken()
+            <input type="hidden" asp-for="CurrentSubhead.SubheadID" />
+            <input type="hidden" asp-for="IsEditMode" />
+
+            <div asp-validation-summary="ModelOnly" class="alert alert-danger"></div>
+
+            <!-- Label Row -->
+            <div class="row">
+                <div class="col-md-5"><label class="form-label">Head <span class="text-danger">*</span></label></div>
+                <div class="col-md-5"><label class="form-label">Subhead Name <span class="text-danger">*</span></label></div>
+                <div class="col-md-2"></div>
+            </div>
+
+            <!-- Input and Button Row -->
+            <div class="row">
+                <div class="col-md-5 col-lg-5 mb-2">
+                    <select asp-for="CurrentSubhead.Head_ID" asp-items="@_comboBox.GetHeads(Model.CurrentSubhead.Head_ID)" class="form-select">
+                        <option value="">-- Select Head --</option>
+                    </select>
+                    <span asp-validation-for="CurrentSubhead.Head_ID" class="text-danger small"></span>
+                </div>
+                <div class="col-md-5 col-lg-5 mb-2">
+                    <input asp-for="CurrentSubhead.SubheadName" class="form-control" placeholder="e.g., Petty Cash, Savings Account" autofocus />
+                    <span asp-validation-for="CurrentSubhead.SubheadName" class="text-danger small"></span>
+                </div>
+                <div class="col-md-2 col-lg-2 mb-2">
+                    <div class="d-flex gap-2">
+                        <button type="submit" class="btn @(Model.IsEditMode ? "btn-info" : "btn-success")">
+                            <i class='bx @(Model.IsEditMode ? "bx-check" : "bx-plus") me-1'></i>
+                            @(Model.IsEditMode ? "Update" : "Add")
+                        </button>
+                        @if (Model.IsEditMode)
+                        {
+                            <a asp-action="Subheads" class="btn btn-secondary">
+                                <i class='bx bx-x'></i>
+                            </a>
+                        }
+                    </div>
+                </div>
+            </div>
+        </form>
+    </div>
+</div>
+
+<!-- Subheads List Card -->
+<div class="card card-outline rounded-0 card-navy">
+    <div class="card-header">
+        <h5 class="card-title mb-0">
+            <i class='bx bx-list-ul me-1'></i> Subheads List
+        </h5>
+    </div>
+    <div class="card-body p-0">
+        @if (Model.SubheadsList.Any())
+        {
+            <div class="table-responsive">
+                <table class="table table-hover table-striped table-bordered dataTable" id="subheadsTable">
+                    <thead class="table-dark">
+                        <tr>
+                            <th>S.No</th>
+                            <th>Head</th>
+                            <th>Subhead Name</th>
+                            <th>Status</th>
+                            <th>Actions</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        @{
+                            int index = 1;
+                        }
+                        @foreach (var subhead in Model.SubheadsList)
+                        {
+                            <tr class="@(!subhead.IsActive ? "table-secondary" : "")">
+                                <td>
+                                    <span class="badge bg-light text-dark">@index</span>
+                                </td>
+                                <td>
+                                    <span class="badge bg-primary">
+                                        @(subhead.Head?.HeadName ?? "N/A")
+                                    </span>
+                                </td>
+                                <td>
+                                    <div class="d-flex align-items-center">
+                                        <div class="icon-circle icon-circle-info me-3">
+                                            <i class='bx bxs-folder'></i>
+                                        </div>
+                                        <strong>@subhead.SubheadName</strong>
+                                    </div>
+                                </td>
+                                <td>
+                                    @if (subhead.IsActive)
+                                    {
+                                        <span class="badge bg-success"><i class='bx bx-check-circle me-1'></i>Active</span>
+                                    }
+                                    else
+                                    {
+                                        <span class="badge bg-danger"><i class='bx bx-x-circle me-1'></i>Inactive</span>
+                                    }
+                                </td>
+                                <td>
+                                    <div class="d-flex gap-2">
+                                        <a asp-action="EditSubhead"
+                                            asp-route-id="@Utility.EncryptURL(subhead.SubheadID.ToString2())"
+                                            class="btn btn-sm btn-info text-white" title="Edit">
+                                            <i class='bx bx-edit'></i>
+                                        </a>
+                                        <form asp-action="DeleteSubhead"
+                                            asp-route-id="@Utility.EncryptURL(subhead.SubheadID.ToString2())" method="post"
+                                            class="d-inline">
+                                            @Html.AntiForgeryToken()
+                                            @if (subhead.IsActive)
+                                            {
+                                                <button type="button" class="btn btn-warning btn-sm toggle-btn" title="Deactivate"
+                                                    data-action="deactivate">
+                                                    <i class="bx bx-power-off"></i>
+                                                </button>
+                                            }
+                                            else
+                                            {
+                                                <button type="button" class="btn btn-success btn-sm toggle-btn" title="Activate"
+                                                    data-action="activate">
+                                                    <i class="bx bx-check"></i>
+                                                </button>
+                                            }
+                                        </form>
+                                    </div>
+                                </td>
+                            </tr>
+                            index++;
+                        }
+                    </tbody>
+                </table>
+            </div>
+        }
+        else
+        {
+            <div class="text-center py-5">
+                <i class='bx bx-folder-open display-1 text-muted'></i>
+                <p class="text-muted mt-3">No subheads found. Add your first subhead using the form above.</p>
+            </div>
+        }
+    </div>
+</div>
+
+@section Scripts {
+    <partial name="_ValidationScriptsPartial" />
+    <script>
+        $(document).ready(function () {
+            // Toggle status confirmation with SweetAlert
+            $('.toggle-btn').click(function (e) {
+                e.preventDefault();
+                var form = $(this).closest('form');
+                var action = $(this).data('action');
+                var isDeactivate = action === 'deactivate';
+
+                Swal.fire({
+                    title: "Attention",
+                    text: isDeactivate
+                        ? "Are you sure you want to deactivate this subhead? Related accounts may be affected."
+                        : "Are you sure you want to activate this subhead?",
+                    icon: 'warning',
+                    showCancelButton: true,
+                    confirmButtonColor: isDeactivate ? "#F59E0B" : "#22C55E",
+                    cancelButtonColor: "#6B7280",
+                    confirmButtonText: isDeactivate ? "Yes, Deactivate!" : "Yes, Activate!"
+                }).then(function (result) {
+                    if (result.value) {
+                        form.submit();
+                    }
+                });
+            });
+
+            // Focus on input if in edit mode
+            @if (Model.IsEditMode)
+            {
+                <text>
+                    $('#CurrentSubhead_SubheadName').focus().select();
+                </text>
+            }
+        });
+    </script>
+}

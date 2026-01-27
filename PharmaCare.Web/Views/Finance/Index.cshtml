@@ -1,0 +1,92 @@
+@model PharmaCare.Application.DTOs.Finance.FinanceDashboardDto
+
+@{
+    ViewData["Title"] = "Finance Dashboard";
+    Layout = "~/Views/Shared/_Layout.cshtml";
+}
+
+<div class="row">
+    <!-- Summary Cards -->
+    <div class="col-md-4 mb-4">
+        <div class="card bg-primary text-white h-100">
+            <div class="card-body">
+                <div class="d-flex justify-content-between align-items-center">
+                    <div>
+                        <h6 class="text-uppercase mb-1">Cash on Hand</h6>
+                        <h3 class="mb-0">@Model.TotalCashOnHand.ToString("C")</h3>
+                    </div>
+                    <i class="bx bx-money bx-lg"></i>
+                </div>
+            </div>
+        </div>
+    </div>
+    <div class="col-md-4 mb-4">
+        <div class="card bg-success text-white h-100">
+            <div class="card-body">
+                <div class="d-flex justify-content-between align-items-center">
+                    <div>
+                        <h6 class="text-uppercase mb-1">Bank Balance</h6>
+                        <h3 class="mb-0">@Model.TotalBankBalance.ToString("C")</h3>
+                    </div>
+                    <i class="bx bx-bank bx-lg"></i>
+                </div>
+            </div>
+        </div>
+    </div>
+    <div class="col-md-4 mb-4">
+        <div class="card bg-warning text-dark h-100">
+            <div class="card-body">
+                <div class="d-flex justify-content-between align-items-center">
+                    <div>
+                        <h6 class="text-uppercase mb-1">Today's Expenses</h6>
+                        <h3 class="mb-0">@Model.TodayExpenses.ToString("C")</h3>
+                    </div>
+                    <i class="bx bx-receipt bx-lg"></i>
+                </div>
+            </div>
+            <div class="card-footer bg-transparent border-0">
+                <a asp-controller="Expense" asp-action="Expenses" class="text-dark"><small>View Expenses</small></a>
+            </div>
+        </div>
+    </div>
+</div>
+
+<div class="row">
+    <!-- Quick Actions -->
+    <div class="col-lg-12 mb-4">
+        <div class="card card-outline rounded-0 card-navy h-100">
+            <div class="card-header">
+                <h5 class="card-title mb-0">Quick Actions</h5>
+            </div>
+            <div class="card-body">
+                <div class="row">
+                    <div class="col-md-3 mb-3">
+                        <a asp-controller="CustomerPayment" asp-action="AddCustomerPayment"
+                            class="btn btn-outline-primary btn-block w-100">
+                            <i class="bx bx-user-check"></i> Customer Payment
+                        </a>
+                    </div>
+                    <div class="col-md-3 mb-3">
+                        <a asp-controller="SupplierPayment" asp-action="AddSupplierPayment"
+                            class="btn btn-outline-success btn-block w-100">
+                            <i class="bx bx-package"></i> Supplier Payment
+                        </a>
+                    </div>
+                    <div class="col-md-3 mb-3">
+                        <a asp-controller="JournalEntry" asp-action="AddJournalEntry"
+                            class="btn btn-outline-info btn-block w-100">
+                            <i class="bx bx-book-content"></i> Journal Entry
+                        </a>
+                    </div>
+                    <div class="col-md-3 mb-3">
+                        <a asp-controller="Expense" asp-action="AddExpense"
+                            class="btn btn-outline-warning btn-block w-100">
+                            <i class="bx bx-minus-circle"></i> Add Expense
+                        </a>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+

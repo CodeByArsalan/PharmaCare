@@ -1,0 +1,127 @@
+@using PharmaCare.Domain.Models.Configuration
+@model PharmaCare.Application.DTOs.Reports.CustomerAnalyticsDto
+@{
+    ViewData["Title"] = "Customer Analytics";
+}
+
+<div class="container-fluid flex-grow-1 p-0">
+    <div class="row align-items-center mb-4">
+        <div class="col-md-3">
+            <h4 class="fw-bold mb-1"><i class='bx bx-user-circle text-primary'></i> Customer Analytics</h4>
+            <p class="text-muted mb-0">@Model.StartDate.ToString("MMM dd, yyyy") - @Model.EndDate.ToString("MMM dd, yyyy")</p>
+        </div>
+        <div class="col-md-9">
+            <div class="d-flex flex-wrap gap-3 align-items-center justify-content-end">
+                <form class="d-flex gap-2 align-items-center" method="get">
+                    <label class="form-label mb-0">Store:</label>
+                    <div style="min-width: 300px;">
+                        <select name="storeId" class="form-select form-select-lg">
+                            @if (ViewBag.IsAdmin == true)
+                            {
+                                <option value="">All Stores</option>
+                            }
+                            @if (ViewBag.Stores != null)
+                            {
+                                foreach (var store in (IEnumerable<Store>)ViewBag.Stores)
+                                {
+                                    if (ViewBag.SelectedStoreId == store.StoreID)
+                                    {
+                                        <option value="@Utility.EncryptURL(store.StoreID.ToString2())" selected>@store.Name</option>
+                                    }
+                                    else
+                                    {
+                                        <option value="@Utility.EncryptURL(store.StoreID.ToString2())">@store.Name</option>
+                                    }
+                                }
+                            }
+                        </select>
+                    </div>
+                    <input type="date" name="startDate" value="@ViewBag.StartDate" class="form-control form-control-lg" />
+                    <input type="date" name="endDate" value="@ViewBag.EndDate" class="form-control form-control-lg" />
+                    <button type="submit" class="btn btn-primary btn-lg" style="min-width: 100px;"><i class='bx bx-filter'></i> Filter</button>
+                </form>
+            </div>
+        </div>
+    </div>
+
+    <div class="row mb-4">
+        <div class="col-md-3">
+            <div class="card bg-primary bg-opacity-10 border-0">
+                <div class="card-body text-center">
+                    <h3 class="text-white fw-bold">@Model.TotalCustomers</h3>
+                    <small class="text-muted">Total Customers</small>
+                </div>
+            </div>
+        </div>
+        <div class="col-md-3">
+            <div class="card bg-success bg-opacity-10 border-0">
+                <div class="card-body text-center">
+                    <h3 class="text-white fw-bold">@Model.ActiveCustomers</h3>
+                    <small class="text-muted">Active (2+ Orders)</small>
+                </div>
+            </div>
+        </div>
+        <div class="col-md-3">
+            <div class="card bg-info bg-opacity-10 border-0">
+                <div class="card-body text-center">
+                    <h3 class="text-white fw-bold">Rs. @Model.AverageOrderValue.ToString("N0")</h3>
+                    <small class="text-muted">Avg Order Value</small>
+                </div>
+            </div>
+        </div>
+        <div class="col-md-3">
+            <div class="card bg-warning bg-opacity-10 border-0">
+                <div class="card-body text-center">
+                    <h3 class="text-white fw-bold">Rs. @Model.TotalCustomerRevenue.ToString("N0")</h3>
+                    <small class="text-muted">Total Revenue</small>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <div class="row">
+        <div class="col-md-4">
+            <div class="card mb-4">
+                <div class="card-header"><h5 class="mb-0"><i class='bx bx-pie-chart'></i> Customer Segments</h5></div>
+                <div class="card-body">
+                    @foreach (var seg in Model.Segments)
+                    {
+                        <div class="d-flex justify-content-between align-items-center mb-3">
+                            <div>
+                                <strong>@seg.Segment</strong>
+                                <div class="small text-muted">@seg.CustomerCount customers</div>
+                            </div>
+                            <div class="text-end">
+                                <span class="badge bg-@(seg.Segment.Contains("High") ? "success" : seg.Segment.Contains("Medium") ? "warning" : "secondary")">@seg.PercentageOfTotal.ToString("N1")%</span>
+                                <div class="small">Rs. @seg.TotalRevenue.ToString("N0")</div>
+                            </div>
+                        </div>
+                    }
+                </div>
+            </div>
+        </div>
+        <div class="col-md-8">
+            <div class="card mb-4">
+                <div class="card-header"><h5 class="mb-0"><i class='bx bx-trophy'></i> Top 10 Customers</h5></div>
+                <div class="card-body">
+                    <table class="table table-sm">
+                        <thead class="table-dark"><tr><th>Customer</th><th>Phone</th><th>Orders</th><th class="text-end">Total Spent</th></tr></thead>
+                        <tbody>
+                            @{ var rank = 1; }
+                            @foreach (var cust in Model.TopCustomers)
+                            {
+                                <tr>
+                                    <td><strong>@cust.CustomerName</strong></td>
+                                    <td>@cust.Phone</td>
+                                    <td>@cust.OrderCount</td>
+                                    <td class="text-end text-success fw-bold">Rs. @cust.TotalSpent.ToString("N0")</td>
+                                </tr>
+                                rank++;
+                            }
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>

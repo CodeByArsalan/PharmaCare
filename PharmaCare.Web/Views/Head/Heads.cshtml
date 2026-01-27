@@ -1,0 +1,203 @@
+@model PharmaCare.Domain.ViewModels.HeadsViewModel
+@inject PharmaCare.Infrastructure.Interfaces.IComboBoxRepository _comboBox
+@using PharmaCare.Web.Utilities
+
+@{
+    ViewData["Title"] = "Financial Heads";
+    Layout = "~/Views/Shared/_Layout.cshtml";
+}
+
+<!-- Add/Edit Head Card -->
+<div class="card card-outline rounded-0 card-navy mb-3">
+    <div class="card-header">
+        <h5 class="card-title mb-0">
+            <i class='bx @(Model.IsEditMode ? "bx-edit" : "bx-plus-circle") me-1'></i>
+            @(Model.IsEditMode ? "Edit Head" : "Add Head")
+        </h5>
+    </div>
+    <div class="card-body mt-2">
+        <form asp-action="@(Model.IsEditMode ? "EditHead" : "AddHead")" method="post" id="headForm">
+            @Html.AntiForgeryToken()
+            <input type="hidden" asp-for="CurrentHead.HeadID" />
+            <input type="hidden" asp-for="IsEditMode" />
+
+            <div asp-validation-summary="ModelOnly" class="alert alert-danger"></div>
+
+            <!-- Label Row -->
+            <div class="row">
+                <div class="col-md-5"><label class="form-label">Family <span class="text-danger">*</span></label></div>
+                <div class="col-md-5"><label class="form-label">Head Name <span class="text-danger">*</span></label></div>
+                <div class="col-md-2"></div>
+            </div>
+
+            <!-- Input and Button Row -->
+            <div class="row">
+                <div class="col-md-5 col-lg-5 mb-2">
+                    <select asp-for="CurrentHead.Family" asp-items="@_comboBox.GetHeadFamilies(Model.CurrentHead.Family)" class="form-select">
+                        <option value="">-- Select Family --</option>
+                    </select>
+                    <span asp-validation-for="CurrentHead.Family" class="text-danger small"></span>
+                </div>
+                <div class="col-md-5 col-lg-5 mb-2">
+                    <input asp-for="CurrentHead.HeadName" class="form-control" placeholder="e.g., Cash, Bank" autofocus />
+                    <span asp-validation-for="CurrentHead.HeadName" class="text-danger small"></span>
+                </div>
+                <div class="col-md-2 col-lg-2 mb-2">
+                    <div class="d-flex gap-2">
+                        <button type="submit" class="btn @(Model.IsEditMode ? "btn-info" : "btn-success")">
+                            <i class='bx @(Model.IsEditMode ? "bx-check" : "bx-plus") me-1'></i>
+                            @(Model.IsEditMode ? "Update" : "Add")
+                        </button>
+                        @if (Model.IsEditMode)
+                        {
+                            <a asp-action="Heads" class="btn btn-secondary">
+                                <i class='bx bx-x'></i>
+                            </a>
+                        }
+                    </div>
+                </div>
+            </div>
+        </form>
+    </div>
+</div>
+
+<!-- Heads List Card -->
+<div class="card card-outline rounded-0 card-navy">
+    <div class="card-header">
+        <h5 class="card-title mb-0">
+            <i class='bx bx-list-ul me-1'></i> Financial Heads List
+        </h5>
+    </div>
+    <div class="card-body p-0">
+        @if (Model.HeadsList.Any())
+        {
+            <div class="table-responsive">
+                <table class="table table-hover table-striped table-bordered dataTable" id="headsTable">
+                    <thead class="table-dark">
+                        <tr>
+                            <th>S.No</th>
+                            <th>Family</th>
+                            <th>Head Name</th>
+                            <th>Status</th>
+                            <th>Actions</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        @{
+                            int index = 1;
+                        }
+                        @foreach (var head in Model.HeadsList)
+                        {
+                            <tr class="@(!head.IsActive ? "table-secondary" : "")">
+                                <td>
+                                    <span class="badge bg-light text-dark">@index</span>
+                                </td>
+                                <td>
+                                    <span class="badge @(head.Family == "Assets" ? "bg-primary" :
+                                        head.Family == "Liability" ? "bg-danger" :
+                                        head.Family == "Capital" ? "bg-info" :
+                                        head.Family == "Revenue" ? "bg-success" : "bg-warning")">
+                                        @head.Family
+                                    </span>
+                                </td>
+                                <td>
+                                    <div class="d-flex align-items-center">
+                                        <div class="icon-circle icon-circle-primary me-3">
+                                            <i class='bx bxs-bank'></i>
+                                        </div>
+                                        <strong>@head.HeadName</strong>
+                                    </div>
+                                </td>
+                                <td>
+                                    @if (head.IsActive)
+                                    {
+                                        <span class="badge bg-success"><i class='bx bx-check-circle me-1'></i>Active</span>
+                                    }
+                                    else
+                                    {
+                                        <span class="badge bg-danger"><i class='bx bx-x-circle me-1'></i>Inactive</span>
+                                    }
+                                </td>
+                                <td>
+                                    <div class="d-flex gap-2">
+                                        <a asp-action="EditHead"
+                                            asp-route-id="@Utility.EncryptURL(head.HeadID.ToString2())"
+                                            class="btn btn-sm btn-info text-white" title="Edit">
+                                            <i class='bx bx-edit'></i>
+                                        </a>
+                                        <form asp-action="DeleteHead"
+                                            asp-route-id="@Utility.EncryptURL(head.HeadID.ToString2())" method="post"
+                                            class="d-inline">
+                                            @Html.AntiForgeryToken()
+                                            @if (head.IsActive)
+                                            {
+                                                <button type="button" class="btn btn-warning btn-sm toggle-btn" title="Deactivate"
+                                                    data-action="deactivate">
+                                                    <i class="bx bx-power-off"></i>
+                                                </button>
+                                            }
+                                            else
+                                            {
+                                                <button type="button" class="btn btn-success btn-sm toggle-btn" title="Activate"
+                                                    data-action="activate">
+                                                    <i class="bx bx-check"></i>
+                                                </button>
+                                            }
+                                        </form>
+                                    </div>
+                                </td>
+                            </tr>
+                            index++;
+                        }
+                    </tbody>
+                </table>
+            </div>
+        }
+        else
+        {
+            <div class="text-center py-5">
+                <i class='bx bx-folder-open display-1 text-muted'></i>
+                <p class="text-muted mt-3">No financial heads found. Add your first head using the form above.</p>
+            </div>
+        }
+    </div>
+</div>
+
+@section Scripts {
+    <partial name="_ValidationScriptsPartial" />
+    <script>
+        $(document).ready(function () {
+            // Toggle status confirmation with SweetAlert
+            $('.toggle-btn').click(function (e) {
+                e.preventDefault();
+                var form = $(this).closest('form');
+                var action = $(this).data('action');
+                var isDeactivate = action === 'deactivate';
+
+                Swal.fire({
+                    title: "Attention",
+                    text: isDeactivate
+                        ? "Are you sure you want to deactivate this head? Related accounts may be affected."
+                        : "Are you sure you want to activate this head?",
+                    icon: 'warning',
+                    showCancelButton: true,
+                    confirmButtonColor: isDeactivate ? "#F59E0B" : "#22C55E",
+                    cancelButtonColor: "#6B7280",
+                    confirmButtonText: isDeactivate ? "Yes, Deactivate!" : "Yes, Activate!"
+                }).then(function (result) {
+                    if (result.value) {
+                        form.submit();
+                    }
+                });
+            });
+
+            // Focus on input if in edit mode
+            @if (Model.IsEditMode)
+            {
+                <text>
+                    $('#CurrentHead_HeadName').focus().select();
+                </text>
+            }
+        });
+    </script>
+}

@@ -1,0 +1,413 @@
+@model PharmaCare.Domain.Models.PurchaseManagement.PurchaseReturn
+@using PharmaCare.Web.Utilities
+
+@{
+    ViewData["Title"] = "Purchase Return Details";
+    Layout = "~/Views/Shared/_Layout.cshtml";
+    var encryptedId = Utility.EncryptURL(Model.PurchaseReturnID.ToString());
+}
+
+<div class="container-fluid p-0">
+    <!-- Header & Breadcrumbs -->
+    <div class="d-flex justify-content-between align-items-center mb-4">
+        <div>
+            <h4 class="fw-bold mb-0">RTN-@Model.PurchaseReturnID.ToString("D6")</h4>
+            <small class="text-muted">Purchase Return Details</small>
+        </div>
+        <div class="d-flex gap-2">
+            <a asp-action="PurchaseReturnIndex" class="btn btn-outline-secondary">
+                <i class="bx bx-arrow-back me-1"></i> Back to List
+            </a>
+            <button class="btn btn-primary" onclick="window.print()">
+                <i class="bx bx-printer me-1"></i> Print
+            </button>
+        </div>
+    </div>
+
+    <div class="row mb-4">
+        <!-- Main Details Card -->
+        <div class="col-lg-8">
+            <div class="card shadow-sm border-0 mb-4 h-100">
+                <div class="card-header border-bottom bg-transparent">
+                    <h5 class="card-title mb-0">Return Information</h5>
+                </div>
+                <div class="card-body pt-4">
+                    <div class="row g-4">
+                        <div class="col-sm-6">
+                            <div class="d-flex align-items-start">
+                                <span class="badge bg-label-success p-2 rounded me-3">
+                                    <i class="bx bx-user fs-4"></i>
+                                </span>
+                                <div>
+                                    <h6 class="mb-1">Supplier</h6>
+                                    <p class="mb-0 fw-bold">@(Model.Party?.PartyName ?? "N/A")</p>
+                                </div>
+                            </div>
+                        </div>
+                        <div class="col-sm-6">
+                            <div class="d-flex align-items-start">
+                                <span class="badge bg-label-primary p-2 rounded me-3">
+                                    <i class="bx bx-store fs-4"></i>
+                                </span>
+                                <div>
+                                    <h6 class="mb-1">Store</h6>
+                                    <p class="mb-0 fw-bold">@(Model.Store?.Name ?? "N/A")</p>
+                                </div>
+                            </div>
+                        </div>
+                        <div class="col-sm-6">
+                            <div class="d-flex align-items-start">
+                                <span class="badge bg-label-info p-2 rounded me-3">
+                                    <i class="bx bx-link fs-4"></i>
+                                </span>
+                                <div>
+                                    <h6 class="mb-1">Reference GRN</h6>
+                                    <p class="mb-0 fw-bold">@(Model.Grn != null ? Model.Grn.GrnNumber : "Direct Return")
+                                    </p>
+                                </div>
+                            </div>
+                        </div>
+                        <div class="col-sm-6">
+                            <div class="d-flex align-items-start">
+                                <span class="badge bg-label-secondary p-2 rounded me-3">
+                                    <i class="bx bx-user-check fs-4"></i>
+                                </span>
+                                <div>
+                                    <h6 class="mb-1">Created By</h6>
+                                    <p class="mb-0 fw-bold text-muted">User Name: @ViewBag.LoginUserName</p>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    @if (!string.IsNullOrWhiteSpace(Model.Remarks))
+                    {
+                        <hr class="my-4" />
+                        <div>
+                            <h6 class="mb-2"><i class="bx bx-note me-1"></i> Remarks</h6>
+                            <p class="text-muted mb-0">@Model.Remarks</p>
+                        </div>
+                    }
+                </div>
+            </div>
+        </div>
+
+        <!-- Sidebar Info Card -->
+        <div class="col-lg-4">
+            <div class="card shadow-sm border-0 h-100">
+                <div class="card-header border-bottom bg-transparent">
+                    <h5 class="card-title mb-0">Summary</h5>
+                </div>
+                <div class="card-body pt-4">
+                    <div class="mb-4">
+                        <label class="text-muted small d-block mb-1">Return Date</label>
+                        <h6 class="fw-bold"><i
+                                class="bx bx-calendar me-2 text-primary"></i>@Model.ReturnDate.ToString("dd MMM yyyy")
+                        </h6>
+                    </div>
+                    <div class="mb-4">
+                        <label class="text-muted small d-block mb-1">Status</label>
+                        @if (Model.Status == "Pending")
+                        {
+                            <span class="badge bg-warning text-dark px-3 py-2">
+                                <i class="bx bx-time-five me-1"></i> Pending Approval
+                            </span>
+                        }
+                        else if (Model.Status == "Approved")
+                        {
+                            <span class="badge bg-success px-3 py-2">
+                                <i class="bx bx-check-circle me-1"></i> Approved
+                            </span>
+                        }
+                        else if (Model.Status == "Completed")
+                        {
+                            <span class="badge bg-primary px-3 py-2">
+                                <i class="bx bx-check-double me-1"></i> Completed
+                            </span>
+                        }
+                        else
+                        {
+                            <span class="badge bg-secondary px-3 py-2">@Model.Status</span>
+                        }
+                    </div>
+                    <div class="mb-4">
+                        <label class="text-muted small d-block mb-1">Items Returned</label>
+                        <h6 class="fw-bold"><i
+                                class="bx bx-package me-2 text-info"></i>@(Model.PurchaseReturnItems?.Count ?? 0) items
+                        </h6>
+                    </div>
+                    <div class="border-top pt-4">
+                        <label class="text-muted small d-block mb-1">Total Amount</label>
+                        <h3 class="fw-bold text-success mb-0">@Model.TotalAmount.ToString("C")</h3>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Refund Processing Section - Only show for approved returns with pending refunds -->
+    @if (Model.Status == "Approved" && Model.RefundStatus == "Pending")
+    {
+        <div class="card shadow-sm border-0 mb-4 border-start border-warning border-4">
+            <div class="card-header border-bottom bg-warning bg-opacity-10">
+                <div class="d-flex align-items-center">
+                    <i class="bx bx-money-withdraw fs-3 text-warning me-2"></i>
+                    <h5 class="card-title mb-0 text-warning">Supplier Refund Pending</h5>
+                </div>
+            </div>
+            <div class="card-body">
+                <div class="row align-items-center">
+                    <div class="col-md-6">
+                        <p class="mb-2">
+                            <strong>Refund Status:</strong>
+                            <span class="badge bg-warning text-dark px-3 py-2">
+                                <i class="bx bx-time me-1"></i> Awaiting Refund
+                            </span>
+                        </p>
+                        <p class="mb-0 text-muted">
+                            This purchase return has been approved. The supplier was already paid for these items.
+                            Record the refund when received from the supplier.
+                        </p>
+                    </div>
+                    <div class="col-md-3 text-center border-start border-end">
+                        <label class="text-muted small d-block mb-1">Refund Amount Due</label>
+                        <h2 class="fw-bold text-danger mb-0">@Model.RefundAmount.ToString("C")</h2>
+                    </div>
+                    <div class="col-md-3">
+                        <label class="text-muted small d-block mb-2 text-center">Process Refund</label>
+                        <div class="d-grid gap-2">
+                            <form asp-action="ProcessRefund" method="post" class="d-inline">
+                                <input type="hidden" name="id" value="@encryptedId" />
+                                <input type="hidden" name="refundMethod" value="Cash" />
+                                <button type="submit" class="btn btn-success w-100 mb-2">
+                                    <i class="bx bx-money me-1"></i> Received via Cash
+                                </button>
+                            </form>
+                            <form asp-action="ProcessRefund" method="post" class="d-inline">
+                                <input type="hidden" name="id" value="@encryptedId" />
+                                <input type="hidden" name="refundMethod" value="Bank" />
+                                <button type="submit" class="btn btn-info w-100">
+                                    <i class="bx bx-building me-1"></i> Received via Bank
+                                </button>
+                            </form>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    }
+
+    <!-- Refund Completed Section - Show when refund is received -->
+    @if (Model.RefundStatus == "Received")
+    {
+        <div class="card shadow-sm border-0 mb-4 border-start border-success border-4">
+            <div class="card-header border-bottom bg-success bg-opacity-10">
+                <div class="d-flex align-items-center">
+                    <i class="bx bx-check-shield fs-3 text-success me-2"></i>
+                    <h5 class="card-title mb-0 text-success">Refund Received</h5>
+                </div>
+            </div>
+            <div class="card-body mt-2">
+                <div class="row align-items-center">
+                    <div class="col-md-4">
+                        <p class="mb-2">
+                            <strong>Refund Status:</strong>
+                            <span class="badge bg-success px-3 py-2">
+                                <i class="bx bx-check-circle me-1"></i> Completed
+                            </span>
+                        </p>
+                        <p class="mb-0 text-muted">
+                            Refund has been received from the supplier and recorded in the system.
+                        </p>
+                    </div>
+                    <div class="col-md-4 text-center">
+                        <label class="text-muted small d-block mb-1"><b>Refund Amount</b></label>
+                        <h3 class="fw-bold text-success mb-0">@Model.RefundAmount.ToString("C")</h3>
+                    </div>
+                    <div class="col-md-4 text-center">
+                        <label class="text-muted small d-block mb-1">Payment Method</label>
+                        <h5 class="fw-bold mb-0">
+                            @if (Model.RefundMethod == "Cash")
+                            {
+                                <span class="badge bg-label-success px-3 py-2">
+                                    <i class="bx bx-money me-1"></i> Cash
+                                </span>
+                            }
+                            else if (Model.RefundMethod == "Bank")
+                            {
+                                <span class="badge bg-label-info px-3 py-2">
+                                    <i class="bx bx-building me-1"></i> Bank Transfer
+                                </span>
+                            }
+                            else
+                            {
+                                <span class="badge bg-label-secondary px-3 py-2">@Model.RefundMethod</span>
+                            }
+                        </h5>
+                    </div>
+                </div>
+            </div>
+        </div>
+    }
+
+    <!-- Journal Entry Reference Section -->
+    @if (Model.JournalEntry_ID.HasValue || Model.RefundJournalEntry_ID.HasValue)
+    {
+        <div class="card shadow-sm border-0 mb-4">
+            <div class="card-header border-bottom bg-transparent">
+                <h5 class="card-title mb-0"><i class="bx bx-receipt me-2"></i>Accounting References</h5>
+            </div>
+            <div class="card-body mt-2">
+                <div class="row">
+                    @if (Model.JournalEntry_ID.HasValue)
+                    {
+                        <div class="col-md-6">
+                            <div class="d-flex align-items-center p-3 bg-light rounded">
+                                <i class="bx bx-file-blank fs-2 text-primary me-3"></i>
+                                <div>
+                                    <small class="text-muted d-block">Inventory Adjustment Entry</small>
+                                    <span class="fw-bold">Journal Entry @* #@Model.JournalEntry_ID *@</span>
+                                    <br />
+                                    <small class="text-muted">DR: Accounts Payable | CR: Inventory</small>
+                                </div>
+                            </div>
+                        </div>
+                    }
+                    @if (Model.RefundJournalEntry_ID.HasValue)
+                    {
+                        <div class="col-md-6">
+                            <div class="d-flex align-items-center p-3 bg-light rounded">
+                                <i class="bx bx-money-withdraw fs-2 text-success me-3"></i>
+                                <div>
+                                    <small class="text-muted d-block">Refund Receipt Entry</small>
+                                    <span class="fw-bold">Journal Entry @* #@Model.RefundJournalEntry_ID *@</span>
+                                    <br />
+                                    <small class="text-muted">DR: Cash/Bank | CR: Accounts Payable</small>
+                                </div>
+                            </div>
+                        </div>
+                    }
+                </div>
+            </div>
+        </div>
+    }
+
+    <!-- Items Table -->
+    <div class="card shadow-sm border-0">
+        <div class="card-header border-bottom bg-transparent">
+            <h5 class="card-title mb-0">Returned Items</h5>
+        </div>
+        <div class="card-body p-0">
+            <div class="table-responsive">
+                <table class="table table-hover align-middle mb-0">
+                    <thead class="bg-light">
+                        <tr>
+                            <th class="ps-4">#</th>
+                            <th>Product</th>
+                            <th>Batch No</th>
+                            <th class="text-center">Quantity</th>
+                            <th class="text-end">Unit Price</th>
+                            <th class="text-end">Total</th>
+                            <th class="pe-4">Reason</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        @if (Model.PurchaseReturnItems != null && Model.PurchaseReturnItems.Any())
+                        {
+                            int rowNum = 0;
+                            foreach (var item in Model.PurchaseReturnItems)
+                            {
+                                rowNum++;
+                                <tr>
+                                    <td class="ps-4 text-muted">@rowNum</td>
+                                    <td>
+                                        <span class="fw-bold">@(item.ProductBatch?.Product?.ProductName ?? "N/A")</span>
+                                        <br />
+                                        <small class="text-muted">Code: @(item.ProductBatch?.Product?.ProductCode ??
+                                    item.ProductBatch?.Product?.Sku ?? "")</small>
+                                    </td>
+                                    <td>
+                                        <span class="badge bg-label-secondary">
+                                            <i class="bx bx-barcode me-1"></i>@(item.ProductBatch?.BatchNumber ?? "N/A")
+                                        </span>
+                                    </td>
+                                    <td class="text-center fw-bold">@item.Quantity</td>
+                                    <td class="text-end">@item.UnitPrice.ToString("N2")</td>
+                                    <td class="text-end fw-bold">@item.TotalLineAmount.ToString("N2")</td>
+                                    <td class="pe-4">
+                                        @if (!string.IsNullOrWhiteSpace(item.Reason))
+                                        {
+                                            <span class="badge bg-label-warning">@item.Reason</span>
+                                        }
+                                        else
+                                        {
+                                            <span class="text-muted">—</span>
+                                        }
+                                    </td>
+                                </tr>
+                            }
+                        }
+                        else
+                        {
+                            <tr>
+                                <td colspan="7" class="text-center text-muted py-4">No items found</td>
+                            </tr>
+                        }
+                    </tbody>
+                    <tfoot class="border-top">
+                        <tr class="bg-light">
+                            <td colspan="5" class="text-end fw-bold pe-3">Grand Total</td>
+                            <td class="text-end fw-bold text-success fs-5">@Model.TotalAmount.ToString("N2")</td>
+                            <td></td>
+                        </tr>
+                    </tfoot>
+                </table>
+            </div>
+        </div>
+    </div>
+</div>
+
+<style>
+    .bg-label-primary {
+        background-color: #e7e7ff !important;
+        color: #0EA5E9 !important;
+    }
+
+    .bg-label-info {
+        background-color: #d7f5fc !important;
+        color: #03c3ec !important;
+    }
+
+    .bg-label-success {
+        background-color: #e8fadf !important;
+        color: #71dd37 !important;
+    }
+
+    .bg-label-secondary {
+        background-color: #ebedef !important;
+        color: #64748B !important;
+    }
+
+    .bg-label-warning {
+        background-color: #fff2d6 !important;
+        color: #ffab00 !important;
+    }
+
+    .bg-label-danger {
+        background-color: #ffe0db !important;
+        color: #ff3e1d !important;
+    }
+
+    @@media print {
+
+        .btn,
+        .card-header .d-flex {
+            display: none !important;
+        }
+
+        .card {
+            border: none !important;
+            box-shadow: none !important;
+        }
+    }
+</style>

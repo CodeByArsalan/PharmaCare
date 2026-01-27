@@ -1,0 +1,280 @@
+@model List<PharmaCare.Application.DTOs.Finance.CustomerOutstandingDto>
+@{
+    ViewData["Title"] = "Customer Payments";
+}
+
+<div class="container-fluid p-0">
+    <!-- Page Header -->
+    <div class="d-flex justify-content-between align-items-center mb-3">
+        <h4><i class="fas fa-hand-holding-usd me-2"></i>Customer Payment Collection</h4>
+        <a href="@Url.Action("AddCustomerPayment")" class="btn btn-primary">
+            <i class="fas fa-plus me-1"></i> Receive Payment
+        </a>
+    </div>
+
+    <!-- Customers with Outstanding Balance -->
+    <div class="card mb-4">
+        <div class="card-header bg-danger text-white">
+            <h5 class="mb-0"><i class="fas fa-exclamation-triangle me-2"></i>Customers with Outstanding Balance</h5>
+        </div>
+        <div class="card-body p-0">
+            <table id="customersTable" class="table table-hover table-striped table-bordered mb-0">
+                <thead class="table-dark">
+                    <tr>
+                        <th>Customer Name</th>
+                        <th>Phone</th>
+                        <th class="text-center">Outstanding Sales</th>
+                        <th class="text-end">Total Outstanding</th>
+                        <th class="text-center">Actions</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    @foreach (var customer in Model)
+                    {
+                            <tr>
+                                <td>@customer.CustomerName</td>
+                                <td>@customer.Phone</td>
+                                <td class="text-center">
+                                    <span class="badge bg-warning">@customer.OutstandingSalesCount</span>
+                                </td>
+                                <td class="text-end fw-bold text-danger">@customer.TotalOutstanding.ToString("N2")</td>
+                                <td class="text-center">
+                                    <a href="@Url.Action("AddCustomerPayment", new { customerId = customer.CustomerID })"
+                                        class="btn btn-sm btn-success" title="Receive Payment">
+                                        <i class="bx bx-money-bill-wave"></i> Receive
+                                    </a>
+                                    <button type="button" class="btn btn-sm btn-info" 
+                                            onclick="showOutstandingSales(@customer.CustomerID, '@customer.CustomerName')"
+                                            title="View Outstanding Sales">
+                                        <i class="bx bx-list-ul"></i>
+                                    </button>
+                                </td>
+                            </tr>
+                    }
+                </tbody>
+                <tfoot class="table-secondary">
+                    <tr>
+                        <td colspan="3" class="text-end fw-bold">Grand Total:</td>
+                        <td class="text-end fw-bold text-danger">@Model.Sum(c => c.TotalOutstanding).ToString("N2")</td>
+                        <td></td>
+                    </tr>
+                </tfoot>
+            </table>
+        </div>
+    </div>
+
+    <!-- Payment History -->
+    <div class="card">
+        <div class="card-header">
+            <div class="row align-items-center">
+                <div class="col-md-4">
+                    <h5 class="mb-0"><i class="fas fa-history me-2"></i>Payment History</h5>
+                </div>
+                <div class="col-md-8">
+                    <div class="row g-2">
+                        <div class="col-md-4">
+                            @Html.DropDownList("filterCustomerId", ViewBag.Customers as SelectList, "All Customers", 
+                                new { @class = "form-select", id = "filterCustomer" })
+                        </div>
+                        <div class="col-md-3">
+                            <input type="date" id="filterStartDate" class="form-control" placeholder="Start Date">
+                        </div>
+                        <div class="col-md-3">
+                            <input type="date" id="filterEndDate" class="form-control" placeholder="End Date">
+                        </div>
+                        <div class="col-md-2">
+                            <button type="button" class="btn btn-secondary w-100" onclick="loadPaymentHistory()">
+                                <i class="bx bx-filter"></i> Filter
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+        <div class="card-body p-0">
+            <table id="paymentsTable" class="table table-hover table-striped table-bordered mb-0">
+                <thead class="table-dark">
+                    <tr>
+                        <th>Payment #</th>
+                        <th>Date</th>
+                        <th>Customer</th>
+                        <th>Sale #</th>
+                        <th class="text-end">Amount</th>
+                        <th>Method</th>
+                        <th>Reference</th>
+                        <th>Status</th>
+                        <th class="text-center">Actions</th>
+                    </tr>
+                </thead>
+                <tbody id="paymentHistoryBody">
+                    <!-- Loaded via AJAX -->
+                </tbody>
+            </table>
+        </div>
+    </div>
+</div>
+
+<!-- Outstanding Sales Modal -->
+<div class="modal fade" id="outstandingSalesModal" tabindex="-1">
+    <div class="modal-dialog modal-lg">
+        <div class="modal-content">
+            <div class="modal-header bg-warning">
+                <h5 class="modal-title"><i class="fas fa-list me-2"></i>Outstanding Sales - <span id="modalCustomerName"></span></h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body">
+                <table class="table table-bordered table-hover">
+                    <thead class="table-dark">
+                        <tr>
+                            <th>Sale #</th>
+                            <th>Date</th>
+                            <th class="text-end">Total</th>
+                            <th class="text-end">Paid</th>
+                            <th class="text-end">Balance</th>
+                            <th>Status</th>
+                            <th class="text-center">Action</th>
+                        </tr>
+                    </thead>
+                    <tbody id="outstandingSalesBody">
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Cancel Payment Modal -->
+<div class="modal fade" id="cancelPaymentModal" tabindex="-1">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <div class="modal-header bg-danger text-white">
+                <h5 class="modal-title"><i class="fas fa-times-circle me-2"></i>Cancel Payment</h5>
+                <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body">
+                <input type="hidden" id="cancelPaymentId">
+                <div class="mb-3">
+                    <label class="form-label">Reason for Cancellation</label>
+                    <textarea id="cancelReason" class="form-control" rows="3" required></textarea>
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Close</button>
+                <button type="button" class="btn btn-danger" onclick="confirmCancelPayment()">Cancel Payment</button>
+            </div>
+        </div>
+    </div>
+</div>
+
+@section Scripts {
+        <script>
+            $(document).ready(function () {
+                $('#customersTable').DataTable({
+                    order: [[3, 'desc']],
+                    pageLength: 10
+                });
+
+                loadPaymentHistory();
+            });
+
+            function loadPaymentHistory() {
+                var customerId = $('#filterCustomer').val();
+                var startDate = $('#filterStartDate').val();
+                var endDate = $('#filterEndDate').val();
+
+                $.get('@Url.Action("GetPaymentHistory")', {
+                    customerId: customerId || null,
+                    startDate: startDate || null,
+                    endDate: endDate || null
+                }, function (data) {
+                    var html = '';
+                    if (data.length === 0) {
+                        html = '<tr><td colspan="9" class="text-center">No payments found</td></tr>';
+                    } else {
+                        data.forEach(function (p) {
+                            var statusBadge = p.status === 'Active' 
+                                ? '<span class="badge bg-success">Active</span>' 
+                                : '<span class="badge bg-danger">Cancelled</span>';
+
+                            html += '<tr>' +
+                                '<td>' + p.paymentNumber + '</td>' +
+                                '<td>' + new Date(p.paymentDate).toLocaleDateString() + '</td>' +
+                                '<td>' + p.customerName + '</td>' +
+                                '<td>' + (p.saleNumber || '-') + '</td>' +
+                                '<td class="text-end fw-bold text-success">' + p.amount.toFixed(2) + '</td>' +
+                                '<td>' + p.paymentMethod + '</td>' +
+                                '<td>' + (p.referenceNumber || '-') + '</td>' +
+                                '<td>' + statusBadge + '</td>' +
+                                '<td class="text-center">' +
+                                    (p.status === 'Active'
+                                        ? '<button class="btn btn-sm btn-danger" onclick="showCancelModal(' + p.customerPaymentID + ')" title="Cancel"><i class="bx bx-x-circle"></i></button>'
+                                        : '') +
+                                '</td>' +
+                            '</tr>';
+                        });
+                    }
+                    $('#paymentHistoryBody').html(html);
+                });
+            }
+
+            function showOutstandingSales(customerId, customerName) {
+                $('#modalCustomerName').text(customerName);
+
+                $.get('@Url.Action("GetOutstandingSales")', { customerId: customerId }, function (data) {
+                    var html = '';
+                    if (data.length === 0) {
+                        html = '<tr><td colspan="7" class="text-center">No outstanding sales</td></tr>';
+                    } else {
+                        data.forEach(function (s) {
+                            html += '<tr>' +
+                                '<td>' + s.saleNumber + '</td>' +
+                                '<td>' + new Date(s.saleDate).toLocaleDateString() + '</td>' +
+                                '<td class="text-end">' + s.total.toFixed(2) + '</td>' +
+                                '<td class="text-end">' + s.amountPaid.toFixed(2) + '</td>' +
+                                '<td class="text-end fw-bold text-danger">' + s.balanceAmount.toFixed(2) + '</td>' +
+                                '<td><span class="badge bg-warning">' + s.paymentStatus + '</span></td>' +
+                                '<td class="text-center">' +
+                                    '<a href="@Url.Action("AddCustomerPayment")?customerId=' + customerId + '&saleId=' + s.saleID + '" class="btn btn-sm btn-success">' +
+                                        '<i class="fas fa-money-bill-wave"></i> Pay' +
+                                    '</a>' +
+                                '</td>' +
+                            '</tr>';
+                        });
+                    }
+                    $('#outstandingSalesBody').html(html);
+                    new bootstrap.Modal($('#outstandingSalesModal')).show();
+                });
+            }
+
+            function showCancelModal(paymentId) {
+                $('#cancelPaymentId').val(paymentId);
+                $('#cancelReason').val('');
+                new bootstrap.Modal($('#cancelPaymentModal')).show();
+            }
+
+            function confirmCancelPayment() {
+                var paymentId = $('#cancelPaymentId').val();
+                var reason = $('#cancelReason').val();
+
+                if (!reason.trim()) {
+                    alert('Please provide a reason for cancellation.');
+                    return;
+                }
+
+                $.post('@Url.Action("CancelCustomerPayment")', {
+                    paymentId: paymentId,
+                    reason: reason,
+                    __RequestVerificationToken: $('input[name="__RequestVerificationToken"]').val()
+                }, function (result) {
+                    if (result.success) {
+                        bootstrap.Modal.getInstance($('#cancelPaymentModal')).hide();
+                        loadPaymentHistory();
+                        location.reload(); // Refresh to update customer list
+                    } else {
+                        alert(result.message);
+                    }
+                });
+            }
+        </script>
+    @Html.AntiForgeryToken()
+}

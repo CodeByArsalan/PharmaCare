@@ -1,0 +1,16 @@
+{
+  "version": "3.0",
+  "defaultProvider": "cdnjs",
+  "libraries": [
+    {
+      "provider": "jsdelivr",
+      "library": "datatables.net@1.13.7",
+      "destination": "wwwroot/lib/datatables"
+    },
+    {
+      "provider": "jsdelivr",
+      "library": "datatables.net-bs5@1.13.7",
+      "destination": "wwwroot/lib/datatables-bs5"
+    }
+  ]
+}

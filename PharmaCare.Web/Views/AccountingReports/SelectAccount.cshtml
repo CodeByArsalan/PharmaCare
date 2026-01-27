@@ -1,0 +1,66 @@
+@inject PharmaCare.Infrastructure.Interfaces.IComboBoxRepository _comboBox
+@{
+    ViewData["Title"] = "Select Account for Ledger";
+}
+
+<div class="row page-titles  mb-2 mt-2 ">
+    <div class="col-md-12 align-self-center">
+        <h3 class="text-primary fw-bold text-uppercase mb-0">General Ledger Selection</h3>
+    </div>
+</div>
+
+<div class="container-fluid p-0">
+    <div class="row justify-content-center">
+        <div class="col-md-12">
+            <div class="card border-0 shadow-sm rounded-3">
+                <div class="card-header bg-info text-white p-3">
+                    <h5 class="card-title mb-0 fw-bold">Select Account</h5>
+                </div>
+                <div class="card-body p-4">
+                    <form asp-action="GeneralLedger" method="get">
+                        <div class="mb-4">
+                            <label class="form-label fw-bold text-secondary">Choose an Account to view its
+                                ledger:</label>
+                            <select name="accountId" class="form-select select2 shadow-sm rounded-3" required>
+                                <option value="">-- Search Account Name or Code --</option>
+                                @foreach (var acc in _comboBox.GetAllAccounts())
+                                {
+                                    <option value="@acc.Value">@acc.Text</option>
+                                }
+                            </select>
+                        </div>
+
+                        <div class="row g-3 mb-4">
+                            <div class="col-6">
+                                <label class="form-label small fw-bold">From Date</label>
+                                <input type="date" name="from" class="form-control rounded-3" />
+                            </div>
+                            <div class="col-6">
+                                <label class="form-label small fw-bold">To Date</label>
+                                <input type="date" name="to" class="form-control rounded-3" />
+                            </div>
+                        </div>
+
+                        <div class="text-end pt-2">
+                            <button type="submit" class="btn btn-primary">
+                                <i class="bx bx-file-invoice me-1"></i> View Ledger
+                            </button>
+                        </div>
+                    </form>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+@section Scripts {
+    <script>
+        $(document).ready(function () {
+            $('.select2').select2({
+                placeholder: "Search for an account...",
+                allowClear: true,
+                width: '100%'
+            });
+        });
+    </script>
+}
