@@ -49,7 +49,7 @@ namespace PharmaCare.Infrastructure.Migrations
                         .HasDatabaseName("RoleNameIndex")
                         .HasFilter("[NormalizedName] IS NOT NULL");
 
-                    b.ToTable("AspNetRoles", (string)null);
+                    b.ToTable("IdentityRoles", (string)null);
                 });
 
             modelBuilder.Entity("Microsoft.AspNetCore.Identity.IdentityRoleClaim<int>", b =>
@@ -73,7 +73,7 @@ namespace PharmaCare.Infrastructure.Migrations
 
                     b.HasIndex("RoleId");
 
-                    b.ToTable("AspNetRoleClaims", (string)null);
+                    b.ToTable("IdentityRoleClaims", (string)null);
                 });
 
             modelBuilder.Entity("Microsoft.AspNetCore.Identity.IdentityUserClaim<int>", b =>
@@ -97,7 +97,7 @@ namespace PharmaCare.Infrastructure.Migrations
 
                     b.HasIndex("UserId");
 
-                    b.ToTable("AspNetUserClaims", (string)null);
+                    b.ToTable("IdentityUserClaims", (string)null);
                 });
 
             modelBuilder.Entity("Microsoft.AspNetCore.Identity.IdentityUserLogin<int>", b =>
@@ -120,7 +120,7 @@ namespace PharmaCare.Infrastructure.Migrations
 
                     b.HasIndex("UserId");
 
-                    b.ToTable("AspNetUserLogins", (string)null);
+                    b.ToTable("IdentityUserLogins", (string)null);
                 });
 
             modelBuilder.Entity("Microsoft.AspNetCore.Identity.IdentityUserRole<int>", b =>
@@ -135,7 +135,7 @@ namespace PharmaCare.Infrastructure.Migrations
 
                     b.HasIndex("RoleId");
 
-                    b.ToTable("AspNetUserRoles", (string)null);
+                    b.ToTable("IdentityUserRoles", (string)null);
                 });
 
             modelBuilder.Entity("Microsoft.AspNetCore.Identity.IdentityUserToken<int>", b =>
@@ -156,93 +156,10 @@ namespace PharmaCare.Infrastructure.Migrations
 
                     b.HasKey("UserId", "LoginProvider", "Name");
 
-                    b.ToTable("AspNetUserTokens", (string)null);
+                    b.ToTable("IdentityUserTokens", (string)null);
                 });
 
-            modelBuilder.Entity("PharmaCare.Domain.Models.AccountManagement.AccountMapping", b =>
-                {
-                    b.Property<int>("AccountMappingID")
-                        .ValueGeneratedOnAdd()
-                        .HasColumnType("int");
-
-                    SqlServerPropertyBuilderExtensions.UseIdentityColumn(b.Property<int>("AccountMappingID"));
-
-                    b.Property<int?>("Account_ID")
-                        .HasColumnType("int");
-
-                    b.Property<int>("CreatedBy")
-                        .HasColumnType("int");
-
-                    b.Property<DateTime>("CreatedDate")
-                        .HasColumnType("datetime2");
-
-                    b.Property<int?>("Head_ID")
-                        .HasColumnType("int");
-
-                    b.Property<bool>("IsActive")
-                        .HasColumnType("bit");
-
-                    b.Property<string>("PartyType")
-                        .IsRequired()
-                        .HasMaxLength(20)
-                        .HasColumnType("nvarchar(20)");
-
-                    b.Property<int?>("Subhead_ID")
-                        .HasColumnType("int");
-
-                    b.Property<int?>("UpdatedBy")
-                        .HasColumnType("int");
-
-                    b.Property<DateTime?>("UpdatedDate")
-                        .HasColumnType("datetime2");
-
-                    b.HasKey("AccountMappingID");
-
-                    b.HasIndex("Account_ID");
-
-                    b.HasIndex("Head_ID");
-
-                    b.HasIndex("PartyType")
-                        .IsUnique();
-
-                    b.HasIndex("Subhead_ID");
-
-                    b.ToTable("AccountMappings");
-                });
-
-            modelBuilder.Entity("PharmaCare.Domain.Models.AccountManagement.AccountType", b =>
-                {
-                    b.Property<int>("AccountTypeID")
-                        .ValueGeneratedOnAdd()
-                        .HasColumnType("int");
-
-                    SqlServerPropertyBuilderExtensions.UseIdentityColumn(b.Property<int>("AccountTypeID"));
-
-                    b.Property<int>("CreatedBy")
-                        .HasColumnType("int");
-
-                    b.Property<DateTime>("CreatedDate")
-                        .HasColumnType("datetime2");
-
-                    b.Property<bool>("IsActive")
-                        .HasColumnType("bit");
-
-                    b.Property<string>("TypeName")
-                        .IsRequired()
-                        .HasColumnType("nvarchar(max)");
-
-                    b.Property<int?>("UpdatedBy")
-                        .HasColumnType("int");
-
-                    b.Property<DateTime?>("UpdatedDate")
-                        .HasColumnType("datetime2");
-
-                    b.HasKey("AccountTypeID");
-
-                    b.ToTable("AccountTypes");
-                });
-
-            modelBuilder.Entity("PharmaCare.Domain.Models.AccountManagement.ChartOfAccount", b =>
+            modelBuilder.Entity("PharmaCare.Domain.Entities.Accounting.Account", b =>
                 {
                     b.Property<int>("AccountID")
                         .ValueGeneratedOnAdd()
@@ -250,292 +167,208 @@ namespace PharmaCare.Infrastructure.Migrations
 
                     SqlServerPropertyBuilderExtensions.UseIdentityColumn(b.Property<int>("AccountID"));
 
-                    b.Property<string>("AccountAddress")
-                        .HasMaxLength(500)
-                        .HasColumnType("nvarchar(500)");
-
-                    b.Property<string>("AccountName")
-                        .IsRequired()
-                        .HasMaxLength(200)
-                        .HasColumnType("nvarchar(200)");
-
-                    b.Property<string>("AccountNo")
-                        .HasMaxLength(50)
-                        .HasColumnType("nvarchar(50)");
+                    b.Property<int>("AccountSubhead_ID")
+                        .HasColumnType("int");
 
                     b.Property<int>("AccountType_ID")
                         .HasColumnType("int");
 
+                    b.Property<string>("Code")
+                        .IsRequired()
+                        .HasMaxLength(20)
+                        .HasColumnType("nvarchar(20)");
+
+                    b.Property<DateTime>("CreatedAt")
+                        .HasColumnType("datetime2");
+
                     b.Property<int>("CreatedBy")
                         .HasColumnType("int");
 
-                    b.Property<DateTime>("CreatedDate")
+                    b.Property<DateTime?>("DeletedAt")
                         .HasColumnType("datetime2");
 
-                    b.Property<int>("Head_ID")
+                    b.Property<int?>("DeletedBy")
                         .HasColumnType("int");
-
-                    b.Property<string>("IBAN")
-                        .HasMaxLength(50)
-                        .HasColumnType("nvarchar(50)");
 
                     b.Property<bool>("IsActive")
                         .HasColumnType("bit");
 
-                    b.Property<int>("Subhead_ID")
-                        .HasColumnType("int");
+                    b.Property<bool>("IsDeleted")
+                        .HasColumnType("bit");
+
+                    b.Property<bool>("IsSystemAccount")
+                        .HasColumnType("bit");
+
+                    b.Property<string>("Name")
+                        .IsRequired()
+                        .HasMaxLength(200)
+                        .HasColumnType("nvarchar(200)");
+
+                    b.Property<DateTime?>("UpdatedAt")
+                        .HasColumnType("datetime2");
 
                     b.Property<int?>("UpdatedBy")
                         .HasColumnType("int");
-
-                    b.Property<DateTime?>("UpdatedDate")
-                        .HasColumnType("datetime2");
 
                     b.HasKey("AccountID");
 
+                    b.HasIndex("AccountSubhead_ID");
+
                     b.HasIndex("AccountType_ID");
 
-                    b.HasIndex("Head_ID");
+                    b.HasIndex("Code")
+                        .IsUnique();
 
-                    b.HasIndex("Subhead_ID");
-
-                    b.ToTable("ChartOfAccounts");
+                    b.ToTable("Accounts", (string)null);
                 });
 
-            modelBuilder.Entity("PharmaCare.Domain.Models.AccountManagement.FiscalPeriod", b =>
+            modelBuilder.Entity("PharmaCare.Domain.Entities.Accounting.AccountHead", b =>
                 {
-                    b.Property<int>("FiscalPeriodID")
+                    b.Property<int>("AccountHeadID")
                         .ValueGeneratedOnAdd()
                         .HasColumnType("int");
 
-                    SqlServerPropertyBuilderExtensions.UseIdentityColumn(b.Property<int>("FiscalPeriodID"));
+                    SqlServerPropertyBuilderExtensions.UseIdentityColumn(b.Property<int>("AccountHeadID"));
 
-                    b.Property<int?>("ClosedBy")
-                        .HasColumnType("int");
+                    b.Property<string>("Code")
+                        .IsRequired()
+                        .HasMaxLength(10)
+                        .HasColumnType("nvarchar(10)");
 
-                    b.Property<DateTime?>("ClosedDate")
+                    b.Property<DateTime>("CreatedAt")
                         .HasColumnType("datetime2");
 
                     b.Property<int>("CreatedBy")
                         .HasColumnType("int");
 
-                    b.Property<DateTime>("CreatedDate")
+                    b.Property<DateTime?>("DeletedAt")
                         .HasColumnType("datetime2");
 
-                    b.Property<DateTime>("EndDate")
-                        .HasColumnType("datetime2");
-
-                    b.Property<int>("FiscalYear_ID")
+                    b.Property<int?>("DeletedBy")
                         .HasColumnType("int");
 
-                    b.Property<int?>("LockedBy")
+                    b.Property<int>("DisplayOrder")
                         .HasColumnType("int");
 
-                    b.Property<DateTime?>("LockedDate")
+                    b.Property<bool>("IsActive")
+                        .HasColumnType("bit");
+
+                    b.Property<bool>("IsDeleted")
+                        .HasColumnType("bit");
+
+                    b.Property<string>("Name")
+                        .IsRequired()
+                        .HasMaxLength(100)
+                        .HasColumnType("nvarchar(100)");
+
+                    b.Property<string>("NormalBalance")
+                        .IsRequired()
+                        .HasMaxLength(10)
+                        .HasColumnType("nvarchar(10)");
+
+                    b.Property<DateTime?>("UpdatedAt")
                         .HasColumnType("datetime2");
-
-                    b.Property<string>("PeriodCode")
-                        .IsRequired()
-                        .HasColumnType("nvarchar(450)");
-
-                    b.Property<string>("PeriodName")
-                        .IsRequired()
-                        .HasColumnType("nvarchar(max)");
-
-                    b.Property<int>("PeriodNumber")
-                        .HasColumnType("int");
-
-                    b.Property<DateTime>("StartDate")
-                        .HasColumnType("datetime2");
-
-                    b.Property<string>("Status")
-                        .IsRequired()
-                        .HasMaxLength(20)
-                        .HasColumnType("nvarchar(20)");
 
                     b.Property<int?>("UpdatedBy")
                         .HasColumnType("int");
 
-                    b.Property<DateTime?>("UpdatedDate")
-                        .HasColumnType("datetime2");
+                    b.HasKey("AccountHeadID");
 
-                    b.HasKey("FiscalPeriodID");
-
-                    b.HasIndex("FiscalYear_ID");
-
-                    b.HasIndex("PeriodCode")
+                    b.HasIndex("Code")
                         .IsUnique();
 
-                    b.HasIndex("StartDate", "EndDate");
-
-                    b.ToTable("FiscalPeriods");
+                    b.ToTable("AccountHeads", (string)null);
                 });
 
-            modelBuilder.Entity("PharmaCare.Domain.Models.AccountManagement.FiscalYear", b =>
+            modelBuilder.Entity("PharmaCare.Domain.Entities.Accounting.AccountSubhead", b =>
                 {
-                    b.Property<int>("FiscalYearID")
+                    b.Property<int>("AccountSubheadID")
                         .ValueGeneratedOnAdd()
                         .HasColumnType("int");
 
-                    SqlServerPropertyBuilderExtensions.UseIdentityColumn(b.Property<int>("FiscalYearID"));
+                    SqlServerPropertyBuilderExtensions.UseIdentityColumn(b.Property<int>("AccountSubheadID"));
 
-                    b.Property<int?>("ClosedBy")
+                    b.Property<int>("AccountHead_ID")
                         .HasColumnType("int");
 
-                    b.Property<DateTime?>("ClosedDate")
-                        .HasColumnType("datetime2");
-
-                    b.Property<int>("CreatedBy")
-                        .HasColumnType("int");
-
-                    b.Property<DateTime>("CreatedDate")
-                        .HasColumnType("datetime2");
-
-                    b.Property<DateTime>("EndDate")
-                        .HasColumnType("datetime2");
-
-                    b.Property<DateTime>("StartDate")
-                        .HasColumnType("datetime2");
-
-                    b.Property<string>("Status")
+                    b.Property<string>("Code")
                         .IsRequired()
                         .HasMaxLength(20)
                         .HasColumnType("nvarchar(20)");
 
-                    b.Property<int?>("UpdatedBy")
-                        .HasColumnType("int");
-
-                    b.Property<DateTime?>("UpdatedDate")
+                    b.Property<DateTime>("CreatedAt")
                         .HasColumnType("datetime2");
-
-                    b.Property<string>("YearCode")
-                        .IsRequired()
-                        .HasColumnType("nvarchar(450)");
-
-                    b.Property<string>("YearName")
-                        .IsRequired()
-                        .HasColumnType("nvarchar(max)");
-
-                    b.HasKey("FiscalYearID");
-
-                    b.HasIndex("YearCode")
-                        .IsUnique();
-
-                    b.ToTable("FiscalYears");
-                });
-
-            modelBuilder.Entity("PharmaCare.Domain.Models.AccountManagement.Head", b =>
-                {
-                    b.Property<int>("HeadID")
-                        .ValueGeneratedOnAdd()
-                        .HasColumnType("int");
-
-                    SqlServerPropertyBuilderExtensions.UseIdentityColumn(b.Property<int>("HeadID"));
 
                     b.Property<int>("CreatedBy")
                         .HasColumnType("int");
 
-                    b.Property<DateTime>("CreatedDate")
+                    b.Property<DateTime?>("DeletedAt")
                         .HasColumnType("datetime2");
 
-                    b.Property<string>("Family")
+                    b.Property<int?>("DeletedBy")
+                        .HasColumnType("int");
+
+                    b.Property<int>("DisplayOrder")
+                        .HasColumnType("int");
+
+                    b.Property<bool>("IsActive")
+                        .HasColumnType("bit");
+
+                    b.Property<bool>("IsDeleted")
+                        .HasColumnType("bit");
+
+                    b.Property<string>("Name")
+                        .IsRequired()
+                        .HasMaxLength(100)
+                        .HasColumnType("nvarchar(100)");
+
+                    b.Property<DateTime?>("UpdatedAt")
+                        .HasColumnType("datetime2");
+
+                    b.Property<int?>("UpdatedBy")
+                        .HasColumnType("int");
+
+                    b.HasKey("AccountSubheadID");
+
+                    b.HasIndex("AccountHead_ID");
+
+                    b.HasIndex("Code")
+                        .IsUnique();
+
+                    b.ToTable("AccountSubheads", (string)null);
+                });
+
+            modelBuilder.Entity("PharmaCare.Domain.Entities.Accounting.AccountType", b =>
+                {
+                    b.Property<int>("AccountTypeID")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("int");
+
+                    SqlServerPropertyBuilderExtensions.UseIdentityColumn(b.Property<int>("AccountTypeID"));
+
+                    b.Property<string>("Code")
+                        .IsRequired()
+                        .HasMaxLength(20)
+                        .HasColumnType("nvarchar(20)");
+
+                    b.Property<string>("Description")
+                        .HasMaxLength(200)
+                        .HasColumnType("nvarchar(200)");
+
+                    b.Property<string>("Name")
                         .IsRequired()
                         .HasMaxLength(50)
                         .HasColumnType("nvarchar(50)");
 
-                    b.Property<string>("HeadName")
-                        .IsRequired()
-                        .HasMaxLength(100)
-                        .HasColumnType("nvarchar(100)");
+                    b.HasKey("AccountTypeID");
 
-                    b.Property<bool>("IsActive")
-                        .HasColumnType("bit");
-
-                    b.Property<int?>("UpdatedBy")
-                        .HasColumnType("int");
-
-                    b.Property<DateTime?>("UpdatedDate")
-                        .HasColumnType("datetime2");
-
-                    b.HasKey("HeadID");
-
-                    b.ToTable("Heads");
-                });
-
-            modelBuilder.Entity("PharmaCare.Domain.Models.AccountManagement.StoreFiscalPeriod", b =>
-                {
-                    b.Property<int>("StoreFiscalPeriodID")
-                        .ValueGeneratedOnAdd()
-                        .HasColumnType("int");
-
-                    SqlServerPropertyBuilderExtensions.UseIdentityColumn(b.Property<int>("StoreFiscalPeriodID"));
-
-                    b.Property<int?>("ClosedBy")
-                        .HasColumnType("int");
-
-                    b.Property<DateTime?>("ClosedDate")
-                        .HasColumnType("datetime2");
-
-                    b.Property<int>("FiscalPeriod_ID")
-                        .HasColumnType("int");
-
-                    b.Property<string>("Status")
-                        .IsRequired()
-                        .HasMaxLength(20)
-                        .HasColumnType("nvarchar(20)");
-
-                    b.Property<int>("Store_ID")
-                        .HasColumnType("int");
-
-                    b.HasKey("StoreFiscalPeriodID");
-
-                    b.HasIndex("FiscalPeriod_ID");
-
-                    b.HasIndex("Store_ID", "FiscalPeriod_ID")
+                    b.HasIndex("Code")
                         .IsUnique();
 
-                    b.ToTable("StoreFiscalPeriods");
+                    b.ToTable("AccountTypes", (string)null);
                 });
 
-            modelBuilder.Entity("PharmaCare.Domain.Models.AccountManagement.Subhead", b =>
-                {
-                    b.Property<int>("SubheadID")
-                        .ValueGeneratedOnAdd()
-                        .HasColumnType("int");
-
-                    SqlServerPropertyBuilderExtensions.UseIdentityColumn(b.Property<int>("SubheadID"));
-
-                    b.Property<int>("CreatedBy")
-                        .HasColumnType("int");
-
-                    b.Property<DateTime>("CreatedDate")
-                        .HasColumnType("datetime2");
-
-                    b.Property<int>("Head_ID")
-                        .HasColumnType("int");
-
-                    b.Property<bool>("IsActive")
-                        .HasColumnType("bit");
-
-                    b.Property<string>("SubheadName")
-                        .IsRequired()
-                        .HasMaxLength(100)
-                        .HasColumnType("nvarchar(100)");
-
-                    b.Property<int?>("UpdatedBy")
-                        .HasColumnType("int");
-
-                    b.Property<DateTime?>("UpdatedDate")
-                        .HasColumnType("datetime2");
-
-                    b.HasKey("SubheadID");
-
-                    b.HasIndex("Head_ID");
-
-                    b.ToTable("Subheads");
-                });
-
-            modelBuilder.Entity("PharmaCare.Domain.Models.Configuration.Category", b =>
+            modelBuilder.Entity("PharmaCare.Domain.Entities.Configuration.Category", b =>
                 {
                     b.Property<int>("CategoryID")
                         .ValueGeneratedOnAdd()
@@ -546,22 +379,28 @@ namespace PharmaCare.Infrastructure.Migrations
                     b.Property<int?>("COGSAccount_ID")
                         .HasColumnType("int");
 
-                    b.Property<string>("CategoryName")
-                        .IsRequired()
-                        .HasMaxLength(100)
-                        .HasColumnType("nvarchar(100)");
+                    b.Property<DateTime>("CreatedAt")
+                        .HasColumnType("datetime2");
 
                     b.Property<int>("CreatedBy")
                         .HasColumnType("int");
 
-                    b.Property<DateTime>("CreatedDate")
+                    b.Property<DateTime?>("DeletedAt")
                         .HasColumnType("datetime2");
 
-                    b.Property<int?>("DamageExpenseAccount_ID")
+                    b.Property<int?>("DeletedBy")
                         .HasColumnType("int");
 
                     b.Property<bool>("IsActive")
                         .HasColumnType("bit");
+
+                    b.Property<bool>("IsDeleted")
+                        .HasColumnType("bit");
+
+                    b.Property<string>("Name")
+                        .IsRequired()
+                        .HasMaxLength(100)
+                        .HasColumnType("nvarchar(100)");
 
                     b.Property<int?>("SaleAccount_ID")
                         .HasColumnType("int");
@@ -569,26 +408,24 @@ namespace PharmaCare.Infrastructure.Migrations
                     b.Property<int?>("StockAccount_ID")
                         .HasColumnType("int");
 
+                    b.Property<DateTime?>("UpdatedAt")
+                        .HasColumnType("datetime2");
+
                     b.Property<int?>("UpdatedBy")
                         .HasColumnType("int");
-
-                    b.Property<DateTime?>("UpdatedDate")
-                        .HasColumnType("datetime2");
 
                     b.HasKey("CategoryID");
 
                     b.HasIndex("COGSAccount_ID");
 
-                    b.HasIndex("DamageExpenseAccount_ID");
-
                     b.HasIndex("SaleAccount_ID");
 
                     b.HasIndex("StockAccount_ID");
 
-                    b.ToTable("Categories");
+                    b.ToTable("Categories", (string)null);
                 });
 
-            modelBuilder.Entity("PharmaCare.Domain.Models.Configuration.Party", b =>
+            modelBuilder.Entity("PharmaCare.Domain.Entities.Configuration.Party", b =>
                 {
                     b.Property<int>("PartyID")
                         .ValueGeneratedOnAdd()
@@ -596,121 +433,142 @@ namespace PharmaCare.Infrastructure.Migrations
 
                     SqlServerPropertyBuilderExtensions.UseIdentityColumn(b.Property<int>("PartyID"));
 
-                    b.Property<string>("AccountAddress")
-                        .HasMaxLength(500)
-                        .HasColumnType("nvarchar(500)");
-
-                    b.Property<string>("AccountNumber")
-                        .HasMaxLength(50)
-                        .HasColumnType("nvarchar(50)");
-
                     b.Property<string>("Address")
                         .HasMaxLength(500)
                         .HasColumnType("nvarchar(500)");
 
-                    b.Property<string>("ContactNumber")
-                        .HasMaxLength(30)
-                        .HasColumnType("nvarchar(30)");
+                    b.Property<string>("Code")
+                        .IsRequired()
+                        .HasMaxLength(20)
+                        .HasColumnType("nvarchar(20)");
+
+                    b.Property<DateTime>("CreatedAt")
+                        .HasColumnType("datetime2");
 
                     b.Property<int>("CreatedBy")
                         .HasColumnType("int");
 
-                    b.Property<DateTime>("CreatedDate")
-                        .HasColumnType("datetime2");
-
                     b.Property<decimal>("CreditLimit")
                         .HasColumnType("decimal(18,2)");
 
-                    b.Property<string>("IBAN")
-                        .HasMaxLength(50)
-                        .HasColumnType("nvarchar(50)");
+                    b.Property<DateTime?>("DeletedAt")
+                        .HasColumnType("datetime2");
+
+                    b.Property<int?>("DeletedBy")
+                        .HasColumnType("int");
+
+                    b.Property<string>("Email")
+                        .HasMaxLength(100)
+                        .HasColumnType("nvarchar(100)");
 
                     b.Property<bool>("IsActive")
                         .HasColumnType("bit");
 
-                    b.Property<string>("Market")
-                        .HasMaxLength(100)
-                        .HasColumnType("nvarchar(100)");
+                    b.Property<bool>("IsDeleted")
+                        .HasColumnType("bit");
 
-                    b.Property<decimal>("OpeningBalance")
-                        .HasColumnType("decimal(18,2)");
-
-                    b.Property<string>("PartyName")
+                    b.Property<string>("Name")
                         .IsRequired()
                         .HasMaxLength(200)
                         .HasColumnType("nvarchar(200)");
+
+                    b.Property<decimal>("OpeningBalance")
+                        .HasColumnType("decimal(18,2)");
 
                     b.Property<string>("PartyType")
                         .IsRequired()
                         .HasMaxLength(20)
                         .HasColumnType("nvarchar(20)");
 
+                    b.Property<string>("Phone")
+                        .HasMaxLength(20)
+                        .HasColumnType("nvarchar(20)");
+
+                    b.Property<DateTime?>("UpdatedAt")
+                        .HasColumnType("datetime2");
+
                     b.Property<int?>("UpdatedBy")
                         .HasColumnType("int");
 
-                    b.Property<DateTime?>("UpdatedDate")
-                        .HasColumnType("datetime2");
-
                     b.HasKey("PartyID");
 
-                    b.ToTable("Parties");
+                    b.HasIndex("Code")
+                        .IsUnique();
+
+                    b.ToTable("Parties", (string)null);
                 });
 
-            modelBuilder.Entity("PharmaCare.Domain.Models.Configuration.ProductBatch", b =>
+            modelBuilder.Entity("PharmaCare.Domain.Entities.Configuration.Product", b =>
                 {
-                    b.Property<int>("ProductBatchID")
+                    b.Property<int>("ProductID")
                         .ValueGeneratedOnAdd()
                         .HasColumnType("int");
 
-                    SqlServerPropertyBuilderExtensions.UseIdentityColumn(b.Property<int>("ProductBatchID"));
+                    SqlServerPropertyBuilderExtensions.UseIdentityColumn(b.Property<int>("ProductID"));
 
-                    b.Property<string>("BatchNumber")
+                    b.Property<string>("Barcode")
+                        .HasMaxLength(50)
+                        .HasColumnType("nvarchar(50)");
+
+                    b.Property<string>("Code")
                         .IsRequired()
-                        .HasColumnType("nvarchar(450)");
+                        .HasMaxLength(20)
+                        .HasColumnType("nvarchar(20)");
 
                     b.Property<decimal>("CostPrice")
                         .HasColumnType("decimal(18,2)");
 
+                    b.Property<DateTime>("CreatedAt")
+                        .HasColumnType("datetime2");
+
                     b.Property<int>("CreatedBy")
                         .HasColumnType("int");
 
-                    b.Property<DateTime>("CreatedDate")
+                    b.Property<DateTime?>("DeletedAt")
                         .HasColumnType("datetime2");
 
-                    b.Property<DateTime>("ExpiryDate")
-                        .HasColumnType("datetime2");
+                    b.Property<int?>("DeletedBy")
+                        .HasColumnType("int");
 
-                    b.Property<decimal>("MRP")
-                        .HasColumnType("decimal(18,2)");
+                    b.Property<bool>("IsActive")
+                        .HasColumnType("bit");
 
-                    b.Property<int?>("Product_ID")
+                    b.Property<bool>("IsDeleted")
+                        .HasColumnType("bit");
+
+                    b.Property<string>("Name")
+                        .IsRequired()
+                        .HasMaxLength(200)
+                        .HasColumnType("nvarchar(200)");
+
+                    b.Property<int>("ReorderLevel")
                         .HasColumnType("int");
 
                     b.Property<decimal>("SellingPrice")
                         .HasColumnType("decimal(18,2)");
 
-                    b.Property<int?>("StockMain_ID")
+                    b.Property<int>("SubCategory_ID")
                         .HasColumnType("int");
+
+                    b.Property<DateTime?>("UpdatedAt")
+                        .HasColumnType("datetime2");
 
                     b.Property<int?>("UpdatedBy")
                         .HasColumnType("int");
 
-                    b.Property<DateTime?>("UpdatedDate")
-                        .HasColumnType("datetime2");
+                    b.HasKey("ProductID");
 
-                    b.HasKey("ProductBatchID");
+                    b.HasIndex("Barcode");
 
-                    b.HasIndex("BatchNumber")
+                    b.HasIndex("Code")
                         .IsUnique();
 
-                    b.HasIndex("Product_ID");
+                    b.HasIndex("SubCategory_ID");
 
-                    b.HasIndex("StockMain_ID");
-
-                    b.ToTable("ProductBatches");
+                    b.ToTable("Products", (string)null);
                 });
 
-            modelBuilder.Entity("PharmaCare.Domain.Models.Configuration.Store", b =>
+            modelBuilder.Entity("PharmaCare.Domain.Entities.Configuration.Store", b =>
                 {
                     b.Property<int>("StoreID")
                         .ValueGeneratedOnAdd()
@@ -718,20 +576,53 @@ namespace PharmaCare.Infrastructure.Migrations
 
                     SqlServerPropertyBuilderExtensions.UseIdentityColumn(b.Property<int>("StoreID"));
 
-                    b.Property<string>("Code")
-                        .IsRequired()
-                        .HasColumnType("nvarchar(max)");
+                    b.Property<string>("Address")
+                        .HasMaxLength(500)
+                        .HasColumnType("nvarchar(500)");
+
+                    b.Property<DateTime>("CreatedAt")
+                        .HasColumnType("datetime2");
+
+                    b.Property<int>("CreatedBy")
+                        .HasColumnType("int");
+
+                    b.Property<DateTime?>("DeletedAt")
+                        .HasColumnType("datetime2");
+
+                    b.Property<int?>("DeletedBy")
+                        .HasColumnType("int");
+
+                    b.Property<string>("Email")
+                        .HasMaxLength(100)
+                        .HasColumnType("nvarchar(100)");
+
+                    b.Property<bool>("IsActive")
+                        .HasColumnType("bit");
+
+                    b.Property<bool>("IsDeleted")
+                        .HasColumnType("bit");
 
                     b.Property<string>("Name")
                         .IsRequired()
-                        .HasColumnType("nvarchar(max)");
+                        .HasMaxLength(100)
+                        .HasColumnType("nvarchar(100)");
+
+                    b.Property<string>("Phone")
+                        .HasMaxLength(20)
+                        .HasColumnType("nvarchar(20)");
+
+                    b.Property<DateTime?>("UpdatedAt")
+                        .HasColumnType("datetime2");
+
+                    b.Property<int?>("UpdatedBy")
+                        .HasColumnType("int");
 
                     b.HasKey("StoreID");
 
-                    b.ToTable("Stores");
+                    b.ToTable("Stores", (string)null);
                 });
 
-            modelBuilder.Entity("PharmaCare.Domain.Models.Configuration.SubCategory", b =>
+            modelBuilder.Entity("PharmaCare.Domain.Entities.Configuration.SubCategory", b =>
                 {
                     b.Property<int>("SubCategoryID")
                         .ValueGeneratedOnAdd()
@@ -742,101 +633,43 @@ namespace PharmaCare.Infrastructure.Migrations
                     b.Property<int>("Category_ID")
                         .HasColumnType("int");
 
+                    b.Property<DateTime>("CreatedAt")
+                        .HasColumnType("datetime2");
+
                     b.Property<int>("CreatedBy")
                         .HasColumnType("int");
 
-                    b.Property<DateTime>("CreatedDate")
+                    b.Property<DateTime?>("DeletedAt")
                         .HasColumnType("datetime2");
+
+                    b.Property<int?>("DeletedBy")
+                        .HasColumnType("int");
 
                     b.Property<bool>("IsActive")
                         .HasColumnType("bit");
 
-                    b.Property<string>("SubCategoryName")
+                    b.Property<bool>("IsDeleted")
+                        .HasColumnType("bit");
+
+                    b.Property<string>("Name")
                         .IsRequired()
                         .HasMaxLength(100)
                         .HasColumnType("nvarchar(100)");
 
+                    b.Property<DateTime?>("UpdatedAt")
+                        .HasColumnType("datetime2");
+
                     b.Property<int?>("UpdatedBy")
                         .HasColumnType("int");
-
-                    b.Property<DateTime?>("UpdatedDate")
-                        .HasColumnType("datetime2");
 
                     b.HasKey("SubCategoryID");
 
                     b.HasIndex("Category_ID");
 
-                    b.ToTable("SubCategories");
+                    b.ToTable("SubCategories", (string)null);
                 });
 
-            modelBuilder.Entity("PharmaCare.Domain.Models.Finance.CustomerPayment", b =>
-                {
-                    b.Property<int>("CustomerPaymentID")
-                        .ValueGeneratedOnAdd()
-                        .HasColumnType("int");
-
-                    SqlServerPropertyBuilderExtensions.UseIdentityColumn(b.Property<int>("CustomerPaymentID"));
-
-                    b.Property<decimal>("Amount")
-                        .HasColumnType("decimal(18,2)");
-
-                    b.Property<int>("CreatedBy")
-                        .HasColumnType("int");
-
-                    b.Property<DateTime>("CreatedDate")
-                        .HasColumnType("datetime2");
-
-                    b.Property<bool>("IsActive")
-                        .HasColumnType("bit");
-
-                    b.Property<string>("Notes")
-                        .HasColumnType("nvarchar(max)");
-
-                    b.Property<int>("Party_ID")
-                        .HasColumnType("int");
-
-                    b.Property<DateTime>("PaymentDate")
-                        .HasColumnType("datetime2");
-
-                    b.Property<string>("PaymentMethod")
-                        .IsRequired()
-                        .HasColumnType("nvarchar(max)");
-
-                    b.Property<string>("PaymentNumber")
-                        .IsRequired()
-                        .HasColumnType("nvarchar(max)");
-
-                    b.Property<string>("ReferenceNumber")
-                        .HasColumnType("nvarchar(max)");
-
-                    b.Property<string>("Status")
-                        .IsRequired()
-                        .HasColumnType("nvarchar(max)");
-
-                    b.Property<int?>("StockMain_ID")
-                        .HasColumnType("int");
-
-                    b.Property<int?>("UpdatedBy")
-                        .HasColumnType("int");
-
-                    b.Property<DateTime?>("UpdatedDate")
-                        .HasColumnType("datetime2");
-
-                    b.Property<int?>("Voucher_ID")
-                        .HasColumnType("int");
-
-                    b.HasKey("CustomerPaymentID");
-
-                    b.HasIndex("Party_ID");
-
-                    b.HasIndex("StockMain_ID");
-
-                    b.HasIndex("Voucher_ID");
-
-                    b.ToTable("CustomerPayments");
-                });
-
-            modelBuilder.Entity("PharmaCare.Domain.Models.Finance.Expense", b =>
+            modelBuilder.Entity("PharmaCare.Domain.Entities.Finance.Expense", b =>
                 {
                     b.Property<int>("ExpenseID")
                         .ValueGeneratedOnAdd()
@@ -847,17 +680,23 @@ namespace PharmaCare.Infrastructure.Migrations
                     b.Property<decimal>("Amount")
                         .HasColumnType("decimal(18,2)");
 
+                    b.Property<DateTime>("CreatedAt")
+                        .HasColumnType("datetime2");
+
                     b.Property<int>("CreatedBy")
                         .HasColumnType("int");
 
-                    b.Property<DateTime>("CreatedDate")
+                    b.Property<DateTime?>("DeletedAt")
                         .HasColumnType("datetime2");
 
-                    b.Property<string>("Description")
-                        .IsRequired()
-                        .HasColumnType("nvarchar(max)");
+                    b.Property<int?>("DeletedBy")
+                        .HasColumnType("int");
 
-                    b.Property<int?>("ExpenseAccount_ID")
+                    b.Property<string>("Description")
+                        .HasMaxLength(500)
+                        .HasColumnType("nvarchar(500)");
+
+                    b.Property<int>("ExpenseAccount_ID")
                         .HasColumnType("int");
 
                     b.Property<int>("ExpenseCategory_ID")
@@ -866,23 +705,28 @@ namespace PharmaCare.Infrastructure.Migrations
                     b.Property<DateTime>("ExpenseDate")
                         .HasColumnType("datetime2");
 
-                    b.Property<string>("ReceiptNumber")
-                        .HasColumnType("nvarchar(max)");
+                    b.Property<bool>("IsDeleted")
+                        .HasColumnType("bit");
 
                     b.Property<string>("Reference")
-                        .HasColumnType("nvarchar(max)");
+                        .HasMaxLength(100)
+                        .HasColumnType("nvarchar(100)");
 
-                    b.Property<int?>("SourceAccount_ID")
+                    b.Property<int>("SourceAccount_ID")
                         .HasColumnType("int");
+
+                    b.Property<int>("Store_ID")
+                        .HasColumnType("int");
+
+                    b.Property<DateTime?>("UpdatedAt")
+                        .HasColumnType("datetime2");
 
                     b.Property<int?>("UpdatedBy")
                         .HasColumnType("int");
 
-                    b.Property<DateTime?>("UpdatedDate")
-                        .HasColumnType("datetime2");
-
                     b.Property<string>("VendorName")
-                        .HasColumnType("nvarchar(max)");
+                        .HasMaxLength(200)
+                        .HasColumnType("nvarchar(200)");
 
                     b.Property<int?>("Voucher_ID")
                         .HasColumnType("int");
@@ -895,12 +739,14 @@ namespace PharmaCare.Infrastructure.Migrations
 
                     b.HasIndex("SourceAccount_ID");
 
+                    b.HasIndex("Store_ID");
+
                     b.HasIndex("Voucher_ID");
 
-                    b.ToTable("Expenses");
+                    b.ToTable("Expenses", (string)null);
                 });
 
-            modelBuilder.Entity("PharmaCare.Domain.Models.Finance.ExpenseCategory", b =>
+            modelBuilder.Entity("PharmaCare.Domain.Entities.Finance.ExpenseCategory", b =>
                 {
                     b.Property<int>("ExpenseCategoryID")
                         .ValueGeneratedOnAdd()
@@ -908,78 +754,85 @@ namespace PharmaCare.Infrastructure.Migrations
 
                     SqlServerPropertyBuilderExtensions.UseIdentityColumn(b.Property<int>("ExpenseCategoryID"));
 
+                    b.Property<DateTime>("CreatedAt")
+                        .HasColumnType("datetime2");
+
                     b.Property<int>("CreatedBy")
                         .HasColumnType("int");
 
-                    b.Property<DateTime>("CreatedDate")
+                    b.Property<int?>("DefaultExpenseAccount_ID")
+                        .HasColumnType("int");
+
+                    b.Property<DateTime?>("DeletedAt")
                         .HasColumnType("datetime2");
 
-                    b.Property<string>("Description")
-                        .HasColumnType("nvarchar(max)");
+                    b.Property<int?>("DeletedBy")
+                        .HasColumnType("int");
 
                     b.Property<bool>("IsActive")
+                        .HasColumnType("bit");
+
+                    b.Property<bool>("IsDeleted")
                         .HasColumnType("bit");
 
                     b.Property<string>("Name")
                         .IsRequired()
-                        .HasColumnType("nvarchar(max)");
+                        .HasMaxLength(100)
+                        .HasColumnType("nvarchar(100)");
 
-                    b.Property<int?>("ParentCategory_ID")
+                    b.Property<int?>("Parent_ID")
                         .HasColumnType("int");
+
+                    b.Property<DateTime?>("UpdatedAt")
+                        .HasColumnType("datetime2");
 
                     b.Property<int?>("UpdatedBy")
                         .HasColumnType("int");
 
-                    b.Property<DateTime?>("UpdatedDate")
-                        .HasColumnType("datetime2");
-
                     b.HasKey("ExpenseCategoryID");
 
-                    b.HasIndex("ParentCategory_ID");
+                    b.HasIndex("DefaultExpenseAccount_ID");
 
-                    b.ToTable("ExpenseCategories");
+                    b.HasIndex("Parent_ID");
+
+                    b.ToTable("ExpenseCategories", (string)null);
                 });
 
-            modelBuilder.Entity("PharmaCare.Domain.Models.Finance.SupplierPayment", b =>
+            modelBuilder.Entity("PharmaCare.Domain.Entities.Finance.Payment", b =>
                 {
-                    b.Property<int>("SupplierPaymentID")
+                    b.Property<int>("PaymentID")
                         .ValueGeneratedOnAdd()
                         .HasColumnType("int");
 
-                    SqlServerPropertyBuilderExtensions.UseIdentityColumn(b.Property<int>("SupplierPaymentID"));
+                    SqlServerPropertyBuilderExtensions.UseIdentityColumn(b.Property<int>("PaymentID"));
 
-                    b.Property<decimal>("AmountPaid")
-                        .HasColumnType("decimal(18, 2)");
+                    b.Property<int>("Account_ID")
+                        .HasColumnType("int");
 
-                    b.Property<decimal>("BalanceAfter")
-                        .HasColumnType("decimal(18, 2)");
-
-                    b.Property<string>("BankReference")
-                        .HasMaxLength(100)
-                        .HasColumnType("nvarchar(100)");
+                    b.Property<decimal>("Amount")
+                        .HasColumnType("decimal(18,2)");
 
                     b.Property<DateTime?>("ChequeDate")
                         .HasColumnType("datetime2");
 
-                    b.Property<string>("ChequeNumber")
-                        .HasMaxLength(100)
-                        .HasColumnType("nvarchar(100)");
+                    b.Property<string>("ChequeNo")
+                        .HasMaxLength(50)
+                        .HasColumnType("nvarchar(50)");
+
+                    b.Property<DateTime>("CreatedAt")
+                        .HasColumnType("datetime2");
 
                     b.Property<int>("CreatedBy")
                         .HasColumnType("int");
 
-                    b.Property<DateTime>("CreatedDate")
+                    b.Property<DateTime?>("DeletedAt")
                         .HasColumnType("datetime2");
 
-                    b.Property<decimal>("GrnAmount")
-                        .HasColumnType("decimal(18, 2)");
+                    b.Property<int?>("DeletedBy")
+                        .HasColumnType("int");
 
-                    b.Property<bool>("IsActive")
+                    b.Property<bool>("IsDeleted")
                         .HasColumnType("bit");
-
-                    b.Property<string>("Notes")
-                        .HasMaxLength(500)
-                        .HasColumnType("nvarchar(500)");
 
                     b.Property<int>("Party_ID")
                         .HasColumnType("int");
@@ -992,609 +845,50 @@ namespace PharmaCare.Infrastructure.Migrations
                         .HasMaxLength(20)
                         .HasColumnType("nvarchar(20)");
 
-                    b.Property<string>("PaymentNumber")
-                        .IsRequired()
-                        .HasMaxLength(50)
-                        .HasColumnType("nvarchar(50)");
-
                     b.Property<string>("PaymentType")
                         .IsRequired()
                         .HasMaxLength(20)
                         .HasColumnType("nvarchar(20)");
 
-                    b.Property<string>("Status")
-                        .IsRequired()
-                        .HasMaxLength(20)
-                        .HasColumnType("nvarchar(20)");
-
-                    b.Property<int>("StockMain_ID")
-                        .HasColumnType("int");
-
-                    b.Property<int?>("Store_ID")
-                        .HasColumnType("int");
-
-                    b.Property<int?>("UpdatedBy")
-                        .HasColumnType("int");
-
-                    b.Property<DateTime?>("UpdatedDate")
-                        .HasColumnType("datetime2");
-
-                    b.Property<int?>("Voucher_ID")
-                        .HasColumnType("int");
-
-                    b.HasKey("SupplierPaymentID");
-
-                    b.HasIndex("Party_ID");
-
-                    b.HasIndex("StockMain_ID");
-
-                    b.HasIndex("Store_ID");
-
-                    b.HasIndex("Voucher_ID");
-
-                    b.ToTable("SupplierPayments");
-
-                    b.HasAnnotation("SqlServer:UseSqlOutputClause", false);
-                });
-
-            modelBuilder.Entity("PharmaCare.Domain.Models.Inventory.AccountVoucher", b =>
-                {
-                    b.Property<int>("VoucherID")
-                        .ValueGeneratedOnAdd()
-                        .HasColumnType("int");
-
-                    SqlServerPropertyBuilderExtensions.UseIdentityColumn(b.Property<int>("VoucherID"));
-
-                    b.Property<int>("CreatedBy")
-                        .HasColumnType("int");
-
-                    b.Property<DateTime>("CreatedDate")
-                        .HasColumnType("datetime2");
-
-                    b.Property<int?>("FiscalPeriod_ID")
-                        .HasColumnType("int");
-
-                    b.Property<bool>("IsReversed")
-                        .HasColumnType("bit");
-
-                    b.Property<string>("Narration")
-                        .HasMaxLength(500)
-                        .HasColumnType("nvarchar(500)");
-
-                    b.Property<int?>("ReversedBy_ID")
-                        .HasColumnType("int");
-
-                    b.Property<int?>("Reverses_ID")
-                        .HasColumnType("int");
-
-                    b.Property<int?>("SourceID")
-                        .HasColumnType("int");
-
-                    b.Property<string>("SourceTable")
-                        .HasMaxLength(50)
-                        .HasColumnType("nvarchar(50)");
-
-                    b.Property<string>("Status")
-                        .IsRequired()
-                        .HasMaxLength(20)
-                        .HasColumnType("nvarchar(20)");
-
-                    b.Property<int?>("Store_ID")
-                        .HasColumnType("int");
-
-                    b.Property<decimal>("TotalCredit")
-                        .HasColumnType("decimal(18,2)");
-
-                    b.Property<decimal>("TotalDebit")
-                        .HasColumnType("decimal(18,2)");
-
-                    b.Property<string>("VoucherCode")
-                        .IsRequired()
-                        .HasMaxLength(50)
-                        .HasColumnType("nvarchar(50)");
-
-                    b.Property<DateTime>("VoucherDate")
-                        .HasColumnType("datetime2");
-
-                    b.Property<int>("VoucherType_ID")
-                        .HasColumnType("int");
-
-                    b.HasKey("VoucherID");
-
-                    b.HasIndex("FiscalPeriod_ID");
-
-                    b.HasIndex("ReversedBy_ID")
-                        .IsUnique()
-                        .HasFilter("[ReversedBy_ID] IS NOT NULL");
-
-                    b.HasIndex("Reverses_ID")
-                        .IsUnique()
-                        .HasFilter("[Reverses_ID] IS NOT NULL");
-
-                    b.HasIndex("Store_ID");
-
-                    b.HasIndex("VoucherCode")
-                        .IsUnique();
-
-                    b.HasIndex("VoucherType_ID");
-
-                    b.ToTable("AccountVouchers");
-
-                    b.HasAnnotation("SqlServer:UseSqlOutputClause", false);
-                });
-
-            modelBuilder.Entity("PharmaCare.Domain.Models.Inventory.AccountVoucherDetail", b =>
-                {
-                    b.Property<int>("VoucherDetailID")
-                        .ValueGeneratedOnAdd()
-                        .HasColumnType("int");
-
-                    SqlServerPropertyBuilderExtensions.UseIdentityColumn(b.Property<int>("VoucherDetailID"));
-
-                    b.Property<int>("Account_ID")
-                        .HasColumnType("int");
-
-                    b.Property<decimal>("Cr")
-                        .HasColumnType("decimal(18,2)");
-
-                    b.Property<decimal>("Dr")
-                        .HasColumnType("decimal(18,2)");
-
-                    b.Property<string>("Particulars")
-                        .HasMaxLength(200)
-                        .HasColumnType("nvarchar(200)");
-
-                    b.Property<int?>("Product_ID")
-                        .HasColumnType("int");
-
-                    b.Property<int?>("Store_ID")
-                        .HasColumnType("int");
-
-                    b.Property<int>("Voucher_ID")
-                        .HasColumnType("int");
-
-                    b.HasKey("VoucherDetailID");
-
-                    b.HasIndex("Account_ID");
-
-                    b.HasIndex("Product_ID");
-
-                    b.HasIndex("Store_ID");
-
-                    b.HasIndex("Voucher_ID");
-
-                    b.ToTable("AccountVoucherDetails");
-
-                    b.HasAnnotation("SqlServer:UseSqlOutputClause", false);
-                });
-
-            modelBuilder.Entity("PharmaCare.Domain.Models.Inventory.AccountVoucherType", b =>
-                {
-                    b.Property<int>("VoucherTypeID")
-                        .ValueGeneratedOnAdd()
-                        .HasColumnType("int");
-
-                    SqlServerPropertyBuilderExtensions.UseIdentityColumn(b.Property<int>("VoucherTypeID"));
-
-                    b.Property<bool>("AutoGenerated")
-                        .HasColumnType("bit");
-
-                    b.Property<string>("Code")
-                        .IsRequired()
-                        .HasMaxLength(10)
-                        .HasColumnType("nvarchar(10)");
-
-                    b.Property<bool>("IsActive")
-                        .HasColumnType("bit");
-
-                    b.Property<string>("Name")
-                        .IsRequired()
-                        .HasMaxLength(50)
-                        .HasColumnType("nvarchar(50)");
-
-                    b.HasKey("VoucherTypeID");
-
-                    b.HasIndex("Code")
-                        .IsUnique();
-
-                    b.ToTable("AccountVoucherTypes");
-                });
-
-            modelBuilder.Entity("PharmaCare.Domain.Models.Inventory.InvoiceType", b =>
-                {
-                    b.Property<int>("TypeID")
-                        .ValueGeneratedOnAdd()
-                        .HasColumnType("int");
-
-                    SqlServerPropertyBuilderExtensions.UseIdentityColumn(b.Property<int>("TypeID"));
-
-                    b.Property<bool>("AffectsStock")
-                        .HasColumnType("bit");
-
-                    b.Property<string>("Category")
-                        .IsRequired()
-                        .HasMaxLength(20)
-                        .HasColumnType("nvarchar(20)");
-
-                    b.Property<string>("Code")
-                        .IsRequired()
-                        .HasMaxLength(20)
-                        .HasColumnType("nvarchar(20)");
-
-                    b.Property<bool>("CreatesVoucher")
-                        .HasColumnType("bit");
-
-                    b.Property<int>("Direction")
-                        .HasColumnType("int");
-
-                    b.Property<bool>("IsActive")
-                        .HasColumnType("bit");
-
-                    b.Property<string>("Name")
-                        .IsRequired()
-                        .HasMaxLength(50)
-                        .HasColumnType("nvarchar(50)");
-
-                    b.HasKey("TypeID");
-
-                    b.HasIndex("Code")
-                        .IsUnique();
-
-                    b.ToTable("InvoiceTypes");
-                });
-
-            modelBuilder.Entity("PharmaCare.Domain.Models.Inventory.StockAlert", b =>
-                {
-                    b.Property<int>("StockAlertID")
-                        .ValueGeneratedOnAdd()
-                        .HasColumnType("int");
-
-                    SqlServerPropertyBuilderExtensions.UseIdentityColumn(b.Property<int>("StockAlertID"));
-
-                    b.Property<string>("AlertType")
-                        .IsRequired()
-                        .HasMaxLength(50)
-                        .HasColumnType("nvarchar(50)");
-
-                    b.Property<int>("CreatedBy")
-                        .HasColumnType("int");
-
-                    b.Property<DateTime>("CreatedDate")
-                        .HasColumnType("datetime2");
-
-                    b.Property<bool>("IsResolved")
-                        .HasColumnType("bit");
-
-                    b.Property<string>("Message")
-                        .IsRequired()
-                        .HasMaxLength(500)
-                        .HasColumnType("nvarchar(500)");
-
-                    b.Property<int?>("Product_ID")
-                        .HasColumnType("int");
-
-                    b.Property<int?>("ResolvedBy")
-                        .HasColumnType("int");
-
-                    b.Property<DateTime?>("ResolvedDate")
-                        .HasColumnType("datetime2");
-
-                    b.Property<string>("Severity")
-                        .IsRequired()
-                        .HasMaxLength(20)
-                        .HasColumnType("nvarchar(20)");
-
-                    b.Property<int?>("Store_ID")
-                        .HasColumnType("int");
-
-                    b.Property<int?>("UpdatedBy")
-                        .HasColumnType("int");
-
-                    b.Property<DateTime?>("UpdatedDate")
-                        .HasColumnType("datetime2");
-
-                    b.HasKey("StockAlertID");
-
-                    b.HasIndex("Product_ID");
-
-                    b.HasIndex("Store_ID");
-
-                    b.ToTable("StockAlerts");
-                });
-
-            modelBuilder.Entity("PharmaCare.Domain.Models.Inventory.StockDetail", b =>
-                {
-                    b.Property<int>("StockDetailID")
-                        .ValueGeneratedOnAdd()
-                        .HasColumnType("int");
-
-                    SqlServerPropertyBuilderExtensions.UseIdentityColumn(b.Property<int>("StockDetailID"));
-
-                    b.Property<decimal>("DiscountAmount")
-                        .HasColumnType("decimal(18,2)");
-
-                    b.Property<decimal?>("DiscountPercent")
-                        .HasColumnType("decimal(5,2)");
-
-                    b.Property<decimal>("LineCost")
-                        .HasColumnType("decimal(18,2)");
-
-                    b.Property<decimal>("LineTotal")
-                        .HasColumnType("decimal(18,2)");
-
-                    b.Property<string>("MovementType")
-                        .HasMaxLength(30)
-                        .HasColumnType("nvarchar(30)");
-
-                    b.Property<decimal?>("PhysicalQuantity")
-                        .HasColumnType("decimal(18,4)");
-
-                    b.Property<int?>("ProductBatch_ID")
-                        .HasColumnType("int");
-
-                    b.Property<int>("Product_ID")
-                        .HasColumnType("int");
-
-                    b.Property<decimal>("PurchasePrice")
-                        .HasColumnType("decimal(18,4)");
-
-                    b.Property<decimal>("Quantity")
-                        .HasColumnType("decimal(18,4)");
-
-                    b.Property<string>("ReturnReason")
+                    b.Property<string>("Reference")
                         .HasMaxLength(100)
                         .HasColumnType("nvarchar(100)");
-
-                    b.Property<int>("StockMain_ID")
-                        .HasColumnType("int");
-
-                    b.Property<decimal?>("SystemQuantity")
-                        .HasColumnType("decimal(18,4)");
-
-                    b.Property<decimal?>("TotalCost")
-                        .HasColumnType("decimal(18,4)");
-
-                    b.Property<decimal>("UnitPrice")
-                        .HasColumnType("decimal(18,4)");
-
-                    b.Property<decimal?>("VarianceCost")
-                        .HasColumnType("decimal(18,2)");
-
-                    b.HasKey("StockDetailID");
-
-                    b.HasIndex("ProductBatch_ID");
-
-                    b.HasIndex("Product_ID");
-
-                    b.HasIndex("StockMain_ID");
-
-                    b.ToTable("StockDetails");
-                });
-
-            modelBuilder.Entity("PharmaCare.Domain.Models.Inventory.StockMain", b =>
-                {
-                    b.Property<int>("StockMainID")
-                        .ValueGeneratedOnAdd()
-                        .HasColumnType("int");
-
-                    SqlServerPropertyBuilderExtensions.UseIdentityColumn(b.Property<int>("StockMainID"));
-
-                    b.Property<int?>("Account_ID")
-                        .HasColumnType("int");
-
-                    b.Property<decimal>("BalanceAmount")
-                        .HasColumnType("decimal(18,2)");
-
-                    b.Property<int?>("CompletedBy")
-                        .HasColumnType("int");
-
-                    b.Property<DateTime?>("CompletedDate")
-                        .HasColumnType("datetime2");
-
-                    b.Property<int>("CreatedBy")
-                        .HasColumnType("int");
-
-                    b.Property<DateTime>("CreatedDate")
-                        .HasColumnType("datetime2");
-
-                    b.Property<int?>("DestinationStore_ID")
-                        .HasColumnType("int");
-
-                    b.Property<decimal>("DiscountAmount")
-                        .HasColumnType("decimal(18,2)");
-
-                    b.Property<decimal?>("DiscountPercent")
-                        .HasColumnType("decimal(5,2)");
-
-                    b.Property<DateTime?>("ExpectedDeliveryDate")
-                        .HasColumnType("datetime2");
-
-                    b.Property<DateTime>("InvoiceDate")
-                        .HasColumnType("datetime2");
-
-                    b.Property<string>("InvoiceNo")
-                        .IsRequired()
-                        .HasMaxLength(50)
-                        .HasColumnType("nvarchar(50)");
-
-                    b.Property<int>("InvoiceType_ID")
-                        .HasColumnType("int");
-
-                    b.Property<decimal>("PaidAmount")
-                        .HasColumnType("decimal(18,2)");
-
-                    b.Property<int?>("Party_ID")
-                        .HasColumnType("int");
-
-                    b.Property<string>("PaymentStatus")
-                        .HasMaxLength(20)
-                        .HasColumnType("nvarchar(20)");
-
-                    b.Property<int?>("PaymentVoucher_ID")
-                        .HasColumnType("int");
-
-                    b.Property<int?>("ReceivedBy")
-                        .HasColumnType("int");
-
-                    b.Property<DateTime?>("ReceivedDate")
-                        .HasColumnType("datetime2");
-
-                    b.Property<int?>("ReferenceStockMain_ID")
-                        .HasColumnType("int");
-
-                    b.Property<decimal>("RefundAmount")
-                        .HasColumnType("decimal(18,2)");
-
-                    b.Property<string>("RefundMethod")
-                        .HasMaxLength(20)
-                        .HasColumnType("nvarchar(20)");
-
-                    b.Property<string>("RefundStatus")
-                        .HasMaxLength(20)
-                        .HasColumnType("nvarchar(20)");
-
-                    b.Property<int?>("RefundVoucher_ID")
-                        .HasColumnType("int");
 
                     b.Property<string>("Remarks")
                         .HasMaxLength(500)
                         .HasColumnType("nvarchar(500)");
 
-                    b.Property<string>("ReturnNotes")
-                        .HasMaxLength(500)
-                        .HasColumnType("nvarchar(500)");
-
-                    b.Property<string>("ReturnReason")
-                        .HasMaxLength(50)
-                        .HasColumnType("nvarchar(50)");
-
-                    b.Property<decimal>("ReturnedAmount")
-                        .HasColumnType("decimal(18,2)");
-
-                    b.Property<string>("Status")
-                        .IsRequired()
-                        .HasMaxLength(20)
-                        .HasColumnType("nvarchar(20)");
+                    b.Property<int?>("StockMain_ID")
+                        .HasColumnType("int");
 
                     b.Property<int>("Store_ID")
                         .HasColumnType("int");
 
-                    b.Property<decimal>("SubTotal")
-                        .HasColumnType("decimal(18,2)");
-
-                    b.Property<string>("SupplierInvoiceNo")
-                        .HasMaxLength(50)
-                        .HasColumnType("nvarchar(50)");
-
-                    b.Property<decimal>("TotalAmount")
-                        .HasColumnType("decimal(18,2)");
+                    b.Property<DateTime?>("UpdatedAt")
+                        .HasColumnType("datetime2");
 
                     b.Property<int?>("UpdatedBy")
                         .HasColumnType("int");
 
-                    b.Property<DateTime?>("UpdatedDate")
-                        .HasColumnType("datetime2");
-
-                    b.Property<string>("VoidReason")
-                        .HasMaxLength(500)
-                        .HasColumnType("nvarchar(500)");
-
-                    b.Property<int?>("VoidedBy")
-                        .HasColumnType("int");
-
-                    b.Property<DateTime?>("VoidedDate")
-                        .HasColumnType("datetime2");
-
-                    b.HasKey("StockMainID");
-
-                    b.HasIndex("Account_ID");
-
-                    b.HasIndex("DestinationStore_ID");
-
-                    b.HasIndex("InvoiceNo")
-                        .IsUnique();
-
-                    b.HasIndex("InvoiceType_ID");
-
-                    b.HasIndex("Party_ID");
-
-                    b.HasIndex("PaymentVoucher_ID");
-
-                    b.HasIndex("ReferenceStockMain_ID");
-
-                    b.HasIndex("RefundVoucher_ID");
-
-                    b.HasIndex("Store_ID");
-
-                    b.ToTable("StockMains");
-                });
-
-            modelBuilder.Entity("PharmaCare.Domain.Models.Inventory.StockMovement", b =>
-                {
-                    b.Property<int>("StockMovementID")
-                        .ValueGeneratedOnAdd()
-                        .HasColumnType("int");
-
-                    SqlServerPropertyBuilderExtensions.UseIdentityColumn(b.Property<int>("StockMovementID"));
-
-                    b.Property<int>("CreatedBy")
-                        .HasColumnType("int");
-
-                    b.Property<DateTime>("CreatedDate")
-                        .HasColumnType("datetime2");
-
-                    b.Property<string>("MovementType")
-                        .IsRequired()
-                        .HasColumnType("nvarchar(max)");
-
-                    b.Property<int>("ProductBatch_ID")
-                        .HasColumnType("int");
-
-                    b.Property<decimal>("Quantity")
-                        .HasColumnType("decimal(18, 4)");
-
-                    b.Property<int?>("ReferenceID")
-                        .HasColumnType("int");
-
-                    b.Property<string>("ReferenceNumber")
-                        .IsRequired()
-                        .HasColumnType("nvarchar(max)");
-
-                    b.Property<string>("ReferenceType")
-                        .IsRequired()
-                        .HasColumnType("nvarchar(max)");
-
-                    b.Property<int?>("RelatedMovement_ID")
-                        .HasColumnType("int");
-
-                    b.Property<int>("Store_ID")
-                        .HasColumnType("int");
-
-                    b.Property<decimal>("TotalCost")
-                        .HasColumnType("decimal(18, 4)");
-
-                    b.Property<decimal>("UnitCost")
-                        .HasColumnType("decimal(18, 4)");
-
                     b.Property<int?>("Voucher_ID")
                         .HasColumnType("int");
 
-                    b.HasKey("StockMovementID");
+                    b.HasKey("PaymentID");
 
-                    b.HasIndex("ProductBatch_ID");
+                    b.HasIndex("Account_ID");
 
-                    b.HasIndex("RelatedMovement_ID")
-                        .IsUnique()
-                        .HasFilter("[RelatedMovement_ID] IS NOT NULL");
+                    b.HasIndex("Party_ID");
+
+                    b.HasIndex("StockMain_ID");
 
                     b.HasIndex("Store_ID");
 
                     b.HasIndex("Voucher_ID");
 
-                    b.ToTable("StockMovements");
+                    b.ToTable("Payments", (string)null);
                 });
 
-            modelBuilder.Entity("PharmaCare.Domain.Models.Inventory.StoreInventory", b =>
+            modelBuilder.Entity("PharmaCare.Domain.Entities.Inventory.StoreInventory", b =>
                 {
                     b.Property<int>("StoreInventoryID")
                         .ValueGeneratedOnAdd()
@@ -1602,25 +896,188 @@ namespace PharmaCare.Infrastructure.Migrations
 
                     SqlServerPropertyBuilderExtensions.UseIdentityColumn(b.Property<int>("StoreInventoryID"));
 
-                    b.Property<int>("ProductBatch_ID")
+                    b.Property<decimal>("AverageCost")
+                        .HasColumnType("decimal(18,2)");
+
+                    b.Property<DateTime>("LastUpdated")
+                        .HasColumnType("datetime2");
+
+                    b.Property<int>("Product_ID")
                         .HasColumnType("int");
 
                     b.Property<decimal>("QuantityOnHand")
-                        .HasColumnType("decimal(18, 2)");
+                        .HasColumnType("decimal(18,4)");
+
+                    b.Property<decimal>("ReservedQuantity")
+                        .HasColumnType("decimal(18,4)");
 
                     b.Property<int>("Store_ID")
                         .HasColumnType("int");
 
                     b.HasKey("StoreInventoryID");
 
-                    b.HasIndex("ProductBatch_ID");
+                    b.HasIndex("Product_ID");
 
-                    b.HasIndex("Store_ID");
+                    b.HasIndex("Store_ID", "Product_ID")
+                        .IsUnique();
 
-                    b.ToTable("StoreInventories");
+                    b.ToTable("StoreInventories", (string)null);
                 });
 
-            modelBuilder.Entity("PharmaCare.Domain.Models.Membership.SystemUser", b =>
+            modelBuilder.Entity("PharmaCare.Domain.Entities.Security.Page", b =>
+                {
+                    b.Property<int>("PageID")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("int");
+
+                    SqlServerPropertyBuilderExtensions.UseIdentityColumn(b.Property<int>("PageID"));
+
+                    b.Property<string>("Action")
+                        .HasMaxLength(100)
+                        .HasColumnType("nvarchar(100)");
+
+                    b.Property<string>("Controller")
+                        .HasMaxLength(100)
+                        .HasColumnType("nvarchar(100)");
+
+                    b.Property<DateTime>("CreatedAt")
+                        .HasColumnType("datetime2");
+
+                    b.Property<int>("CreatedBy")
+                        .HasColumnType("int");
+
+                    b.Property<DateTime?>("DeletedAt")
+                        .HasColumnType("datetime2");
+
+                    b.Property<int?>("DeletedBy")
+                        .HasColumnType("int");
+
+                    b.Property<int>("DisplayOrder")
+                        .HasColumnType("int");
+
+                    b.Property<string>("Icon")
+                        .HasMaxLength(50)
+                        .HasColumnType("nvarchar(50)");
+
+                    b.Property<bool>("IsActive")
+                        .HasColumnType("bit");
+
+                    b.Property<bool>("IsDeleted")
+                        .HasColumnType("bit");
+
+                    b.Property<bool>("IsVisible")
+                        .HasColumnType("bit");
+
+                    b.Property<int?>("Parent_ID")
+                        .HasColumnType("int");
+
+                    b.Property<string>("Title")
+                        .IsRequired()
+                        .HasMaxLength(100)
+                        .HasColumnType("nvarchar(100)");
+
+                    b.Property<DateTime?>("UpdatedAt")
+                        .HasColumnType("datetime2");
+
+                    b.Property<int?>("UpdatedBy")
+                        .HasColumnType("int");
+
+                    b.HasKey("PageID");
+
+                    b.HasIndex("Parent_ID");
+
+                    b.ToTable("Pages", (string)null);
+                });
+
+            modelBuilder.Entity("PharmaCare.Domain.Entities.Security.Role", b =>
+                {
+                    b.Property<int>("RoleID")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("int");
+
+                    SqlServerPropertyBuilderExtensions.UseIdentityColumn(b.Property<int>("RoleID"));
+
+                    b.Property<DateTime>("CreatedAt")
+                        .HasColumnType("datetime2");
+
+                    b.Property<int>("CreatedBy")
+                        .HasColumnType("int");
+
+                    b.Property<DateTime?>("DeletedAt")
+                        .HasColumnType("datetime2");
+
+                    b.Property<int?>("DeletedBy")
+                        .HasColumnType("int");
+
+                    b.Property<string>("Description")
+                        .HasMaxLength(200)
+                        .HasColumnType("nvarchar(200)");
+
+                    b.Property<bool>("IsActive")
+                        .HasColumnType("bit");
+
+                    b.Property<bool>("IsDeleted")
+                        .HasColumnType("bit");
+
+                    b.Property<bool>("IsSystemRole")
+                        .HasColumnType("bit");
+
+                    b.Property<string>("Name")
+                        .IsRequired()
+                        .HasMaxLength(50)
+                        .HasColumnType("nvarchar(50)");
+
+                    b.Property<DateTime?>("UpdatedAt")
+                        .HasColumnType("datetime2");
+
+                    b.Property<int?>("UpdatedBy")
+                        .HasColumnType("int");
+
+                    b.HasKey("RoleID");
+
+                    b.HasIndex("Name")
+                        .IsUnique();
+
+                    b.ToTable("Roles", (string)null);
+                });
+
+            modelBuilder.Entity("PharmaCare.Domain.Entities.Security.RolePage", b =>
+                {
+                    b.Property<int>("RolePageID")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("int");
+
+                    SqlServerPropertyBuilderExtensions.UseIdentityColumn(b.Property<int>("RolePageID"));
+
+                    b.Property<bool>("CanCreate")
+                        .HasColumnType("bit");
+
+                    b.Property<bool>("CanDelete")
+                        .HasColumnType("bit");
+
+                    b.Property<bool>("CanEdit")
+                        .HasColumnType("bit");
+
+                    b.Property<bool>("CanView")
+                        .HasColumnType("bit");
+
+                    b.Property<int>("Page_ID")
+                        .HasColumnType("int");
+
+                    b.Property<int>("Role_ID")
+                        .HasColumnType("int");
+
+                    b.HasKey("RolePageID");
+
+                    b.HasIndex("Page_ID");
+
+                    b.HasIndex("Role_ID", "Page_ID")
+                        .IsUnique();
+
+                    b.ToTable("RolePages", (string)null);
+                });
+
+            modelBuilder.Entity("PharmaCare.Domain.Entities.Security.User", b =>
                 {
                     b.Property<int>("Id")
                         .ValueGeneratedOnAdd()
@@ -1635,11 +1092,17 @@ namespace PharmaCare.Infrastructure.Migrations
                         .IsConcurrencyToken()
                         .HasColumnType("nvarchar(max)");
 
-                    b.Property<int?>("CreatedBy")
+                    b.Property<DateTime>("CreatedAt")
+                        .HasColumnType("datetime2");
+
+                    b.Property<int>("CreatedBy")
                         .HasColumnType("int");
 
-                    b.Property<DateTime>("CreatedDateTime")
+                    b.Property<DateTime?>("DeletedAt")
                         .HasColumnType("datetime2");
+
+                    b.Property<int?>("DeletedBy")
+                        .HasColumnType("int");
 
                     b.Property<string>("Email")
                         .HasMaxLength(256)
@@ -1650,9 +1113,13 @@ namespace PharmaCare.Infrastructure.Migrations
 
                     b.Property<string>("FullName")
                         .IsRequired()
-                        .HasColumnType("nvarchar(max)");
+                        .HasMaxLength(100)
+                        .HasColumnType("nvarchar(100)");
 
                     b.Property<bool>("IsActive")
+                        .HasColumnType("bit");
+
+                    b.Property<bool>("IsDeleted")
                         .HasColumnType("bit");
 
                     b.Property<bool>("LockoutEnabled")
@@ -1687,18 +1154,15 @@ namespace PharmaCare.Infrastructure.Migrations
                     b.Property<bool>("TwoFactorEnabled")
                         .HasColumnType("bit");
 
+                    b.Property<DateTime?>("UpdatedAt")
+                        .HasColumnType("datetime2");
+
                     b.Property<int?>("UpdatedBy")
                         .HasColumnType("int");
-
-                    b.Property<DateTime?>("UpdatedDateTime")
-                        .HasColumnType("datetime2");
 
                     b.Property<string>("UserName")
                         .HasMaxLength(256)
                         .HasColumnType("nvarchar(256)");
-
-                    b.Property<int>("UserType_ID")
-                        .HasColumnType("int");
 
                     b.HasKey("Id");
 
@@ -1712,456 +1176,139 @@ namespace PharmaCare.Infrastructure.Migrations
 
                     b.HasIndex("Store_ID");
 
-                    b.HasIndex("UserType_ID");
-
-                    b.ToTable("AspNetUsers", (string)null);
+                    b.ToTable("Users", (string)null);
                 });
 
-            modelBuilder.Entity("PharmaCare.Domain.Models.Membership.UserTypes", b =>
+            modelBuilder.Entity("PharmaCare.Domain.Entities.Security.UserRole", b =>
                 {
-                    b.Property<int>("UserTypeID")
+                    b.Property<int>("UserRoleID")
                         .ValueGeneratedOnAdd()
                         .HasColumnType("int");
 
-                    SqlServerPropertyBuilderExtensions.UseIdentityColumn(b.Property<int>("UserTypeID"));
+                    SqlServerPropertyBuilderExtensions.UseIdentityColumn(b.Property<int>("UserRoleID"));
 
-                    b.Property<int>("CreatedBy")
+                    b.Property<int>("Role_ID")
                         .HasColumnType("int");
 
-                    b.Property<DateTime>("CreatedDate")
-                        .HasColumnType("datetime2");
-
-                    b.Property<bool>("IsActive")
-                        .HasColumnType("bit");
-
-                    b.Property<int?>("UpdatedBy")
+                    b.Property<int>("User_ID")
                         .HasColumnType("int");
 
-                    b.Property<DateTime?>("UpdatedDate")
-                        .HasColumnType("datetime2");
+                    b.HasKey("UserRoleID");
 
-                    b.Property<string>("UserType")
-                        .IsRequired()
-                        .HasColumnType("nvarchar(max)");
+                    b.HasIndex("Role_ID");
 
-                    b.HasKey("UserTypeID");
+                    b.HasIndex("User_ID", "Role_ID")
+                        .IsUnique();
 
-                    b.ToTable("UserTypes");
+                    b.ToTable("UserRoles", (string)null);
                 });
 
-            modelBuilder.Entity("PharmaCare.Domain.Models.Membership.UserWebPages", b =>
+            modelBuilder.Entity("PharmaCare.Domain.Entities.Transactions.StockDetail", b =>
                 {
-                    b.Property<int>("UserWebPageID")
+                    b.Property<int>("StockDetailID")
                         .ValueGeneratedOnAdd()
                         .HasColumnType("int");
 
-                    SqlServerPropertyBuilderExtensions.UseIdentityColumn(b.Property<int>("UserWebPageID"));
+                    SqlServerPropertyBuilderExtensions.UseIdentityColumn(b.Property<int>("StockDetailID"));
 
-                    b.Property<int>("SystemUser_ID")
-                        .HasColumnType("int");
-
-                    b.Property<int>("WebPage_ID")
-                        .HasColumnType("int");
-
-                    b.HasKey("UserWebPageID");
-
-                    b.HasIndex("SystemUser_ID");
-
-                    b.HasIndex("WebPage_ID");
-
-                    b.ToTable("UserWebPages");
-                });
-
-            modelBuilder.Entity("PharmaCare.Domain.Models.Membership.WebPageUrls", b =>
-                {
-                    b.Property<int>("WebPageUrlID")
-                        .ValueGeneratedOnAdd()
-                        .HasColumnType("int");
-
-                    SqlServerPropertyBuilderExtensions.UseIdentityColumn(b.Property<int>("WebPageUrlID"));
-
-                    b.Property<string>("Url")
-                        .IsRequired()
-                        .HasColumnType("nvarchar(max)");
-
-                    b.Property<int>("WebPage_ID")
-                        .HasColumnType("int");
-
-                    b.HasKey("WebPageUrlID");
-
-                    b.HasIndex("WebPage_ID");
-
-                    b.ToTable("WebPageUrls");
-                });
-
-            modelBuilder.Entity("PharmaCare.Domain.Models.Membership.WebPages", b =>
-                {
-                    b.Property<int>("WebPageID")
-                        .ValueGeneratedOnAdd()
-                        .HasColumnType("int");
-
-                    SqlServerPropertyBuilderExtensions.UseIdentityColumn(b.Property<int>("WebPageID"));
-
-                    b.Property<string>("ControllerName")
-                        .HasColumnType("nvarchar(max)");
-
-                    b.Property<string>("Description")
-                        .HasColumnType("nvarchar(max)");
-
-                    b.Property<bool>("IsVisible")
-                        .HasColumnType("bit");
-
-                    b.Property<string>("PageIcon")
-                        .HasColumnType("nvarchar(max)");
-
-                    b.Property<int>("PageOrder")
-                        .HasColumnType("int");
-
-                    b.Property<string>("PageTitle")
-                        .HasColumnType("nvarchar(max)");
-
-                    b.Property<int>("Parent_ID")
-                        .HasColumnType("int");
-
-                    b.Property<string>("ViewName")
-                        .HasColumnType("nvarchar(max)");
-
-                    b.HasKey("WebPageID");
-
-                    b.ToTable("WebPages");
-                });
-
-            modelBuilder.Entity("PharmaCare.Domain.Models.Prescriptions.Prescription", b =>
-                {
-                    b.Property<int>("PrescriptionID")
-                        .ValueGeneratedOnAdd()
-                        .HasColumnType("int");
-
-                    SqlServerPropertyBuilderExtensions.UseIdentityColumn(b.Property<int>("PrescriptionID"));
-
-                    b.Property<string>("DoctorName")
-                        .IsRequired()
-                        .HasColumnType("nvarchar(max)");
-
-                    b.Property<string>("FilePath")
-                        .IsRequired()
-                        .HasColumnType("nvarchar(max)");
-
-                    b.Property<DateTime>("PrescriptionDate")
-                        .HasColumnType("datetime2");
-
-                    b.Property<string>("PrescriptionNumber")
-                        .IsRequired()
-                        .HasColumnType("nvarchar(max)");
-
-                    b.Property<string>("Status")
-                        .IsRequired()
-                        .HasColumnType("nvarchar(max)");
-
-                    b.Property<int>("UploadedBy")
-                        .HasColumnType("int");
-
-                    b.HasKey("PrescriptionID");
-
-                    b.ToTable("Prescriptions");
-                });
-
-            modelBuilder.Entity("PharmaCare.Domain.Models.Products.Product", b =>
-                {
-                    b.Property<int>("ProductID")
-                        .ValueGeneratedOnAdd()
-                        .HasColumnType("int");
-
-                    SqlServerPropertyBuilderExtensions.UseIdentityColumn(b.Property<int>("ProductID"));
-
-                    b.Property<string>("Barcode")
-                        .HasColumnType("nvarchar(max)");
-
-                    b.Property<int>("CreatedBy")
-                        .HasColumnType("int");
-
-                    b.Property<DateTime>("CreatedDate")
-                        .HasColumnType("datetime2");
-
-                    b.Property<bool>("IsActive")
-                        .HasColumnType("bit");
-
-                    b.Property<decimal>("OpeningPrice")
+                    b.Property<decimal>("CostPrice")
                         .HasColumnType("decimal(18,2)");
 
-                    b.Property<decimal>("OpeningQuantity")
+                    b.Property<decimal>("DiscountAmount")
                         .HasColumnType("decimal(18,2)");
 
-                    b.Property<string>("ProductCode")
-                        .IsRequired()
-                        .HasColumnType("nvarchar(max)");
+                    b.Property<decimal>("DiscountPercent")
+                        .HasColumnType("decimal(5,2)");
 
-                    b.Property<string>("ProductName")
-                        .IsRequired()
-                        .HasColumnType("nvarchar(max)");
-
-                    b.Property<int?>("ReorderLevel")
-                        .HasColumnType("int");
-
-                    b.Property<string>("Sku")
-                        .IsRequired()
-                        .HasColumnType("nvarchar(max)");
-
-                    b.Property<int>("SubCategory_ID")
-                        .HasColumnType("int");
-
-                    b.Property<int?>("UpdatedBy")
-                        .HasColumnType("int");
-
-                    b.Property<DateTime?>("UpdatedDate")
-                        .HasColumnType("datetime2");
-
-                    b.HasKey("ProductID");
-
-                    b.HasIndex("SubCategory_ID");
-
-                    b.ToTable("Products");
-                });
-
-            modelBuilder.Entity("PharmaCare.Domain.Models.PurchaseManagement.PurchaseOrder", b =>
-                {
-                    b.Property<int>("PurchaseOrderID")
-                        .ValueGeneratedOnAdd()
-                        .HasColumnType("int");
-
-                    SqlServerPropertyBuilderExtensions.UseIdentityColumn(b.Property<int>("PurchaseOrderID"));
-
-                    b.Property<int>("CreatedBy")
-                        .HasColumnType("int");
-
-                    b.Property<DateTime>("CreatedDate")
-                        .HasColumnType("datetime2");
-
-                    b.Property<DateTime?>("ExpectedDeliveryDate")
-                        .HasColumnType("datetime2");
-
-                    b.Property<DateTime>("OrderDate")
-                        .HasColumnType("datetime2");
-
-                    b.Property<int?>("Party_ID")
-                        .IsRequired()
-                        .HasColumnType("int");
-
-                    b.Property<string>("PurchaseOrderNumber")
-                        .IsRequired()
-                        .HasColumnType("nvarchar(max)");
-
-                    b.Property<string>("Status")
-                        .IsRequired()
-                        .HasColumnType("nvarchar(max)");
-
-                    b.Property<decimal>("TotalAmount")
+                    b.Property<decimal>("LineCost")
                         .HasColumnType("decimal(18,2)");
 
-                    b.Property<int?>("UpdatedBy")
-                        .HasColumnType("int");
+                    b.Property<decimal>("LineTotal")
+                        .HasColumnType("decimal(18,2)");
 
-                    b.Property<DateTime?>("UpdatedDate")
-                        .HasColumnType("datetime2");
-
-                    b.HasKey("PurchaseOrderID");
-
-                    b.HasIndex("Party_ID");
-
-                    b.ToTable("PurchaseOrders");
-                });
-
-            modelBuilder.Entity("PharmaCare.Domain.Models.PurchaseManagement.PurchaseOrderItem", b =>
-                {
-                    b.Property<int>("PurchaseOrderItemID")
-                        .ValueGeneratedOnAdd()
-                        .HasColumnType("int");
-
-                    SqlServerPropertyBuilderExtensions.UseIdentityColumn(b.Property<int>("PurchaseOrderItemID"));
-
-                    b.Property<int?>("Product_ID")
-                        .HasColumnType("int");
-
-                    b.Property<int?>("PurchaseOrder_ID")
-                        .HasColumnType("int");
-
-                    b.Property<int>("Quantity")
-                        .HasColumnType("int");
-
-                    b.Property<int>("QuantityReceived")
-                        .HasColumnType("int");
-
-                    b.Property<decimal>("TotalPrice")
-                        .HasColumnType("decimal(18, 2)");
-
-                    b.Property<decimal>("UnitPrice")
-                        .HasColumnType("decimal(18, 2)");
-
-                    b.HasKey("PurchaseOrderItemID");
-
-                    b.HasIndex("Product_ID");
-
-                    b.HasIndex("PurchaseOrder_ID");
-
-                    b.ToTable("PurchaseOrderItems");
-                });
-
-            modelBuilder.Entity("PharmaCare.Domain.Models.PurchaseManagement.PurchaseReturn", b =>
-                {
-                    b.Property<int>("PurchaseReturnID")
-                        .ValueGeneratedOnAdd()
-                        .HasColumnType("int");
-
-                    SqlServerPropertyBuilderExtensions.UseIdentityColumn(b.Property<int>("PurchaseReturnID"));
-
-                    b.Property<int>("CreatedBy")
-                        .HasColumnType("int");
-
-                    b.Property<DateTime>("CreatedDate")
-                        .HasColumnType("datetime2");
-
-                    b.Property<int>("Party_ID")
-                        .HasColumnType("int");
-
-                    b.Property<decimal>("RefundAmount")
-                        .HasColumnType("decimal(18, 2)");
-
-                    b.Property<string>("RefundMethod")
-                        .HasColumnType("nvarchar(max)");
-
-                    b.Property<string>("RefundStatus")
-                        .HasColumnType("nvarchar(max)");
-
-                    b.Property<int?>("RefundVoucher_ID")
-                        .HasColumnType("int");
-
-                    b.Property<string>("Remarks")
-                        .HasColumnType("nvarchar(max)");
-
-                    b.Property<DateTime>("ReturnDate")
-                        .HasColumnType("datetime2");
-
-                    b.Property<string>("Status")
-                        .IsRequired()
-                        .HasColumnType("nvarchar(max)");
-
-                    b.Property<int?>("StockMain_ID")
-                        .HasColumnType("int");
-
-                    b.Property<int>("Store_ID")
-                        .HasColumnType("int");
-
-                    b.Property<decimal>("TotalAmount")
-                        .HasColumnType("decimal(18, 2)");
-
-                    b.Property<int?>("UpdatedBy")
-                        .HasColumnType("int");
-
-                    b.Property<DateTime?>("UpdatedDate")
-                        .HasColumnType("datetime2");
-
-                    b.Property<int?>("Voucher_ID")
-                        .HasColumnType("int");
-
-                    b.HasKey("PurchaseReturnID");
-
-                    b.HasIndex("Party_ID");
-
-                    b.HasIndex("RefundVoucher_ID");
-
-                    b.HasIndex("StockMain_ID");
-
-                    b.HasIndex("Store_ID");
-
-                    b.HasIndex("Voucher_ID");
-
-                    b.ToTable("PurchaseReturns");
-                });
-
-            modelBuilder.Entity("PharmaCare.Domain.Models.PurchaseManagement.PurchaseReturnItem", b =>
-                {
-                    b.Property<int>("PurchaseReturnItemID")
-                        .ValueGeneratedOnAdd()
-                        .HasColumnType("int");
-
-                    SqlServerPropertyBuilderExtensions.UseIdentityColumn(b.Property<int>("PurchaseReturnItemID"));
-
-                    b.Property<int>("ProductBatch_ID")
-                        .HasColumnType("int");
-
-                    b.Property<int>("PurchaseReturn_ID")
+                    b.Property<int>("Product_ID")
                         .HasColumnType("int");
 
                     b.Property<decimal>("Quantity")
-                        .HasColumnType("decimal(18, 2)");
+                        .HasColumnType("decimal(18,4)");
 
-                    b.Property<string>("Reason")
-                        .IsRequired()
-                        .HasColumnType("nvarchar(max)");
+                    b.Property<string>("Remarks")
+                        .HasMaxLength(200)
+                        .HasColumnType("nvarchar(200)");
 
-                    b.Property<decimal>("TotalLineAmount")
-                        .HasColumnType("decimal(18, 2)");
+                    b.Property<int>("StockMain_ID")
+                        .HasColumnType("int");
 
                     b.Property<decimal>("UnitPrice")
-                        .HasColumnType("decimal(18, 2)");
+                        .HasColumnType("decimal(18,2)");
 
-                    b.HasKey("PurchaseReturnItemID");
+                    b.HasKey("StockDetailID");
 
-                    b.HasIndex("ProductBatch_ID");
+                    b.HasIndex("Product_ID");
 
-                    b.HasIndex("PurchaseReturn_ID");
+                    b.HasIndex("StockMain_ID");
 
-                    b.ToTable("PurchaseReturnItems");
+                    b.ToTable("StockDetails", (string)null);
                 });
 
-            modelBuilder.Entity("PharmaCare.Domain.Models.SaleManagement.Quotation", b =>
+            modelBuilder.Entity("PharmaCare.Domain.Entities.Transactions.StockMain", b =>
                 {
-                    b.Property<int>("QuotationID")
+                    b.Property<int>("StockMainID")
                         .ValueGeneratedOnAdd()
                         .HasColumnType("int");
 
-                    SqlServerPropertyBuilderExtensions.UseIdentityColumn(b.Property<int>("QuotationID"));
+                    SqlServerPropertyBuilderExtensions.UseIdentityColumn(b.Property<int>("StockMainID"));
 
-                    b.Property<int?>("ConvertedStockMain_ID")
-                        .HasColumnType("int");
+                    b.Property<decimal>("BalanceAmount")
+                        .HasColumnType("decimal(18,2)");
+
+                    b.Property<DateTime>("CreatedAt")
+                        .HasColumnType("datetime2");
 
                     b.Property<int>("CreatedBy")
                         .HasColumnType("int");
 
-                    b.Property<DateTime>("CreatedDate")
+                    b.Property<DateTime?>("DeletedAt")
                         .HasColumnType("datetime2");
 
-                    b.Property<string>("CustomerName")
-                        .HasMaxLength(200)
-                        .HasColumnType("nvarchar(200)");
+                    b.Property<int?>("DeletedBy")
+                        .HasColumnType("int");
 
-                    b.Property<string>("CustomerPhone")
-                        .HasMaxLength(50)
-                        .HasColumnType("nvarchar(50)");
+                    b.Property<int?>("DestinationStore_ID")
+                        .HasColumnType("int");
 
                     b.Property<decimal>("DiscountAmount")
-                        .HasColumnType("decimal(18, 2)");
+                        .HasColumnType("decimal(18,2)");
 
                     b.Property<decimal>("DiscountPercent")
-                        .HasColumnType("decimal(5, 2)");
+                        .HasColumnType("decimal(5,2)");
 
-                    b.Property<decimal>("GrandTotal")
-                        .HasColumnType("decimal(18, 2)");
+                    b.Property<bool>("IsDeleted")
+                        .HasColumnType("bit");
 
-                    b.Property<string>("Notes")
-                        .HasMaxLength(500)
-                        .HasColumnType("nvarchar(500)");
+                    b.Property<decimal>("PaidAmount")
+                        .HasColumnType("decimal(18,2)");
 
                     b.Property<int?>("Party_ID")
                         .HasColumnType("int");
 
-                    b.Property<DateTime>("QuotationDate")
+                    b.Property<string>("PaymentStatus")
+                        .IsRequired()
+                        .HasMaxLength(20)
+                        .HasColumnType("nvarchar(20)");
+
+                    b.Property<DateTime?>("ReceivedAt")
                         .HasColumnType("datetime2");
 
-                    b.Property<string>("QuotationNumber")
-                        .IsRequired()
-                        .HasMaxLength(50)
-                        .HasColumnType("nvarchar(50)");
+                    b.Property<int?>("ReceivedBy")
+                        .HasColumnType("int");
+
+                    b.Property<int?>("ReferenceStockMain_ID")
+                        .HasColumnType("int");
+
+                    b.Property<string>("Remarks")
+                        .HasMaxLength(500)
+                        .HasColumnType("nvarchar(500)");
 
                     b.Property<string>("Status")
                         .IsRequired()
@@ -2172,69 +1319,256 @@ namespace PharmaCare.Infrastructure.Migrations
                         .HasColumnType("int");
 
                     b.Property<decimal>("SubTotal")
-                        .HasColumnType("decimal(18, 2)");
+                        .HasColumnType("decimal(18,2)");
+
+                    b.Property<decimal>("TotalAmount")
+                        .HasColumnType("decimal(18,2)");
+
+                    b.Property<DateTime>("TransactionDate")
+                        .HasColumnType("datetime2");
+
+                    b.Property<string>("TransactionNo")
+                        .IsRequired()
+                        .HasMaxLength(50)
+                        .HasColumnType("nvarchar(50)");
+
+                    b.Property<int>("TransactionType_ID")
+                        .HasColumnType("int");
+
+                    b.Property<DateTime?>("UpdatedAt")
+                        .HasColumnType("datetime2");
 
                     b.Property<int?>("UpdatedBy")
                         .HasColumnType("int");
 
-                    b.Property<DateTime?>("UpdatedDate")
+                    b.Property<string>("VoidReason")
+                        .HasMaxLength(500)
+                        .HasColumnType("nvarchar(500)");
+
+                    b.Property<DateTime?>("VoidedAt")
                         .HasColumnType("datetime2");
 
-                    b.Property<DateTime>("ValidUntil")
-                        .HasColumnType("datetime2");
+                    b.Property<int?>("VoidedBy")
+                        .HasColumnType("int");
 
-                    b.HasKey("QuotationID");
+                    b.Property<int?>("Voucher_ID")
+                        .HasColumnType("int");
 
-                    b.HasIndex("ConvertedStockMain_ID");
+                    b.HasKey("StockMainID");
+
+                    b.HasIndex("DestinationStore_ID");
 
                     b.HasIndex("Party_ID");
 
+                    b.HasIndex("ReferenceStockMain_ID");
+
                     b.HasIndex("Store_ID");
 
-                    b.ToTable("Quotations");
+                    b.HasIndex("TransactionNo")
+                        .IsUnique();
+
+                    b.HasIndex("TransactionType_ID");
+
+                    b.HasIndex("Voucher_ID");
+
+                    b.ToTable("StockMains", (string)null);
                 });
 
-            modelBuilder.Entity("PharmaCare.Domain.Models.SaleManagement.QuotationLine", b =>
+            modelBuilder.Entity("PharmaCare.Domain.Entities.Transactions.TransactionType", b =>
                 {
-                    b.Property<int>("QuotationLineID")
+                    b.Property<int>("TransactionTypeID")
                         .ValueGeneratedOnAdd()
                         .HasColumnType("int");
 
-                    SqlServerPropertyBuilderExtensions.UseIdentityColumn(b.Property<int>("QuotationLineID"));
+                    SqlServerPropertyBuilderExtensions.UseIdentityColumn(b.Property<int>("TransactionTypeID"));
 
-                    b.Property<decimal>("DiscountAmount")
-                        .HasColumnType("decimal(18, 2)");
+                    b.Property<bool>("AffectsStock")
+                        .HasColumnType("bit");
 
-                    b.Property<decimal>("DiscountPercent")
-                        .HasColumnType("decimal(5, 2)");
+                    b.Property<string>("Category")
+                        .IsRequired()
+                        .HasMaxLength(20)
+                        .HasColumnType("nvarchar(20)");
 
-                    b.Property<decimal>("NetAmount")
-                        .HasColumnType("decimal(18, 2)");
+                    b.Property<string>("Code")
+                        .IsRequired()
+                        .HasMaxLength(10)
+                        .HasColumnType("nvarchar(10)");
 
-                    b.Property<int?>("ProductBatch_ID")
+                    b.Property<bool>("CreatesVoucher")
+                        .HasColumnType("bit");
+
+                    b.Property<bool>("IsActive")
+                        .HasColumnType("bit");
+
+                    b.Property<string>("Name")
+                        .IsRequired()
+                        .HasMaxLength(50)
+                        .HasColumnType("nvarchar(50)");
+
+                    b.Property<int>("StockDirection")
+                        .HasColumnType("int");
+
+                    b.HasKey("TransactionTypeID");
+
+                    b.HasIndex("Code")
+                        .IsUnique();
+
+                    b.ToTable("TransactionTypes", (string)null);
+                });
+
+            modelBuilder.Entity("PharmaCare.Domain.Entities.Transactions.Voucher", b =>
+                {
+                    b.Property<int>("VoucherID")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("int");
+
+                    SqlServerPropertyBuilderExtensions.UseIdentityColumn(b.Property<int>("VoucherID"));
+
+                    b.Property<DateTime>("CreatedAt")
+                        .HasColumnType("datetime2");
+
+                    b.Property<int>("CreatedBy")
+                        .HasColumnType("int");
+
+                    b.Property<bool>("IsReversed")
+                        .HasColumnType("bit");
+
+                    b.Property<string>("Narration")
+                        .HasMaxLength(500)
+                        .HasColumnType("nvarchar(500)");
+
+                    b.Property<int?>("ReversedByVoucher_ID")
+                        .HasColumnType("int");
+
+                    b.Property<int?>("ReversesVoucher_ID")
+                        .HasColumnType("int");
+
+                    b.Property<int?>("SourceID")
+                        .HasColumnType("int");
+
+                    b.Property<string>("SourceTable")
+                        .HasMaxLength(50)
+                        .HasColumnType("nvarchar(50)");
+
+                    b.Property<string>("Status")
+                        .IsRequired()
+                        .HasMaxLength(20)
+                        .HasColumnType("nvarchar(20)");
+
+                    b.Property<int?>("Store_ID")
+                        .HasColumnType("int");
+
+                    b.Property<decimal>("TotalCredit")
+                        .HasColumnType("decimal(18,2)");
+
+                    b.Property<decimal>("TotalDebit")
+                        .HasColumnType("decimal(18,2)");
+
+                    b.Property<DateTime>("VoucherDate")
+                        .HasColumnType("datetime2");
+
+                    b.Property<string>("VoucherNo")
+                        .IsRequired()
+                        .HasMaxLength(50)
+                        .HasColumnType("nvarchar(50)");
+
+                    b.Property<int>("VoucherType_ID")
+                        .HasColumnType("int");
+
+                    b.HasKey("VoucherID");
+
+                    b.HasIndex("ReversedByVoucher_ID")
+                        .IsUnique()
+                        .HasFilter("[ReversedByVoucher_ID] IS NOT NULL");
+
+                    b.HasIndex("ReversesVoucher_ID")
+                        .IsUnique()
+                        .HasFilter("[ReversesVoucher_ID] IS NOT NULL");
+
+                    b.HasIndex("Store_ID");
+
+                    b.HasIndex("VoucherNo")
+                        .IsUnique();
+
+                    b.HasIndex("VoucherType_ID");
+
+                    b.ToTable("Vouchers", (string)null);
+                });
+
+            modelBuilder.Entity("PharmaCare.Domain.Entities.Transactions.VoucherDetail", b =>
+                {
+                    b.Property<int>("VoucherDetailID")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("int");
+
+                    SqlServerPropertyBuilderExtensions.UseIdentityColumn(b.Property<int>("VoucherDetailID"));
+
+                    b.Property<int>("Account_ID")
+                        .HasColumnType("int");
+
+                    b.Property<decimal>("CreditAmount")
+                        .HasColumnType("decimal(18,2)");
+
+                    b.Property<decimal>("DebitAmount")
+                        .HasColumnType("decimal(18,2)");
+
+                    b.Property<string>("Description")
+                        .HasMaxLength(200)
+                        .HasColumnType("nvarchar(200)");
+
+                    b.Property<int?>("Party_ID")
                         .HasColumnType("int");
 
                     b.Property<int?>("Product_ID")
                         .HasColumnType("int");
 
-                    b.Property<decimal>("Quantity")
-                        .HasColumnType("decimal(18, 2)");
-
-                    b.Property<int>("Quotation_ID")
+                    b.Property<int>("Voucher_ID")
                         .HasColumnType("int");
 
-                    b.Property<decimal>("UnitPrice")
-                        .HasColumnType("decimal(18, 2)");
+                    b.HasKey("VoucherDetailID");
 
-                    b.HasKey("QuotationLineID");
+                    b.HasIndex("Account_ID");
 
-                    b.HasIndex("ProductBatch_ID");
+                    b.HasIndex("Party_ID");
 
                     b.HasIndex("Product_ID");
 
-                    b.HasIndex("Quotation_ID");
+                    b.HasIndex("Voucher_ID");
 
-                    b.ToTable("QuotationLines");
+                    b.ToTable("VoucherDetails", (string)null);
+                });
+
+            modelBuilder.Entity("PharmaCare.Domain.Entities.Transactions.VoucherType", b =>
+                {
+                    b.Property<int>("VoucherTypeID")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("int");
+
+                    SqlServerPropertyBuilderExtensions.UseIdentityColumn(b.Property<int>("VoucherTypeID"));
+
+                    b.Property<string>("Code")
+                        .IsRequired()
+                        .HasMaxLength(10)
+                        .HasColumnType("nvarchar(10)");
+
+                    b.Property<bool>("IsActive")
+                        .HasColumnType("bit");
+
+                    b.Property<bool>("IsAutoGenerated")
+                        .HasColumnType("bit");
+
+                    b.Property<string>("Name")
+                        .IsRequired()
+                        .HasMaxLength(50)
+                        .HasColumnType("nvarchar(50)");
+
+                    b.HasKey("VoucherTypeID");
+
+                    b.HasIndex("Code")
+                        .IsUnique();
+
+                    b.ToTable("VoucherTypes", (string)null);
                 });
 
             modelBuilder.Entity("Microsoft.AspNetCore.Identity.IdentityRoleClaim<int>", b =>
@@ -2242,25 +1576,25 @@ namespace PharmaCare.Infrastructure.Migrations
                     b.HasOne("Microsoft.AspNetCore.Identity.IdentityRole<int>", null)
                         .WithMany()
                         .HasForeignKey("RoleId")
-                        .OnDelete(DeleteBehavior.Restrict)
+                        .OnDelete(DeleteBehavior.Cascade)
                         .IsRequired();
                 });
 
             modelBuilder.Entity("Microsoft.AspNetCore.Identity.IdentityUserClaim<int>", b =>
                 {
-                    b.HasOne("PharmaCare.Domain.Models.Membership.SystemUser", null)
+                    b.HasOne("PharmaCare.Domain.Entities.Security.User", null)
                         .WithMany()
                         .HasForeignKey("UserId")
-                        .OnDelete(DeleteBehavior.Restrict)
+                        .OnDelete(DeleteBehavior.Cascade)
                         .IsRequired();
                 });
 
             modelBuilder.Entity("Microsoft.AspNetCore.Identity.IdentityUserLogin<int>", b =>
                 {
-                    b.HasOne("PharmaCare.Domain.Models.Membership.SystemUser", null)
+                    b.HasOne("PharmaCare.Domain.Entities.Security.User", null)
                         .WithMany()
                         .HasForeignKey("UserId")
-                        .OnDelete(DeleteBehavior.Restrict)
+                        .OnDelete(DeleteBehavior.Cascade)
                         .IsRequired();
                 });
 
@@ -2269,168 +1603,90 @@ namespace PharmaCare.Infrastructure.Migrations
                     b.HasOne("Microsoft.AspNetCore.Identity.IdentityRole<int>", null)
                         .WithMany()
                         .HasForeignKey("RoleId")
-                        .OnDelete(DeleteBehavior.Restrict)
+                        .OnDelete(DeleteBehavior.Cascade)
                         .IsRequired();
 
-                    b.HasOne("PharmaCare.Domain.Models.Membership.SystemUser", null)
+                    b.HasOne("PharmaCare.Domain.Entities.Security.User", null)
                         .WithMany()
                         .HasForeignKey("UserId")
-                        .OnDelete(DeleteBehavior.Restrict)
+                        .OnDelete(DeleteBehavior.Cascade)
                         .IsRequired();
                 });
 
             modelBuilder.Entity("Microsoft.AspNetCore.Identity.IdentityUserToken<int>", b =>
                 {
-                    b.HasOne("PharmaCare.Domain.Models.Membership.SystemUser", null)
+                    b.HasOne("PharmaCare.Domain.Entities.Security.User", null)
                         .WithMany()
                         .HasForeignKey("UserId")
-                        .OnDelete(DeleteBehavior.Restrict)
+                        .OnDelete(DeleteBehavior.Cascade)
                         .IsRequired();
                 });
 
-            modelBuilder.Entity("PharmaCare.Domain.Models.AccountManagement.AccountMapping", b =>
+            modelBuilder.Entity("PharmaCare.Domain.Entities.Accounting.Account", b =>
                 {
-                    b.HasOne("PharmaCare.Domain.Models.AccountManagement.ChartOfAccount", "Account")
-                        .WithMany()
-                        .HasForeignKey("Account_ID")
-                        .OnDelete(DeleteBehavior.SetNull);
+                    b.HasOne("PharmaCare.Domain.Entities.Accounting.AccountSubhead", "AccountSubhead")
+                        .WithMany("Accounts")
+                        .HasForeignKey("AccountSubhead_ID")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
 
-                    b.HasOne("PharmaCare.Domain.Models.AccountManagement.Head", "Head")
-                        .WithMany()
-                        .HasForeignKey("Head_ID")
-                        .OnDelete(DeleteBehavior.SetNull);
-
-                    b.HasOne("PharmaCare.Domain.Models.AccountManagement.Subhead", "Subhead")
-                        .WithMany()
-                        .HasForeignKey("Subhead_ID")
-                        .OnDelete(DeleteBehavior.SetNull);
-
-                    b.Navigation("Account");
-
-                    b.Navigation("Head");
-
-                    b.Navigation("Subhead");
-                });
-
-            modelBuilder.Entity("PharmaCare.Domain.Models.AccountManagement.ChartOfAccount", b =>
-                {
-                    b.HasOne("PharmaCare.Domain.Models.AccountManagement.AccountType", "AccountType")
-                        .WithMany("ChartOfAccounts")
+                    b.HasOne("PharmaCare.Domain.Entities.Accounting.AccountType", "AccountType")
+                        .WithMany("Accounts")
                         .HasForeignKey("AccountType_ID")
                         .OnDelete(DeleteBehavior.Restrict)
                         .IsRequired();
 
-                    b.HasOne("PharmaCare.Domain.Models.AccountManagement.Head", "Head")
-                        .WithMany("ChartOfAccounts")
-                        .HasForeignKey("Head_ID")
-                        .OnDelete(DeleteBehavior.Restrict)
-                        .IsRequired();
-
-                    b.HasOne("PharmaCare.Domain.Models.AccountManagement.Subhead", "Subhead")
-                        .WithMany("ChartOfAccounts")
-                        .HasForeignKey("Subhead_ID")
-                        .OnDelete(DeleteBehavior.Restrict)
-                        .IsRequired();
+                    b.Navigation("AccountSubhead");
 
                     b.Navigation("AccountType");
-
-                    b.Navigation("Head");
-
-                    b.Navigation("Subhead");
                 });
 
-            modelBuilder.Entity("PharmaCare.Domain.Models.AccountManagement.FiscalPeriod", b =>
+            modelBuilder.Entity("PharmaCare.Domain.Entities.Accounting.AccountSubhead", b =>
                 {
-                    b.HasOne("PharmaCare.Domain.Models.AccountManagement.FiscalYear", "FiscalYear")
-                        .WithMany("FiscalPeriods")
-                        .HasForeignKey("FiscalYear_ID")
+                    b.HasOne("PharmaCare.Domain.Entities.Accounting.AccountHead", "AccountHead")
+                        .WithMany("AccountSubheads")
+                        .HasForeignKey("AccountHead_ID")
                         .OnDelete(DeleteBehavior.Restrict)
                         .IsRequired();
 
-                    b.Navigation("FiscalYear");
+                    b.Navigation("AccountHead");
                 });
 
-            modelBuilder.Entity("PharmaCare.Domain.Models.AccountManagement.StoreFiscalPeriod", b =>
+            modelBuilder.Entity("PharmaCare.Domain.Entities.Configuration.Category", b =>
                 {
-                    b.HasOne("PharmaCare.Domain.Models.AccountManagement.FiscalPeriod", "FiscalPeriod")
-                        .WithMany("StoreFiscalPeriods")
-                        .HasForeignKey("FiscalPeriod_ID")
-                        .OnDelete(DeleteBehavior.Restrict)
-                        .IsRequired();
-
-                    b.HasOne("PharmaCare.Domain.Models.Configuration.Store", "Store")
+                    b.HasOne("PharmaCare.Domain.Entities.Accounting.Account", "COGSAccount")
                         .WithMany()
-                        .HasForeignKey("Store_ID")
-                        .OnDelete(DeleteBehavior.Restrict)
-                        .IsRequired();
+                        .HasForeignKey("COGSAccount_ID");
 
-                    b.Navigation("FiscalPeriod");
-
-                    b.Navigation("Store");
-                });
-
-            modelBuilder.Entity("PharmaCare.Domain.Models.AccountManagement.Subhead", b =>
-                {
-                    b.HasOne("PharmaCare.Domain.Models.AccountManagement.Head", "Head")
-                        .WithMany("Subheads")
-                        .HasForeignKey("Head_ID")
-                        .OnDelete(DeleteBehavior.Restrict)
-                        .IsRequired();
-
-                    b.Navigation("Head");
-                });
-
-            modelBuilder.Entity("PharmaCare.Domain.Models.Configuration.Category", b =>
-                {
-                    b.HasOne("PharmaCare.Domain.Models.AccountManagement.ChartOfAccount", "COGSAccount")
+                    b.HasOne("PharmaCare.Domain.Entities.Accounting.Account", "SaleAccount")
                         .WithMany()
-                        .HasForeignKey("COGSAccount_ID")
-                        .OnDelete(DeleteBehavior.SetNull);
+                        .HasForeignKey("SaleAccount_ID");
 
-                    b.HasOne("PharmaCare.Domain.Models.AccountManagement.ChartOfAccount", "DamageExpenseAccount")
+                    b.HasOne("PharmaCare.Domain.Entities.Accounting.Account", "StockAccount")
                         .WithMany()
-                        .HasForeignKey("DamageExpenseAccount_ID")
-                        .OnDelete(DeleteBehavior.SetNull);
-
-                    b.HasOne("PharmaCare.Domain.Models.AccountManagement.ChartOfAccount", "SaleAccount")
-                        .WithMany()
-                        .HasForeignKey("SaleAccount_ID")
-                        .OnDelete(DeleteBehavior.SetNull);
-
-                    b.HasOne("PharmaCare.Domain.Models.AccountManagement.ChartOfAccount", "StockAccount")
-                        .WithMany()
-                        .HasForeignKey("StockAccount_ID")
-                        .OnDelete(DeleteBehavior.SetNull);
+                        .HasForeignKey("StockAccount_ID");
 
                     b.Navigation("COGSAccount");
-
-                    b.Navigation("DamageExpenseAccount");
 
                     b.Navigation("SaleAccount");
 
                     b.Navigation("StockAccount");
                 });
 
-            modelBuilder.Entity("PharmaCare.Domain.Models.Configuration.ProductBatch", b =>
+            modelBuilder.Entity("PharmaCare.Domain.Entities.Configuration.Product", b =>
                 {
-                    b.HasOne("PharmaCare.Domain.Models.Products.Product", "Product")
-                        .WithMany("ProductBatches")
-                        .HasForeignKey("Product_ID")
-                        .OnDelete(DeleteBehavior.SetNull);
+                    b.HasOne("PharmaCare.Domain.Entities.Configuration.SubCategory", "SubCategory")
+                        .WithMany("Products")
+                        .HasForeignKey("SubCategory_ID")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
 
-                    b.HasOne("PharmaCare.Domain.Models.Inventory.StockMain", "StockMain")
-                        .WithMany()
-                        .HasForeignKey("StockMain_ID")
-                        .OnDelete(DeleteBehavior.SetNull);
-
-                    b.Navigation("Product");
-
-                    b.Navigation("StockMain");
+                    b.Navigation("SubCategory");
                 });
 
-            modelBuilder.Entity("PharmaCare.Domain.Models.Configuration.SubCategory", b =>
+            modelBuilder.Entity("PharmaCare.Domain.Entities.Configuration.SubCategory", b =>
                 {
-                    b.HasOne("PharmaCare.Domain.Models.Configuration.Category", "Category")
+                    b.HasOne("PharmaCare.Domain.Entities.Configuration.Category", "Category")
                         .WithMany("SubCategories")
                         .HasForeignKey("Category_ID")
                         .OnDelete(DeleteBehavior.Restrict)
@@ -2439,135 +1695,270 @@ namespace PharmaCare.Infrastructure.Migrations
                     b.Navigation("Category");
                 });
 
-            modelBuilder.Entity("PharmaCare.Domain.Models.Finance.CustomerPayment", b =>
+            modelBuilder.Entity("PharmaCare.Domain.Entities.Finance.Expense", b =>
                 {
-                    b.HasOne("PharmaCare.Domain.Models.Configuration.Party", "Party")
+                    b.HasOne("PharmaCare.Domain.Entities.Accounting.Account", "ExpenseAccount")
                         .WithMany()
-                        .HasForeignKey("Party_ID")
+                        .HasForeignKey("ExpenseAccount_ID")
                         .OnDelete(DeleteBehavior.Restrict)
                         .IsRequired();
 
-                    b.HasOne("PharmaCare.Domain.Models.Inventory.StockMain", "StockMain")
-                        .WithMany()
-                        .HasForeignKey("StockMain_ID")
-                        .OnDelete(DeleteBehavior.SetNull);
-
-                    b.HasOne("PharmaCare.Domain.Models.Inventory.AccountVoucher", "AccountVoucher")
-                        .WithMany()
-                        .HasForeignKey("Voucher_ID")
-                        .OnDelete(DeleteBehavior.SetNull);
-
-                    b.Navigation("AccountVoucher");
-
-                    b.Navigation("Party");
-
-                    b.Navigation("StockMain");
-                });
-
-            modelBuilder.Entity("PharmaCare.Domain.Models.Finance.Expense", b =>
-                {
-                    b.HasOne("PharmaCare.Domain.Models.AccountManagement.ChartOfAccount", "ExpenseAccount")
-                        .WithMany()
-                        .HasForeignKey("ExpenseAccount_ID")
-                        .OnDelete(DeleteBehavior.SetNull);
-
-                    b.HasOne("PharmaCare.Domain.Models.Finance.ExpenseCategory", "ExpenseCategory")
+                    b.HasOne("PharmaCare.Domain.Entities.Finance.ExpenseCategory", "ExpenseCategory")
                         .WithMany("Expenses")
                         .HasForeignKey("ExpenseCategory_ID")
                         .OnDelete(DeleteBehavior.Restrict)
                         .IsRequired();
 
-                    b.HasOne("PharmaCare.Domain.Models.AccountManagement.ChartOfAccount", "SourceAccount")
+                    b.HasOne("PharmaCare.Domain.Entities.Accounting.Account", "SourceAccount")
                         .WithMany()
                         .HasForeignKey("SourceAccount_ID")
-                        .OnDelete(DeleteBehavior.SetNull);
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
 
-                    b.HasOne("PharmaCare.Domain.Models.Inventory.AccountVoucher", "AccountVoucher")
+                    b.HasOne("PharmaCare.Domain.Entities.Configuration.Store", "Store")
+                        .WithMany()
+                        .HasForeignKey("Store_ID")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.HasOne("PharmaCare.Domain.Entities.Transactions.Voucher", "Voucher")
                         .WithMany()
                         .HasForeignKey("Voucher_ID")
                         .OnDelete(DeleteBehavior.SetNull);
-
-                    b.Navigation("AccountVoucher");
 
                     b.Navigation("ExpenseAccount");
 
                     b.Navigation("ExpenseCategory");
 
                     b.Navigation("SourceAccount");
+
+                    b.Navigation("Store");
+
+                    b.Navigation("Voucher");
                 });
 
-            modelBuilder.Entity("PharmaCare.Domain.Models.Finance.ExpenseCategory", b =>
+            modelBuilder.Entity("PharmaCare.Domain.Entities.Finance.ExpenseCategory", b =>
                 {
-                    b.HasOne("PharmaCare.Domain.Models.Finance.ExpenseCategory", "ParentCategory")
+                    b.HasOne("PharmaCare.Domain.Entities.Accounting.Account", "DefaultExpenseAccount")
+                        .WithMany()
+                        .HasForeignKey("DefaultExpenseAccount_ID")
+                        .OnDelete(DeleteBehavior.SetNull);
+
+                    b.HasOne("PharmaCare.Domain.Entities.Finance.ExpenseCategory", "ParentCategory")
                         .WithMany("ChildCategories")
-                        .HasForeignKey("ParentCategory_ID")
-                        .OnDelete(DeleteBehavior.NoAction);
+                        .HasForeignKey("Parent_ID")
+                        .OnDelete(DeleteBehavior.Restrict);
+
+                    b.Navigation("DefaultExpenseAccount");
 
                     b.Navigation("ParentCategory");
                 });
 
-            modelBuilder.Entity("PharmaCare.Domain.Models.Finance.SupplierPayment", b =>
+            modelBuilder.Entity("PharmaCare.Domain.Entities.Finance.Payment", b =>
                 {
-                    b.HasOne("PharmaCare.Domain.Models.Configuration.Party", "Party")
+                    b.HasOne("PharmaCare.Domain.Entities.Accounting.Account", "Account")
+                        .WithMany()
+                        .HasForeignKey("Account_ID")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.HasOne("PharmaCare.Domain.Entities.Configuration.Party", "Party")
                         .WithMany()
                         .HasForeignKey("Party_ID")
                         .OnDelete(DeleteBehavior.Restrict)
                         .IsRequired();
 
-                    b.HasOne("PharmaCare.Domain.Models.Inventory.StockMain", "StockMain")
+                    b.HasOne("PharmaCare.Domain.Entities.Transactions.StockMain", "StockMain")
                         .WithMany()
                         .HasForeignKey("StockMain_ID")
+                        .OnDelete(DeleteBehavior.SetNull);
+
+                    b.HasOne("PharmaCare.Domain.Entities.Configuration.Store", "Store")
+                        .WithMany()
+                        .HasForeignKey("Store_ID")
                         .OnDelete(DeleteBehavior.Restrict)
                         .IsRequired();
 
-                    b.HasOne("PharmaCare.Domain.Models.Configuration.Store", "Store")
-                        .WithMany()
-                        .HasForeignKey("Store_ID")
-                        .OnDelete(DeleteBehavior.SetNull);
-
-                    b.HasOne("PharmaCare.Domain.Models.Inventory.AccountVoucher", "AccountVoucher")
+                    b.HasOne("PharmaCare.Domain.Entities.Transactions.Voucher", "Voucher")
                         .WithMany()
                         .HasForeignKey("Voucher_ID")
                         .OnDelete(DeleteBehavior.SetNull);
 
-                    b.Navigation("AccountVoucher");
+                    b.Navigation("Account");
 
                     b.Navigation("Party");
 
                     b.Navigation("StockMain");
 
                     b.Navigation("Store");
+
+                    b.Navigation("Voucher");
                 });
 
-            modelBuilder.Entity("PharmaCare.Domain.Models.Inventory.AccountVoucher", b =>
+            modelBuilder.Entity("PharmaCare.Domain.Entities.Inventory.StoreInventory", b =>
                 {
-                    b.HasOne("PharmaCare.Domain.Models.AccountManagement.FiscalPeriod", "FiscalPeriod")
+                    b.HasOne("PharmaCare.Domain.Entities.Configuration.Product", "Product")
                         .WithMany()
-                        .HasForeignKey("FiscalPeriod_ID")
-                        .OnDelete(DeleteBehavior.SetNull);
+                        .HasForeignKey("Product_ID")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
 
-                    b.HasOne("PharmaCare.Domain.Models.Inventory.AccountVoucher", "ReversedByVoucher")
-                        .WithOne()
-                        .HasForeignKey("PharmaCare.Domain.Models.Inventory.AccountVoucher", "ReversedBy_ID")
-                        .OnDelete(DeleteBehavior.NoAction);
-
-                    b.HasOne("PharmaCare.Domain.Models.Inventory.AccountVoucher", "ReversesVoucher")
-                        .WithOne()
-                        .HasForeignKey("PharmaCare.Domain.Models.Inventory.AccountVoucher", "Reverses_ID")
-                        .OnDelete(DeleteBehavior.NoAction);
-
-                    b.HasOne("PharmaCare.Domain.Models.Configuration.Store", "Store")
+                    b.HasOne("PharmaCare.Domain.Entities.Configuration.Store", "Store")
                         .WithMany()
                         .HasForeignKey("Store_ID")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.Navigation("Product");
+
+                    b.Navigation("Store");
+                });
+
+            modelBuilder.Entity("PharmaCare.Domain.Entities.Security.Page", b =>
+                {
+                    b.HasOne("PharmaCare.Domain.Entities.Security.Page", "ParentPage")
+                        .WithMany("ChildPages")
+                        .HasForeignKey("Parent_ID")
+                        .OnDelete(DeleteBehavior.Restrict);
+
+                    b.Navigation("ParentPage");
+                });
+
+            modelBuilder.Entity("PharmaCare.Domain.Entities.Security.RolePage", b =>
+                {
+                    b.HasOne("PharmaCare.Domain.Entities.Security.Page", "Page")
+                        .WithMany("RolePages")
+                        .HasForeignKey("Page_ID")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.HasOne("PharmaCare.Domain.Entities.Security.Role", "Role")
+                        .WithMany("RolePages")
+                        .HasForeignKey("Role_ID")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.Navigation("Page");
+
+                    b.Navigation("Role");
+                });
+
+            modelBuilder.Entity("PharmaCare.Domain.Entities.Security.User", b =>
+                {
+                    b.HasOne("PharmaCare.Domain.Entities.Configuration.Store", "Store")
+                        .WithMany()
+                        .HasForeignKey("Store_ID");
+
+                    b.Navigation("Store");
+                });
+
+            modelBuilder.Entity("PharmaCare.Domain.Entities.Security.UserRole", b =>
+                {
+                    b.HasOne("PharmaCare.Domain.Entities.Security.Role", "Role")
+                        .WithMany("UserRoles")
+                        .HasForeignKey("Role_ID")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.HasOne("PharmaCare.Domain.Entities.Security.User", "User")
+                        .WithMany("UserRoles")
+                        .HasForeignKey("User_ID")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.Navigation("Role");
+
+                    b.Navigation("User");
+                });
+
+            modelBuilder.Entity("PharmaCare.Domain.Entities.Transactions.StockDetail", b =>
+                {
+                    b.HasOne("PharmaCare.Domain.Entities.Configuration.Product", "Product")
+                        .WithMany()
+                        .HasForeignKey("Product_ID")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.HasOne("PharmaCare.Domain.Entities.Transactions.StockMain", "StockMain")
+                        .WithMany("StockDetails")
+                        .HasForeignKey("StockMain_ID")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.Navigation("Product");
+
+                    b.Navigation("StockMain");
+                });
+
+            modelBuilder.Entity("PharmaCare.Domain.Entities.Transactions.StockMain", b =>
+                {
+                    b.HasOne("PharmaCare.Domain.Entities.Configuration.Store", "DestinationStore")
+                        .WithMany()
+                        .HasForeignKey("DestinationStore_ID")
+                        .OnDelete(DeleteBehavior.Restrict);
+
+                    b.HasOne("PharmaCare.Domain.Entities.Configuration.Party", "Party")
+                        .WithMany()
+                        .HasForeignKey("Party_ID")
                         .OnDelete(DeleteBehavior.SetNull);
 
-                    b.HasOne("PharmaCare.Domain.Models.Inventory.AccountVoucherType", "VoucherType")
+                    b.HasOne("PharmaCare.Domain.Entities.Transactions.StockMain", "ReferenceStockMain")
+                        .WithMany()
+                        .HasForeignKey("ReferenceStockMain_ID")
+                        .OnDelete(DeleteBehavior.Restrict);
+
+                    b.HasOne("PharmaCare.Domain.Entities.Configuration.Store", "Store")
+                        .WithMany()
+                        .HasForeignKey("Store_ID")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.HasOne("PharmaCare.Domain.Entities.Transactions.TransactionType", "TransactionType")
+                        .WithMany()
+                        .HasForeignKey("TransactionType_ID")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.HasOne("PharmaCare.Domain.Entities.Transactions.Voucher", "Voucher")
+                        .WithMany()
+                        .HasForeignKey("Voucher_ID")
+                        .OnDelete(DeleteBehavior.SetNull);
+
+                    b.Navigation("DestinationStore");
+
+                    b.Navigation("Party");
+
+                    b.Navigation("ReferenceStockMain");
+
+                    b.Navigation("Store");
+
+                    b.Navigation("TransactionType");
+
+                    b.Navigation("Voucher");
+                });
+
+            modelBuilder.Entity("PharmaCare.Domain.Entities.Transactions.Voucher", b =>
+                {
+                    b.HasOne("PharmaCare.Domain.Entities.Transactions.Voucher", "ReversedByVoucher")
+                        .WithOne()
+                        .HasForeignKey("PharmaCare.Domain.Entities.Transactions.Voucher", "ReversedByVoucher_ID")
+                        .OnDelete(DeleteBehavior.Restrict);
+
+                    b.HasOne("PharmaCare.Domain.Entities.Transactions.Voucher", "ReversesVoucher")
+                        .WithOne()
+                        .HasForeignKey("PharmaCare.Domain.Entities.Transactions.Voucher", "ReversesVoucher_ID")
+                        .OnDelete(DeleteBehavior.Restrict);
+
+                    b.HasOne("PharmaCare.Domain.Entities.Configuration.Store", "Store")
+                        .WithMany()
+                        .HasForeignKey("Store_ID")
+                        .OnDelete(DeleteBehavior.Restrict);
+
+                    b.HasOne("PharmaCare.Domain.Entities.Transactions.VoucherType", "VoucherType")
                         .WithMany()
                         .HasForeignKey("VoucherType_ID")
                         .OnDelete(DeleteBehavior.Restrict)
                         .IsRequired();
-
-                    b.Navigation("FiscalPeriod");
 
                     b.Navigation("ReversedByVoucher");
 
@@ -2578,473 +1969,98 @@ namespace PharmaCare.Infrastructure.Migrations
                     b.Navigation("VoucherType");
                 });
 
-            modelBuilder.Entity("PharmaCare.Domain.Models.Inventory.AccountVoucherDetail", b =>
+            modelBuilder.Entity("PharmaCare.Domain.Entities.Transactions.VoucherDetail", b =>
                 {
-                    b.HasOne("PharmaCare.Domain.Models.AccountManagement.ChartOfAccount", "Account")
+                    b.HasOne("PharmaCare.Domain.Entities.Accounting.Account", "Account")
                         .WithMany()
                         .HasForeignKey("Account_ID")
                         .OnDelete(DeleteBehavior.Restrict)
                         .IsRequired();
 
-                    b.HasOne("PharmaCare.Domain.Models.Products.Product", "Product")
+                    b.HasOne("PharmaCare.Domain.Entities.Configuration.Party", "Party")
+                        .WithMany()
+                        .HasForeignKey("Party_ID")
+                        .OnDelete(DeleteBehavior.SetNull);
+
+                    b.HasOne("PharmaCare.Domain.Entities.Configuration.Product", "Product")
                         .WithMany()
                         .HasForeignKey("Product_ID")
                         .OnDelete(DeleteBehavior.SetNull);
 
-                    b.HasOne("PharmaCare.Domain.Models.Configuration.Store", "Store")
-                        .WithMany()
-                        .HasForeignKey("Store_ID")
-                        .OnDelete(DeleteBehavior.SetNull);
-
-                    b.HasOne("PharmaCare.Domain.Models.Inventory.AccountVoucher", "Voucher")
+                    b.HasOne("PharmaCare.Domain.Entities.Transactions.Voucher", "Voucher")
                         .WithMany("VoucherDetails")
                         .HasForeignKey("Voucher_ID")
-                        .OnDelete(DeleteBehavior.Restrict)
+                        .OnDelete(DeleteBehavior.Cascade)
                         .IsRequired();
 
                     b.Navigation("Account");
 
-                    b.Navigation("Product");
+                    b.Navigation("Party");
 
-                    b.Navigation("Store");
+                    b.Navigation("Product");
 
                     b.Navigation("Voucher");
                 });
 
-            modelBuilder.Entity("PharmaCare.Domain.Models.Inventory.StockAlert", b =>
+            modelBuilder.Entity("PharmaCare.Domain.Entities.Accounting.AccountHead", b =>
                 {
-                    b.HasOne("PharmaCare.Domain.Models.Products.Product", "Product")
-                        .WithMany()
-                        .HasForeignKey("Product_ID")
-                        .OnDelete(DeleteBehavior.SetNull);
-
-                    b.HasOne("PharmaCare.Domain.Models.Configuration.Store", "Store")
-                        .WithMany()
-                        .HasForeignKey("Store_ID")
-                        .OnDelete(DeleteBehavior.SetNull);
-
-                    b.Navigation("Product");
-
-                    b.Navigation("Store");
+                    b.Navigation("AccountSubheads");
                 });
 
-            modelBuilder.Entity("PharmaCare.Domain.Models.Inventory.StockDetail", b =>
+            modelBuilder.Entity("PharmaCare.Domain.Entities.Accounting.AccountSubhead", b =>
                 {
-                    b.HasOne("PharmaCare.Domain.Models.Configuration.ProductBatch", "ProductBatch")
-                        .WithMany()
-                        .HasForeignKey("ProductBatch_ID")
-                        .OnDelete(DeleteBehavior.SetNull);
-
-                    b.HasOne("PharmaCare.Domain.Models.Products.Product", "Product")
-                        .WithMany()
-                        .HasForeignKey("Product_ID")
-                        .OnDelete(DeleteBehavior.Restrict)
-                        .IsRequired();
-
-                    b.HasOne("PharmaCare.Domain.Models.Inventory.StockMain", "StockMain")
-                        .WithMany("StockDetails")
-                        .HasForeignKey("StockMain_ID")
-                        .OnDelete(DeleteBehavior.Restrict)
-                        .IsRequired();
-
-                    b.Navigation("Product");
-
-                    b.Navigation("ProductBatch");
-
-                    b.Navigation("StockMain");
+                    b.Navigation("Accounts");
                 });
 
-            modelBuilder.Entity("PharmaCare.Domain.Models.Inventory.StockMain", b =>
+            modelBuilder.Entity("PharmaCare.Domain.Entities.Accounting.AccountType", b =>
                 {
-                    b.HasOne("PharmaCare.Domain.Models.AccountManagement.ChartOfAccount", "Account")
-                        .WithMany()
-                        .HasForeignKey("Account_ID")
-                        .OnDelete(DeleteBehavior.SetNull);
-
-                    b.HasOne("PharmaCare.Domain.Models.Configuration.Store", "DestinationStore")
-                        .WithMany()
-                        .HasForeignKey("DestinationStore_ID")
-                        .OnDelete(DeleteBehavior.SetNull);
-
-                    b.HasOne("PharmaCare.Domain.Models.Inventory.InvoiceType", "InvoiceType")
-                        .WithMany()
-                        .HasForeignKey("InvoiceType_ID")
-                        .OnDelete(DeleteBehavior.Restrict)
-                        .IsRequired();
-
-                    b.HasOne("PharmaCare.Domain.Models.Configuration.Party", "Party")
-                        .WithMany()
-                        .HasForeignKey("Party_ID")
-                        .OnDelete(DeleteBehavior.SetNull);
-
-                    b.HasOne("PharmaCare.Domain.Models.Inventory.AccountVoucher", "PaymentVoucher")
-                        .WithMany()
-                        .HasForeignKey("PaymentVoucher_ID")
-                        .OnDelete(DeleteBehavior.SetNull);
-
-                    b.HasOne("PharmaCare.Domain.Models.Inventory.StockMain", "ReferenceStockMain")
-                        .WithMany()
-                        .HasForeignKey("ReferenceStockMain_ID")
-                        .OnDelete(DeleteBehavior.NoAction);
-
-                    b.HasOne("PharmaCare.Domain.Models.Inventory.AccountVoucher", "RefundVoucher")
-                        .WithMany()
-                        .HasForeignKey("RefundVoucher_ID")
-                        .OnDelete(DeleteBehavior.SetNull);
-
-                    b.HasOne("PharmaCare.Domain.Models.Configuration.Store", "Store")
-                        .WithMany()
-                        .HasForeignKey("Store_ID")
-                        .OnDelete(DeleteBehavior.Restrict)
-                        .IsRequired();
-
-                    b.Navigation("Account");
-
-                    b.Navigation("DestinationStore");
-
-                    b.Navigation("InvoiceType");
-
-                    b.Navigation("Party");
-
-                    b.Navigation("PaymentVoucher");
-
-                    b.Navigation("ReferenceStockMain");
-
-                    b.Navigation("RefundVoucher");
-
-                    b.Navigation("Store");
+                    b.Navigation("Accounts");
                 });
 
-            modelBuilder.Entity("PharmaCare.Domain.Models.Inventory.StockMovement", b =>
-                {
-                    b.HasOne("PharmaCare.Domain.Models.Configuration.ProductBatch", "ProductBatch")
-                        .WithMany()
-                        .HasForeignKey("ProductBatch_ID")
-                        .OnDelete(DeleteBehavior.Restrict)
-                        .IsRequired();
-
-                    b.HasOne("PharmaCare.Domain.Models.Inventory.StockMovement", "RelatedMovement")
-                        .WithOne()
-                        .HasForeignKey("PharmaCare.Domain.Models.Inventory.StockMovement", "RelatedMovement_ID")
-                        .OnDelete(DeleteBehavior.NoAction);
-
-                    b.HasOne("PharmaCare.Domain.Models.Configuration.Store", "Store")
-                        .WithMany()
-                        .HasForeignKey("Store_ID")
-                        .OnDelete(DeleteBehavior.Restrict)
-                        .IsRequired();
-
-                    b.HasOne("PharmaCare.Domain.Models.Inventory.AccountVoucher", "AccountVoucher")
-                        .WithMany()
-                        .HasForeignKey("Voucher_ID")
-                        .OnDelete(DeleteBehavior.SetNull);
-
-                    b.Navigation("AccountVoucher");
-
-                    b.Navigation("ProductBatch");
-
-                    b.Navigation("RelatedMovement");
-
-                    b.Navigation("Store");
-                });
-
-            modelBuilder.Entity("PharmaCare.Domain.Models.Inventory.StoreInventory", b =>
-                {
-                    b.HasOne("PharmaCare.Domain.Models.Configuration.ProductBatch", "ProductBatch")
-                        .WithMany("StoreInventories")
-                        .HasForeignKey("ProductBatch_ID")
-                        .OnDelete(DeleteBehavior.Restrict)
-                        .IsRequired();
-
-                    b.HasOne("PharmaCare.Domain.Models.Configuration.Store", "Store")
-                        .WithMany()
-                        .HasForeignKey("Store_ID")
-                        .OnDelete(DeleteBehavior.Restrict)
-                        .IsRequired();
-
-                    b.Navigation("ProductBatch");
-
-                    b.Navigation("Store");
-                });
-
-            modelBuilder.Entity("PharmaCare.Domain.Models.Membership.SystemUser", b =>
-                {
-                    b.HasOne("PharmaCare.Domain.Models.Configuration.Store", "Store")
-                        .WithMany()
-                        .HasForeignKey("Store_ID")
-                        .OnDelete(DeleteBehavior.SetNull);
-
-                    b.HasOne("PharmaCare.Domain.Models.Membership.UserTypes", "UserType")
-                        .WithMany()
-                        .HasForeignKey("UserType_ID")
-                        .OnDelete(DeleteBehavior.Restrict)
-                        .IsRequired();
-
-                    b.Navigation("Store");
-
-                    b.Navigation("UserType");
-                });
-
-            modelBuilder.Entity("PharmaCare.Domain.Models.Membership.UserWebPages", b =>
-                {
-                    b.HasOne("PharmaCare.Domain.Models.Membership.SystemUser", "SystemUser")
-                        .WithMany()
-                        .HasForeignKey("SystemUser_ID")
-                        .OnDelete(DeleteBehavior.Restrict)
-                        .IsRequired();
-
-                    b.HasOne("PharmaCare.Domain.Models.Membership.WebPages", "WebPage")
-                        .WithMany()
-                        .HasForeignKey("WebPage_ID")
-                        .OnDelete(DeleteBehavior.Restrict)
-                        .IsRequired();
-
-                    b.Navigation("SystemUser");
-
-                    b.Navigation("WebPage");
-                });
-
-            modelBuilder.Entity("PharmaCare.Domain.Models.Membership.WebPageUrls", b =>
-                {
-                    b.HasOne("PharmaCare.Domain.Models.Membership.WebPages", "WebPage")
-                        .WithMany("WebPageUrls")
-                        .HasForeignKey("WebPage_ID")
-                        .OnDelete(DeleteBehavior.Restrict)
-                        .IsRequired();
-
-                    b.Navigation("WebPage");
-                });
-
-            modelBuilder.Entity("PharmaCare.Domain.Models.Products.Product", b =>
-                {
-                    b.HasOne("PharmaCare.Domain.Models.Configuration.SubCategory", "SubCategory")
-                        .WithMany("Products")
-                        .HasForeignKey("SubCategory_ID")
-                        .OnDelete(DeleteBehavior.Restrict)
-                        .IsRequired();
-
-                    b.Navigation("SubCategory");
-                });
-
-            modelBuilder.Entity("PharmaCare.Domain.Models.PurchaseManagement.PurchaseOrder", b =>
-                {
-                    b.HasOne("PharmaCare.Domain.Models.Configuration.Party", "Party")
-                        .WithMany()
-                        .HasForeignKey("Party_ID")
-                        .OnDelete(DeleteBehavior.Restrict)
-                        .IsRequired();
-
-                    b.Navigation("Party");
-                });
-
-            modelBuilder.Entity("PharmaCare.Domain.Models.PurchaseManagement.PurchaseOrderItem", b =>
-                {
-                    b.HasOne("PharmaCare.Domain.Models.Products.Product", "Product")
-                        .WithMany()
-                        .HasForeignKey("Product_ID")
-                        .OnDelete(DeleteBehavior.SetNull);
-
-                    b.HasOne("PharmaCare.Domain.Models.PurchaseManagement.PurchaseOrder", "PurchaseOrder")
-                        .WithMany("PurchaseOrderItems")
-                        .HasForeignKey("PurchaseOrder_ID")
-                        .OnDelete(DeleteBehavior.SetNull);
-
-                    b.Navigation("Product");
-
-                    b.Navigation("PurchaseOrder");
-                });
-
-            modelBuilder.Entity("PharmaCare.Domain.Models.PurchaseManagement.PurchaseReturn", b =>
-                {
-                    b.HasOne("PharmaCare.Domain.Models.Configuration.Party", "Party")
-                        .WithMany()
-                        .HasForeignKey("Party_ID")
-                        .OnDelete(DeleteBehavior.Restrict)
-                        .IsRequired();
-
-                    b.HasOne("PharmaCare.Domain.Models.Inventory.AccountVoucher", "RefundAccountVoucher")
-                        .WithMany()
-                        .HasForeignKey("RefundVoucher_ID")
-                        .OnDelete(DeleteBehavior.SetNull);
-
-                    b.HasOne("PharmaCare.Domain.Models.Inventory.StockMain", "StockMain")
-                        .WithMany()
-                        .HasForeignKey("StockMain_ID")
-                        .OnDelete(DeleteBehavior.SetNull);
-
-                    b.HasOne("PharmaCare.Domain.Models.Configuration.Store", "Store")
-                        .WithMany()
-                        .HasForeignKey("Store_ID")
-                        .OnDelete(DeleteBehavior.Restrict)
-                        .IsRequired();
-
-                    b.HasOne("PharmaCare.Domain.Models.Inventory.AccountVoucher", "AccountVoucher")
-                        .WithMany()
-                        .HasForeignKey("Voucher_ID")
-                        .OnDelete(DeleteBehavior.SetNull);
-
-                    b.Navigation("AccountVoucher");
-
-                    b.Navigation("Party");
-
-                    b.Navigation("RefundAccountVoucher");
-
-                    b.Navigation("StockMain");
-
-                    b.Navigation("Store");
-                });
-
-            modelBuilder.Entity("PharmaCare.Domain.Models.PurchaseManagement.PurchaseReturnItem", b =>
-                {
-                    b.HasOne("PharmaCare.Domain.Models.Configuration.ProductBatch", "ProductBatch")
-                        .WithMany()
-                        .HasForeignKey("ProductBatch_ID")
-                        .OnDelete(DeleteBehavior.Restrict)
-                        .IsRequired();
-
-                    b.HasOne("PharmaCare.Domain.Models.PurchaseManagement.PurchaseReturn", "PurchaseReturn")
-                        .WithMany("PurchaseReturnItems")
-                        .HasForeignKey("PurchaseReturn_ID")
-                        .OnDelete(DeleteBehavior.Restrict)
-                        .IsRequired();
-
-                    b.Navigation("ProductBatch");
-
-                    b.Navigation("PurchaseReturn");
-                });
-
-            modelBuilder.Entity("PharmaCare.Domain.Models.SaleManagement.Quotation", b =>
-                {
-                    b.HasOne("PharmaCare.Domain.Models.Inventory.StockMain", "ConvertedStockMain")
-                        .WithMany()
-                        .HasForeignKey("ConvertedStockMain_ID")
-                        .OnDelete(DeleteBehavior.SetNull);
-
-                    b.HasOne("PharmaCare.Domain.Models.Configuration.Party", "Party")
-                        .WithMany()
-                        .HasForeignKey("Party_ID")
-                        .OnDelete(DeleteBehavior.SetNull);
-
-                    b.HasOne("PharmaCare.Domain.Models.Configuration.Store", "Store")
-                        .WithMany()
-                        .HasForeignKey("Store_ID")
-                        .OnDelete(DeleteBehavior.Restrict)
-                        .IsRequired();
-
-                    b.Navigation("ConvertedStockMain");
-
-                    b.Navigation("Party");
-
-                    b.Navigation("Store");
-                });
-
-            modelBuilder.Entity("PharmaCare.Domain.Models.SaleManagement.QuotationLine", b =>
-                {
-                    b.HasOne("PharmaCare.Domain.Models.Configuration.ProductBatch", "ProductBatch")
-                        .WithMany()
-                        .HasForeignKey("ProductBatch_ID")
-                        .OnDelete(DeleteBehavior.SetNull);
-
-                    b.HasOne("PharmaCare.Domain.Models.Products.Product", "Product")
-                        .WithMany()
-                        .HasForeignKey("Product_ID")
-                        .OnDelete(DeleteBehavior.SetNull);
-
-                    b.HasOne("PharmaCare.Domain.Models.SaleManagement.Quotation", "Quotation")
-                        .WithMany("QuotationLines")
-                        .HasForeignKey("Quotation_ID")
-                        .OnDelete(DeleteBehavior.Restrict)
-                        .IsRequired();
-
-                    b.Navigation("Product");
-
-                    b.Navigation("ProductBatch");
-
-                    b.Navigation("Quotation");
-                });
-
-            modelBuilder.Entity("PharmaCare.Domain.Models.AccountManagement.AccountType", b =>
-                {
-                    b.Navigation("ChartOfAccounts");
-                });
-
-            modelBuilder.Entity("PharmaCare.Domain.Models.AccountManagement.FiscalPeriod", b =>
-                {
-                    b.Navigation("StoreFiscalPeriods");
-                });
-
-            modelBuilder.Entity("PharmaCare.Domain.Models.AccountManagement.FiscalYear", b =>
-                {
-                    b.Navigation("FiscalPeriods");
-                });
-
-            modelBuilder.Entity("PharmaCare.Domain.Models.AccountManagement.Head", b =>
-                {
-                    b.Navigation("ChartOfAccounts");
-
-                    b.Navigation("Subheads");
-                });
-
-            modelBuilder.Entity("PharmaCare.Domain.Models.AccountManagement.Subhead", b =>
-                {
-                    b.Navigation("ChartOfAccounts");
-                });
-
-            modelBuilder.Entity("PharmaCare.Domain.Models.Configuration.Category", b =>
+            modelBuilder.Entity("PharmaCare.Domain.Entities.Configuration.Category", b =>
                 {
                     b.Navigation("SubCategories");
                 });
 
-            modelBuilder.Entity("PharmaCare.Domain.Models.Configuration.ProductBatch", b =>
-                {
-                    b.Navigation("StoreInventories");
-                });
-
-            modelBuilder.Entity("PharmaCare.Domain.Models.Configuration.SubCategory", b =>
+            modelBuilder.Entity("PharmaCare.Domain.Entities.Configuration.SubCategory", b =>
                 {
                     b.Navigation("Products");
                 });
 
-            modelBuilder.Entity("PharmaCare.Domain.Models.Finance.ExpenseCategory", b =>
+            modelBuilder.Entity("PharmaCare.Domain.Entities.Finance.ExpenseCategory", b =>
                 {
                     b.Navigation("ChildCategories");
 
                     b.Navigation("Expenses");
                 });
 
-            modelBuilder.Entity("PharmaCare.Domain.Models.Inventory.AccountVoucher", b =>
+            modelBuilder.Entity("PharmaCare.Domain.Entities.Security.Page", b =>
                 {
-                    b.Navigation("VoucherDetails");
+                    b.Navigation("ChildPages");
+
+                    b.Navigation("RolePages");
                 });
 
-            modelBuilder.Entity("PharmaCare.Domain.Models.Inventory.StockMain", b =>
+            modelBuilder.Entity("PharmaCare.Domain.Entities.Security.Role", b =>
+                {
+                    b.Navigation("RolePages");
+
+                    b.Navigation("UserRoles");
+                });
+
+            modelBuilder.Entity("PharmaCare.Domain.Entities.Security.User", b =>
+                {
+                    b.Navigation("UserRoles");
+                });
+
+            modelBuilder.Entity("PharmaCare.Domain.Entities.Transactions.StockMain", b =>
                 {
                     b.Navigation("StockDetails");
                 });
 
-            modelBuilder.Entity("PharmaCare.Domain.Models.Membership.WebPages", b =>
+            modelBuilder.Entity("PharmaCare.Domain.Entities.Transactions.Voucher", b =>
                 {
-                    b.Navigation("WebPageUrls");
-                });
-
-            modelBuilder.Entity("PharmaCare.Domain.Models.Products.Product", b =>
-                {
-                    b.Navigation("ProductBatches");
-                });
-
-            modelBuilder.Entity("PharmaCare.Domain.Models.PurchaseManagement.PurchaseOrder", b =>
-                {
-                    b.Navigation("PurchaseOrderItems");
-                });
-
-            modelBuilder.Entity("PharmaCare.Domain.Models.PurchaseManagement.PurchaseReturn", b =>
-                {
-                    b.Navigation("PurchaseReturnItems");
-                });
-
-            modelBuilder.Entity("PharmaCare.Domain.Models.SaleManagement.Quotation", b =>
-                {
-                    b.Navigation("QuotationLines");
+                    b.Navigation("VoucherDetails");
                 });
 #pragma warning restore 612, 618
         }

@@ -1,0 +1,56 @@
+@model PharmaCare.Domain.Entities.Configuration.Store
+@{
+    ViewData["Title"] = "Edit Store";
+}
+
+<!-- Page Header -->
+<div class="page-header">
+    <h4 class="page-title">
+        <i class="fas fa-edit"></i>
+        Edit Store
+    </h4>
+    <a asp-action="StoresIndex" class="btn btn-outline-secondary">
+        <i class="fas fa-arrow-left me-2"></i>Back to List
+    </a>
+</div>
+
+<div class="card">
+    <div class="card-body">
+        <form asp-action="EditStore" method="post">
+            <input type="hidden" asp-for="StoreID" />
+            <input type="hidden" asp-for="CreatedAt" />
+            <input type="hidden" asp-for="CreatedBy" />
+            <input type="hidden" asp-for="IsActive" value="true" />
+            
+            <div class="row g-3">
+                <div class="col-md-6">
+                    <label class="form-label">Store Name <span class="text-danger">*</span></label>
+                    <input asp-for="Name" class="form-control" placeholder="Enter store name" required />
+                    <span asp-validation-for="Name" class="text-danger small"></span>
+                </div>
+                
+                <div class="col-md-6">
+                    <label class="form-label">Phone</label>
+                    <input asp-for="Phone" class="form-control" placeholder="Enter phone number" />
+                </div>
+                
+                <div class="col-md-6">
+                    <label class="form-label">Email</label>
+                    <input asp-for="Email" type="email" class="form-control" placeholder="Enter email address" />
+                </div>
+                
+                <div class="col-md-6">
+                    <label class="form-label">Address</label>
+                    <input asp-for="Address" class="form-control" placeholder="Enter address" />
+                </div>
+            </div>
+            
+            <div class="text-end mt-4">
+                <a asp-action="StoresIndex" class="btn btn-outline-secondary me-2">Cancel</a>
+                <button type="submit" class="btn btn-primary">
+                    <i class="fas fa-save me-2"></i>Update Store
+                </button>
+            </div>
+        </form>
+    </div>
+</div>

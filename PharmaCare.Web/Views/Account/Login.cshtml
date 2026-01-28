@@ -1,393 +1,101 @@
-@model PharmaCare.Web.Models.LoginViewModel
-
+@model PharmaCare.Web.Controllers.LoginViewModel
 @{
     ViewData["Title"] = "Login";
-    Layout = "_LoginLayout";
+    Layout = null;
 }
 
-@section Styles {
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Login - PharmaCare</title>
+    <link rel="stylesheet" href="~/lib/bootstrap/dist/css/bootstrap.min.css" />
+    <link rel="stylesheet" href="~/lib/fontawesome/css/all.min.css" />
+    <link rel="stylesheet" href="~/css/site.css" asp-append-version="true" />
     <style>
-        body {
-            background: linear-gradient(135deg, #0EA5E9 0%, #06B6D4 100%);
-            min-height: 100vh;
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            padding: 2rem;
-            margin: 0;
-        }
-
-        .login-wrapper {
+        .login-container {
+            position: relative;
+            z-index: 1;
             width: 100%;
-            max-width: 450px;
-            animation: fadeInUp 0.6s ease-out;
+            max-width: 440px;
+            padding: 1.5rem;
         }
-
-        @@keyframes fadeInUp {
-            from {
-                opacity: 0;
-                transform: translateY(30px);
-            }
-
-            to {
-                opacity: 1;
-                transform: translateY(0);
-            }
-
-        }
-
+        
         .login-card {
-            background: rgba(255, 255, 255, 0.98);
+            background: var(--bg-card);
             backdrop-filter: blur(20px);
-            border-radius: 1.5rem;
-            box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.3), 0 0 0 1px rgba(255, 255, 255, 0.1);
-            padding: 3rem 2.5rem;
-            transition: transform 0.3s ease, box-shadow 0.3s ease;
-        }
-
-        .login-card:hover {
-            transform: translateY(-5px);
-            box-shadow: 0 30px 60px -15px rgba(0, 0, 0, 0.35);
-        }
-
-        .logo-wrapper {
-            text-align: center;
-            margin-bottom: 2.5rem;
-        }
-
-        .logo-icon {
-            width: 80px;
-            height: 80px;
-            background: linear-gradient(135deg, #0EA5E9 0%, #06B6D4 100%);
-            border-radius: 1.25rem;
-            display: inline-flex;
-            align-items: center;
-            justify-content: center;
-            font-size: 3rem;
-            color: white;
-            margin-bottom: 1rem;
-            box-shadow: 0 10px 25px -5px rgba(14, 165, 233, 0.5);
-            animation: pulse 2s ease-in-out infinite;
-        }
-
-        @@keyframes pulse {
-
-            0%,
-            100% {
-                transform: scale(1);
-            }
-
-            50% {
-                transform: scale(1.05);
-            }
-
-        }
-
-        .brand-name {
-            font-size: 1.875rem;
-            font-weight: 700;
-            background: linear-gradient(135deg, #0EA5E9 0%, #06B6D4 100%);
-            background-clip: text;
-            margin-bottom: 0.25rem;
-            color: white;
-        }
-
-        .brand-tagline {
-            color: rgba(255, 255, 255, 0.95);
-            font-size: 0.875rem;
-            font-weight: 500;
-        }
-
-        .welcome-text {
-            text-align: center;
-            margin-bottom: 2rem;
-        }
-
-        .welcome-text h4 {
-            font-weight: 700;
-            color: #1e293b;
-            margin-bottom: 0.5rem;
-            font-size: 1.5rem;
-        }
-
-        .welcome-text p {
-            color: #64748b;
-            font-size: 0.9375rem;
-        }
-
-        .input-group-custom {
-            display: flex;
-            align-items: center;
-            border: 2px solid #e2e8f0;
-            border-radius: 0.75rem;
-            background: white;
-            transition: all 0.3s ease;
-            height: 58px;
-            position: relative;
-        }
-
-        .input-group-custom:hover {
-            border-color: #cbd5e1;
-        }
-
-        .input-group-custom:focus-within {
-            border-color: #0EA5E9;
-            box-shadow: 0 0 0 4px rgba(14, 165, 233, 0.15);
-            transform: translateY(-2px);
-        }
-
-        .input-group-custom:focus-within .input-icon {
-            color: #0EA5E9;
-        }
-
-        .form-floating {
-            margin-bottom: 0;
-            position: relative;
-        }
-
-        .form-floating input {
-            border: none;
-            border-radius: 0;
-            height: 100%;
-            padding-left: 1rem;
-            background: transparent;
-            box-shadow: none !important;
-        }
-
-        .form-floating input:focus {
-            border: none;
-            box-shadow: none;
-            transform: none;
-        }
-
-        .form-floating input:hover:not(:focus) {
-            border: none;
-        }
-
-        .form-floating label {
-            padding-left: 1rem;
-            transition: all 0.3s ease;
-        }
-
-        .input-icon {
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            width: 45px;
-            color: #94a3b8;
-            font-size: 1.25rem;
-            transition: color 0.3s ease;
-            flex-shrink: 0;
-        }
-
-        .form-floating input:focus~.input-icon {
-            color: #0EA5E9;
-        }
-
-        .password-toggle {
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            width: 45px;
-            cursor: pointer;
-            color: #94a3b8;
-            font-size: 1.25rem;
-            transition: all 0.3s ease;
-            flex-shrink: 0;
-        }
-
-        .password-toggle:hover {
-            color: #0EA5E9;
-            transform: scale(1.1);
-        }
-
-        .btn-login {
-            background: linear-gradient(135deg, #0EA5E9 0%, #06B6D4 100%);
-            border: none;
-            height: 54px;
-            border-radius: 0.75rem;
-            font-weight: 600;
-            font-size: 1rem;
-            box-shadow: 0 4px 6px -1px rgba(14, 165, 233, 0.4);
-            transition: all 0.3s ease;
-            position: relative;
-            overflow: hidden;
-        }
-
-        .btn-login::before {
-            content: '';
-            position: absolute;
-            top: 0;
-            left: -100%;
-            width: 100%;
-            height: 100%;
-            background: linear-gradient(90deg, transparent, rgba(255, 255, 255, 0.3), transparent);
-            transition: left 0.5s ease;
-        }
-
-        .btn-login:hover::before {
-            left: 100%;
-        }
-
-        .btn-login:hover {
-            transform: translateY(-2px);
-            box-shadow: 0 10px 20px -5px rgba(14, 165, 233, 0.6);
-        }
-
-        .btn-login:active {
-            transform: translateY(0);
-        }
-
-        .footer-text {
-            text-align: center;
-            margin-top: 2rem;
-            color: rgba(255, 255, 255, 0.9);
-            font-size: 0.875rem;
-            text-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
-            font-weight: 500;
-        }
-
-        .form-check-input {
-            cursor: pointer;
-            transition: all 0.3s ease;
-        }
-
-        .form-check-input:checked {
-            background-color: #0EA5E9;
-            border-color: #0EA5E9;
-        }
-
-        .form-check-label {
-            cursor: pointer;
-            user-select: none;
-            transition: color 0.3s ease;
-        }
-
-        .form-check:hover .form-check-label {
-            color: #0EA5E9;
-        }
-
-        .alert {
-            border-radius: 0.75rem;
-            border: none;
-            animation: slideDown 0.3s ease-out;
-        }
-
-        @@keyframes slideDown {
-            from {
-                opacity: 0;
-                transform: translateY(-10px);
-            }
-
-            to {
-                opacity: 1;
-                transform: translateY(0);
-            }
-
-        }
-
-        .text-danger {
-            font-weight: 500;
+            border: 1px solid var(--glass-border);
+            border-radius: var(--radius-2xl);
+            padding: 3rem;
+            box-shadow: var(--shadow-2xl);
         }
     </style>
-}
-
-<div class="login-wrapper">
-    <!-- Logo & Brand -->
-    <div class="logo-wrapper">
-        <div class="logo-icon">
-            <i class='bx bxs-first-aid'></i>
-        </div>
-        <h2 class="brand-name">PharmaCare</h2>
-        <p class="brand-tagline">Professional Pharmacy Management</p>
+</head>
+<body style="display: flex; align-items: center; justify-content: center;">
+    <!-- Animated Background -->
+    <div class="bg-orbs">
+        <div class="bg-orb"></div>
+        <div class="bg-orb"></div>
+        <div class="bg-orb"></div>
     </div>
-
-    <!-- Login Card -->
-    <div class="login-card">
-        <!-- Welcome Text -->
-        <div class="welcome-text">
-            <h4>Welcome Back!</h4>
-            <p>Sign in to continue to your dashboard</p>
-        </div>
-
-        <!-- Login Form -->
-        <form asp-action="Login" asp-controller="Account" method="post">
-            @* @Html.AntiForgeryToken() *@
-            <input type="hidden" name="returnUrl" value="@ViewData["ReturnUrl"]" />
-
-            <!-- Validation Summary -->
-            <div asp-validation-summary="ModelOnly" class="alert alert-danger" role="alert"></div>
-
-            <!-- Email Field -->
-            <div class="mb-3">
-                <div class="input-group-custom">
-                    <i class='bx bx-envelope input-icon'></i>
-                    <div class="form-floating flex-grow-1">
-                        <input asp-for="Email" type="email" class="form-control" id="floatingEmail"
-                            placeholder="name@example.com" autofocus />
-                        <label for="floatingEmail">Email Address</label>
+    
+    <div class="login-container">
+        <div class="login-card">
+            <!-- Brand Section -->
+            <div class="text-center mb-4">
+                <div class="auth-brand-icon mx-auto" style="background: var(--gradient-primary); border: none;">
+                    <i class="fas fa-pills"></i>
+                </div>
+                <h2 class="mt-4 mb-2">Welcome Back</h2>
+                <p class="text-secondary">Sign in to continue to PharmaCare</p>
+            </div>
+            
+            @if (!ViewData.ModelState.IsValid)
+            {
+                <div asp-validation-summary="All" class="alert alert-danger"></div>
+            }
+            
+            <form asp-action="Login" method="post">
+                <input type="hidden" name="returnUrl" value="@ViewData["ReturnUrl"]" />
+                
+                <div class="mb-4">
+                    <label class="form-label">Email Address</label>
+                    <div class="input-icon-wrapper">
+                        <input asp-for="Email" type="email" class="form-control" placeholder="Enter your email" required />
+                        <i class="fas fa-envelope"></i>
                     </div>
                 </div>
-                <span asp-validation-for="Email" class="text-danger small"></span>
-            </div>
-
-            <!-- Password Field -->
-            <div class="mb-3">
-                <div class="input-group-custom">
-                    <i class='bx bx-lock-alt input-icon'></i>
-                    <div class="form-floating flex-grow-1">
-                        <input asp-for="Password" type="password" class="form-control" id="floatingPassword"
-                            placeholder="Password" />
-                        <label for="floatingPassword">Password</label>
+                
+                <div class="mb-4">
+                    <label class="form-label">Password</label>
+                    <div class="input-icon-wrapper">
+                        <input asp-for="Password" type="password" class="form-control" placeholder="Enter your password" required />
+                        <i class="fas fa-lock"></i>
                     </div>
                 </div>
-                <span asp-validation-for="Password" class="text-danger small"></span>
-                <div class="text-end mt-1">
-                    <a asp-action="ForgotPassword" class="text-primary small fw-semibold">Forgot Password?</a>
+                
+                <div class="d-flex justify-content-between align-items-center mb-4">
+                    <div class="form-check">
+                        <input asp-for="RememberMe" type="checkbox" class="form-check-input" id="rememberMe" />
+                        <label class="form-check-label" for="rememberMe">Remember me</label>
+                    </div>
                 </div>
-            </div>
-
-            <!-- Remember Me -->
-            <div class="mb-4">
-                <div class="form-check">
-                    <input asp-for="RememberMe" class="form-check-input" type="checkbox" id="rememberMe" />
-                    <label class="form-check-label" for="rememberMe">
-                        Keep me signed in
-                    </label>
-                </div>
-            </div>
-
-            <!-- Submit Button -->
-            <div class="d-grid">
-                <button type="submit" class="btn btn-primary btn-login">
-                    <i class='bx bx-log-in-circle me-2'></i> Sign In
+                
+                <button type="submit" class="btn btn-primary w-100 py-3">
+                    <i class="fas fa-sign-in-alt me-2"></i>Sign In
                 </button>
+            </form>
+            
+            <div class="text-center mt-4 pt-4" style="border-top: 1px solid var(--glass-border);">
+                <p class="text-secondary mb-0">
+                    Don't have an account? <a href="/Account/Register" class="text-primary fw-semibold">Create one</a>
+                </p>
             </div>
-        </form>
+        </div>
     </div>
 
-    <!-- Footer -->
-    <div class="footer-text">
-        <i class='bx bx-shield-quarter'></i> Secure Login • © @DateTime.Now.Year PharmaCare
-    </div>
-</div>
-
-@section Scripts {
-    <partial name="_ValidationScriptsPartial" />
-
-
-    <script>
-        // Password toggle
-        const togglePassword = document.getElementById('togglePassword');
-        const passwordInput = document.getElementById('floatingPassword');
-
-        if (togglePassword) {
-            togglePassword.addEventListener('click', function () {
-                const type = passwordInput.type === 'password' ? 'text' : 'password';
-                passwordInput.type = type;
-                this.classList.toggle('bx-hide');
-                this.classList.toggle('bx-show');
-            });
-        }
-    </script>
-}
+    <script src="~/lib/jquery/dist/jquery.min.js"></script>
+    <script src="~/lib/bootstrap/dist/js/bootstrap.bundle.min.js"></script>
+</body>
+</html>

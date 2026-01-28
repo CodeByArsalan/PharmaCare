@@ -1,138 +1,74 @@
-@model PharmaCare.Domain.Models.Products.Product
-@inject PharmaCare.Infrastructure.Interfaces.IComboBoxRepository _comboBox
-
+@model PharmaCare.Domain.Entities.Configuration.Product
 @{
     ViewData["Title"] = "Edit Product";
-    Layout = "~/Views/Shared/_Layout.cshtml";
 }
 
-<div class="row">
-    <div class="col-md-12">
-        <div class="card mb-4">
-            <h4 class="card-header">Edit Product</h4>
-            <div class="card-body mt-2">
-                <form asp-action="EditProduct">
-                    <div asp-validation-summary="ModelOnly" class="text-danger"></div>
-                    <input type="hidden" asp-for="ProductID" />
-
-                    <div class="row">
-                        <div class="col-md-6 mb-3">
-                            <label asp-for="ProductCode" class="form-label">Product Code <span
-                                    class="text-danger">*</span></label>
-                            <input asp-for="ProductCode" class="form-control" />
-                            <span asp-validation-for="ProductCode" class="text-danger"></span>
-                        </div>
-                        <div class="col-md-6 mb-3">
-                            <label asp-for="Sku" class="form-label">SKU</label>
-                            <input asp-for="Sku" class="form-control" />
-                            <span asp-validation-for="Sku" class="text-danger"></span>
-                        </div>
-                        <div class="col-md-6 mb-3">
-                            <label asp-for="ProductName" class="form-label">Product Name <span
-                                    class="text-danger">*</span></label>
-                            <input asp-for="ProductName" class="form-control" required />
-                            <span asp-validation-for="ProductName" class="text-danger"></span>
-                        </div>
-                        <div class="col-md-6 mb-3">
-                            <label asp-for="ReorderLevel" class="form-label">Reorder Level</label>
-                            <input asp-for="ReorderLevel" type="number" class="form-control" min="0"
-                                placeholder="Minimum stock threshold" />
-                            <span asp-validation-for="ReorderLevel" class="text-danger"></span>
-                        </div>
-                        <div class="col-md-6 mb-3">
-                            <label asp-for="OpeningPrice" class="form-label">Opening Price</label>
-                            <input asp-for="OpeningPrice" type="number" step="0.01" class="form-control"
-                                placeholder="0.00" />
-                            <span asp-validation-for="OpeningPrice" class="text-danger"></span>
-                        </div>
-                        <div class="col-md-6 mb-3">
-                            <label asp-for="OpeningQuantity" class="form-label">Opening Quantity</label>
-                            <input asp-for="OpeningQuantity" type="number" class="form-control" placeholder="0" />
-                            <span asp-validation-for="OpeningQuantity" class="text-danger"></span>
-                        </div>
-
-                        @{
-                            int? parentCategoryId = Model.SubCategory?.Category_ID;
-                        }
-
-                        <div class="col-md-6 mb-3">
-                            <label class="form-label">Main Category</label>
-                            <select id="mainCategory" class="form-select"
-                                asp-items="@_comboBox.GetCategories(parentCategoryId)">
-                                <option value="">-- Select Main Category --</option>
-                            </select>
-                        </div>
-                        <div class="col-md-6 mb-3">
-                            <label asp-for="SubCategory_ID" class="form-label">Sub Category</label>
-                            <select asp-for="SubCategory_ID" class="form-select"
-                                asp-items="@(parentCategoryId.HasValue ? _comboBox.GetSubCategories(parentCategoryId.Value, Model.SubCategory_ID) : new SelectList(Enumerable.Empty<SelectListItem>()))">
-                                <option value="">-- Select Main Category First --</option>
-                            </select>
-                            <span asp-validation-for="SubCategory_ID" class="text-danger"></span>
-                        </div>
-                    </div>
-
-                    <div class="mt-3 d-flex justify-content-end gap-2">
-                        <a asp-action="ProductIndex" class="btn btn-secondary"><i class="bx bx-arrow-back me-1"></i>Back
-                            to list</a>
-                        <button type="submit" class="btn btn-success">Update</button>
-                    </div>
-                </form>
-            </div>
-        </div>
-    </div>
+<!-- Page Header -->
+<div class="page-header">
+    <h4 class="page-title">
+        <i class="fas fa-edit"></i>
+        Edit Product
+    </h4>
+    <a asp-action="ProductsIndex" class="btn btn-outline-secondary">
+        <i class="fas fa-arrow-left me-2"></i>Back to List
+    </a>
 </div>
 
-@section Scripts {
-    @{
-        await Html.RenderPartialAsync("_ValidationScriptsPartial");
-    }
-    <script>
-        function generateBarcode() {
-            fetch('/Product/GenerateBarcode')
-                .then(response => response.json())
-                .then(data => {
-                    if (data.success) {
-                        document.getElementById('barcodeInput').value = data.barcode;
-                    } else {
-                        alert('Failed to generate barcode: ' + data.message);
-                    }
-                })
-                .catch(error => console.error('Error:', error));
-        }
-    </script>
-
-    <script>
-        $(document).ready(function () {
-            $('#mainCategory').change(function () {
-                var categoryId = $(this).val();
-                var $subCategory = $('#SubCategory_ID');
-
-                $subCategory.empty();
-                $subCategory.append('<option value="">-- Select Sub Category --</option>');
-
-                if (categoryId) {
-                    $.getJSON('/Category/GetSubCategories/' + categoryId, function (data) {
-                        $.each(data, function (i, item) {
-                            $subCategory.append($('<option>').text(item.name).attr('value', item.id));
-                        });
-                    });
-                }
-            });
-
-            const accordions = document.querySelectorAll('#productAccordion .accordion-collapse');
-            $('#expandAll').on('click', function () {
-                accordions.forEach(function (item) {
-                    const instance = bootstrap.Collapse.getOrCreateInstance(item, { toggle: false });
-                    instance.show();
-                });
-            });
-            $('#collapseAll').on('click', function () {
-                accordions.forEach(function (item) {
-                    const instance = bootstrap.Collapse.getOrCreateInstance(item, { toggle: false });
-                    instance.hide();
-                });
-            });
-        });
-    </script>
-}
+<div class="card">
+    <div class="card-body">
+        <form asp-action="EditProduct" method="post">
+            <input type="hidden" asp-for="ProductID" />
+            <input type="hidden" asp-for="Code" />
+            <input type="hidden" asp-for="CreatedAt" />
+            <input type="hidden" asp-for="CreatedBy" />
+            <input type="hidden" asp-for="IsActive" value="true" />
+            
+            <div class="row g-3">
+                <div class="col-md-6">
+                    <label class="form-label">Product Code</label>
+                    <input value="@Model.Code" class="form-control" disabled />
+                </div>
+                
+                <div class="col-md-6">
+                    <label class="form-label">Product Name <span class="text-danger">*</span></label>
+                    <input asp-for="Name" class="form-control" placeholder="Enter product name" required />
+                    <span asp-validation-for="Name" class="text-danger small"></span>
+                </div>
+                
+                <div class="col-md-6">
+                    <label class="form-label">SubCategory <span class="text-danger">*</span></label>
+                    <select asp-for="SubCategory_ID" asp-items="ViewBag.SubCategories" class="form-select" required>
+                        <option value="">-- Select SubCategory --</option>
+                    </select>
+                </div>
+                
+                <div class="col-md-6">
+                    <label class="form-label">Barcode</label>
+                    <input asp-for="Barcode" class="form-control" placeholder="Enter barcode (optional)" />
+                </div>
+                
+                <div class="col-md-6">
+                    <label class="form-label">Cost Price <span class="text-danger">*</span></label>
+                    <input asp-for="CostPrice" type="number" step="0.01" class="form-control" placeholder="0.00" required />
+                </div>
+                
+                <div class="col-md-6">
+                    <label class="form-label">Selling Price <span class="text-danger">*</span></label>
+                    <input asp-for="SellingPrice" type="number" step="0.01" class="form-control" placeholder="0.00" required />
+                </div>
+                
+                <div class="col-md-6">
+                    <label class="form-label">Reorder Level</label>
+                    <input asp-for="ReorderLevel" type="number" class="form-control" placeholder="Minimum stock level" />
+                </div>
+            </div>
+            
+            <div class="text-end mt-4">
+                <a asp-action="ProductsIndex" class="btn btn-outline-secondary me-2">Cancel</a>
+                <button type="submit" class="btn btn-primary">
+                    <i class="fas fa-save me-2"></i>Update Product
+                </button>
+            </div>
+        </form>
+    </div>
+</div>

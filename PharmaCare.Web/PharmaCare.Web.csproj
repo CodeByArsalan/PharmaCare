@@ -7,9 +7,13 @@
   </PropertyGroup>
 
   <ItemGroup>
+    <Compile Remove="Models\**" />
     <Compile Remove="wwwroot\sneat\**" />
+    <Content Remove="Models\**" />
     <Content Remove="wwwroot\sneat\**" />
+    <EmbeddedResource Remove="Models\**" />
     <EmbeddedResource Remove="wwwroot\sneat\**" />
+    <None Remove="Models\**" />
     <None Remove="wwwroot\sneat\**" />
   </ItemGroup>
 
@@ -28,10 +32,6 @@
   <ItemGroup>
     <ProjectReference Include="..\PharmaCare.Application\PharmaCare.Application.csproj" />
     <ProjectReference Include="..\PharmaCare.Infrastructure\PharmaCare.Infrastructure.csproj" />
-  </ItemGroup>
-
-  <ItemGroup>
-    <Folder Include="Models\Membership\" />
   </ItemGroup>
 
 </Project>

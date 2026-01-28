@@ -1,0 +1,57 @@
+@model PharmaCare.Domain.Entities.Configuration.Category
+@{
+    ViewData["Title"] = "Add New Category";
+}
+
+<!-- Page Header -->
+<div class="page-header">
+    <h4 class="page-title">
+        <i class="fas fa-plus-circle"></i>
+        Add New Category
+    </h4>
+    <a asp-action="CategoriesIndex" class="btn btn-outline-secondary">
+        <i class="fas fa-arrow-left me-2"></i>Back to List
+    </a>
+</div>
+
+<div class="card">
+    <div class="card-body">
+        <form asp-action="AddCategory" method="post">
+            <div class="row g-3">
+                <div class="col-md-6">
+                    <label class="form-label">Category Name <span class="text-danger">*</span></label>
+                    <input asp-for="Name" class="form-control" placeholder="Enter category name" required />
+                    <span asp-validation-for="Name" class="text-danger small"></span>
+                </div>
+                
+                <div class="col-md-6">
+                    <label class="form-label">Sale Account</label>
+                    <select asp-for="SaleAccount_ID" asp-items="ViewBag.Accounts" class="form-select">
+                        <option value="">-- Select Account --</option>
+                    </select>
+                </div>
+                
+                <div class="col-md-6">
+                    <label class="form-label">Stock Account</label>
+                    <select asp-for="StockAccount_ID" asp-items="ViewBag.Accounts" class="form-select">
+                        <option value="">-- Select Account --</option>
+                    </select>
+                </div>
+                
+                <div class="col-md-6">
+                    <label class="form-label">COGS Account</label>
+                    <select asp-for="COGSAccount_ID" asp-items="ViewBag.Accounts" class="form-select">
+                        <option value="">-- Select Account --</option>
+                    </select>
+                </div>
+            </div>
+            
+            <div class="text-end mt-4">
+                <a asp-action="CategoriesIndex" class="btn btn-outline-secondary me-2">Cancel</a>
+                <button type="submit" class="btn btn-primary">
+                    <i class="fas fa-save me-2"></i>Save Category
+                </button>
+            </div>
+        </form>
+    </div>
+</div>

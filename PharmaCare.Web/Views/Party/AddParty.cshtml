@@ -1,113 +1,69 @@
-@using PharmaCare.Domain.Models.Configuration
-@model Party
-@inject PharmaCare.Infrastructure.Interfaces.IComboBoxRepository _comboBox
+@model PharmaCare.Domain.Entities.Configuration.Party
 @{
-    ViewData["Title"] = "Add Party";
+    ViewData["Title"] = "Add New Party";
 }
 
-<div class="row">
-    <div class="col-xl-12 col-lg-12 col-md-12">
-        <div class="card mb-4">
-            <h4 class="card-header">Add Party</h4>
-            <div class="card-body">
-                <form asp-action="AddParty" method="post" class="needs-validation">
-                    <div asp-validation-summary="ModelOnly" class="alert alert-danger mb-4"></div>
-
-                    <div class="row mt-3 g-4">
-                        <div class="col-md-6">
-                            <label asp-for="PartyType" class="form-label fw-bold">Party Type <span
-                                    class="text-danger">*</span></label>
-                            <select asp-for="PartyType" asp-items="@_comboBox.GetPartyTypes()" class="form-select"
-                                required>
-                                <option value="">-- Select Type --</option>
-                            </select>
-                            <span asp-validation-for="PartyType" class="text-danger small"></span>
-                        </div>
-                        <div class="col-md-6">
-                            <label asp-for="PartyName" class="form-label fw-bold">Party Name <span
-                                    class="text-danger">*</span></label>
-                            <input asp-for="PartyName" class="form-control" placeholder="Enter party name" required />
-                            <span asp-validation-for="PartyName" class="text-danger small"></span>
-                        </div>
-                        <div class="col-md-6">
-                            <label asp-for="ContactNumber" class="form-label fw-bold">Contact Number</label>
-                            <input asp-for="ContactNumber" class="form-control" placeholder="Phone number" />
-                            <span asp-validation-for="ContactNumber" class="text-danger small"></span>
-                        </div>
-                        <div class="col-md-6">
-                            <label asp-for="AccountNumber" class="form-label fw-bold">Account Number</label>
-                            <input asp-for="AccountNumber" class="form-control" placeholder="Bank account number" />
-                            <span asp-validation-for="AccountNumber" class="text-danger small"></span>
-                        </div>
-                        <div class="col-md-6">
-                            <label asp-for="IBAN" class="form-label fw-bold">IBAN</label>
-                            <input asp-for="IBAN" class="form-control"
-                                placeholder="International Bank Account Number" />
-                            <span asp-validation-for="IBAN" class="text-danger small"></span>
-                        </div>
-                        <div class="col-md-6">
-                            <label asp-for="OpeningBalance" class="form-label fw-bold">Opening Balance</label>
-                            <input asp-for="OpeningBalance" type="number" step="0.01" class="form-control"
-                                placeholder="0.00" value="0" />
-                        </div>
-                        <div class="col-md-6 customer-fields">
-                            <label asp-for="CreditLimit" class="form-label fw-bold">Credit Limit</label>
-                            <input asp-for="CreditLimit" type="number" step="0.01" class="form-control"
-                                placeholder="0.00" value="0" />
-                        </div>
-                        <div class="col-md-6 customer-fields">
-                            <label asp-for="Market" class="form-label fw-bold">Market</label>
-                            <input asp-for="Market" class="form-control" placeholder="Market details" />
-                            <span asp-validation-for="Market" class="text-danger small"></span>
-                        </div>
-                        <div class="col-md-6">
-                            <label asp-for="AccountAddress" class="form-label fw-bold">Account/Bank Address</label>
-                            <input asp-for="AccountAddress" class="form-control" placeholder="Bank address" />
-                            <span asp-validation-for="AccountAddress" class="text-danger small"></span>
-                        </div>
-                        <div class="col-md-6">
-                            <label asp-for="Address" class="form-label fw-bold">Physical Address</label>
-                            <textarea asp-for="Address" class="form-control" rows="2"
-                                placeholder="Business/Physical address"></textarea>
-                            <span asp-validation-for="Address" class="text-danger small"></span>
-                        </div>
-                    </div>
-
-                    <hr class="my-4">
-
-                    <div class="d-flex justify-content-end gap-2">
-                        <a asp-action="PartyIndex" class="btn btn-secondary">
-                            <i class="bx bx-arrow-back me-1"></i> Back to list
-                        </a>
-                        <button type="submit" class="btn btn-success">
-                            <i class="bx bx-save me-1"></i> Save Party
-                        </button>
-                    </div>
-                </form>
-            </div>
-        </div>
-    </div>
+<!-- Page Header -->
+<div class="page-header">
+    <h4 class="page-title">
+        <i class="fas fa-plus-circle"></i>
+        Add New Party
+    </h4>
+    <a asp-action="PartiesIndex" class="btn btn-outline-secondary">
+        <i class="fas fa-arrow-left me-2"></i>Back to List
+    </a>
 </div>
 
-@section Scripts {
-    <partial name="_ValidationScriptsPartial" />
-    <script>
-        $(document).ready(function () {
-            function toggleCustomerFields() {
-                var partyType = $('#PartyType').val();
-                if (partyType === 'Supplier') {
-                    $('.customer-fields').hide();
-                } else {
-                    $('.customer-fields').show();
-                }
-            }
-
-            $('#PartyType').change(function () {
-                toggleCustomerFields();
-            });
-
-            // Initial call on page load
-            toggleCustomerFields();
-        });
-    </script>
-}
+<div class="card">
+    <div class="card-body">
+        <form asp-action="AddParty" method="post">
+            <div class="row g-3">
+                <div class="col-md-6">
+                    <label class="form-label">Party Type <span class="text-danger">*</span></label>
+                    <select asp-for="PartyType" class="form-select" required>
+                        <option value="Customer">Customer</option>
+                        <option value="Supplier">Supplier</option>
+                    </select>
+                </div>
+                
+                <div class="col-md-6">
+                    <label class="form-label">Name <span class="text-danger">*</span></label>
+                    <input asp-for="Name" class="form-control" placeholder="Enter party name" required />
+                    <span asp-validation-for="Name" class="text-danger small"></span>
+                </div>
+                
+                <div class="col-md-6">
+                    <label class="form-label">Phone</label>
+                    <input asp-for="Phone" class="form-control" placeholder="Enter phone number" />
+                </div>
+                
+                <div class="col-md-6">
+                    <label class="form-label">Email</label>
+                    <input asp-for="Email" type="email" class="form-control" placeholder="Enter email address" />
+                </div>
+                
+                <div class="col-md-6">
+                    <label class="form-label">Opening Balance</label>
+                    <input asp-for="OpeningBalance" type="number" step="0.01" class="form-control" placeholder="0.00" value="0" />
+                </div>
+                
+                <div class="col-md-6">
+                    <label class="form-label">Credit Limit</label>
+                    <input asp-for="CreditLimit" type="number" step="0.01" class="form-control" placeholder="0.00" value="0" />
+                </div>
+                
+                <div class="col-md-6">
+                    <label class="form-label">Address</label>
+                    <input asp-for="Address" class="form-control" placeholder="Enter address" />
+                </div>
+            </div>
+            
+            <div class="text-end mt-4">
+                <a asp-action="PartiesIndex" class="btn btn-outline-secondary me-2">Cancel</a>
+                <button type="submit" class="btn btn-primary">
+                    <i class="fas fa-save me-2"></i>Save Party
+                </button>
+            </div>
+        </form>
+    </div>
+</div>

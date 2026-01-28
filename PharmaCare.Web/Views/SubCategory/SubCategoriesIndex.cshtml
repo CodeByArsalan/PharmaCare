@@ -1,0 +1,115 @@
+@model IEnumerable<PharmaCare.Domain.Entities.Configuration.SubCategory>
+@{
+    ViewData["Title"] = "SubCategory Management";
+}
+
+<!-- Page Header -->
+<div class="page-header">
+    <h4 class="page-title">
+        <i class="fas fa-layer-group"></i>
+        SubCategory Management
+    </h4>
+    <a asp-action="AddSubCategory" class="btn btn-primary">
+        <i class="fas fa-plus me-2"></i>Add SubCategory
+    </a>
+</div>
+
+@if (TempData["Success"] != null)
+{
+    <div class="alert alert-success alert-dismissible fade show" role="alert">
+        <i class="fas fa-check-circle me-2"></i>@TempData["Success"]
+        <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+    </div>
+}
+
+<div class="card">
+    <div class="card-body p-0">
+        <table class="table mb-0">
+            <thead>
+                <tr>
+                    <th>SubCategory Name</th>
+                    <th>Category</th>
+                    <th>Status</th>
+                    <th class="text-end">Actions</th>
+                </tr>
+            </thead>
+            <tbody>
+                @if (Model.Any())
+                {
+                    @foreach (var item in Model)
+                    {
+                        <tr>
+                            <td><strong>@item.Name</strong></td>
+                            <td>@(item.Category?.Name ?? "-")</td>
+                            <td>
+                                @if (item.IsActive)
+                                {
+                                    <span class="badge bg-success">Active</span>
+                                }
+                                else
+                                {
+                                    <span class="badge bg-danger">Inactive</span>
+                                }
+                            </td>
+                            <td class="text-end">
+                                <a asp-action="EditSubCategory" asp-route-id="@item.SubCategoryID" class="btn btn-sm btn-outline-primary">
+                                    <i class="fas fa-edit"></i>
+                                </a>
+                                <button type="button" class="btn btn-sm btn-outline-danger btn-delete" 
+                                        data-id="@item.SubCategoryID" data-name="@item.Name">
+                                    <i class="fas fa-trash"></i>
+                                </button>
+                            </td>
+                        </tr>
+                    }
+                }
+                else
+                {
+                    <tr>
+                        <td colspan="4" class="text-center py-4">
+                            <div class="empty-state">
+                                <i class="fas fa-layer-group"></i>
+                                <p class="mb-0">No subcategories found. Click "Add SubCategory" to create one.</p>
+                            </div>
+                        </td>
+                    </tr>
+                }
+            </tbody>
+        </table>
+    </div>
+</div>
+
+<!-- Hidden form for delete -->
+<form id="deleteForm" method="post" style="display: none;">
+    @Html.AntiForgeryToken()
+</form>
+
+@section Scripts {
+    <script>
+        document.querySelectorAll('.btn-delete').forEach(function(btn) {
+            btn.addEventListener('click', function() {
+                const id = this.getAttribute('data-id');
+                const name = this.getAttribute('data-name');
+                
+                Swal.fire({
+                    title: 'Delete SubCategory?',
+                    text: `Are you sure you want to delete "${name}"?`,
+                    icon: 'warning',
+                    showCancelButton: true,
+                    confirmButtonColor: '#dc2626',
+                    cancelButtonColor: '#64748b',
+                    confirmButtonText: 'Yes, delete it!',
+                    cancelButtonText: 'Cancel',
+                    background: '#1e293b',
+                    color: '#f1f5f9'
+                }).then((result) => {
+                    if (result.isConfirmed) {
+                        const form = document.getElementById('deleteForm');
+                        form.action = '/SubCategory/Delete/' + id;
+                        form.submit();
+                    }
+                });
+            });
+        });
+    </script>
+}

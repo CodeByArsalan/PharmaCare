@@ -1,205 +1,301 @@
 @{
     ViewData["Title"] = "Dashboard";
-    int userType = ViewBag.LoginUserRole;
 }
 
-<div class="row mb-4">
-    <div class="col-md-8">
-        <div class="card bg-transparent shadow-none border-0">
-            <div class="card-body p-0">
-                <h3 class="fw-bold mb-1">Passionate About Healthcare</h3>
-                <p class="text-muted mb-1">Here's what's happening in <strong>@ViewBag.SelectedStoreName</strong> today.
-                </p>
-            </div>
-        </div>
-    </div>
-    <div class="col-md-4">
-        <form method="get" action="@Url.Action("Index")" id="storeSelectorForm">
-            <div class="input-group shadow-sm">
-                <span class="input-group-text bg-white border-end-0"><i class='bx bx-store-alt'></i></span>
-                <select name="storeId" class="form-select border-start-0 ps-0"
-                    onchange="document.getElementById('storeSelectorForm').submit()">
-                    <option value="">All Stores</option>
-                    @if (ViewBag.Stores != null)
-                    {
-                        foreach (var store in (IEnumerable<SelectListItem>)ViewBag.Stores)
-                        {
-                            if (ViewBag.SelectedStoreId != null && ViewBag.SelectedStoreId.ToString() == store.Value)
-                            {
-                                <option value="@store.Value" selected>@store.Text</option>
-                            }
-                            else
-                            {
-                                <option value="@store.Value">@store.Text</option>
-                            }
-                        }
-                    }
-                </select>
-            </div>
-        </form>
+<style>
+    .quick-actions {
+        display: grid;
+        grid-template-columns: repeat(4, 1fr);
+        gap: 1rem;
+        margin-bottom: 2rem;
+    }
+    
+    .action-btn {
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        justify-content: center;
+        padding: 1.5rem;
+        background: var(--glass-bg);
+        border: 1px solid var(--glass-border);
+        border-radius: var(--radius-xl);
+        text-decoration: none;
+        color: var(--text-primary);
+        transition: all var(--transition-base);
+    }
+    
+    .action-btn:hover {
+        background: rgba(102, 126, 234, 0.1);
+        border-color: rgba(102, 126, 234, 0.3);
+        color: var(--text-primary);
+        transform: translateY(-2px);
+    }
+    
+    .action-btn i {
+        font-size: 1.75rem;
+        margin-bottom: 0.75rem;
+        background: var(--gradient-primary);
+        -webkit-background-clip: text;
+        -webkit-text-fill-color: transparent;
+        background-clip: text;
+    }
+    
+    .action-btn span {
+        font-size: 0.875rem;
+        font-weight: 500;
+    }
+    
+    .chart-card {
+        background: var(--bg-card);
+        border: 1px solid var(--glass-border);
+        border-radius: var(--radius-xl);
+        overflow: hidden;
+    }
+    
+    .chart-header {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        padding: 1.25rem 1.5rem;
+        border-bottom: 1px solid var(--glass-border);
+    }
+    
+    .chart-title {
+        font-size: 1rem;
+        font-weight: 600;
+        color: var(--text-primary);
+        display: flex;
+        align-items: center;
+        gap: 0.5rem;
+    }
+    
+    .chart-title i {
+        color: var(--primary-500);
+    }
+    
+    .chart-body {
+        padding: 1.5rem;
+    }
+    
+    .chart-placeholder {
+        height: 280px;
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        justify-content: center;
+        color: var(--text-muted);
+    }
+    
+    .chart-placeholder i {
+        font-size: 3rem;
+        margin-bottom: 1rem;
+        opacity: 0.5;
+    }
+    
+    .activity-item {
+        display: flex;
+        align-items: flex-start;
+        padding: 1rem;
+        border-radius: var(--radius-lg);
+        transition: background var(--transition-fast);
+    }
+    
+    .activity-item:hover {
+        background: var(--glass-bg);
+    }
+    
+    .activity-icon {
+        width: 40px;
+        height: 40px;
+        border-radius: var(--radius-md);
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        margin-right: 1rem;
+        font-size: 0.875rem;
+    }
+    
+    .activity-icon.sale { background: rgba(16, 185, 129, 0.15); color: var(--secondary-500); }
+    .activity-icon.purchase { background: rgba(102, 126, 234, 0.15); color: var(--primary-500); }
+    .activity-icon.alert { background: rgba(245, 158, 11, 0.15); color: var(--warning-500); }
+    
+    .activity-content {
+        flex: 1;
+    }
+    
+    .activity-title {
+        font-size: 0.875rem;
+        font-weight: 500;
+        color: var(--text-primary);
+        margin-bottom: 0.25rem;
+    }
+    
+    .activity-time {
+        font-size: 0.75rem;
+        color: var(--text-muted);
+    }
+    
+    @@media (max-width: 992px) {
+        .quick-actions {
+            grid-template-columns: repeat(2, 1fr);
+        }
+    }
+</style>
+
+<!-- Dashboard Header -->
+<div class="page-header">
+    <div>
+        <h1 class="page-title">
+            <i class="fas fa-home"></i>
+            Good @(DateTime.Now.Hour < 12 ? "Morning" : DateTime.Now.Hour < 17 ? "Afternoon" : "Evening")! 👋
+        </h1>
+        <p class="text-secondary mt-1 mb-0">Here's what's happening with your pharmacy today.</p>
     </div>
 </div>
 
 <!-- Stats Cards -->
-@if (userType == 1)
-{
-    <div class="row g-4 mb-4">
-        <!-- Total Sales -->
-        <div class="col-md-6 col-lg-4">
-            <div class="card h-100 border-0 shadow-sm">
-                <div class="card-body">
-                    <div class="d-flex align-items-center justify-content-between mb-3">
-                        <div class="avatar avatar-md bg-light-primary rounded">
-                            <i class='bx bx-dollar fs-3 text-primary'></i>
-                        </div>
-                        <span class="badge bg-label-success rounded-pill">+12% <i class='bx bx-up-arrow-alt'></i></span>
-                    </div>
-                    <h5 class="fw-bold mb-1">@ViewBag.TotalSalesToday.ToString("C")</h5>
-                    <p class="text-muted mb-0 small">Total Sales Today</p>
-                </div>
+<div class="row g-4 mb-4">
+    <div class="col-md-6 col-lg-3">
+        <div class="stat-card blue">
+            <div class="stat-icon">
+                <i class="fas fa-shopping-cart"></i>
+            </div>
+            <div class="stat-label">Today's Sales</div>
+            <div class="stat-value">PKR 0</div>
+            <div class="stat-change positive">
+                <i class="fas fa-arrow-up"></i>Start selling
             </div>
         </div>
-
-        <!-- Transactions -->
-        <div class="col-md-6 col-lg-4">
-            <div class="card h-100 border-0 shadow-sm">
-                <div class="card-body">
-                    <div class="d-flex align-items-center justify-content-between mb-3">
-                        <div class="avatar avatar-md bg-light-info rounded">
-                            <i class='bx bx-receipt fs-3 text-info'></i>
-                        </div>
-                        <span class="badge bg-label-secondary rounded-pill">Daily</span>
-                    </div>
-                    <h5 class="fw-bold mb-1">@ViewBag.TransactionsToday</h5>
-                    <p class="text-muted mb-0 small">Transactions Today</p>
-                </div>
+    </div>
+    
+    <div class="col-md-6 col-lg-3">
+        <div class="stat-card green">
+            <div class="stat-icon">
+                <i class="fas fa-receipt"></i>
+            </div>
+            <div class="stat-label">Total Orders</div>
+            <div class="stat-value">0</div>
+            <div class="stat-change positive">
+                <i class="fas fa-arrow-up"></i>Today
             </div>
         </div>
-
-        @* <!-- Customers -->
-        <div class="col-md-6 col-lg-3">
-            <div class="card h-100 border-0 shadow-sm">
-                <div class="card-body">
-                    <div class="d-flex align-items-center justify-content-between mb-3">
-                        <div class="avatar avatar-md bg-light-warning rounded">
-                            <i class='bx bx-user fs-3 text-warning'></i>
-                        </div>
-                        <span class="badge bg-label-success rounded-pill">+5 <i class='bx bx-user-plus'></i></span>
-                    </div>
-                    <h5 class="fw-bold mb-1">@ViewBag.TotalCustomers</h5>
-                    <p class="text-muted mb-0 small">Total Customers</p>
-                </div>
+    </div>
+    
+    <div class="col-md-6 col-lg-3">
+        <div class="stat-card orange">
+            <div class="stat-icon">
+                <i class="fas fa-pills"></i>
             </div>
-        </div> *@
+            <div class="stat-label">Products</div>
+            <div class="stat-value">0</div>
+            <div class="stat-change negative">
+                <i class="fas fa-plus"></i>Add products
+            </div>
+        </div>
+    </div>
+    
+    <div class="col-md-6 col-lg-3">
+        <div class="stat-card purple">
+            <div class="stat-icon">
+                <i class="fas fa-exclamation-triangle"></i>
+            </div>
+            <div class="stat-label">Low Stock</div>
+            <div class="stat-value">0</div>
+            <div class="stat-change positive">
+                <i class="fas fa-check"></i>All stocked
+            </div>
+        </div>
+    </div>
+</div>
 
-        <!-- Low Stock -->
-        <div class="col-md-6 col-lg-4">
-            <div class="card h-100 border-0 shadow-sm">
-                <div class="card-body">
-                    <div class="d-flex align-items-center justify-content-between mb-3">
-                        <div class="avatar avatar-md bg-light-danger rounded">
-                            <i class='bx bx-error-circle fs-3 text-danger'></i>
-                        </div>
-                        <span class="badge bg-label-danger rounded-pill">Action Needed</span>
-                    </div>
-                    <h5 class="fw-bold mb-1">@ViewBag.LowStockItems</h5>
-                    <p class="text-muted mb-0 small">Low Stock Items</p>
+<!-- Quick Actions -->
+<h5 class="text-primary mb-3"><i class="fas fa-bolt me-2" style="color: var(--warning-500);"></i>Quick Actions</h5>
+<div class="quick-actions">
+    <a href="/Product/AddProduct" class="action-btn">
+        <i class="fas fa-pills"></i>
+        <span>Add Product</span>
+    </a>
+    <a href="/Party/AddParty" class="action-btn">
+        <i class="fas fa-user-plus"></i>
+        <span>Add Party</span>
+    </a>
+    <a href="/Store" class="action-btn">
+        <i class="fas fa-store"></i>
+        <span>Manage Stores</span>
+    </a>
+    <a href="/Category" class="action-btn">
+        <i class="fas fa-tags"></i>
+        <span>Categories</span>
+    </a>
+</div>
+
+<!-- Charts Row -->
+<div class="row g-4">
+    <div class="col-lg-8">
+        <div class="chart-card">
+            <div class="chart-header">
+                <span class="chart-title">
+                    <i class="fas fa-chart-line"></i>
+                    Sales Overview
+                </span>
+                <select class="form-select w-auto" style="max-width: 150px;">
+                    <option>Last 7 Days</option>
+                    <option>Last 30 Days</option>
+                    <option>This Month</option>
+                    <option>This Year</option>
+                </select>
+            </div>
+            <div class="chart-body">
+                <div class="chart-placeholder">
+                    <i class="fas fa-chart-area"></i>
+                    <p class="mb-0">Sales chart will appear here once you start recording transactions.</p>
+                    <a href="/Product/AddProduct" class="btn btn-primary btn-sm mt-3">
+                        <i class="fas fa-plus me-2"></i>Add Your First Product
+                    </a>
                 </div>
             </div>
         </div>
     </div>
-}
-
-
-<!-- Quick Actions -->
-<div class="row">
-    <div class="col-12">
-        <div class="card border-0 shadow-sm">
-            <div class="card-header bg-white py-3">
-                <h5 class="mb-0 fw-bold"><i class='bx bx-rocket text-primary'></i> Quick Actions</h5>
+    
+    <div class="col-lg-4">
+        <div class="chart-card h-100">
+            <div class="chart-header">
+                <span class="chart-title">
+                    <i class="fas fa-clock"></i>
+                    Recent Activity
+                </span>
             </div>
-            <div class="card-body mt-2">
-                <div class="row g-3">
-                    <div class="col-md-4">
-                        <a href="/Pos/Index"
-                            class="card h-100 bg-light border-0 hover-lift text-decoration-none text-dark">
-                            <div class="card-body text-center py-4">
-                                <i class='bx bx-cart-add fs-1 text-primary mb-2'></i>
-                                <h6 class="fw-bold mb-0">New Sale</h6>
-                            </div>
-                        </a>
+            <div class="chart-body" style="padding: 0.5rem;">
+                <div class="activity-item">
+                    <div class="activity-icon sale">
+                        <i class="fas fa-user-circle"></i>
                     </div>
-                    @* <div class="col-md-3">
-                        <a href="/Customer/AddCustomer"
-                            class="card h-100 bg-light border-0 hover-lift text-decoration-none text-dark">
-                            <div class="card-body text-center py-4">
-                                <i class='bx bx-user-plus fs-1 text-success mb-2'></i>
-                                <h6 class="fw-bold mb-0">Add Customer</h6>
-                            </div>
-                        </a>
-                    </div> *@
-                    <div class="col-md-4">
-                        <a href="/Grn/AddGrn"
-                            class="card h-100 bg-light border-0 hover-lift text-decoration-none text-dark">
-                            <div class="card-body text-center py-4">
-                                <i class='bx bx-import fs-1 text-info mb-2'></i>
-                                <h6 class="fw-bold mb-0">Stock In (GRN)</h6>
-                            </div>
-                        </a>
+                    <div class="activity-content">
+                        <div class="activity-title">Welcome to PharmaCare!</div>
+                        <div class="activity-time">Get started by adding products and parties</div>
                     </div>
-                    <div class="col-md-4">
-                        <a href="/Reports/ReportsIndex"
-                            class="card h-100 bg-light border-0 hover-lift text-decoration-none text-dark">
-                            <div class="card-body text-center py-4">
-                                <i class='bx bx-bar-chart-alt-2 fs-1 text-warning mb-2'></i>
-                                <h6 class="fw-bold mb-0">View Reports</h6>
-                            </div>
-                        </a>
+                </div>
+                
+                <div class="activity-item">
+                    <div class="activity-icon purchase">
+                        <i class="fas fa-info-circle"></i>
+                    </div>
+                    <div class="activity-content">
+                        <div class="activity-title">Setup your store</div>
+                        <div class="activity-time">Configure categories and products</div>
+                    </div>
+                </div>
+                
+                <div class="activity-item">
+                    <div class="activity-icon alert">
+                        <i class="fas fa-lightbulb"></i>
+                    </div>
+                    <div class="activity-content">
+                        <div class="activity-title">Pro Tip</div>
+                        <div class="activity-time">Create categories before adding products</div>
                     </div>
                 </div>
             </div>
         </div>
     </div>
 </div>
-
-<!-- Recent Activity & Charts could go here (Placeholder for future) -->
-@if (userType == 1)
-{
-    <div class="row mt-4">
-        <div class="col-md-12 mb-4">
-            <div class="card h-100 border-0 shadow-sm">
-                <div class="card-header bg-white py-3 d-flex justify-content-between align-items-center">
-                    <h5 class="mb-0 fw-bold">Recent Sales</h5>
-                    <a href="/Reports/ReportsIndex" class="btn btn-sm btn-outline-primary">View All</a>
-                </div>
-                <div class="card-body text-center py-5">
-                    <div class="empty-state">
-                        <i class='bx bx-bar-chart-square display-4 text-muted opacity-25'></i>
-                        <p class="text-muted mt-3">Sales chart will appear here once populated.</p>
-                    </div>
-                </div>
-            </div>
-        </div>
-        @* <div class="col-md-4 mb-4">
-            <div class="card h-100 bg-primary text-white border-0 shadow-sm"
-                style="background: linear-gradient(135deg, #0EA5E9 0%, #06B6D4 100%);">
-                <div class="card-body">
-                    <h5 class="fw-bold text-white mb-4">System Status</h5>
-                    <ul class="list-unstyled">
-                        <li class="mb-3 d-flex align-items-center">
-                            <i class='bx bx-check-circle fs-4 me-2'></i> Database Connected
-                        </li>
-                        <li class="mb-3 d-flex align-items-center">
-                            <i class='bx bx-check-circle fs-4 me-2'></i> Services Running
-                        </li>
-                        <li class="mb-3 d-flex align-items-center">
-                            <i class='bx bx-time fs-4 me-2'></i> Last Backup: Today
-                        </li>
-                    </ul>
-                    <hr class="bg-white opacity-25">
-                    <small class="opacity-75">PharmaCare v1.0.0</small>
-                </div>
-            </div>
-        </div> *@
-    </div>
-}
