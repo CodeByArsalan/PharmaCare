@@ -71,14 +71,7 @@ public class StockMovement
 
     // ========== MANDATORY ACCOUNTING LINK ==========
 
-    /// <summary>
-    /// Journal Entry ID - Links stock movement to journal entry.
-    /// IMPORTANT: This is nullable ONLY during migration phase.
-    /// After InventoryAccountingService is implemented, this will be enforced 
-    /// via database constraint (NOT NULL + FK) to ensure no orphan movements.
-    /// TODO: Make NOT NULL after Step 5.5 implementation
-    /// </summary>
-    public int? JournalEntry_ID { get; set; }
+
 
     // ========== TRANSFER LINKING ==========
 
@@ -96,6 +89,13 @@ public class StockMovement
 
     public virtual Store? Store { get; set; }
     public virtual ProductBatch? ProductBatch { get; set; }
-    public virtual JournalEntry? JournalEntry { get; set; }
+
+    
+    /// <summary>
+    /// Account Voucher (Replaces JournalEntry)
+    /// </summary>
+    [ForeignKey("AccountVoucher")]
+    public int? Voucher_ID { get; set; }
+    public virtual AccountVoucher? AccountVoucher { get; set; }
     public virtual StockMovement? RelatedMovement { get; set; }
 }

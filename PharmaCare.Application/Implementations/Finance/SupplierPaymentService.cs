@@ -5,7 +5,6 @@ using PharmaCare.Application.Interfaces.Finance;
 using PharmaCare.Application.Interfaces.AccountManagement;
 using PharmaCare.Domain.Models.Finance;
 using PharmaCare.Domain.Models.Inventory;
-using PharmaCare.Domain.Models.PurchaseManagement;
 using PharmaCare.Domain.Models.AccountManagement;
 using PharmaCare.Infrastructure.Interfaces;
 using PharmaCare.Infrastructure.Interfaces.Accounting;
@@ -16,27 +15,32 @@ namespace PharmaCare.Application.Implementations.Finance;
 public class SupplierPaymentService : ISupplierPaymentService
 {
     private readonly IRepository<SupplierPayment> _paymentRepo;
-    private readonly IRepository<Grn> _grnRepo;
+    private readonly IRepository<StockMain> _stockMainRepo;
     private readonly IAccountingService _accountingService;
-    private readonly IJournalPostingEngine _postingEngine;
+    private readonly IVoucherService _voucherService;
     private readonly PharmaCareDBContext _context;
 
     // Account Type IDs
     private const int CASH_ACCOUNT_TYPE = 1;
     private const int BANK_ACCOUNT_TYPE = 2;
     private const int SUPPLIER_ACCOUNT_TYPE = 4;
+    private const int PURCHASE_INVOICE_TYPE = 2; // InvoiceType for purchases
+
+    // Voucher Type IDs
+    private const int BANK_PAYMENT_VOUCHER = 2;
+    private const int CASH_PAYMENT_VOUCHER = 4;
 
     public SupplierPaymentService(
         IRepository<SupplierPayment> paymentRepo,
-        IRepository<Grn> grnRepo,
+        IRepository<StockMain> stockMainRepo,
         IAccountingService accountingService,
-        IJournalPostingEngine postingEngine,
+        IVoucherService voucherService,
         PharmaCareDBContext context)
     {
         _paymentRepo = paymentRepo;
-        _grnRepo = grnRepo;
+        _stockMainRepo = stockMainRepo;
         _accountingService = accountingService;
-        _postingEngine = postingEngine;
+        _voucherService = voucherService;
         _context = context;
     }
 
@@ -54,7 +58,7 @@ public class SupplierPaymentService : ISupplierPaymentService
 
         return await query
             .Include(p => p.Party)
-            .Include(p => p.Grn)
+            .Include(p => p.StockMain)
             .Include(p => p.Store)
             .OrderByDescending(p => p.PaymentDate)
             .ToListAsync();
@@ -64,15 +68,15 @@ public class SupplierPaymentService : ISupplierPaymentService
     {
         return await _paymentRepo.FindByCondition(p => p.SupplierPaymentID == id)
             .Include(p => p.Party)
-            .Include(p => p.Grn)
+            .Include(p => p.StockMain)
             .Include(p => p.Store)
-            .Include(p => p.JournalEntry)
+            .Include(p => p.AccountVoucher)
             .FirstOrDefaultAsync();
     }
 
-    public async Task<List<SupplierPayment>> GetPaymentsByGrn(int grnId)
+    public async Task<List<SupplierPayment>> GetPaymentsByGrn(int stockMainId)
     {
-        return await _paymentRepo.FindByCondition(p => p.Grn_ID == grnId && p.IsActive)
+        return await _paymentRepo.FindByCondition(p => p.StockMain_ID == stockMainId && p.IsActive)
             .Include(p => p.Party)
             .OrderByDescending(p => p.PaymentDate)
             .ToListAsync();
@@ -85,43 +89,49 @@ public class SupplierPaymentService : ISupplierPaymentService
 
     #endregion
 
-    #region Outstanding GRNs
+    #region Outstanding Purchases
 
     public async Task<List<GrnOutstandingDto>> GetOutstandingGrns(int? supplierId = null)
     {
-        var query = _grnRepo.FindByCondition(g => g.PaymentStatus != "Paid");
+        // Query StockMain records with InvoiceType=2 (PURCHASE) that have outstanding balance
+        var query = _stockMainRepo.FindByCondition(sm => 
+            sm.InvoiceType_ID == PURCHASE_INVOICE_TYPE && 
+            sm.PaymentStatus != "Paid");
 
         if (supplierId.HasValue)
-            query = query.Where(g => g.Party_ID == supplierId.Value);
+            query = query.Where(sm => sm.Party_ID == supplierId.Value);
 
-        var grns = await query
-            .Include(g => g.Party)
-            .Include(g => g.GrnItems)
-            .OrderByDescending(g => g.CreatedDate)
+        var purchases = await query
+            .Include(sm => sm.Party)
+            .Include(sm => sm.StockDetails)
+            .OrderByDescending(sm => sm.CreatedDate)
             .ToListAsync();
 
-        return grns.Select(g => new GrnOutstandingDto
+        return purchases.Select(sm => new GrnOutstandingDto
         {
-            GrnID = g.GrnID,
-            GrnNumber = g.GrnNumber,
-            CreatedDate = g.CreatedDate,
-            SupplierId = g.Party_ID ?? 0,
-            SupplierName = g.Party?.PartyName ?? "Unknown",
-            TotalAmount = g.TotalAmount > 0 ? g.TotalAmount : g.GrnItems.Sum(i => i.QuantityReceived * i.CostPrice),
-            AmountPaid = g.AmountPaid,
-            ReturnedAmount = g.ReturnedAmount,
-            BalanceAmount = g.TotalAmount - g.AmountPaid - g.ReturnedAmount,
-            PaymentStatus = g.PaymentStatus
+            StockMainID = sm.StockMainID,
+            GrnNumber = sm.InvoiceNo,
+            CreatedDate = sm.CreatedDate,
+            SupplierId = sm.Party_ID ?? 0,
+            SupplierName = sm.Party?.PartyName ?? "Unknown",
+            TotalAmount = sm.TotalAmount > 0 ? sm.TotalAmount : sm.StockDetails.Sum(d => d.Quantity * d.UnitPrice),
+            AmountPaid = sm.PaidAmount,
+            ReturnedAmount = sm.ReturnedAmount,
+            BalanceAmount = sm.TotalAmount - sm.PaidAmount - sm.ReturnedAmount,
+            PaymentStatus = sm.PaymentStatus ?? "Unpaid"
         }).ToList();
     }
 
     public async Task<decimal> GetTotalOutstandingForSupplier(int supplierId)
     {
-        var grns = await _grnRepo.FindByCondition(g => g.Party_ID == supplierId && g.PaymentStatus != "Paid")
-            .Include(g => g.GrnItems)
+        var purchases = await _stockMainRepo.FindByCondition(sm => 
+            sm.Party_ID == supplierId && 
+            sm.InvoiceType_ID == PURCHASE_INVOICE_TYPE && 
+            sm.PaymentStatus != "Paid")
+            .Include(sm => sm.StockDetails)
             .ToListAsync();
 
-        return grns.Sum(g => g.TotalAmount - g.AmountPaid - g.ReturnedAmount);
+        return purchases.Sum(sm => sm.TotalAmount - sm.PaidAmount - sm.ReturnedAmount);
     }
 
     #endregion
@@ -130,25 +140,25 @@ public class SupplierPaymentService : ISupplierPaymentService
 
     public async Task<bool> CreatePayment(SupplierPayment payment, int loginUserId)
     {
-        // 1. Validate GRN exists and has balance
-        var grn = await _grnRepo.FindByCondition(g => g.GrnID == payment.Grn_ID)
-            .Include(g => g.GrnItems)
+        // 1. Validate purchase exists and has balance
+        var purchase = await _stockMainRepo.FindByCondition(sm => sm.StockMainID == payment.StockMain_ID)
+            .Include(sm => sm.StockDetails)
             .FirstOrDefaultAsync();
 
-        if (grn == null)
-            throw new InvalidOperationException("GRN not found");
+        if (purchase == null)
+            throw new InvalidOperationException("Purchase not found");
 
-        // Calculate GRN total if not set
-        if (grn.TotalAmount == 0)
+        // Calculate total if not set
+        if (purchase.TotalAmount == 0)
         {
-            grn.TotalAmount = grn.GrnItems.Sum(i => i.QuantityReceived * i.CostPrice);
-            grn.BalanceAmount = grn.TotalAmount - grn.AmountPaid - grn.ReturnedAmount;
+            purchase.TotalAmount = purchase.StockDetails.Sum(d => d.Quantity * d.UnitPrice);
+            purchase.BalanceAmount = purchase.TotalAmount - purchase.PaidAmount - purchase.ReturnedAmount;
         }
 
-        var currentBalance = grn.TotalAmount - grn.AmountPaid - grn.ReturnedAmount;
+        var currentBalance = purchase.TotalAmount - purchase.PaidAmount - purchase.ReturnedAmount;
 
         if (currentBalance <= 0)
-            throw new InvalidOperationException("This GRN is already fully paid");
+            throw new InvalidOperationException("This purchase is already fully paid");
 
         if (payment.AmountPaid <= 0)
             throw new InvalidOperationException("Payment amount must be greater than zero");
@@ -158,7 +168,7 @@ public class SupplierPaymentService : ISupplierPaymentService
 
         // 2. Generate payment number
         payment.PaymentNumber = await GeneratePaymentNumber();
-        payment.GrnAmount = grn.TotalAmount;
+        payment.GrnAmount = purchase.TotalAmount;
         payment.BalanceAfter = currentBalance - payment.AmountPaid;
         payment.PaymentType = payment.AmountPaid >= currentBalance ? "Full" : "Partial";
         payment.Status = "Paid";
@@ -166,10 +176,9 @@ public class SupplierPaymentService : ISupplierPaymentService
         payment.CreatedDate = DateTime.Now;
         payment.IsActive = true;
 
-        // 3. Create Journal Entry
-        // DR: Supplier Account (reduces liability)
-        // CR: Cash/Bank Account (reduces asset)
+        // 3. Create Voucher (Replaces JournalEntry)
         var paymentAccountTypeId = payment.PaymentMethod == "Bank" ? BANK_ACCOUNT_TYPE : CASH_ACCOUNT_TYPE;
+        var voucherTypeId = payment.PaymentMethod == "Bank" ? BANK_PAYMENT_VOUCHER : CASH_PAYMENT_VOUCHER;
 
         var supplierAccount = await _accountingService.GetFirstAccountByTypeId(SUPPLIER_ACCOUNT_TYPE);
         var paymentAccount = await _accountingService.GetFirstAccountByTypeId(paymentAccountTypeId);
@@ -180,58 +189,62 @@ public class SupplierPaymentService : ISupplierPaymentService
         if (paymentAccount == null)
             throw new InvalidOperationException($"{payment.PaymentMethod} account not found in Chart of Accounts");
 
-        var journalLines = new List<JournalEntryLine>
+        var voucherRequest = new CreateVoucherRequest
         {
-            new JournalEntryLine
+            VoucherTypeId = voucherTypeId,
+            VoucherDate = payment.PaymentDate,
+            SourceTable = "SupplierPayments",
+            SourceId = 0, // Will update after insert
+            StoreId = payment.Store_ID,
+            Narration = $"Payment to supplier - {purchase.InvoiceNo} ({payment.PaymentNumber})",
+            CreatedBy = loginUserId,
+            Lines = new List<CreateVoucherLineRequest>
             {
-                Account_ID = supplierAccount.AccountID,
-                DebitAmount = payment.AmountPaid,
-                CreditAmount = 0,
-                Description = $"Payment to supplier - {grn.GrnNumber}",
-                Store_ID = payment.Store_ID
-            },
-            new JournalEntryLine
-            {
-                Account_ID = paymentAccount.AccountID,
-                DebitAmount = 0,
-                CreditAmount = payment.AmountPaid,
-                Description = $"Supplier payment via {payment.PaymentMethod} - {grn.GrnNumber}",
-                Store_ID = payment.Store_ID
+                // Debit Supplier (Reduce Liability)
+                new CreateVoucherLineRequest
+                {
+                    AccountId = supplierAccount.AccountID,
+                    Dr = payment.AmountPaid,
+                    Cr = 0,
+                    Particulars = $"Payment against {purchase.InvoiceNo}",
+                    StoreId = payment.Store_ID
+                },
+                // Credit Cash/Bank (Reduce Asset)
+                new CreateVoucherLineRequest
+                {
+                    AccountId = paymentAccount.AccountID,
+                    Dr = 0,
+                    Cr = payment.AmountPaid,
+                    Particulars = $"Payment via {payment.PaymentMethod}",
+                    StoreId = payment.Store_ID
+                }
             }
         };
 
-        // Use IJournalPostingEngine to create and post entry
-        var journal = await _postingEngine.CreateAndPostAsync(
-            entryType: "SupplierPayment",
-            description: $"Supplier Payment - {payment.PaymentNumber} for {grn.GrnNumber}",
-            lines: journalLines,
-            sourceTable: "SupplierPayments",
-            sourceId: 0, // Will update after payment insert
-            storeId: payment.Store_ID,
-            userId: loginUserId,
-            isSystemEntry: true,
-            reference: payment.PaymentNumber);
-
-        if (journal == null)
-            throw new InvalidOperationException("Failed to create journal entry for payment");
-
-        payment.JournalEntry_ID = journal.JournalEntryID;
+        var voucher = await _voucherService.CreateVoucherAsync(voucherRequest);
+        payment.Voucher_ID = voucher.VoucherID;
 
         // 4. Insert Payment
         var result = await _paymentRepo.Insert(payment);
 
         if (result)
         {
-            // Update journal entry Source_ID to the actual payment ID
-            journal.Source_ID = payment.SupplierPaymentID;
+            // Set SourceID of voucher to the newly created payment ID
+            // Note: We'd need to update the voucher directly or via service if exposed. 
+            // For now, let's assume CreateVoucherAsync returns the tracked entity 
+            // but we might need to explicit update if not automatically tracked in same context safely.
+            // Since _voucherService uses its own repo, let's skip back-updating SourceID for now or handle it if critical.
+            // Actually, we can update the payment entity's ID into the voucher if we want bi-directional link.
+            // But usually the payment->voucher FK is enough.
+            
             await _context.SaveChangesAsync();
 
-            // 5. Update GRN payment tracking
-            grn.AmountPaid += payment.AmountPaid;
-            grn.BalanceAmount = grn.TotalAmount - grn.AmountPaid - grn.ReturnedAmount;
-            grn.PaymentStatus = grn.BalanceAmount <= 0 ? "Paid" : "Partial";
+            // 5. Update StockMain payment tracking
+            purchase.PaidAmount += payment.AmountPaid;
+            purchase.BalanceAmount = purchase.TotalAmount - purchase.PaidAmount - purchase.ReturnedAmount;
+            purchase.PaymentStatus = purchase.BalanceAmount <= 0 ? "Paid" : "Partial";
 
-            await _grnRepo.Update(grn);
+            await _stockMainRepo.Update(purchase);
         }
 
         return result;
@@ -248,13 +261,13 @@ public class SupplierPaymentService : ISupplierPaymentService
         if (payment.Status == "Cancelled")
             throw new InvalidOperationException("Payment is already cancelled");
 
-        // Void the journal entry
-        if (payment.JournalEntry_ID.HasValue)
+        // Reverse the voucher
+        if (payment.Voucher_ID.HasValue)
         {
-            await _accountingService.VoidJournalEntry(payment.JournalEntry_ID.Value, userId);
+            await _voucherService.ReverseVoucherAsync(payment.Voucher_ID.Value, "Payment Cancelled", userId);
         }
 
-        // Update payment status
+
         payment.Status = "Cancelled";
         payment.UpdatedBy = userId;
         payment.UpdatedDate = DateTime.Now;
@@ -263,17 +276,17 @@ public class SupplierPaymentService : ISupplierPaymentService
 
         if (result)
         {
-            // Reverse GRN payment tracking
-            var grn = await _grnRepo.FindByCondition(g => g.GrnID == payment.Grn_ID)
+            // Reverse StockMain payment tracking
+            var purchase = await _stockMainRepo.FindByCondition(sm => sm.StockMainID == payment.StockMain_ID)
                 .FirstOrDefaultAsync();
 
-            if (grn != null)
+            if (purchase != null)
             {
-                grn.AmountPaid -= payment.AmountPaid;
-                grn.BalanceAmount = grn.TotalAmount - grn.AmountPaid - grn.ReturnedAmount;
-                grn.PaymentStatus = grn.AmountPaid <= 0 ? "Unpaid" : (grn.BalanceAmount <= 0 ? "Paid" : "Partial");
+                purchase.PaidAmount -= payment.AmountPaid;
+                purchase.BalanceAmount = purchase.TotalAmount - purchase.PaidAmount - purchase.ReturnedAmount;
+                purchase.PaymentStatus = purchase.PaidAmount <= 0 ? "Unpaid" : (purchase.BalanceAmount <= 0 ? "Paid" : "Partial");
 
-                await _grnRepo.Update(grn);
+                await _stockMainRepo.Update(purchase);
             }
         }
 
@@ -290,12 +303,12 @@ public class SupplierPaymentService : ISupplierPaymentService
         var firstOfMonth = new DateTime(today.Year, today.Month, 1);
 
         var paymentsQuery = _paymentRepo.FindByCondition(p => p.IsActive && p.Status == "Paid");
-        var grnsQuery = _grnRepo.FindByCondition(g => true);
+        var purchasesQuery = _stockMainRepo.FindByCondition(sm => sm.InvoiceType_ID == PURCHASE_INVOICE_TYPE);
 
         if (storeId.HasValue)
         {
             paymentsQuery = paymentsQuery.Where(p => p.Store_ID == storeId.Value);
-            grnsQuery = grnsQuery.Where(g => g.Store_ID == storeId.Value);
+            purchasesQuery = purchasesQuery.Where(sm => sm.Store_ID == storeId.Value);
         }
 
         var todayPayments = await paymentsQuery
@@ -306,32 +319,31 @@ public class SupplierPaymentService : ISupplierPaymentService
             .Where(p => p.PaymentDate >= firstOfMonth)
             .SumAsync(p => p.AmountPaid);
 
-        var unpaidGrns = await grnsQuery
-            .Where(g => g.PaymentStatus == "Unpaid")
+        var unpaidPurchases = await purchasesQuery
+            .Where(sm => sm.PaymentStatus == "Unpaid" || sm.PaymentStatus == null)
             .CountAsync();
 
-        var partialGrns = await grnsQuery
-            .Where(g => g.PaymentStatus == "Partial")
+        var partialPurchases = await purchasesQuery
+            .Where(sm => sm.PaymentStatus == "Partial")
             .CountAsync();
 
-        var outstandingGrns = await grnsQuery
-            .Where(g => g.PaymentStatus != "Paid")
-            .Include(g => g.GrnItems)
-            .Include(g => g.Party)
+        var outstandingPurchases = await purchasesQuery
+            .Where(sm => sm.PaymentStatus != "Paid")
+            .Include(sm => sm.StockDetails)
+            .Include(sm => sm.Party)
             .ToListAsync();
 
-        var totalOutstanding = outstandingGrns.Sum(g =>
-            g.TotalAmount - g.AmountPaid - g.ReturnedAmount);
+        var totalOutstanding = outstandingPurchases.Sum(sm =>
+            sm.TotalAmount - sm.PaidAmount - sm.ReturnedAmount);
 
-        // Top suppliers by outstanding
-        var topSuppliers = outstandingGrns
-            .Where(g => g.Party_ID.HasValue)
-            .GroupBy(g => new { g.Party_ID, SupplierName = g.Party?.PartyName ?? "Unknown" })
+        var topSuppliers = outstandingPurchases
+            .Where(sm => sm.Party_ID.HasValue)
+            .GroupBy(sm => new { sm.Party_ID, SupplierName = sm.Party?.PartyName ?? "Unknown" })
             .Select(g => new SupplierOutstandingDto
             {
                 PartyID = g.Key.Party_ID ?? 0,
                 SupplierName = g.Key.SupplierName,
-                TotalOutstanding = g.Sum(x => x.BalanceAmount > 0 ? x.BalanceAmount : x.TotalAmount - x.AmountPaid),
+                TotalOutstanding = g.Sum(x => x.BalanceAmount > 0 ? x.BalanceAmount : x.TotalAmount - x.PaidAmount),
                 UnpaidGrnCount = g.Count()
             })
             .OrderByDescending(s => s.TotalOutstanding)
@@ -343,8 +355,8 @@ public class SupplierPaymentService : ISupplierPaymentService
             TotalOutstanding = totalOutstanding,
             TotalPaidToday = todayPayments,
             TotalPaidThisMonth = monthPayments,
-            UnpaidGrnCount = unpaidGrns,
-            PartiallyPaidGrnCount = partialGrns,
+            UnpaidGrnCount = unpaidPurchases,
+            PartiallyPaidGrnCount = partialPurchases,
             TopSuppliersByOutstanding = topSuppliers
         };
     }

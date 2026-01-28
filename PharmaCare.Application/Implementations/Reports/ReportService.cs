@@ -1,7 +1,6 @@
 using Microsoft.EntityFrameworkCore;
 using PharmaCare.Application.DTOs.Reports;
 using PharmaCare.Application.Interfaces.Reports;
-using PharmaCare.Domain.Models.SaleManagement;
 using PharmaCare.Domain.Models.Inventory;
 using PharmaCare.Domain.Models.PurchaseManagement;
 using PharmaCare.Domain.Models.Products;
@@ -9,48 +8,64 @@ using PharmaCare.Infrastructure.Interfaces;
 
 namespace PharmaCare.Application.Implementations.Reports;
 
-public class ReportService(IRepository<Sale> _saleRepo, IRepository<SaleLine> _saleLineRepo, IRepository<StoreInventory> _inventoryRepo,
-        IRepository<Product> _productRepo, IRepository<StockMovement> _movementRepo) : IReportService
+/// <summary>
+/// Report service using unified StockMain/StockDetail tables instead of deprecated Sale/SaleLine
+/// </summary>
+public class ReportService(
+    IRepository<StockMain> _stockMainRepo, 
+    IRepository<StockDetail> _stockDetailRepo, 
+    IRepository<StoreInventory> _inventoryRepo,
+    IRepository<Product> _productRepo, 
+    IRepository<StockMovement> _movementRepo) : IReportService
 {
 
     public async Task<SalesReportDto> GetSalesReport(DateTime startDate, DateTime endDate, int? storeId = null)
     {
-        var sales = await _saleRepo.FindByCondition(s => s.SaleDate >= startDate && s.SaleDate <= endDate && (!storeId.HasValue || s.Store_ID == storeId.Value))
-            .Include(s => s.SaleLines)
-            .Include(s => s.Payments)
+        // Query StockMain with InvoiceType_ID=1 (SALE)
+        var sales = await _stockMainRepo.FindByCondition(s => 
+            s.InvoiceType_ID == 1 && // SALE
+            s.InvoiceDate >= startDate && s.InvoiceDate <= endDate && 
+            (!storeId.HasValue || s.Store_ID == storeId.Value))
+            .Include(s => s.StockDetails)
             .ToListAsync();
 
         var dailySales = sales
-            .GroupBy(s => s.SaleDate.Date)
+            .GroupBy(s => s.InvoiceDate.Date)
             .Select(g => new DailySalesDto
             {
                 Date = g.Key,
-                TotalAmount = g.Sum(s => s.Total),
+                TotalAmount = g.Sum(s => s.TotalAmount),
                 TransactionCount = g.Count()
             })
             .OrderBy(d => d.Date)
             .ToList();
 
+        // Payment breakdown by PaymentStatus
         var paymentBreakdown = sales
-            .SelectMany(s => s.Payments)
-            .GroupBy(p => p.PaymentMethod)
+            .Where(s => !string.IsNullOrEmpty(s.PaymentStatus))
+            .GroupBy(s => s.PaymentStatus ?? "Pending")
             .Select(g => new PaymentMethodBreakdownDto
             {
                 PaymentMethod = g.Key,
-                TotalAmount = g.Sum(p => p.Amount),
+                TotalAmount = g.Sum(s => s.PaidAmount),
                 TransactionCount = g.Count()
             })
             .ToList();
 
-        var topProducts = await _saleLineRepo.FindByCondition(sl => sl.Sale != null && sl.Sale!.SaleDate >= startDate && sl.Sale!.SaleDate <= endDate)
-            .Include(sl => sl.Product)
-            .GroupBy(sl => new { sl.Product_ID, ProductName = sl.Product != null ? sl.Product.ProductName : "Unknown" })
+        var topProducts = await _stockDetailRepo.FindByCondition(sd => 
+            sd.StockMain != null && 
+            sd.StockMain.InvoiceType_ID == 1 && // SALE
+            sd.StockMain.InvoiceDate >= startDate && 
+            sd.StockMain.InvoiceDate <= endDate &&
+            (!storeId.HasValue || sd.StockMain.Store_ID == storeId.Value))
+            .Include(sd => sd.Product)
+            .GroupBy(sd => new { sd.Product_ID, ProductName = sd.Product != null ? sd.Product.ProductName : "Unknown" })
             .Select(g => new TopProductDto
             {
-                ProductID = g.Key.Product_ID ?? 0,
+                ProductID = g.Key.Product_ID,
                 ProductName = g.Key.ProductName,
-                QuantitySold = g.Sum(sl => sl.Quantity),
-                TotalRevenue = g.Sum(sl => sl.Quantity * sl.UnitPrice)
+                QuantitySold = g.Sum(sd => sd.Quantity),
+                TotalRevenue = g.Sum(sd => sd.Quantity * sd.UnitPrice)
             })
             .OrderByDescending(p => p.TotalRevenue)
             .Take(10)
@@ -60,9 +75,9 @@ public class ReportService(IRepository<Sale> _saleRepo, IRepository<SaleLine> _s
         {
             StartDate = startDate,
             EndDate = endDate,
-            TotalSales = sales.Sum(s => s.Total),
+            TotalSales = sales.Sum(s => s.TotalAmount),
             TotalTransactions = sales.Count,
-            AverageTransactionValue = sales.Any() ? sales.Average(s => s.Total) : 0,
+            AverageTransactionValue = sales.Any() ? sales.Average(s => s.TotalAmount) : 0,
             DailySales = dailySales,
             PaymentMethodBreakdown = paymentBreakdown,
             TopProducts = topProducts
@@ -141,25 +156,30 @@ public class ReportService(IRepository<Sale> _saleRepo, IRepository<SaleLine> _s
 
     public async Task<List<SalesDetailDto>> GetSalesDetailReport(DateTime startDate, DateTime endDate, int? storeId = null)
     {
-        return await _saleLineRepo.FindByCondition(sl => sl.Sale != null && sl.Sale.SaleDate >= startDate && sl.Sale.SaleDate <= endDate && (!storeId.HasValue || sl.Sale.Store_ID == storeId.Value))
-            .Include(sl => sl.Product)
+        return await _stockDetailRepo.FindByCondition(sd => 
+            sd.StockMain != null && 
+            sd.StockMain.InvoiceType_ID == 1 && // SALE
+            sd.StockMain.InvoiceDate >= startDate && 
+            sd.StockMain.InvoiceDate <= endDate && 
+            (!storeId.HasValue || sd.StockMain.Store_ID == storeId.Value))
+            .Include(sd => sd.Product)
                 .ThenInclude(p => p.SubCategory)
-            .Include(sl => sl.Sale)
-            .GroupBy(sl => new
+            .Include(sd => sd.StockMain)
+            .GroupBy(sd => new
             {
-                sl.Product_ID,
-                ProductName = sl.Product.ProductName,
-                SubCategory = sl.Product.SubCategory!.SubCategoryName ?? "Uncategorized"
+                sd.Product_ID,
+                ProductName = sd.Product.ProductName,
+                SubCategory = sd.Product.SubCategory!.SubCategoryName ?? "Uncategorized"
             })
             .Select(g => new SalesDetailDto
             {
-                ProductID = g.Key.Product_ID ?? 0,
+                ProductID = g.Key.Product_ID,
                 ProductName = g.Key.ProductName,
                 Category = g.Key.SubCategory,
-                QuantitySold = g.Sum(sl => sl.Quantity),
-                TotalRevenue = g.Sum(sl => sl.Quantity * sl.UnitPrice),
-                AveragePrice = g.Average(sl => sl.UnitPrice),
-                TransactionCount = g.Select(sl => sl.Sale_ID).Distinct().Count()
+                QuantitySold = g.Sum(sd => sd.Quantity),
+                TotalRevenue = g.Sum(sd => sd.Quantity * sd.UnitPrice),
+                AveragePrice = g.Average(sd => sd.UnitPrice),
+                TransactionCount = g.Select(sd => sd.StockMain_ID).Distinct().Count()
             })
             .OrderByDescending(sd => sd.TotalRevenue)
             .ToListAsync();
@@ -191,8 +211,6 @@ public class ReportService(IRepository<Sale> _saleRepo, IRepository<SaleLine> _s
             .ToListAsync();
     }
 
-    // ===== NEW REPORT IMPLEMENTATIONS =====
-
     public async Task<List<SlowMovingItemDto>> GetSlowMovingItemsReport(int daysThreshold = 30, int? storeId = null)
     {
         var cutoffDate = DateTime.Now.AddDays(-daysThreshold);
@@ -204,10 +222,17 @@ public class ReportService(IRepository<Sale> _saleRepo, IRepository<SaleLine> _s
                 .ThenInclude(pb => pb.StoreInventories)
             .ToListAsync();
 
-        var salesLast30Days = await _saleLineRepo.FindByCondition(sl => sl.Sale.SaleDate >= cutoffDate && (!storeId.HasValue || sl.Sale.Store_ID == storeId.Value))
+        // Query sales from StockDetail with InvoiceType=1 (SALE)
+        var salesLast30Days = await _stockDetailRepo.FindByCondition(sd => 
+            sd.StockMain.InvoiceType_ID == 1 &&
+            sd.StockMain.InvoiceDate >= cutoffDate && 
+            (!storeId.HasValue || sd.StockMain.Store_ID == storeId.Value))
             .ToListAsync();
 
-        var salesLast90Days = await _saleLineRepo.FindByCondition(sl => sl.Sale.SaleDate >= cutoff90Days && (!storeId.HasValue || sl.Sale.Store_ID == storeId.Value))
+        var salesLast90Days = await _stockDetailRepo.FindByCondition(sd => 
+            sd.StockMain.InvoiceType_ID == 1 &&
+            sd.StockMain.InvoiceDate >= cutoff90Days && 
+            (!storeId.HasValue || sd.StockMain.Store_ID == storeId.Value))
             .ToListAsync();
 
         var result = products.Select(p =>
@@ -216,8 +241,8 @@ public class ReportService(IRepository<Sale> _saleRepo, IRepository<SaleLine> _s
                 .Where(si => !storeId.HasValue || si.Store_ID == storeId.Value)
                 .Sum(si => si.QuantityOnHand);
 
-            var sold30 = salesLast30Days.Where(sl => sl.Product_ID == p.ProductID).Sum(sl => sl.Quantity);
-            var sold90 = salesLast90Days.Where(sl => sl.Product_ID == p.ProductID).Sum(sl => sl.Quantity);
+            var sold30 = salesLast30Days.Where(sd => sd.Product_ID == p.ProductID).Sum(sd => sd.Quantity);
+            var sold90 = salesLast90Days.Where(sd => sd.Product_ID == p.ProductID).Sum(sd => sd.Quantity);
             var avgDailySales = sold90 / 90m;
             var daysOfStock = avgDailySales > 0 ? currentStock / avgDailySales : 999;
 
@@ -247,20 +272,19 @@ public class ReportService(IRepository<Sale> _saleRepo, IRepository<SaleLine> _s
                 (sm.MovementType == "Purchase" || sm.MovementType == "GRN") &&
                 (!storeId.HasValue || sm.Store_ID == storeId.Value))
             .Include(sm => sm.ProductBatch)
-                .ThenInclude(pb => pb!.Grn)
-                    .ThenInclude(g => g!.PurchaseOrder)
-                        .ThenInclude(p => p!.Party)
+                .ThenInclude(pb => pb!.StockMain)
+                    .ThenInclude(sm => sm!.Party)
             .ToListAsync();
 
         var bySupplier = movements
-            .Where(m => m.ProductBatch?.Grn?.PurchaseOrder?.Party != null)
-            .GroupBy(m => new { m.ProductBatch!.Grn!.PurchaseOrder!.Party!.PartyID, m.ProductBatch.Grn.PurchaseOrder.Party.PartyName })
+            .Where(m => m.ProductBatch?.StockMain?.Party != null)
+            .GroupBy(m => new { m.ProductBatch!.StockMain!.Party!.PartyID, m.ProductBatch.StockMain.Party.PartyName })
             .Select(g => new SupplierPurchaseDto
             {
                 SupplierID = g.Key.PartyID,
                 SupplierName = g.Key.PartyName,
                 TotalAmount = g.Sum(m => m.Quantity * (m.ProductBatch?.CostPrice ?? 0)),
-                OrderCount = g.Select(m => m.ProductBatch!.Grn_ID).Distinct().Count()
+                OrderCount = g.Select(m => m.ProductBatch!.StockMain_ID).Distinct().Count()
             })
             .OrderByDescending(s => s.TotalAmount)
             .ToList();
@@ -271,7 +295,7 @@ public class ReportService(IRepository<Sale> _saleRepo, IRepository<SaleLine> _s
             {
                 Date = g.Key,
                 TotalAmount = g.Sum(m => m.Quantity * (m.ProductBatch?.CostPrice ?? 0)),
-                OrderCount = g.Select(m => m.ProductBatch!.Grn_ID).Distinct().Count()
+                OrderCount = g.Select(m => m.ProductBatch!.StockMain_ID).Distinct().Count()
             })
             .OrderBy(d => d.Date)
             .ToList();
@@ -281,7 +305,7 @@ public class ReportService(IRepository<Sale> _saleRepo, IRepository<SaleLine> _s
             StartDate = startDate,
             EndDate = endDate,
             TotalPurchases = movements.Sum(m => m.Quantity * (m.ProductBatch?.CostPrice ?? 0)),
-            TotalOrders = movements.Select(m => m.ProductBatch!.Grn_ID).Distinct().Count(),
+            TotalOrders = movements.Select(m => m.ProductBatch!.StockMain_ID).Distinct().Count(),
             TotalItemsReceived = movements.Sum(m => m.Quantity),
             BySupplier = bySupplier,
             DailyPurchases = dailyPurchases
@@ -290,43 +314,48 @@ public class ReportService(IRepository<Sale> _saleRepo, IRepository<SaleLine> _s
 
     public async Task<ProfitLossDto> GetProfitLossReport(DateTime startDate, DateTime endDate, int? storeId = null)
     {
-        // Get sales with Total (which includes discounts)
-        var sales = await _saleRepo.FindByCondition(s => s.SaleDate >= startDate && s.SaleDate <= endDate && (!storeId.HasValue || s.Store_ID == storeId.Value))
+        // Get sales (StockMain with InvoiceType=1)
+        var sales = await _stockMainRepo.FindByCondition(s => 
+            s.InvoiceType_ID == 1 && // SALE
+            s.InvoiceDate >= startDate && s.InvoiceDate <= endDate && 
+            (!storeId.HasValue || s.Store_ID == storeId.Value))
             .ToListAsync();
 
-
-        var salesData = await _saleLineRepo.FindByCondition(sl => sl.Sale != null && sl.Sale.SaleDate >= startDate && sl.Sale.SaleDate <= endDate && (!storeId.HasValue || sl.Sale.Store_ID == storeId.Value))
-            .Include(sl => sl.Product)
+        var salesData = await _stockDetailRepo.FindByCondition(sd => 
+            sd.StockMain != null && 
+            sd.StockMain.InvoiceType_ID == 1 &&
+            sd.StockMain.InvoiceDate >= startDate && 
+            sd.StockMain.InvoiceDate <= endDate && 
+            (!storeId.HasValue || sd.StockMain.Store_ID == storeId.Value))
+            .Include(sd => sd.Product)
                 .ThenInclude(p => p!.SubCategory)
-            .Include(sl => sl.ProductBatch)
-            .Include(sl => sl.Sale)
+            .Include(sd => sd.ProductBatch)
+            .Include(sd => sd.StockMain)
             .ToListAsync();
 
-        // Total Revenue from Sales.Total (reflects discounts)
-        var totalRevenue = sales.Sum(s => s.Total);
-        var totalCost = salesData.Sum(sl => sl.Quantity * (sl.ProductBatch?.CostPrice ?? sl.UnitPrice * 0.7m)); // Use batch CostPrice or estimate 30% margin
+        // Total Revenue from Sales
+        var totalRevenue = sales.Sum(s => s.TotalAmount);
+        var totalCost = salesData.Sum(sd => sd.Quantity * (sd.ProductBatch?.CostPrice ?? sd.UnitPrice * 0.7m)); // Use batch CostPrice or estimate 30% margin
         var grossProfit = totalRevenue - totalCost;
 
-        // Calculate proportional revenue for each sale line based on Sale.Total (reflects discounts)
-        // First, create a lookup for each sale's discount ratio
+        // Calculate proportional revenue for each sale line based on discounts
         var saleDiscountRatios = sales.ToDictionary(
-            s => s.SaleID,
-            s => s.SubTotal > 0 ? s.Total / s.SubTotal : 1m);
+            s => s.StockMainID,
+            s => s.SubTotal > 0 ? s.TotalAmount / s.SubTotal : 1m);
 
         var byCategory = salesData
-            .GroupBy(sl => sl.Product?.SubCategory?.SubCategoryName ?? "Uncategorized")
+            .GroupBy(sd => sd.Product?.SubCategory?.SubCategoryName ?? "Uncategorized")
             .Select(g =>
             {
-                // Calculate proportional revenue: line amount * (Sale.Total / Sale.SubTotal)
-                var categoryRevenue = g.Sum(sl =>
+                var categoryRevenue = g.Sum(sd =>
                 {
-                    var lineAmount = sl.Quantity * sl.UnitPrice;
-                    var discountRatio = sl.Sale_ID.HasValue && saleDiscountRatios.ContainsKey(sl.Sale_ID.Value)
-                        ? saleDiscountRatios[sl.Sale_ID.Value]
+                    var lineAmount = sd.Quantity * sd.UnitPrice;
+                    var discountRatio = saleDiscountRatios.ContainsKey(sd.StockMain_ID)
+                        ? saleDiscountRatios[sd.StockMain_ID]
                         : 1m;
                     return lineAmount * discountRatio;
                 });
-                var categoryCost = g.Sum(sl => sl.Quantity * (sl.ProductBatch?.CostPrice ?? sl.UnitPrice * 0.7m));
+                var categoryCost = g.Sum(sd => sd.Quantity * (sd.ProductBatch?.CostPrice ?? sd.UnitPrice * 0.7m));
                 var categoryProfit = categoryRevenue - categoryCost;
 
                 return new CategoryProfitDto
@@ -341,17 +370,16 @@ public class ReportService(IRepository<Sale> _saleRepo, IRepository<SaleLine> _s
             .OrderByDescending(c => c.Profit)
             .ToList();
 
-
-        // Daily profit using Sale.Total for revenue
-        var saleIdsToData = salesData.GroupBy(sl => sl.Sale_ID).ToDictionary(g => g.Key ?? 0, g => g.Sum(sl => sl.Quantity * (sl.ProductBatch?.CostPrice ?? sl.UnitPrice * 0.7m)));
+        // Daily profit
+        var saleIdsToData = salesData.GroupBy(sd => sd.StockMain_ID).ToDictionary(g => g.Key, g => g.Sum(sd => sd.Quantity * (sd.ProductBatch?.CostPrice ?? sd.UnitPrice * 0.7m)));
         var dailyProfit = sales
-            .GroupBy(s => s.SaleDate.Date)
+            .GroupBy(s => s.InvoiceDate.Date)
             .Select(g => new DailyProfitDto
             {
                 Date = g.Key,
-                Revenue = g.Sum(s => s.Total),
-                Cost = g.Sum(s => saleIdsToData.GetValueOrDefault(s.SaleID, 0)),
-                Profit = g.Sum(s => s.Total) - g.Sum(s => saleIdsToData.GetValueOrDefault(s.SaleID, 0))
+                Revenue = g.Sum(s => s.TotalAmount),
+                Cost = g.Sum(s => saleIdsToData.GetValueOrDefault(s.StockMainID, 0)),
+                Profit = g.Sum(s => s.TotalAmount) - g.Sum(s => saleIdsToData.GetValueOrDefault(s.StockMainID, 0))
             })
             .OrderBy(d => d.Date)
             .ToList();
@@ -371,7 +399,11 @@ public class ReportService(IRepository<Sale> _saleRepo, IRepository<SaleLine> _s
 
     public async Task<CustomerAnalyticsDto> GetCustomerAnalyticsReport(DateTime startDate, DateTime endDate, int? storeId = null)
     {
-        var sales = await _saleRepo.FindByCondition(s => s.SaleDate >= startDate && s.SaleDate <= endDate && s.Party_ID.HasValue && (!storeId.HasValue || s.Store_ID == storeId.Value))
+        var sales = await _stockMainRepo.FindByCondition(s => 
+            s.InvoiceType_ID == 1 && // SALE
+            s.InvoiceDate >= startDate && s.InvoiceDate <= endDate && 
+            s.Party_ID.HasValue && 
+            (!storeId.HasValue || s.Store_ID == storeId.Value))
             .Include(s => s.Party)
             .ToListAsync();
 
@@ -383,7 +415,7 @@ public class ReportService(IRepository<Sale> _saleRepo, IRepository<SaleLine> _s
                 CustomerID = g.Key!.PartyID,
                 CustomerName = g.Key.PartyName,
                 Phone = g.Key.ContactNumber ?? "",
-                TotalSpent = g.Sum(s => s.Total),
+                TotalSpent = g.Sum(s => s.TotalAmount),
                 OrderCount = g.Count()
             })
             .OrderByDescending(c => c.TotalSpent)
@@ -414,7 +446,7 @@ public class ReportService(IRepository<Sale> _saleRepo, IRepository<SaleLine> _s
             TotalCustomers = customerSales.Count,
             NewCustomersThisPeriod = 0, // Would need RegisteredDate check
             ActiveCustomers = customerSales.Count(c => c.OrderCount > 1),
-            AverageOrderValue = sales.Any() ? sales.Average(s => s.Total) : 0,
+            AverageOrderValue = sales.Any() ? sales.Average(s => s.TotalAmount) : 0,
             TotalCustomerRevenue = totalRevenue,
             TopCustomers = customerSales.Take(10).ToList(),
             Segments = segments

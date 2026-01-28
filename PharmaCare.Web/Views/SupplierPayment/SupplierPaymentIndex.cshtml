@@ -109,7 +109,7 @@
                             <td>@payment.PaymentNumber</td>
                             <td>@payment.PaymentDate.ToString("dd-MMM-yyyy")</td>
                             <td>@payment.Party?.PartyName</td>
-                            <td>@payment.Grn?.GrnNumber</td>
+                            <td>@payment.StockMain?.InvoiceNo</td>
                             <td class="text-end">@payment.GrnAmount.ToString("N2")</td>
                             <td class="text-end fw-bold text-success">@payment.AmountPaid.ToString("N2")</td>
                             <td class="text-end">@payment.BalanceAfter.ToString("N2")</td>

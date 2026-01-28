@@ -2,7 +2,6 @@ using Microsoft.EntityFrameworkCore;
 using PharmaCare.Domain.Models.Configuration;
 using PharmaCare.Domain.Models.Inventory;
 using PharmaCare.Domain.Models.Products;
-using PharmaCare.Domain.Models.SaleManagement;
 using PharmaCare.Infrastructure.Interfaces;
 
 namespace PharmaCare.Infrastructure.Implementations.PointOfSale;
@@ -39,17 +38,16 @@ public class PosRepository(PharmaCareDBContext _context) : IPosRepository
             .Where(si => si.ProductBatch_ID == productBatchId)
             .SumAsync(si => si.QuantityOnHand);
     }
-    public async Task<Sale> GetSaleWithDetailsAsync(int saleId)
+    public async Task<StockMain?> GetSaleWithDetailsAsync(int stockMainId)
     {
-        return await _context.Sales
+        return await _context.StockMains
             .Include(s => s.Party)
-            .Include(s => s.SaleLines)
-                .ThenInclude(sl => sl.Product)
-            .Include(s => s.SaleLines)
-                .ThenInclude(sl => sl.ProductBatch)
-            .Include(s => s.Payments)
+            .Include(s => s.StockDetails)
+                .ThenInclude(sd => sd.Product)
+            .Include(s => s.StockDetails)
+                .ThenInclude(sd => sd.ProductBatch)
             .IgnoreQueryFilters()
-            .FirstOrDefaultAsync(s => s.SaleID == saleId);
+            .FirstOrDefaultAsync(s => s.StockMainID == stockMainId);
     }
     public async Task<Party?> GetPartyByPhoneAsync(string phone)
     {
@@ -62,10 +60,6 @@ public class PosRepository(PharmaCareDBContext _context) : IPosRepository
     public void AddParty(Party party)
     {
         _context.Parties.Add(party);
-    }
-    public void AddSale(Sale sale)
-    {
-        _context.Sales.Add(sale);
     }
     public void UpdateParty(Party party)
     {
@@ -81,16 +75,8 @@ public class PosRepository(PharmaCareDBContext _context) : IPosRepository
         {
             inventory.QuantityOnHand += quantityChange; // quantityChange should be negative for sales
         }
-        else if (quantityChange < 0)
-        {
-            // If inventory record doesn't exist but we're trying to deduct stock, 
-            // this is an edge case that should be handled by validation before this point.
-            // But for robustness, we could create it with negative balance or throw.
-            // Given the context, we'll just log or handle as needed.
-        }
     }
-    // DEPRECATED: This method will be replaced by InventoryAccountingService (Step 5.5)
-    // TODO: Remove after InventoryAccountingService implementation
+    
     public void AddStockMovement(int productBatchId, decimal quantityChange, string reason, int storeId, int createdBy, string referenceNumber = "")
     {
         _context.StockMovements.Add(new StockMovement
@@ -99,12 +85,12 @@ public class PosRepository(PharmaCareDBContext _context) : IPosRepository
             ProductBatch_ID = productBatchId,
             MovementType = reason,
             Quantity = quantityChange,
-            UnitCost = 0, // TODO: Calculate from batch CostPrice
-            TotalCost = 0, // TODO: Calculate as |Quantity| * UnitCost
+            UnitCost = 0,
+            TotalCost = 0,
             ReferenceType = reason,
             ReferenceNumber = referenceNumber,
             ReferenceID = null,
-            JournalEntry_ID = null, // TODO: Link to JournalEntry after InventoryAccountingService
+
             CreatedBy = createdBy,
             CreatedDate = DateTime.Now
         });
@@ -118,7 +104,6 @@ public class PosRepository(PharmaCareDBContext _context) : IPosRepository
         catch (DbUpdateException ex)
         {
             var innerMessage = ex.InnerException?.Message ?? ex.Message;
-            // Log to console/debug as well
             System.Diagnostics.Debug.WriteLine($"DB UPDATE ERROR: {innerMessage}");
             throw new Exception($"Database Save Failure: {innerMessage}", ex);
         }
@@ -127,12 +112,13 @@ public class PosRepository(PharmaCareDBContext _context) : IPosRepository
             throw new Exception($"General Save Failure: {ex.Message}", ex);
         }
     }
-    public async Task<List<Sale>> GetSalesHistoryAsync(DateTime? startDate, DateTime? endDate, int? storeId = null)
+    public async Task<List<StockMain>> GetSalesHistoryAsync(DateTime? startDate, DateTime? endDate, int? storeId = null)
     {
-        var query = _context.Sales
+        // Sales are StockMain with InvoiceType_ID = 1 (SALE)
+        var query = _context.StockMains
             .Include(s => s.Party)
-            .Include(s => s.SaleLines)
-            .Include(s => s.Payments)
+            .Include(s => s.StockDetails)
+            .Where(s => s.InvoiceType_ID == 1) // InvoiceType 1 = SALE
             .AsQueryable();
 
         if (storeId.HasValue)
@@ -142,15 +128,14 @@ public class PosRepository(PharmaCareDBContext _context) : IPosRepository
 
         if (startDate.HasValue)
         {
-            query = query.Where(s => s.SaleDate >= startDate.Value);
+            query = query.Where(s => s.InvoiceDate >= startDate.Value);
         }
 
         if (endDate.HasValue)
         {
-            query = query.Where(s => s.SaleDate <= endDate.Value.AddDays(1).AddSeconds(-1));
+            query = query.Where(s => s.InvoiceDate <= endDate.Value.AddDays(1).AddSeconds(-1));
         }
 
-        return await query.OrderByDescending(s => s.SaleDate).ToListAsync();
+        return await query.OrderByDescending(s => s.InvoiceDate).ToListAsync();
     }
 }
-

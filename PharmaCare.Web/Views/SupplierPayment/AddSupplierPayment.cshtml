@@ -26,16 +26,16 @@
                             </select>
                         </div>
                         <div class="col-md-6">
-                            <label asp-for="Grn_ID" class="form-label">GRN <span class="text-danger">*</span></label>
-                            <select asp-for="Grn_ID" class="form-select" id="grnDropdown" required>
-                                <option value="">-- Select GRN --</option>
+                            <label asp-for="StockMain_ID" class="form-label">Purchase <span class="text-danger">*</span></label>
+                            <select asp-for="StockMain_ID" class="form-select" id="grnDropdown" required>
+                                <option value="">-- Select Purchase --</option>
                                 @if (outstandingGrns != null)
                                 {
                                     foreach (var grn in outstandingGrns)
                                     {
-                                        <option value="@grn.GrnID" data-total="@grn.TotalAmount" data-paid="@grn.AmountPaid"
+                                        <option value="@grn.StockMainID" data-total="@grn.TotalAmount" data-paid="@grn.AmountPaid"
                                             data-balance="@grn.BalanceAmount" data-supplier="@grn.SupplierId"
-                                            selected="@(Model.Grn_ID == grn.GrnID)">
+                                            selected="@(Model.StockMain_ID == grn.StockMainID)">
                                             @grn.GrnNumber - Balance: @grn.BalanceAmount.ToString("N2")
                                         </option>
                                     }
@@ -162,7 +162,7 @@
                         grnDropdown.empty().append('<option value="">-- Select GRN --</option>');
                         $.each(data, function (i, grn) {
                             grnDropdown.append($('<option>', {
-                                value: grn.grnID,
+                                value: grn.stockMainID,
                                 text: grn.grnNumber + ' - Balance: ' + grn.balanceAmount.toFixed(2),
                                 'data-total': grn.totalAmount,
                                 'data-paid': grn.amountPaid,

@@ -1,7 +1,7 @@
-using PharmaCare.Domain.Models.AccountManagement;
+
 using PharmaCare.Domain.Models.Base;
 using PharmaCare.Domain.Models.Configuration;
-using PharmaCare.Domain.Models.PurchaseManagement;
+using PharmaCare.Domain.Models.Inventory;
 using System.ComponentModel.DataAnnotations;
 using System.ComponentModel.DataAnnotations.Schema;
 
@@ -33,13 +33,13 @@ public class SupplierPayment : BaseModelWithStatus
     public virtual Party? Party { get; set; }
 
     /// <summary>
-    /// GRN being paid for
+    /// Purchase transaction (StockMain with InvoiceType=2) being paid for
     /// </summary>
     [Required]
-    [ForeignKey("Grn")]
-    [Display(Name = "GRN")]
-    public int Grn_ID { get; set; }
-    public virtual Grn? Grn { get; set; }
+    [ForeignKey("StockMain")]
+    [Display(Name = "Purchase")]
+    public int StockMain_ID { get; set; }
+    public virtual StockMain? StockMain { get; set; }
 
     /// <summary>
     /// Date of payment
@@ -49,10 +49,10 @@ public class SupplierPayment : BaseModelWithStatus
     public DateTime PaymentDate { get; set; } = DateTime.Now;
 
     /// <summary>
-    /// Total GRN amount at time of payment
+    /// Total purchase amount at time of payment
     /// </summary>
     [Column(TypeName = "decimal(18, 2)")]
-    [Display(Name = "GRN Amount")]
+    [Display(Name = "Purchase Amount")]
     public decimal GrnAmount { get; set; }
 
     /// <summary>
@@ -113,12 +113,14 @@ public class SupplierPayment : BaseModelWithStatus
     [StringLength(20)]
     public string Status { get; set; } = "Paid";
 
+
+
     /// <summary>
-    /// Link to journal entry
+    /// Link to Account Voucher (Replaces JournalEntry)
     /// </summary>
-    [ForeignKey("JournalEntry")]
-    public int? JournalEntry_ID { get; set; }
-    public virtual JournalEntry? JournalEntry { get; set; }
+    [ForeignKey("AccountVoucher")]
+    public int? Voucher_ID { get; set; }
+    public virtual AccountVoucher? AccountVoucher { get; set; }
 
     /// <summary>
     /// Store where payment was made

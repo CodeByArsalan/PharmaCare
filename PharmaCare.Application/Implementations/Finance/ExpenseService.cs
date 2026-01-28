@@ -119,8 +119,8 @@ public class ExpenseService(
         var journalEntryId = await _accountingService.CreateJournalEntry(journalEntryDto, userId);
         await _accountingService.PostJournalEntry(journalEntryId, userId);
 
-        // Step 3: Update expense with the journal entry reference
-        expense.JournalEntry_ID = journalEntryId;
+        // Step 3: Update expense with the voucher reference
+        expense.Voucher_ID = journalEntryId;
         return await _expenseRepo.Update(expense);
     }
     public async Task<bool> UpdateExpense(Expense expense, int userId, int? storeId = null)
@@ -135,10 +135,10 @@ public class ExpenseService(
                                 existing.ExpenseCategory_ID != expense.ExpenseCategory_ID;
 
         // If financial data changed and there's an existing journal entry, void it and create new
-        if (financialChanged && existing.JournalEntry_ID.HasValue &&
+        if (financialChanged && existing.Voucher_ID.HasValue &&
             expense.SourceAccount_ID.HasValue && expense.ExpenseAccount_ID.HasValue)
         {
-            await _accountingService.VoidJournalEntry(existing.JournalEntry_ID.Value, userId);
+            await _accountingService.VoidJournalEntry(existing.Voucher_ID.Value, userId);
 
             var journalEntryDto = new PharmaCare.Application.DTOs.Accounting.JournalEntryDto
             {
@@ -158,7 +158,7 @@ public class ExpenseService(
 
             var newJournalEntryId = await _accountingService.CreateJournalEntry(journalEntryDto, userId);
             await _accountingService.PostJournalEntry(newJournalEntryId, userId);
-            existing.JournalEntry_ID = newJournalEntryId;
+            existing.Voucher_ID = newJournalEntryId;
         }
 
         existing.Amount = expense.Amount;
@@ -181,9 +181,9 @@ public class ExpenseService(
         if (existing == null) return false;
 
         // Void the associated journal entry if exists
-        if (existing.JournalEntry_ID.HasValue)
+        if (existing.Voucher_ID.HasValue)
         {
-            await _accountingService.VoidJournalEntry(existing.JournalEntry_ID.Value, userId);
+            await _accountingService.VoidJournalEntry(existing.Voucher_ID.Value, userId);
         }
 
         return await _expenseRepo.Delete(existing);

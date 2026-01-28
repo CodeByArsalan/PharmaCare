@@ -1,8 +1,8 @@
-@model PharmaCare.Domain.Models.SaleManagement.SalesReturn
+@model PharmaCare.Web.Controllers.SaleManagement.AddSalesReturnViewModel
 @inject PharmaCare.Infrastructure.Interfaces.IComboBoxRepository _comboBox
 @{
     ViewData["Title"] = "Process Sales Return";
-    var sale = ViewBag.Sale as PharmaCare.Domain.Models.SaleManagement.Sale;
+    var sale = ViewBag.Sale as PharmaCare.Domain.Models.Inventory.StockMain;
 }
 
 <div class="container-fluid p-0">
@@ -16,8 +16,8 @@
 
     <form asp-action="AddSalesReturn" method="post" id="returnForm">
         @Html.AntiForgeryToken()
-        <input type="hidden" asp-for="Sale_ID" />
-        <input type="hidden" asp-for="Store_ID" />
+        <input type="hidden" asp-for="OriginalSaleId" />
+        <input type="hidden" asp-for="StoreId" />
 
         <div class="row">
             <!-- Sale Info -->
@@ -27,10 +27,10 @@
                         <h5 class="mb-0">Original Sale</h5>
                     </div>
                     <div class="card-body">
-                        <p><strong>Sale #:</strong> @sale?.SaleNumber</p>
-                        <p><strong>Date:</strong> @sale?.SaleDate.ToString("dd-MMM-yyyy HH:mm")</p>
+                        <p><strong>Sale #:</strong> @sale?.InvoiceNo</p>
+                        <p><strong>Date:</strong> @sale?.InvoiceDate.ToString("dd-MMM-yyyy HH:mm")</p>
                         <p><strong>Customer:</strong> @(sale?.Party?.PartyName ?? "Walk-in")</p>
-                        <p><strong>Total:</strong> <span class="fw-bold">@sale?.Total.ToString("N2")</span></p>
+                        <p><strong>Total:</strong> <span class="fw-bold">@sale?.TotalAmount.ToString("N2")</span></p>
                     </div>
                 </div>
 
@@ -81,35 +81,29 @@
                                 </tr>
                             </thead>
                             <tbody>
-                                @if (sale?.SaleLines != null)
+                                @if (sale?.StockDetails != null)
                                 {
                                     var index = 0;
-                                    foreach (var line in sale.SaleLines)
+                                    foreach (var line in sale.StockDetails)
                                     {
                                         <tr class="return-line" data-price="@line.UnitPrice">
                                             <td>
                                                 <input type="checkbox" class="item-check" onchange="toggleItem(this, @index)" />
                                             </td>
-                                            <td>@line.Product?.ProductName</td>
-                                            <td>@line.ProductBatch?.BatchNumber</td>
+                                            <td>@(line.Product?.ProductName ?? "N/A")</td>
+                                            <td>@(line.ProductBatch?.BatchNumber ?? "N/A")</td>
                                             <td class="text-center">@line.Quantity</td>
                                             <td>
-                                                <input type="number" name="ReturnLines[@index].Quantity"
+                                                <input type="number" name="Lines[@index].Quantity"
                                                     class="form-control form-control-sm qty-input text-center" value="0" min="0"
                                                     max="@line.Quantity" disabled onchange="calculateAmount(@index)" />
-                                                <input type="hidden" name="ReturnLines[@index].SaleLine_ID"
-                                                    value="@line.SaleLineID" />
-                                                <input type="hidden" name="ReturnLines[@index].Product_ID"
-                                                    value="@line.Product_ID" />
-                                                <input type="hidden" name="ReturnLines[@index].ProductBatch_ID"
-                                                    value="@line.ProductBatch_ID" />
-                                                <input type="hidden" name="ReturnLines[@index].UnitPrice"
-                                                    value="@line.UnitPrice" />
+                                                <input type="hidden" name="Lines[@index].ProductBatchId" value="@line.ProductBatch_ID" />
+                                                <input type="hidden" name="Lines[@index].UnitPrice" value="@line.UnitPrice" />
                                             </td>
                                             <td class="text-end">@line.UnitPrice.ToString("N2")</td>
                                             <td class="text-end amount-cell">0.00</td>
                                             <td class="text-center">
-                                                <input type="checkbox" name="ReturnLines[@index].RestockInventory" value="true"
+                                                <input type="checkbox" name="Lines[@index].RestockInventory" value="true"
                                                     checked disabled class="form-check-input restock-check" />
                                             </td>
                                         </tr>
@@ -171,17 +165,6 @@
             const qty = parseFloat(row.querySelector('.qty-input').value) || 0;
             const amount = price * qty;
             row.querySelector('.amount-cell').textContent = amount.toFixed(2);
-
-            // Add hidden field for amount
-            let amountInput = row.querySelector('input[name$=".Amount"]');
-            if (!amountInput) {
-                amountInput = document.createElement('input');
-                amountInput.type = 'hidden';
-                amountInput.name = `ReturnLines[${index}].Amount`;
-                row.querySelector('td:last-child').appendChild(amountInput);
-            }
-            amountInput.value = amount;
-
             calculateTotal();
         }
 

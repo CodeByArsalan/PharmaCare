@@ -1,4 +1,4 @@
-@model List<PharmaCare.Domain.Models.SaleManagement.SalesReturn>
+@model List<PharmaCare.Domain.Models.Inventory.StockMain>
 
 @{
     ViewData["Title"] = "Sales Returns";
@@ -51,30 +51,29 @@
                     @foreach (var item in Model)
                     {
                         <tr>
-                            <td>@item.ReturnNumber</td>
-                            <td>@item.ReturnDate.ToString("dd-MMM-yyyy")</td>
+                            <td>@item.InvoiceNo</td>
+                            <td>@item.InvoiceDate.ToString("dd-MMM-yyyy")</td>
                             <td>@(item.Party?.PartyName ?? "Walk-in")</td>
                             <td>@item.Store?.Name</td>
                             <td>
-                                <span
-                                    class="badge @(item.Status == "Completed" ? "bg-success" : item.Status == "Cancelled" ? "bg-danger" : "bg-warning")">
+                                <span class="badge @(item.Status == "Completed" ? "bg-success" : item.Status == "Voided" ? "bg-danger" : "bg-warning")">
                                     @item.Status
                                 </span>
                             </td>
-                            <td>@item.ReturnReason</td>
+                            <td>@item.Remarks</td>
                             <td class="text-end">@item.TotalAmount.ToString("N2")</td>
-                            <td class="text-center">@item.ReturnLines?.Count</td>
+                            <td class="text-center">@item.StockDetails?.Count</td>
                             <td>
                                 <div class="d-flex gap-1">
                                     <a asp-action="SalesReturnDetails"
-                                        asp-route-id="@Utility.EncryptURL(item.SalesReturnID.ToString())"
+                                        asp-route-id="@Utility.EncryptURL(item.StockMainID.ToString())"
                                         class="btn btn-sm btn-info text-white" title="View Details">
                                         <i class="bx bx-show"></i>
                                     </a>
                                     @if (item.Status == "Completed")
                                     {
                                         <button type="button" class="btn btn-sm btn-danger"
-                                            onclick="confirmCancel('@Utility.EncryptURL(item.SalesReturnID.ToString())')"
+                                            onclick="confirmCancel('@Utility.EncryptURL(item.StockMainID.ToString())')"
                                             title="Cancel Return">
                                             <i class="bx bx-x"></i>
                                         </button>
@@ -118,7 +117,6 @@
                     form.method = 'POST';
                     form.action = '/SalesReturn/CancelSalesReturn?id=' + encodeURIComponent(id);
 
-                    // Add anti-forgery token
                     var token = document.querySelector('input[name="__RequestVerificationToken"]');
                     if (token) {
                         var tokenInput = document.createElement('input');

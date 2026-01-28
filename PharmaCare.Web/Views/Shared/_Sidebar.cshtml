@@ -338,26 +338,7 @@
                     </li>
                 </ul>
             </li>
-            <li class="menu-item @(currentController == "JournalEntry" ? "active open" : "")">
-                <a href="javascript:void(0);" class="menu-link menu-toggle">
-                    <i class="menu-icon tf-icons bx bx-book-content"></i>
-                    <div>General Journal</div>
-                </a>
-                <ul class="menu-sub">
-                    <li
-                        class="menu-item @(currentController == "JournalEntry" && currentAction == "Index" ? "active" : "")">
-                        <a asp-controller="JournalEntry" asp-action="Index" class="menu-link">
-                            <div>Journal Entries</div>
-                        </a>
-                    </li>
-                    <li
-                        class="menu-item @(currentController == "JournalEntry" && currentAction == "Create" ? "active" : "")">
-                        <a asp-controller="JournalEntry" asp-action="Create" class="menu-link">
-                            <div>Manual Voucher</div>
-                        </a>
-                    </li>
-                </ul>
-            </li>
+
             <li class="menu-item @(currentController == "AccountingReports" ? "active open" : "")">
                 <a href="javascript:void(0);" class="menu-link menu-toggle">
                     <i class="menu-icon tf-icons bx bx-calculator"></i>

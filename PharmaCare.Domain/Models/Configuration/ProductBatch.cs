@@ -2,7 +2,6 @@ using System.ComponentModel.DataAnnotations.Schema;
 using PharmaCare.Domain.Models.Base;
 using PharmaCare.Domain.Models.Inventory;
 using PharmaCare.Domain.Models.Products;
-using PharmaCare.Domain.Models.PurchaseManagement;
 
 namespace PharmaCare.Domain.Models.Configuration;
 
@@ -21,10 +20,10 @@ public class ProductBatch : BaseModel
     public decimal MRP { get; set; } // Maximum Retail Price
     public decimal SellingPrice { get; set; } // Current selling price
 
-    // Link to Original GRN
-    [ForeignKey("Grn")]
-    public int? Grn_ID { get; set; }
-    public Grn? Grn { get; set; }
+    // Link to Original Purchase (StockMain with InvoiceType=2 for PURCHASE)
+    [ForeignKey("StockMain")]
+    public int? StockMain_ID { get; set; }
+    public StockMain? StockMain { get; set; }
 
     // Navigation properties
     public Product? Product { get; set; }

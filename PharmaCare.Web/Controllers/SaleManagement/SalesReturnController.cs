@@ -1,7 +1,7 @@
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.Mvc.Rendering;
 using PharmaCare.Application.Interfaces.SaleManagement;
-using PharmaCare.Domain.Models.SaleManagement;
+using PharmaCare.Application.Implementations.SaleManagement;
 using PharmaCare.Web.Utilities;
 
 namespace PharmaCare.Web.Controllers.SaleManagement;
@@ -18,6 +18,7 @@ public class SalesReturnController : BaseController
         _returnService = returnService;
         _posService = posService;
     }
+
     public async Task<IActionResult> SalesReturnIndex(DateTime? startDate = null, DateTime? endDate = null)
     {
         startDate ??= DateTime.Today.AddDays(-30);
@@ -29,6 +30,7 @@ public class SalesReturnController : BaseController
         var returns = await _returnService.GetReturns(startDate, endDate, LoginUserStoreID ?? 0);
         return View(returns);
     }
+
     [HttpGet]
     public async Task<IActionResult> AddSalesReturn(string? saleId)
     {
@@ -57,25 +59,38 @@ public class SalesReturnController : BaseController
         ViewBag.RefundMethods = new SelectList(new[] { "Cash", "Credit" }, "Cash");
         ViewBag.ReturnReasons = new SelectList(new[] { "Defective", "WrongItem", "Expired", "ChangeOfMind", "Other" });
 
-        var salesReturn = new SalesReturn
+        var viewModel = new AddSalesReturnViewModel
         {
-            Sale_ID = sale.SaleID,
-            Party_ID = sale.Party_ID,
-            Store_ID = LoginUserStoreID ?? 0,
-            ReturnDate = DateTime.Now
+            OriginalSaleId = sale.StockMainID,
+            StoreId = LoginUserStoreID ?? 0
         };
 
-        return View(salesReturn);
+        return View(viewModel);
     }
+
     [HttpPost]
     [ValidateAntiForgeryToken]
-    public async Task<IActionResult> AddSalesReturn(SalesReturn salesReturn)
+    public async Task<IActionResult> AddSalesReturn(AddSalesReturnViewModel viewModel)
     {
         try
         {
-            salesReturn.Store_ID = LoginUserStoreID ?? 0;
+            var request = new CreateSalesReturnRequest
+            {
+                OriginalSaleId = viewModel.OriginalSaleId,
+                StoreId = viewModel.StoreId,
+                ReturnReason = viewModel.ReturnReason,
+                RefundMethod = viewModel.RefundMethod,
+                Lines = viewModel.Lines?.Select(l => new CreateSalesReturnLineRequest
+                {
+                    ProductBatchId = l.ProductBatchId,
+                    Quantity = l.Quantity,
+                    UnitPrice = l.UnitPrice,
+                    Reason = l.Reason,
+                    RestockInventory = l.RestockInventory
+                }).ToList() ?? new()
+            };
 
-            int returnId = await _returnService.CreateReturn(salesReturn, LoginUserID);
+            int returnId = await _returnService.CreateReturn(request, LoginUserID);
             ShowMessage(MessageBox.Success, "Sales return processed successfully.");
             return RedirectToAction(nameof(SalesReturnDetails), new { id = Utility.EncryptURL(returnId.ToString()) });
         }
@@ -89,13 +104,14 @@ public class SalesReturnController : BaseController
         }
 
         // Reload sale for view
-        var sale = await _returnService.GetSaleForReturn(salesReturn.Sale_ID);
+        var sale = await _returnService.GetSaleForReturn(viewModel.OriginalSaleId);
         ViewBag.Sale = sale;
-        ViewBag.RefundMethods = new SelectList(new[] { "Cash", "Credit" }, salesReturn.RefundMethod);
-        ViewBag.ReturnReasons = new SelectList(new[] { "Defective", "WrongItem", "Expired", "ChangeOfMind", "Other" }, salesReturn.ReturnReason);
+        ViewBag.RefundMethods = new SelectList(new[] { "Cash", "Credit" }, viewModel.RefundMethod);
+        ViewBag.ReturnReasons = new SelectList(new[] { "Defective", "WrongItem", "Expired", "ChangeOfMind", "Other" }, viewModel.ReturnReason);
 
-        return View(salesReturn);
+        return View(viewModel);
     }
+
     public async Task<IActionResult> SalesReturnDetails(string id)
     {
         int decryptedId = DecryptId(id);
@@ -106,6 +122,7 @@ public class SalesReturnController : BaseController
 
         return View(salesReturn);
     }
+
     [HttpPost]
     [ValidateAntiForgeryToken]
     public async Task<IActionResult> CancelSalesReturn(string id)
@@ -129,6 +146,7 @@ public class SalesReturnController : BaseController
 
         return RedirectToAction(nameof(SalesReturnIndex));
     }
+
     public async Task<IActionResult> SelectSale(DateTime? startDate = null, DateTime? endDate = null)
     {
         startDate ??= DateTime.Today.AddDays(-7);
@@ -138,8 +156,28 @@ public class SalesReturnController : BaseController
         ViewBag.EndDate = endDate.Value.ToString("yyyy-MM-dd");
 
         var sales = await _posService.GetSalesHistory(startDate, endDate, LoginUserStoreID ?? 0);
-        // Filter out voided sales
         var validSales = sales.Where(s => s.Status != "Voided").ToList();
         return View(validSales);
     }
+}
+
+/// <summary>
+/// ViewModel for creating a sales return
+/// </summary>
+public class AddSalesReturnViewModel
+{
+    public int OriginalSaleId { get; set; }
+    public int StoreId { get; set; }
+    public string? ReturnReason { get; set; }
+    public string RefundMethod { get; set; } = "Cash";
+    public List<AddSalesReturnLineViewModel> Lines { get; set; } = new();
+}
+
+public class AddSalesReturnLineViewModel
+{
+    public int ProductBatchId { get; set; }
+    public decimal Quantity { get; set; }
+    public decimal UnitPrice { get; set; }
+    public string? Reason { get; set; }
+    public bool RestockInventory { get; set; } = true;
 }

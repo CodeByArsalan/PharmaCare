@@ -5,7 +5,7 @@ namespace PharmaCare.Application.DTOs.Finance;
 /// </summary>
 public class GrnOutstandingDto
 {
-    public int GrnID { get; set; }
+    public int StockMainID { get; set; }
     public string GrnNumber { get; set; } = string.Empty;
     public DateTime CreatedDate { get; set; }
     public int SupplierId { get; set; }

@@ -1,0 +1,257 @@
+@{
+    ViewData["Title"] = "Create Voucher";
+    Layout = "~/Views/Shared/_Layout.cshtml";
+    var accounts = ViewBag.Accounts as IEnumerable<dynamic>;
+    var voucherTypes = ViewBag.VoucherTypes as IEnumerable<PharmaCare.Domain.Models.Inventory.AccountVoucherType>;
+}
+
+<div class="row page-titles mb-3 mt-2 d-print-none">
+    <div class="col-md-5 align-self-center">
+        <h3 class="text-primary fw-bold text-uppercase mb-0">New Voucher</h3>
+        <ol class="breadcrumb">
+            <li class="breadcrumb-item"><a asp-action="VoucherIndex">Accounting</a></li>
+            <li class="breadcrumb-item active">New Voucher</li>
+        </ol>
+    </div>
+</div>
+
+<div class="card mb-4 shadow-sm">
+    <div class="card-body">
+        <form id="createVoucherForm">
+            <div class="row g-3 mb-4">
+                <div class="col-md-3">
+                    <label class="form-label fw-bold">Voucher Type <span class="text-danger">*</span></label>
+                    <select id="VoucherTypeId" class="form-select" required>
+                        <option value="">Select Type</option>
+                        @if (voucherTypes != null)
+                        {
+                            foreach (var type in voucherTypes)
+                            {
+                                <option value="@type.VoucherTypeID">@type.Name</option>
+                            }
+                        }
+                    </select>
+                </div>
+                <div class="col-md-3">
+                    <label class="form-label fw-bold">Voucher Date <span class="text-danger">*</span></label>
+                    <input type="date" id="VoucherDate" class="form-control" value="@DateTime.Now.ToString("yyyy-MM-dd")" required />
+                </div>
+                <div class="col-md-6">
+                    <label class="form-label fw-bold">Narration</label>
+                    <input type="text" id="Narration" class="form-control" placeholder="Enter description for this voucher" />
+                </div>
+            </div>
+
+            <h5 class="text-secondary mb-3 border-bottom pb-2">Voucher Lines</h5>
+
+            <div class="table-responsive">
+                <table class="table table-bordered align-middle" id="linesTable">
+                    <thead class="bg-light">
+                        <tr>
+                            <th style="width: 35%">Account <span class="text-danger">*</span></th>
+                            <th>Description</th>
+                            <th style="width: 15%" class="text-end">Debit</th>
+                            <th style="width: 15%" class="text-end">Credit</th>
+                            <th style="width: 5%" class="text-center"></th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        <!-- Rows will be added here -->
+                    </tbody>
+                    <tfoot class="bg-light fw-bold">
+                        <tr>
+                            <td colspan="2" class="text-end">Totals:</td>
+                            <td class="text-end"><span id="totalDebit">0.00</span></td>
+                            <td class="text-end"><span id="totalCredit">0.00</span></td>
+                            <td></td>
+                        </tr>
+                        <tr>
+                            <td colspan="2" class="text-end text-danger" id="balanceError" style="display:none;">Difference:</td>
+                            <td colspan="3" class="text-start text-danger" id="balanceDiff" style="display:none;">0.00</td>
+                        </tr>
+                    </tfoot>
+                </table>
+            </div>
+
+            <div class="mb-3">
+                <button type="button" class="btn btn-outline-primary btn-sm" id="btnAddRow">
+                    <i class="bx bx-plus"></i> Add Line
+                </button>
+            </div>
+
+            <div class="d-grid gap-2 d-md-flex justify-content-md-end">
+                <a asp-action="VoucherIndex" class="btn btn-light me-md-2">Cancel</a>
+                <button type="submit" class="btn btn-primary px-4" id="btnSave">
+                    <i class="bx bx-save me-1"></i> Save Voucher
+                </button>
+            </div>
+        </form>
+    </div>
+</div>
+
+@section Scripts {
+    <script>
+        // Use a generic list of accounts for JS
+        const accountOptions = [
+            @if (accounts != null)
+            {
+                foreach (var acc in accounts)
+                {
+                    @:{ id: @acc.AccountID, name: "@acc.AccountName (@acc.AccountCode)" },
+                }
+            }
+        ];
+
+        function addRow() {
+            const rowCount = $('#linesTable tbody tr').length;
+            let optionsHtml = '<option value="">Select Account</option>';
+            accountOptions.forEach(acc => {
+                optionsHtml += `<option value="${acc.id}">${acc.name}</option>`;
+            });
+
+            const row = `
+                <tr data-index="${rowCount}">
+                    <td>
+                        <select class="form-select account-select" required>
+                            ${optionsHtml}
+                        </select>
+                    </td>
+                    <td>
+                        <input type="text" class="form-control particulars-input" placeholder="Line description" />
+                    </td>
+                    <td>
+                        <input type="number" class="form-control text-end dr-input" step="0.01" min="0" value="0.00" />
+                    </td>
+                    <td>
+                        <input type="number" class="form-control text-end cr-input" step="0.01" min="0" value="0.00" />
+                    </td>
+                    <td class="text-center">
+                        <button type="button" class="btn btn-sm btn-outline-danger remove-row" tabindex="-1">
+                            <i class="bx bx-trash"></i>
+                        </button>
+                    </td>
+                </tr>
+            `;
+            $('#linesTable tbody').append(row);
+            
+            // Re-initialize select2 if used, or just focus
+        }
+
+        function calculateTotals() {
+            let totalDr = 0;
+            let totalCr = 0;
+
+            $('.dr-input').each(function() {
+                totalDr += parseFloat($(this).val()) || 0;
+            });
+            $('.cr-input').each(function() {
+                totalCr += parseFloat($(this).val()) || 0;
+            });
+
+            $('#totalDebit').text(totalDr.toFixed(2));
+            $('#totalCredit').text(totalCr.toFixed(2));
+
+            const diff = Math.abs(totalDr - totalCr);
+            if (diff > 0.01) {
+                $('#balanceError').show();
+                $('#balanceDiff').text(diff.toFixed(2)).show();
+                $('#btnSave').prop('disabled', true);
+            } else {
+                $('#balanceError').hide();
+                $('#balanceDiff').hide();
+                $('#btnSave').prop('disabled', false);
+            }
+        }
+
+        $(document).ready(function() {
+            // Add initial rows
+            addRow();
+            addRow();
+
+            $('#btnAddRow').click(addRow);
+
+            $(document).on('click', '.remove-row', function() {
+                $(this).closest('tr').remove();
+                calculateTotals();
+            });
+
+            $(document).on('input', '.dr-input, .cr-input', function() {
+                // Determine which input changed and zero out the other if needed? 
+                // Usually allowed to have both but standard is one. 
+                // Let's enforce mutual exclusivity for simplicity or just let user decide.
+                // Enforcing: if Dr has value, Cr = 0
+                const val = parseFloat($(this).val()) || 0;
+                if (val > 0) {
+                    if ($(this).hasClass('dr-input')) {
+                        $(this).closest('tr').find('.cr-input').val('0.00');
+                    } else {
+                        $(this).closest('tr').find('.dr-input').val('0.00');
+                    }
+                }
+                calculateTotals();
+            });
+
+            $('#createVoucherForm').submit(function(e) {
+                e.preventDefault();
+                calculateTotals();
+                
+                if ($('#btnSave').is(':disabled')) {
+                    alert('Total Debit must equal Total Credit.');
+                    return;
+                }
+
+                const lines = [];
+                $('#linesTable tbody tr').each(function() {
+                    const accountId = $(this).find('.account-select').val();
+                    const particulars = $(this).find('.particulars-input').val();
+                    const dr = parseFloat($(this).find('.dr-input').val()) || 0;
+                    const cr = parseFloat($(this).find('.cr-input').val()) || 0;
+
+                    if (accountId) {
+                        lines.push({
+                            AccountId: parseInt(accountId),
+                            Particulars: particulars,
+                            Dr: dr,
+                            Cr: cr
+                        });
+                    }
+                });
+
+                if (lines.length === 0) {
+                    alert('Please add at least one line.');
+                    return;
+                }
+
+                const data = {
+                    VoucherTypeId: parseInt($('#VoucherTypeId').val()),
+                    VoucherDate: $('#VoucherDate').val(),
+                    Narration: $('#Narration').val(),
+                    Lines: lines
+                };
+
+                // CSRF Token if needed, but usually handled by layout or cookie
+                 var token = $('input[name="__RequestVerificationToken"]').val();
+
+                $.ajax({
+                    url: '@Url.Action("CreateVoucher", "Accounting")',
+                    type: 'POST',
+                    contentType: 'application/json',
+                    headers: {
+                        "RequestVerificationToken": token
+                    },
+                    data: JSON.stringify(data),
+                    success: function(response) {
+                        if (response.success) {
+                            window.location.href = '@Url.Action("VoucherIndex")';
+                        } else {
+                            alert('Error: ' + response.message);
+                        }
+                    },
+                    error: function(xhr) {
+                        alert('Error saving voucher: ' + xhr.responseText);
+                    }
+                });
+            });
+        });
+    </script>
+}

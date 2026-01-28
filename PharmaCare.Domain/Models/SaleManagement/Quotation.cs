@@ -2,6 +2,7 @@ using System.ComponentModel.DataAnnotations;
 using System.ComponentModel.DataAnnotations.Schema;
 using PharmaCare.Domain.Models.Base;
 using PharmaCare.Domain.Models.Configuration;
+using PharmaCare.Domain.Models.Inventory;
 
 namespace PharmaCare.Domain.Models.SaleManagement;
 
@@ -55,10 +56,10 @@ public class Quotation : BaseModel
     public string Status { get; set; } = "Draft";
 
     /// <summary>
-    /// If converted, links to the created sale
+    /// If converted, links to the created sale (StockMain)
     /// </summary>
-    [ForeignKey("ConvertedSale")]
-    public int? ConvertedSale_ID { get; set; }
+    [ForeignKey("ConvertedStockMain")]
+    public int? ConvertedStockMain_ID { get; set; }
 
     [StringLength(500)]
     public string? Notes { get; set; }
@@ -66,6 +67,6 @@ public class Quotation : BaseModel
     // Navigation properties
     public Store? Store { get; set; }
     public Party? Party { get; set; }
-    public Sale? ConvertedSale { get; set; }
+    public StockMain? ConvertedStockMain { get; set; }
     public ICollection<QuotationLine> QuotationLines { get; set; } = new List<QuotationLine>();
 }

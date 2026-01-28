@@ -3,6 +3,7 @@ using System.ComponentModel.DataAnnotations.Schema;
 using PharmaCare.Domain.Models.Base;
 using PharmaCare.Domain.Models.Configuration;
 using PharmaCare.Domain.Models.AccountManagement;
+using PharmaCare.Domain.Models.Inventory;
 
 namespace PharmaCare.Domain.Models.PurchaseManagement;
 
@@ -22,9 +23,9 @@ public class PurchaseReturn : BaseModel
     public int Store_ID { get; set; }
     public Store? Store { get; set; }
 
-    [ForeignKey("Grn")]
-    public int? Grn_ID { get; set; } // Optional link to original GRN
-    public Grn? Grn { get; set; }
+    [ForeignKey("StockMain")]
+    public int? StockMain_ID { get; set; } // Optional link to original purchase
+    public StockMain? StockMain { get; set; }
 
     [Required]
     public string Status { get; set; } = "Pending"; // Pending, Approved, Completed, Cancelled
@@ -34,10 +35,12 @@ public class PurchaseReturn : BaseModel
 
     public string? Remarks { get; set; } = string.Empty;
 
-    // Journal Entry for inventory adjustment (DR: Accounts Payable, CR: Inventory)
-    [ForeignKey("JournalEntry")]
-    public int? JournalEntry_ID { get; set; }
-    public JournalEntry? JournalEntry { get; set; }
+
+
+    // Account Voucher (Replaces JournalEntry)
+    [ForeignKey("AccountVoucher")]
+    public int? Voucher_ID { get; set; }
+    public AccountVoucher? AccountVoucher { get; set; }
 
     // Refund tracking - for when supplier payment was already made
     public string? RefundMethod { get; set; } // Cash, Bank, CreditNote, None
@@ -46,10 +49,12 @@ public class PurchaseReturn : BaseModel
     [Column(TypeName = "decimal(18, 2)")]
     public decimal RefundAmount { get; set; }
 
-    // Journal Entry for refund (DR: Cash/Bank, CR: Accounts Payable)
-    [ForeignKey("RefundJournalEntry")]
-    public int? RefundJournalEntry_ID { get; set; }
-    public JournalEntry? RefundJournalEntry { get; set; }
+
+
+    // Refund Voucher (Replaces RefundJournalEntry)
+    [ForeignKey("RefundAccountVoucher")]
+    public int? RefundVoucher_ID { get; set; }
+    public AccountVoucher? RefundAccountVoucher { get; set; }
 
     public List<PurchaseReturnItem> PurchaseReturnItems { get; set; } = new();
 }

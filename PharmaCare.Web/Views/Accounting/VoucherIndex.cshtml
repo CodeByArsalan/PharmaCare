@@ -1,0 +1,107 @@
+@model IEnumerable<PharmaCare.Domain.Models.Inventory.AccountVoucher>
+
+@{
+    ViewData["Title"] = "Voucher List";
+    Layout = "~/Views/Shared/_Layout.cshtml";
+}
+
+<div class="row page-titles mb-3 mt-2 d-print-none">
+    <div class="col-md-5 align-self-center">
+        <h3 class="text-primary fw-bold text-uppercase mb-0">Voucher List</h3>
+        <ol class="breadcrumb">
+            <li class="breadcrumb-item"><a href="javascript:void(0)">Accounting</a></li>
+            <li class="breadcrumb-item active">Voucher List</li>
+        </ol>
+    </div>
+    <div class="col-md-7 align-self-center text-end">
+        <a asp-action="CreateVoucher" class="btn btn-primary btn-lg">
+            <i class="bx bx-plus me-1"></i> New Voucher
+        </a>
+    </div>
+</div>
+
+<div class="card mb-4 shadow-sm">
+    <div class="card-body">
+        <form asp-action="VoucherIndex" method="get" class="row g-3 align-items-end mb-4">
+            <div class="col-md-3">
+                <label class="form-label small fw-bold text-secondary">From Date</label>
+                <input type="date" name="fromDate" value="@ViewBag.FromDate" class="form-control" />
+            </div>
+            <div class="col-md-3">
+                <label class="form-label small fw-bold text-secondary">To Date</label>
+                <input type="date" name="toDate" value="@ViewBag.ToDate" class="form-control" />
+            </div>
+            <div class="col-md-2">
+                <button type="submit" class="btn btn-info w-100"><i class="bx bx-filter"></i> Filter</button>
+            </div>
+        </form>
+
+        <div class="table-responsive">
+            <table class="table table-hover align-middle" id="voucherTable">
+                <thead class="bg-primary text-white">
+                    <tr>
+                        <th>Date</th>
+                        <th>Voucher Code</th>
+                        <th>Type</th>
+                        <th>Source</th>
+                        <th class="text-end">Total Debit</th>
+                        <th class="text-end">Total Credit</th>
+                        <th>Status</th>
+                        <th class="text-center">Actions</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    @foreach (var item in Model)
+                    {
+                        <tr>
+                            <td>@item.VoucherDate.ToString("dd-MMM-yyyy")</td>
+                            <td class="fw-bold text-primary">@item.VoucherCode</td>
+                            <td>@item.VoucherType?.Name</td>
+                            <td>
+                                @if (!string.IsNullOrEmpty(item.SourceTable))
+                                {
+                                    <span class="badge bg-label-info">@item.SourceTable #@item.SourceID</span>
+                                }
+                                else
+                                {
+                                    <span class="badge bg-label-secondary">Manual</span>
+                                }
+                            </td>
+                            <td class="text-end">@item.TotalDebit.ToString("N2")</td>
+                            <td class="text-end">@item.TotalCredit.ToString("N2")</td>
+                            <td>
+                                @if (item.IsReversed)
+                                {
+                                    <span class="badge bg-danger">Reversed</span>
+                                }
+                                else if (item.Status == "Posted")
+                                {
+                                    <span class="badge bg-success">Posted</span>
+                                }
+                                else
+                                {
+                                    <span class="badge bg-warning">@item.Status</span>
+                                }
+                            </td>
+                            <td class="text-center">
+                                <a asp-action="VoucherDetails" asp-route-id="@item.VoucherID" class="btn btn-sm btn-icon btn-outline-secondary" title="View Details">
+                                    <i class="bx bx-show"></i>
+                                </a>
+                            </td>
+                        </tr>
+                    }
+                </tbody>
+            </table>
+        </div>
+    </div>
+</div>
+
+@section Scripts {
+    <script>
+        $(document).ready(function() {
+            $('#voucherTable').DataTable({
+                "order": [[0, "desc"]]
+            });
+        });
+    </script>
+}

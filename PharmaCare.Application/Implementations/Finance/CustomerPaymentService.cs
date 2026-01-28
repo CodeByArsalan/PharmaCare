@@ -3,7 +3,7 @@ using PharmaCare.Application.DTOs.Finance;
 using PharmaCare.Application.Interfaces.Finance;
 using PharmaCare.Application.Interfaces.AccountManagement;
 using PharmaCare.Domain.Models.Finance;
-using PharmaCare.Domain.Models.SaleManagement;
+using PharmaCare.Domain.Models.Inventory;
 using PharmaCare.Domain.Models.AccountManagement;
 using PharmaCare.Infrastructure.Interfaces;
 using PharmaCare.Infrastructure.Interfaces.Accounting;
@@ -12,29 +12,34 @@ namespace PharmaCare.Application.Implementations.Finance;
 
 /// <summary>
 /// Service for managing customer payment collection (receivables)
+/// Now uses StockMain (InvoiceType_ID=1 for Sales) instead of deprecated Sale model
 /// </summary>
 public class CustomerPaymentService : ICustomerPaymentService
 {
     private readonly IRepository<CustomerPayment> _paymentRepo;
-    private readonly IRepository<Sale> _saleRepo;
+    private readonly IRepository<StockMain> _stockMainRepo;
     private readonly IAccountingService _accountingService;
-    private readonly IJournalPostingEngine _postingEngine;
+    private readonly IVoucherService _voucherService;
 
     // Account Type IDs
     private const int CASH_ACCOUNT_TYPE = 1;
     private const int BANK_ACCOUNT_TYPE = 2;
     private const int CUSTOMER_ACCOUNT_TYPE = 3; // Customer/Receivables
 
+    // Voucher Type IDs
+    private const int BANK_RECEIPT_VOUCHER = 3;
+    private const int CASH_RECEIPT_VOUCHER = 5;
+
     public CustomerPaymentService(
         IRepository<CustomerPayment> paymentRepo,
-        IRepository<Sale> saleRepo,
+        IRepository<StockMain> stockMainRepo,
         IAccountingService accountingService,
-        IJournalPostingEngine postingEngine)
+        IVoucherService voucherService)
     {
         _paymentRepo = paymentRepo;
-        _saleRepo = saleRepo;
+        _stockMainRepo = stockMainRepo;
         _accountingService = accountingService;
-        _postingEngine = postingEngine;
+        _voucherService = voucherService;
     }
 
     #region Query Operations
@@ -57,7 +62,8 @@ public class CustomerPaymentService : ICustomerPaymentService
 
         var payments = await query
             .Include(p => p.Party)
-            .Include(p => p.Sale)
+            .Include(p => p.StockMain)
+            .Include(p => p.AccountVoucher)
             .OrderByDescending(p => p.PaymentDate)
             .ToListAsync();
 
@@ -68,7 +74,7 @@ public class CustomerPaymentService : ICustomerPaymentService
             PaymentDate = p.PaymentDate,
             CustomerName = p.Party?.PartyName ?? "Unknown",
             CustomerID = p.Party_ID,
-            SaleNumber = p.Sale?.SaleNumber,
+            SaleNumber = p.StockMain?.InvoiceNo,
             Amount = p.Amount,
             PaymentMethod = p.PaymentMethod,
             ReferenceNumber = p.ReferenceNumber,
@@ -80,7 +86,8 @@ public class CustomerPaymentService : ICustomerPaymentService
     {
         var p = await _paymentRepo.FindByCondition(pay => pay.CustomerPaymentID == paymentId)
             .Include(pay => pay.Party)
-            .Include(pay => pay.Sale)
+            .Include(pay => pay.StockMain)
+            .Include(pay => pay.AccountVoucher)
             .FirstOrDefaultAsync();
 
         if (p == null) return null;
@@ -92,7 +99,7 @@ public class CustomerPaymentService : ICustomerPaymentService
             PaymentDate = p.PaymentDate,
             CustomerName = p.Party?.PartyName ?? "Unknown",
             CustomerID = p.Party_ID,
-            SaleNumber = p.Sale?.SaleNumber,
+            SaleNumber = p.StockMain?.InvoiceNo,
             Amount = p.Amount,
             PaymentMethod = p.PaymentMethod,
             ReferenceNumber = p.ReferenceNumber,
@@ -102,7 +109,9 @@ public class CustomerPaymentService : ICustomerPaymentService
 
     public async Task<List<OutstandingSaleDto>> GetOutstandingSales(int? customerId = null)
     {
-        var query = _saleRepo.FindByCondition(s =>
+        // Query StockMain with InvoiceType_ID=1 (SALE) and balance > 0
+        var query = _stockMainRepo.FindByCondition(s =>
+            s.InvoiceType_ID == 1 && // SALE
             s.BalanceAmount > 0 &&
             (s.PaymentStatus == "Partial" || s.PaymentStatus == "Credit") &&
             s.Status != "Voided");
@@ -112,18 +121,18 @@ public class CustomerPaymentService : ICustomerPaymentService
 
         var sales = await query
             .Include(s => s.Party)
-            .OrderByDescending(s => s.SaleDate)
+            .OrderByDescending(s => s.InvoiceDate)
             .ToListAsync();
 
         return sales.Select(s => new OutstandingSaleDto
         {
-            SaleID = s.SaleID,
-            SaleNumber = s.SaleNumber,
-            SaleDate = s.SaleDate,
+            StockMainID = s.StockMainID,
+            SaleNumber = s.InvoiceNo,
+            SaleDate = s.InvoiceDate,
             CustomerName = s.Party?.PartyName ?? "Walk-in Customer",
             CustomerID = s.Party_ID ?? 0,
-            Total = s.Total,
-            AmountPaid = s.AmountPaid,
+            Total = s.TotalAmount,
+            AmountPaid = s.PaidAmount,
             BalanceAmount = s.BalanceAmount,
             PaymentStatus = s.PaymentStatus
         }).ToList();
@@ -131,7 +140,8 @@ public class CustomerPaymentService : ICustomerPaymentService
 
     public async Task<decimal> GetTotalOutstandingForCustomer(int customerId)
     {
-        return await _saleRepo.FindByCondition(s =>
+        return await _stockMainRepo.FindByCondition(s =>
+            s.InvoiceType_ID == 1 && // SALE
             s.Party_ID == customerId &&
             s.BalanceAmount > 0 &&
             s.Status != "Voided")
@@ -140,7 +150,8 @@ public class CustomerPaymentService : ICustomerPaymentService
 
     public async Task<List<CustomerOutstandingDto>> GetCustomersWithOutstanding()
     {
-        var sales = await _saleRepo.FindByCondition(s =>
+        var sales = await _stockMainRepo.FindByCondition(s =>
+            s.InvoiceType_ID == 1 && // SALE
             s.Party_ID != null &&
             s.BalanceAmount > 0 &&
             s.Status != "Voided")
@@ -170,11 +181,11 @@ public class CustomerPaymentService : ICustomerPaymentService
         if (dto.Amount <= 0)
             throw new InvalidOperationException("Payment amount must be greater than zero");
 
-        // If linked to a specific sale, validate it
-        Sale? sale = null;
+        // If linked to a specific sale (StockMain), validate it
+        StockMain? sale = null;
         if (dto.SaleID.HasValue)
         {
-            sale = await _saleRepo.FindByCondition(s => s.SaleID == dto.SaleID.Value)
+            sale = await _stockMainRepo.FindByCondition(s => s.StockMainID == dto.SaleID.Value && s.InvoiceType_ID == 1)
                 .FirstOrDefaultAsync();
 
             if (sale == null)
@@ -203,7 +214,7 @@ public class CustomerPaymentService : ICustomerPaymentService
             PaymentNumber = paymentNumber,
             PaymentDate = DateTime.Now,
             Party_ID = dto.CustomerID.Value,
-            Sale_ID = dto.SaleID,
+            StockMain_ID = dto.SaleID,
             Amount = dto.Amount,
             PaymentMethod = dto.PaymentMethod,
             ReferenceNumber = dto.ReferenceNumber,
@@ -214,10 +225,11 @@ public class CustomerPaymentService : ICustomerPaymentService
             IsActive = true
         };
 
-        // Create Journal Entry
+        // Create Voucher (Replaces JournalEntry)
         // DR: Cash/Bank Account (increases asset)
         // CR: Customer Account (reduces receivable)
         var paymentAccountTypeId = dto.PaymentMethod == "Bank" ? BANK_ACCOUNT_TYPE : CASH_ACCOUNT_TYPE;
+        var voucherTypeId = dto.PaymentMethod == "Bank" ? BANK_RECEIPT_VOUCHER : CASH_RECEIPT_VOUCHER;
 
         var customerAccount = await _accountingService.GetFirstAccountByTypeId(CUSTOMER_ACCOUNT_TYPE);
         var paymentAccount = await _accountingService.GetFirstAccountByTypeId(paymentAccountTypeId);
@@ -228,40 +240,43 @@ public class CustomerPaymentService : ICustomerPaymentService
         if (paymentAccount == null)
             throw new InvalidOperationException($"{dto.PaymentMethod} account not found in Chart of Accounts");
 
-        var saleRef = sale != null ? $" - {sale.SaleNumber}" : "";
-        var journalLines = new List<JournalEntryLine>
+        var saleRef = sale != null ? $" - {sale.InvoiceNo}" : "";
+        var storeId = sale?.Store_ID; // Should probably default to login user store if sale not present, but for now safely null
+
+        var voucherRequest = new CreateVoucherRequest
         {
-            new JournalEntryLine
+            VoucherTypeId = voucherTypeId,
+            VoucherDate = payment.PaymentDate,
+            SourceTable = "CustomerPayments",
+            SourceId = 0, // Will update after insert
+            StoreId = storeId,
+            Narration = $"Customer Payment - {paymentNumber}{saleRef}",
+            CreatedBy = userId,
+            Lines = new List<CreateVoucherLineRequest>
             {
-                Account_ID = paymentAccount.AccountID,
-                DebitAmount = dto.Amount,
-                CreditAmount = 0,
-                Description = $"Payment received from customer{saleRef}"
-            },
-            new JournalEntryLine
-            {
-                Account_ID = customerAccount.AccountID,
-                DebitAmount = 0,
-                CreditAmount = dto.Amount,
-                Description = $"Customer payment received via {dto.PaymentMethod}{saleRef}"
+                // DR: Cash/Bank (Increases Asset)
+                new CreateVoucherLineRequest
+                {
+                    AccountId = paymentAccount.AccountID,
+                    Dr = dto.Amount,
+                    Cr = 0,
+                    Particulars = $"Payment received from customer{saleRef}",
+                    StoreId = storeId
+                },
+                // CR: Customer (Reduces Receivable)
+                new CreateVoucherLineRequest
+                {
+                    AccountId = customerAccount.AccountID,
+                    Dr = 0,
+                    Cr = dto.Amount,
+                    Particulars = $"Customer payment received via {dto.PaymentMethod}{saleRef}",
+                    StoreId = storeId
+                }
             }
         };
 
-        // Create and post journal entry
-        var journal = await _postingEngine.CreateAndPostAsync(
-            entryType: "CustomerPayment",
-            description: $"Customer Payment - {paymentNumber}{saleRef}",
-            lines: journalLines,
-            sourceTable: "CustomerPayments",
-            sourceId: 0, // Will update after insert
-            storeId: sale?.Store_ID,
-            userId: userId,
-            isSystemEntry: true);
-
-        if (journal == null)
-            throw new InvalidOperationException("Failed to create journal entry for payment");
-
-        payment.JournalEntry_ID = journal.JournalEntryID;
+        var voucher = await _voucherService.CreateVoucherAsync(voucherRequest);
+        payment.Voucher_ID = voucher.VoucherID;
 
         // Insert payment
         var result = await _paymentRepo.Insert(payment);
@@ -271,14 +286,12 @@ public class CustomerPaymentService : ICustomerPaymentService
             // Update sale payment tracking if linked to a specific sale
             if (sale != null)
             {
-                sale.AmountPaid += dto.Amount;
-                sale.BalanceAmount = sale.Total - sale.AmountPaid;
+                sale.PaidAmount += dto.Amount;
+                sale.BalanceAmount = sale.TotalAmount - sale.PaidAmount;
                 sale.PaymentStatus = sale.BalanceAmount <= 0 ? "Paid" : "Partial";
 
-                await _saleRepo.Update(sale);
+                await _stockMainRepo.Update(sale);
             }
-            // If not linked to a specific sale, we could potentially apply to oldest outstanding sales
-            // For now, just record the general payment
         }
 
         return payment.CustomerPaymentID;
@@ -295,11 +308,12 @@ public class CustomerPaymentService : ICustomerPaymentService
         if (payment.Status == "Cancelled")
             throw new InvalidOperationException("Payment is already cancelled");
 
-        // Void the journal entry
-        if (payment.JournalEntry_ID.HasValue)
+        // Reverse the voucher
+        if (payment.Voucher_ID.HasValue)
         {
-            await _accountingService.VoidJournalEntry(payment.JournalEntry_ID.Value, userId);
+            await _voucherService.ReverseVoucherAsync(payment.Voucher_ID.Value, $"Cancelled: {reason}", userId);
         }
+
 
         // Update payment status
         payment.Status = "Cancelled";
@@ -309,19 +323,19 @@ public class CustomerPaymentService : ICustomerPaymentService
 
         var result = await _paymentRepo.Update(payment);
 
-        if (result && payment.Sale_ID.HasValue)
+        if (result && payment.StockMain_ID.HasValue)
         {
             // Reverse sale payment tracking
-            var sale = await _saleRepo.FindByCondition(s => s.SaleID == payment.Sale_ID)
+            var sale = await _stockMainRepo.FindByCondition(s => s.StockMainID == payment.StockMain_ID)
                 .FirstOrDefaultAsync();
 
             if (sale != null)
             {
-                sale.AmountPaid -= payment.Amount;
-                sale.BalanceAmount = sale.Total - sale.AmountPaid;
-                sale.PaymentStatus = sale.AmountPaid <= 0 ? "Credit" : (sale.BalanceAmount <= 0 ? "Paid" : "Partial");
+                sale.PaidAmount -= payment.Amount;
+                sale.BalanceAmount = sale.TotalAmount - sale.PaidAmount;
+                sale.PaymentStatus = sale.PaidAmount <= 0 ? "Credit" : (sale.BalanceAmount <= 0 ? "Paid" : "Partial");
 
-                await _saleRepo.Update(sale);
+                await _stockMainRepo.Update(sale);
             }
         }
 

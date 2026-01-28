@@ -1,7 +1,9 @@
 using Microsoft.EntityFrameworkCore;
 using PharmaCare.Application.Interfaces.SaleManagement;
 using PharmaCare.Application.Utilities;
+using PharmaCare.Application.Interfaces.Inventory;
 using PharmaCare.Domain.Models.SaleManagement;
+using PharmaCare.Domain.Models.Inventory;
 using PharmaCare.Infrastructure.Interfaces;
 
 namespace PharmaCare.Application.Implementations.SaleManagement;
@@ -9,17 +11,14 @@ namespace PharmaCare.Application.Implementations.SaleManagement;
 public class QuotationService : IQuotationService
 {
     private readonly IRepository<Quotation> _quotationRepo;
-    private readonly IRepository<Sale> _saleRepo;
-    private readonly IPosService _posService;
+    private readonly IStockTransactionService _stockTransactionService;
 
     public QuotationService(
         IRepository<Quotation> quotationRepo,
-        IRepository<Sale> saleRepo,
-        IPosService posService)
+        IStockTransactionService stockTransactionService)
     {
         _quotationRepo = quotationRepo;
-        _saleRepo = saleRepo;
-        _posService = posService;
+        _stockTransactionService = stockTransactionService;
     }
 
     public async Task<int> CreateQuotation(Quotation quotation, int userId)
@@ -86,45 +85,44 @@ public class QuotationService : IQuotationService
         if (quotation.Status == "Expired" || quotation.ValidUntil < DateTime.Now)
             throw new InvalidOperationException("Quotation has expired");
 
-        // Create sale from quotation
-        var sale = new Sale
+        // Create sale via IStockTransactionService (InvoiceType=1 for SALE)
+        var lines = quotation.QuotationLines.Select(ql => new CreateTransactionLineRequest
         {
-            SaleNumber = UniqueIdGenerator.Generate("S"),
-            SaleDate = DateTime.Now,
-            Store_ID = quotation.Store_ID,
-            Party_ID = quotation.Party_ID,
-            Status = "Completed",
-            SubTotal = quotation.SubTotal,
-            DiscountPercent = quotation.DiscountPercent,
-            DiscountAmount = quotation.DiscountAmount,
-            Total = quotation.GrandTotal,
-            PaymentStatus = "Paid",
-            AmountPaid = quotation.GrandTotal,
-            BalanceAmount = 0,
+            ProductId = ql.Product_ID ?? 0,
+            ProductBatchId = ql.ProductBatch_ID,
+            Quantity = ql.Quantity,
+            UnitPrice = ql.UnitPrice,
+            DiscountPercent = ql.DiscountPercent,
+            DiscountAmount = ql.DiscountAmount
+        }).ToList();
+
+        var request = new CreateTransactionRequest
+        {
+            InvoiceTypeId = 1, // SALE
+            InvoiceDate = DateTime.Now,
+            StoreId = quotation.Store_ID,
+            PartyId = quotation.Party_ID,
+            Remarks = $"Converted from Quotation {quotation.QuotationNumber}",
             CreatedBy = userId,
-            CreatedDate = DateTime.Now,
-            SaleLines = quotation.QuotationLines.Select(ql => new SaleLine
-            {
-                Product_ID = ql.Product_ID,
-                ProductBatch_ID = ql.ProductBatch_ID,
-                Quantity = ql.Quantity,
-                UnitPrice = ql.UnitPrice,
-                DiscountPercent = ql.DiscountPercent,
-                DiscountAmount = ql.DiscountAmount,
-                NetAmount = ql.NetAmount
-            }).ToList()
+            Lines = lines,
+            DiscountAmount = quotation.DiscountAmount
         };
 
-        await _saleRepo.Insert(sale);
+        var sale = await _stockTransactionService.CreateTransactionAsync(request);
+        if (sale == null)
+            throw new InvalidOperationException("Failed to create sale from quotation");
+
+        // Complete the sale transaction to update inventory
+        await _stockTransactionService.CompleteTransactionAsync(sale.StockMainID, userId);
 
         // Update quotation status
         quotation.Status = "Converted";
-        quotation.ConvertedSale_ID = sale.SaleID;
+        quotation.ConvertedStockMain_ID = sale.StockMainID;
         quotation.UpdatedBy = userId;
         quotation.UpdatedDate = DateTime.Now;
         await _quotationRepo.Update(quotation);
 
-        return sale.SaleID;
+        return sale.StockMainID;
     }
 
     public async Task<bool> UpdateQuotation(Quotation quotation, int userId)

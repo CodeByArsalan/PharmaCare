@@ -101,7 +101,7 @@
 
                                 <tr>
                                     <td class="ps-4">@tx.Date.ToString("dd-MMM-yyyy")</td>
-                                    <td class="fw-medium text-info"><a href="@Url.Action("Details", "JournalEntry", new { id = tx.EntryNumber })">@tx.EntryNumber</a></td>
+                                    <td class="fw-medium text-info">@tx.EntryNumber</td>
                                     <td>@tx.Description</td>
                                     <td class="text-end text-primary">@(tx.DebitAmount > 0 ? tx.DebitAmount.ToString("N2") : "-")</td>
                                     <td class="text-end text-success">@(tx.CreditAmount > 0 ? tx.CreditAmount.ToString("N2") : "-")</td>

@@ -1,52 +1,37 @@
 using Microsoft.EntityFrameworkCore;
+using PharmaCare.Application.Interfaces.Inventory;
 using PharmaCare.Application.Interfaces.SaleManagement;
-using PharmaCare.Application.Interfaces.AccountManagement;
 using PharmaCare.Application.Utilities;
-using PharmaCare.Domain.Models.SaleManagement;
-using PharmaCare.Domain.Models.AccountManagement;
 using PharmaCare.Domain.Models.Configuration;
+using PharmaCare.Domain.Models.Inventory;
 using PharmaCare.Infrastructure.Interfaces;
-using PharmaCare.Infrastructure.Interfaces.Accounting;
-using PharmaCare.Infrastructure.Interfaces.Inventory;
 
 namespace PharmaCare.Application.Implementations.SaleManagement;
 
+/// <summary>
+/// Sales Return Service - Refactored to use unified StockMain/StockDetail tables
+/// </summary>
 public class SalesReturnService : ISalesReturnService
 {
-    private readonly IRepository<SalesReturn> _returnRepo;
-    private readonly IRepository<Sale> _saleRepo;
-    private readonly IRepository<SaleLine> _saleLineRepo;
+    private readonly IStockTransactionService _stockTransactionService;
+    private readonly IRepository<StockMain> _stockMainRepo;
     private readonly IRepository<ProductBatch> _batchRepo;
-    private readonly IAccountingService _accountingService;
-    private readonly IJournalPostingEngine _postingEngine;
-    private readonly IInventoryAccountingService _inventoryAccountingService;
-
-    // Account Type IDs
-    private const int CASH_ACCOUNT_TYPE = 1;
 
     public SalesReturnService(
-        IRepository<SalesReturn> returnRepo,
-        IRepository<Sale> saleRepo,
-        IRepository<SaleLine> saleLineRepo,
-        IRepository<ProductBatch> batchRepo,
-        IAccountingService accountingService,
-        IJournalPostingEngine postingEngine,
-        IInventoryAccountingService inventoryAccountingService)
+        IStockTransactionService stockTransactionService,
+        IRepository<StockMain> stockMainRepo,
+        IRepository<ProductBatch> batchRepo)
     {
-        _returnRepo = returnRepo;
-        _saleRepo = saleRepo;
-        _saleLineRepo = saleLineRepo;
+        _stockTransactionService = stockTransactionService;
+        _stockMainRepo = stockMainRepo;
         _batchRepo = batchRepo;
-        _accountingService = accountingService;
-        _postingEngine = postingEngine;
-        _inventoryAccountingService = inventoryAccountingService;
     }
 
-    public async Task<int> CreateReturn(SalesReturn salesReturn, int userId)
+    public async Task<int> CreateReturn(CreateSalesReturnRequest request, int userId)
     {
-        // 1. Validate original sale exists
-        var sale = await _saleRepo.FindByCondition(s => s.SaleID == salesReturn.Sale_ID)
-            .Include(s => s.SaleLines)
+        // 1. Validate original sale (StockMain with InvoiceType=1)
+        var sale = await _stockMainRepo.FindByCondition(s => s.StockMainID == request.OriginalSaleId && s.InvoiceType_ID == 1)
+            .Include(s => s.StockDetails)
             .FirstOrDefaultAsync();
 
         if (sale == null)
@@ -56,254 +41,170 @@ public class SalesReturnService : ISalesReturnService
             throw new InvalidOperationException("Cannot return items from a voided sale");
 
         // 2. Get previously returned quantities for this sale
-        var existingReturns = await GetReturnsBySale(salesReturn.Sale_ID);
+        var existingReturns = await GetReturnsBySale(request.OriginalSaleId);
         var alreadyReturnedQuantities = new Dictionary<int, decimal>();
 
         foreach (var existingReturn in existingReturns)
         {
-            foreach (var line in existingReturn.ReturnLines)
+            foreach (var detail in existingReturn.StockDetails)
             {
-                if (line.SaleLine_ID.HasValue)
+                if (detail.ProductBatch_ID.HasValue)
                 {
-                    if (!alreadyReturnedQuantities.ContainsKey(line.SaleLine_ID.Value))
-                        alreadyReturnedQuantities[line.SaleLine_ID.Value] = 0;
-                    alreadyReturnedQuantities[line.SaleLine_ID.Value] += line.Quantity;
+                    if (!alreadyReturnedQuantities.ContainsKey(detail.ProductBatch_ID.Value))
+                        alreadyReturnedQuantities[detail.ProductBatch_ID.Value] = 0;
+                    alreadyReturnedQuantities[detail.ProductBatch_ID.Value] += detail.Quantity;
                 }
             }
         }
 
-        // 3. Validate return quantities against remaining returnable quantities
-        foreach (var line in salesReturn.ReturnLines)
+        // 3. Validate return quantities
+        foreach (var line in request.Lines)
         {
-            if (!line.SaleLine_ID.HasValue) continue;
+            var saleDetail = sale.StockDetails.FirstOrDefault(d => d.ProductBatch_ID == line.ProductBatchId);
+            if (saleDetail == null) continue;
 
-            var saleLine = sale.SaleLines.FirstOrDefault(sl => sl.SaleLineID == line.SaleLine_ID);
-            if (saleLine == null) continue;
-
-            var alreadyReturned = alreadyReturnedQuantities.GetValueOrDefault(line.SaleLine_ID.Value, 0);
-            var remainingReturnable = saleLine.Quantity - alreadyReturned;
+            var alreadyReturned = alreadyReturnedQuantities.GetValueOrDefault(line.ProductBatchId, 0);
+            var remainingReturnable = saleDetail.Quantity - alreadyReturned;
 
             if (line.Quantity > remainingReturnable)
             {
                 throw new InvalidOperationException(
-                    $"Return quantity ({line.Quantity}) exceeds remaining returnable quantity ({remainingReturnable}) for this item. Already returned: {alreadyReturned}");
+                    $"Return quantity ({line.Quantity}) exceeds remaining returnable quantity ({remainingReturnable})");
             }
         }
 
-        // 4. Generate return number and set properties
-        salesReturn.ReturnNumber = await GenerateReturnNumber();
-        salesReturn.ReturnDate = DateTime.Now;
-        salesReturn.Status = "Completed";
-        salesReturn.CreatedBy = userId;
-        salesReturn.CreatedDate = DateTime.Now;
+        // 4. Get batch costs for proper accounting
+        var batchIds = request.Lines.Select(l => l.ProductBatchId).Distinct().ToList();
+        var batches = await _batchRepo.FindByCondition(b => batchIds.Contains(b.ProductBatchID)).ToListAsync();
+        var batchCosts = batches.ToDictionary(b => b.ProductBatchID, b => b.CostPrice);
 
-        // Calculate total
-        salesReturn.TotalAmount = salesReturn.ReturnLines.Sum(l => l.Amount);
-
-        // 5. Insert sales return first to get the ID
-        await _returnRepo.Insert(salesReturn);
-
-        // 6. Process inventory restock and accounting via InventoryAccountingService
-        // Only process lines that have RestockInventory = true
-        var restockLines = salesReturn.ReturnLines.Where(l => l.RestockInventory && l.ProductBatch_ID.HasValue).ToList();
-
-        if (restockLines.Any())
+        // 5. Create return transaction via unified service (InvoiceType=3 for SALE_RTN)
+        var transactionRequest = new CreateTransactionRequest
         {
-            // Get batch cost prices for proper COGS reversal
-            var batchIds = restockLines.Select(l => l.ProductBatch_ID!.Value).Distinct().ToList();
-            var batches = await _batchRepo.FindByCondition(b => batchIds.Contains(b.ProductBatchID)).ToListAsync();
-            var batchCosts = batches.ToDictionary(b => b.ProductBatchID, b => b.CostPrice);
-
-            var returnLineDtos = restockLines.Select(line => new SaleReturnLineDto
+            InvoiceTypeId = 3, // SALE_RTN
+            StoreId = request.StoreId,
+            PartyId = sale.Party_ID,
+            InvoiceDate = DateTime.Now,
+            ReferenceStockMainId = request.OriginalSaleId,
+            Remarks = request.ReturnReason,
+            CreatedBy = userId,
+            Lines = request.Lines.Select(l => new CreateTransactionLineRequest
             {
-                ProductBatchId = line.ProductBatch_ID!.Value,
-                Quantity = line.Quantity,
-                UnitCost = batchCosts.GetValueOrDefault(line.ProductBatch_ID!.Value, line.UnitPrice),
-                UnitPrice = line.UnitPrice
-            }).ToList();
+                ProductId = batches.FirstOrDefault(b => b.ProductBatchID == l.ProductBatchId)?.Product_ID ?? 0,
+                ProductBatchId = l.ProductBatchId,
+                Quantity = l.Quantity,
+                UnitPrice = l.UnitPrice,
+                PurchasePrice = batchCosts.GetValueOrDefault(l.ProductBatchId, l.UnitPrice),
+                ReturnReason = l.Reason
+            }).ToList()
+        };
 
-            // Get cash account for refund
-            var cashAccount = await _accountingService.GetFirstAccountByTypeId(CASH_ACCOUNT_TYPE);
-            if (cashAccount == null)
-                throw new InvalidOperationException("Cash account not found for refund processing");
+        var transaction = await _stockTransactionService.CreateTransactionAsync(transactionRequest);
 
-            var result = await _inventoryAccountingService.ProcessSaleReturnAsync(
-                storeId: salesReturn.Store_ID,
-                saleReturnId: salesReturn.SalesReturnID,
-                returnDate: salesReturn.ReturnDate,
-                returnLines: returnLineDtos,
-                paymentAccountId: cashAccount.AccountID,
-                userId: userId);
+        // 6. Update status and generate accounting entries
+        await _stockTransactionService.UpdateStatusAsync(transaction.StockMainID, "Completed");
+        await _stockTransactionService.GenerateAccountingEntriesAsync(transaction.StockMainID);
 
-            if (!result.Success)
-            {
-                throw new InvalidOperationException($"Failed to process inventory restock: {result.ErrorMessage}");
-            }
-
-            // Update sales return with journal entry reference
-            salesReturn.JournalEntry_ID = result.JournalEntryId;
-            await _returnRepo.Update(salesReturn);
-        }
-        else
-        {
-            // No inventory restock needed, create simple accounting entry for refund only
-            var salesAccount = await _accountingService.GetFirstAccountByTypeId(5); // Sales Account
-            var cashAccount = await _accountingService.GetFirstAccountByTypeId(CASH_ACCOUNT_TYPE);
-
-            if (salesAccount == null || cashAccount == null)
-                throw new InvalidOperationException("Required accounts not found");
-
-            var journalLines = new List<JournalEntryLine>
-            {
-                new JournalEntryLine
-                {
-                    Account_ID = salesAccount.AccountID,
-                    DebitAmount = salesReturn.TotalAmount,
-                    CreditAmount = 0,
-                    Description = $"Sales return - {salesReturn.ReturnNumber}",
-                    Store_ID = salesReturn.Store_ID
-                },
-                new JournalEntryLine
-                {
-                    Account_ID = cashAccount.AccountID,
-                    DebitAmount = 0,
-                    CreditAmount = salesReturn.TotalAmount,
-                    Description = $"Refund for return - {salesReturn.ReturnNumber}",
-                    Store_ID = salesReturn.Store_ID
-                }
-            };
-
-            var journal = await _postingEngine.CreateAndPostAsync(
-                entryType: "SalesReturn",
-                description: $"Sales Return - {salesReturn.ReturnNumber}",
-                lines: journalLines,
-                sourceTable: "SalesReturns",
-                sourceId: salesReturn.SalesReturnID,
-                storeId: salesReturn.Store_ID,
-                userId: userId,
-                isSystemEntry: true);
-
-            salesReturn.JournalEntry_ID = journal.JournalEntryID;
-            await _returnRepo.Update(salesReturn);
-        }
-
-        // 7. Update original sale status if fully returned
-        var totalReturnedNow = salesReturn.TotalAmount;
-        var previouslyReturned = existingReturns.Sum(r => r.TotalAmount);
-        var totalAllReturns = totalReturnedNow + previouslyReturned;
-
-        if (totalAllReturns >= sale.Total)
+        // 7. Check if original sale is fully returned
+        var totalReturned = existingReturns.Sum(r => r.TotalAmount) + transaction.TotalAmount;
+        if (totalReturned >= sale.TotalAmount)
         {
             sale.Status = "Returned";
-            await _saleRepo.Update(sale);
+            await _stockMainRepo.Update(sale);
         }
 
-        return salesReturn.SalesReturnID;
+        return transaction.StockMainID;
     }
 
-    public async Task<SalesReturn?> GetReturnById(int id)
+    public async Task<StockMain?> GetReturnById(int id)
     {
-        return await _returnRepo.FindByCondition(r => r.SalesReturnID == id)
-            .Include(r => r.Sale)
-            .Include(r => r.Party)
-            .Include(r => r.Store)
-            .Include(r => r.ReturnLines)
-                .ThenInclude(l => l.Product)
-            .FirstOrDefaultAsync();
+        return await _stockTransactionService.GetTransactionAsync(id);
     }
 
-    public async Task<List<SalesReturn>> GetReturnsBySale(int saleId)
+    public async Task<List<StockMain>> GetReturnsBySale(int saleId)
     {
-        return await _returnRepo.FindByCondition(r => r.Sale_ID == saleId && r.Status != "Cancelled")
-            .Include(r => r.ReturnLines)
-            .OrderByDescending(r => r.ReturnDate)
+        return await _stockMainRepo.FindByCondition(s => 
+            s.InvoiceType_ID == 3 && s.ReferenceStockMain_ID == saleId && s.Status != "Cancelled")
+            .Include(s => s.StockDetails)
+            .OrderByDescending(s => s.InvoiceDate)
             .ToListAsync();
     }
 
-    public async Task<List<SalesReturn>> GetReturns(DateTime? startDate = null, DateTime? endDate = null, int? storeId = null)
+    public async Task<List<StockMain>> GetReturns(DateTime? startDate = null, DateTime? endDate = null, int? storeId = null)
     {
-        var query = _returnRepo.FindByCondition(r => true);
-
-        if (startDate.HasValue)
-            query = query.Where(r => r.ReturnDate >= startDate.Value);
-
-        if (endDate.HasValue)
-            query = query.Where(r => r.ReturnDate <= endDate.Value.AddDays(1));
+        var transactions = await _stockTransactionService.GetTransactionsByTypeAsync(3, startDate, endDate);
 
         if (storeId.HasValue && storeId.Value > 0)
-            query = query.Where(r => r.Store_ID == storeId.Value);
+            transactions = transactions.Where(t => t.Store_ID == storeId.Value);
 
-        return await query
-            .Include(r => r.Sale)
-            .Include(r => r.Party)
-            .Include(r => r.Store)
-            .Include(r => r.ReturnLines)
-            .OrderByDescending(r => r.ReturnDate)
-            .ToListAsync();
+        return transactions.ToList();
     }
 
     public async Task<bool> CancelReturn(int returnId, int userId)
     {
-        var salesReturn = await _returnRepo.FindByCondition(r => r.SalesReturnID == returnId)
-            .Include(r => r.ReturnLines)
-            .FirstOrDefaultAsync();
+        var transaction = await _stockTransactionService.GetTransactionAsync(returnId);
 
-        if (salesReturn == null)
+        if (transaction == null)
             throw new InvalidOperationException("Return not found");
 
-        if (salesReturn.Status == "Cancelled")
+        if (transaction.Status == "Cancelled")
             throw new InvalidOperationException("Return is already cancelled");
 
-        // Void journal entry (this will also create reversal entries)
-        if (salesReturn.JournalEntry_ID.HasValue)
+        await _stockTransactionService.VoidTransactionAsync(returnId, "Return cancelled", userId);
+
+        // Restore original sale status if needed
+        if (transaction.ReferenceStockMain_ID.HasValue)
         {
-            await _accountingService.VoidJournalEntry(salesReturn.JournalEntry_ID.Value, userId);
-        }
-
-        // Note: When cancelling a return, the inventory restock would ideally also be reversed
-        // via stock movements. However, since we voided the journal entry, the accounting is correct.
-        // For full inventory reversal, you would need to call a reverse method on InventoryAccountingService
-        // This is a trade-off for simplicity - the voided journal provides an audit trail
-
-        salesReturn.Status = "Cancelled";
-        salesReturn.UpdatedBy = userId;
-        salesReturn.UpdatedDate = DateTime.Now;
-
-        // Update original sale status back if it was marked as "Returned"
-        var sale = await _saleRepo.FindByCondition(s => s.SaleID == salesReturn.Sale_ID).FirstOrDefaultAsync();
-        if (sale != null && sale.Status == "Returned")
-        {
-            // Check if there are any remaining non-cancelled returns
-            var remainingReturns = await _returnRepo.FindByCondition(
-                r => r.Sale_ID == salesReturn.Sale_ID &&
-                     r.SalesReturnID != returnId &&
-                     r.Status != "Cancelled")
-                .ToListAsync();
-
-            var remainingReturnTotal = remainingReturns.Sum(r => r.TotalAmount);
-            if (remainingReturnTotal < sale.Total)
+            var sale = await _stockMainRepo.GetByIdAsync(transaction.ReferenceStockMain_ID.Value);
+            if (sale != null && sale.Status == "Returned")
             {
-                sale.Status = "Completed";
-                await _saleRepo.Update(sale);
+                var remainingReturns = await _stockMainRepo.FindByCondition(
+                    s => s.InvoiceType_ID == 3 && 
+                         s.ReferenceStockMain_ID == transaction.ReferenceStockMain_ID &&
+                         s.StockMainID != returnId &&
+                         s.Status != "Voided" && s.Status != "Cancelled")
+                    .ToListAsync();
+
+                if (remainingReturns.Sum(r => r.TotalAmount) < sale.TotalAmount)
+                {
+                    sale.Status = "Completed";
+                    await _stockMainRepo.Update(sale);
+                }
             }
         }
 
-        return await _returnRepo.Update(salesReturn);
+        return true;
     }
 
-    public Task<string> GenerateReturnNumber()
+    public async Task<StockMain?> GetSaleForReturn(int saleId)
     {
-        return Task.FromResult(UniqueIdGenerator.Generate("SR"));
-    }
-
-    public async Task<Sale?> GetSaleForReturn(int saleId)
-    {
-        return await _saleRepo.FindByCondition(s => s.SaleID == saleId)
+        return await _stockMainRepo.FindByCondition(s => s.StockMainID == saleId && s.InvoiceType_ID == 1)
             .Include(s => s.Party)
-            .Include(s => s.SaleLines)
-                .ThenInclude(l => l.Product)
-            .Include(s => s.SaleLines)
-                .ThenInclude(l => l.ProductBatch)
+            .Include(s => s.StockDetails)
+                .ThenInclude(d => d.Product)
+            .Include(s => s.StockDetails)
+                .ThenInclude(d => d.ProductBatch)
             .FirstOrDefaultAsync();
     }
+}
+
+/// <summary>
+/// Request DTO for creating a sales return
+/// </summary>
+public class CreateSalesReturnRequest
+{
+    public int OriginalSaleId { get; set; }
+    public int StoreId { get; set; }
+    public string? ReturnReason { get; set; }
+    public string RefundMethod { get; set; } = "Cash";
+    public List<CreateSalesReturnLineRequest> Lines { get; set; } = new();
+}
+
+public class CreateSalesReturnLineRequest
+{
+    public int ProductBatchId { get; set; }
+    public decimal Quantity { get; set; }
+    public decimal UnitPrice { get; set; }
+    public string? Reason { get; set; }
+    public bool RestockInventory { get; set; } = true;
 }

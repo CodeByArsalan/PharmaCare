@@ -51,11 +51,11 @@ public class SupplierPaymentController : BaseController
         {
             int decryptedGrnId = DecryptId(grnId);
             var outstanding = await _paymentService.GetOutstandingGrns();
-            var grn = outstanding.FirstOrDefault(g => g.GrnID == decryptedGrnId);
+            var grn = outstanding.FirstOrDefault(g => g.StockMainID == decryptedGrnId);
 
             if (grn != null)
             {
-                payment.Grn_ID = grn.GrnID;
+                payment.StockMain_ID = grn.StockMainID;
                 payment.Party_ID = grn.SupplierId;
                 payment.GrnAmount = grn.TotalAmount;
                 payment.AmountPaid = grn.BalanceAmount; // Default to full payment
@@ -131,7 +131,7 @@ public class SupplierPaymentController : BaseController
     public async Task<IActionResult> GetGrnDetails(int grnId)
     {
         var outstanding = await _paymentService.GetOutstandingGrns();
-        var grn = outstanding.FirstOrDefault(g => g.GrnID == grnId);
+        var grn = outstanding.FirstOrDefault(g => g.StockMainID == grnId);
 
         if (grn == null)
             return Json(new { success = false, message = "GRN not found" });
@@ -141,7 +141,7 @@ public class SupplierPaymentController : BaseController
             success = true,
             data = new
             {
-                grnId = grn.GrnID,
+                stockMainId = grn.StockMainID,
                 grnNumber = grn.GrnNumber,
                 supplierName = grn.SupplierName,
                 totalAmount = grn.TotalAmount,

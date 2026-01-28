@@ -61,8 +61,8 @@
                                     <i class="bx bx-link fs-4"></i>
                                 </span>
                                 <div>
-                                    <h6 class="mb-1">Reference GRN</h6>
-                                    <p class="mb-0 fw-bold">@(Model.Grn != null ? Model.Grn.GrnNumber : "Direct Return")
+                                    <h6 class="mb-1">Reference Purchase</h6>
+                                    <p class="mb-0 fw-bold">@(Model.StockMain != null ? Model.StockMain.InvoiceNo : "Direct Return")
                                     </p>
                                 </div>
                             </div>
@@ -251,7 +251,7 @@
     }
 
     <!-- Journal Entry Reference Section -->
-    @if (Model.JournalEntry_ID.HasValue || Model.RefundJournalEntry_ID.HasValue)
+    @if (Model.Voucher_ID.HasValue || Model.RefundVoucher_ID.HasValue)
     {
         <div class="card shadow-sm border-0 mb-4">
             <div class="card-header border-bottom bg-transparent">
@@ -259,30 +259,26 @@
             </div>
             <div class="card-body mt-2">
                 <div class="row">
-                    @if (Model.JournalEntry_ID.HasValue)
+                    @if (Model.Voucher_ID.HasValue)
                     {
                         <div class="col-md-6">
                             <div class="d-flex align-items-center p-3 bg-light rounded">
                                 <i class="bx bx-file-blank fs-2 text-primary me-3"></i>
                                 <div>
-                                    <small class="text-muted d-block">Inventory Adjustment Entry</small>
-                                    <span class="fw-bold">Journal Entry @* #@Model.JournalEntry_ID *@</span>
-                                    <br />
-                                    <small class="text-muted">DR: Accounts Payable | CR: Inventory</small>
+                                    <small class="text-muted d-block">Inventory Adjustment Voucher</small>
+                                    <span class="fw-bold">Voucher #@Model.Voucher_ID</span>
                                 </div>
                             </div>
                         </div>
                     }
-                    @if (Model.RefundJournalEntry_ID.HasValue)
+                    @if (Model.RefundVoucher_ID.HasValue)
                     {
                         <div class="col-md-6">
                             <div class="d-flex align-items-center p-3 bg-light rounded">
                                 <i class="bx bx-money-withdraw fs-2 text-success me-3"></i>
                                 <div>
-                                    <small class="text-muted d-block">Refund Receipt Entry</small>
-                                    <span class="fw-bold">Journal Entry @* #@Model.RefundJournalEntry_ID *@</span>
-                                    <br />
-                                    <small class="text-muted">DR: Cash/Bank | CR: Accounts Payable</small>
+                                    <small class="text-muted d-block">Refund Receipt Voucher</small>
+                                    <span class="fw-bold">Voucher #@Model.RefundVoucher_ID</span>
                                 </div>
                             </div>
                         </div>

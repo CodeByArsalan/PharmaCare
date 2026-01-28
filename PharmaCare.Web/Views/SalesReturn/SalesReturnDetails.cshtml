@@ -1,4 +1,4 @@
-@model PharmaCare.Domain.Models.SaleManagement.SalesReturn
+@model PharmaCare.Domain.Models.Inventory.StockMain
 @{
     ViewData["Title"] = "Sales Return Details";
 }
@@ -6,7 +6,7 @@
 <div class="container-fluid p-0">
     <!-- Page Header -->
     <div class="d-flex justify-content-between align-items-center mb-3">
-        <h4><i class="bx bx-file-invoice me-2"></i>Return Details: @Model.ReturnNumber</h4>
+        <h4><i class="bx bx-file-invoice me-2"></i>Return Details: @Model.InvoiceNo</h4>
         <a href="@Url.Action("SalesReturnIndex")" class="btn btn-secondary">
             <i class="bx bx-arrow-left me-1"></i> Back to List
         </a>
@@ -23,28 +23,27 @@
                     <table class="table table-borderless mb-0">
                         <tr>
                             <td class="fw-bold">Return Number:</td>
-                            <td>@Model.ReturnNumber</td>
+                            <td>@Model.InvoiceNo</td>
                         </tr>
                         <tr>
                             <td class="fw-bold">Return Date:</td>
-                            <td>@Model.ReturnDate.ToString("dd-MMM-yyyy HH:mm")</td>
+                            <td>@Model.InvoiceDate.ToString("dd-MMM-yyyy HH:mm")</td>
                         </tr>
                         <tr>
                             <td class="fw-bold">Status:</td>
                             <td>
-                                <span
-                                    class="badge @(Model.Status == "Completed" ? "bg-success" : Model.Status == "Cancelled" ? "bg-danger" : "bg-warning") fs-6">
+                                <span class="badge @(Model.Status == "Completed" ? "bg-success" : Model.Status == "Voided" ? "bg-danger" : "bg-warning") fs-6">
                                     @Model.Status
                                 </span>
                             </td>
                         </tr>
                         <tr>
-                            <td class="fw-bold">Return Reason:</td>
-                            <td>@Model.ReturnReason</td>
+                            <td class="fw-bold">Reason:</td>
+                            <td>@Model.Remarks</td>
                         </tr>
                         <tr>
-                            <td class="fw-bold">Refund Method:</td>
-                            <td>@Model.RefundMethod</td>
+                            <td class="fw-bold">Payment Status:</td>
+                            <td>@Model.PaymentStatus</td>
                         </tr>
                     </table>
                 </div>
@@ -61,11 +60,11 @@
                     <table class="table table-borderless mb-0">
                         <tr>
                             <td class="fw-bold">Sale Number:</td>
-                            <td>@Model.Sale?.SaleNumber</td>
+                            <td>@Model.ReferenceStockMain?.InvoiceNo</td>
                         </tr>
                         <tr>
                             <td class="fw-bold">Sale Date:</td>
-                            <td>@Model.Sale?.SaleDate.ToString("dd-MMM-yyyy HH:mm")</td>
+                            <td>@Model.ReferenceStockMain?.InvoiceDate.ToString("dd-MMM-yyyy HH:mm")</td>
                         </tr>
                         <tr>
                             <td class="fw-bold">Customer:</td>
@@ -91,32 +90,31 @@
                 <thead class="table-dark">
                     <tr>
                         <th>Product</th>
+                        <th>Batch</th>
                         <th class="text-center">Quantity</th>
                         <th class="text-end">Unit Price</th>
                         <th class="text-end">Amount</th>
-                        <th class="text-center">Restocked</th>
                     </tr>
                 </thead>
                 <tbody>
-                    @foreach (var line in Model.ReturnLines)
+                    @if (Model.StockDetails != null)
                     {
-                        <tr>
-                            <td>@line.Product?.ProductName</td>
-                            <td class="text-center">@line.Quantity</td>
-                            <td class="text-end">@line.UnitPrice.ToString("N2")</td>
-                            <td class="text-end">@line.Amount.ToString("N2")</td>
-                            <td class="text-center">
-                                <i
-                                    class="fas @(line.RestockInventory ? "fa-check text-success" : "fa-times text-danger")"></i>
-                            </td>
-                        </tr>
+                        @foreach (var line in Model.StockDetails)
+                        {
+                            <tr>
+                                <td>@(line.Product?.ProductName ?? "N/A")</td>
+                                <td><span class="badge bg-secondary">@(line.ProductBatch?.BatchNumber ?? "N/A")</span></td>
+                                <td class="text-center">@line.Quantity</td>
+                                <td class="text-end">@line.UnitPrice.ToString("N2")</td>
+                                <td class="text-end">@line.LineTotal.ToString("N2")</td>
+                            </tr>
+                        }
                     }
                 </tbody>
                 <tfoot class="table-secondary">
                     <tr>
-                        <td colspan="3" class="text-end fw-bold">Total Refund:</td>
+                        <td colspan="4" class="text-end fw-bold">Total Refund:</td>
                         <td class="text-end fw-bold text-danger fs-5">@Model.TotalAmount.ToString("N2")</td>
-                        <td></td>
                     </tr>
                 </tfoot>
             </table>
@@ -128,7 +126,7 @@
     {
         <div class="card">
             <div class="card-body">
-                <form asp-action="CancelSalesReturn" asp-route-id="@Utility.EncryptURL(Model.SalesReturnID.ToString())"
+                <form asp-action="CancelSalesReturn" asp-route-id="@Utility.EncryptURL(Model.StockMainID.ToString())"
                     method="post"
                     onsubmit="return confirm('Are you sure you want to cancel this return? This will reverse the refund.');">
                     @Html.AntiForgeryToken()

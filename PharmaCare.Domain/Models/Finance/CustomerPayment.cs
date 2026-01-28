@@ -1,7 +1,8 @@
 using PharmaCare.Domain.Models.Base;
-using PharmaCare.Domain.Models.AccountManagement;
-using PharmaCare.Domain.Models.SaleManagement;
+
 using PharmaCare.Domain.Models.Configuration;
+using PharmaCare.Domain.Models.Inventory;
+using System.ComponentModel.DataAnnotations.Schema;
 
 namespace PharmaCare.Domain.Models.Finance;
 
@@ -25,9 +26,9 @@ public class CustomerPayment : BaseModel
     public int Party_ID { get; set; }
 
     /// <summary>
-    /// Optional: Link to a specific sale this payment is for
+    /// Optional: Link to a specific sale (StockMain with InvoiceType=1) this payment is for
     /// </summary>
-    public int? Sale_ID { get; set; }
+    public int? StockMain_ID { get; set; }
 
     /// <summary>
     /// Payment amount
@@ -59,13 +60,17 @@ public class CustomerPayment : BaseModel
     /// </summary>
     public bool IsActive { get; set; } = true;
 
-    /// <summary>
-    /// Linked journal entry for accounting
-    /// </summary>
-    public int? JournalEntry_ID { get; set; }
+
 
     // Navigation properties
     public Party? Party { get; set; }
-    public Sale? Sale { get; set; }
-    public JournalEntry? JournalEntry { get; set; }
+    public StockMain? StockMain { get; set; }
+
+    
+    /// <summary>
+    /// Link to Account Voucher (Replaces JournalEntry)
+    /// </summary>
+    [ForeignKey("AccountVoucher")]
+    public int? Voucher_ID { get; set; }
+    public AccountVoucher? AccountVoucher { get; set; }
 }

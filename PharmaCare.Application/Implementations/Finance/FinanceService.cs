@@ -3,7 +3,7 @@ using PharmaCare.Application.DTOs.Finance;
 using PharmaCare.Application.Interfaces.Finance;
 using PharmaCare.Application.Interfaces.AccountManagement;
 using PharmaCare.Domain.Models.Finance;
-using PharmaCare.Domain.Models.SaleManagement;
+using PharmaCare.Domain.Models.Inventory;
 using PharmaCare.Infrastructure.Interfaces;
 
 namespace PharmaCare.Application.Implementations.Finance;
@@ -11,16 +11,16 @@ namespace PharmaCare.Application.Implementations.Finance;
 public class FinanceService : IFinanceService
 {
     private readonly IRepository<Expense> _expenseRepo;
-    private readonly IRepository<Sale> _saleRepo;
+    private readonly IRepository<StockMain> _stockMainRepo;
     private readonly IAccountingService _accountingService;
 
     public FinanceService(
         IRepository<Expense> expenseRepo,
-        IRepository<Sale> saleRepo,
+        IRepository<StockMain> stockMainRepo,
         IAccountingService accountingService)
     {
         _expenseRepo = expenseRepo;
-        _saleRepo = saleRepo;
+        _stockMainRepo = stockMainRepo;
         _accountingService = accountingService;
     }
 
@@ -50,9 +50,9 @@ public class FinanceService : IFinanceService
             .Where(e => e.ExpenseDate >= today && e.ExpenseDate <= today.AddDays(1))
             .Sum(e => e.Amount);
 
-        // Today's sales (from Sale entity)
-        var todaySales = await _saleRepo.FindByCondition(s => s.SaleDate.Date == today)
-            .SumAsync(s => s.Total);
+        // Today's sales (from StockMain with InvoiceType_ID=1 for SALE)
+        var todaySales = await _stockMainRepo.FindByCondition(s => s.InvoiceType_ID == 1 && s.InvoiceDate.Date == today)
+            .SumAsync(s => s.TotalAmount);
 
         return new FinanceDashboardDto
         {
@@ -68,4 +68,3 @@ public class FinanceService : IFinanceService
     }
     #endregion
 }
-

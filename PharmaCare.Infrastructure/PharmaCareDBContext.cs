@@ -39,26 +39,12 @@ public class PharmaCareDBContext : IdentityDbContext<SystemUser, IdentityRole<in
     public DbSet<StockMovement> StockMovements { get; set; }
     public DbSet<PurchaseOrder> PurchaseOrders { get; set; }
     public DbSet<PurchaseOrderItem> PurchaseOrderItems { get; set; }
-    public DbSet<Grn> Grns { get; set; }
-    public DbSet<GrnItem> GrnItems { get; set; }
     public DbSet<StockAlert> StockAlerts { get; set; }
-    public DbSet<StockAdjustment> StockAdjustments { get; set; }
-    public DbSet<StockTransfer> StockTransfers { get; set; }
-    public DbSet<StockTransferItem> StockTransferItems { get; set; }
-    public DbSet<StockTake> StockTakes { get; set; }
-    public DbSet<StockTakeItem> StockTakeItems { get; set; }
     public DbSet<PurchaseReturn> PurchaseReturns { get; set; }
     public DbSet<PurchaseReturnItem> PurchaseReturnItems { get; set; }
     #endregion
 
-    #region Sales Tables
-    public DbSet<Sale> Sales { get; set; }
-    public DbSet<SaleLine> SaleLines { get; set; }
-    public DbSet<Payment> Payments { get; set; }
-    public DbSet<PharmaCare.Domain.Models.SaleManagement.SalesReturn> SalesReturns { get; set; }
-    public DbSet<PharmaCare.Domain.Models.SaleManagement.SalesReturnLine> SalesReturnLines { get; set; }
-    public DbSet<PharmaCare.Domain.Models.SaleManagement.HeldSale> HeldSales { get; set; }
-    public DbSet<PharmaCare.Domain.Models.SaleManagement.HeldSaleLine> HeldSaleLines { get; set; }
+    #region Sales Tables (Quotations only - Legacy Sales removed)
     public DbSet<PharmaCare.Domain.Models.SaleManagement.Quotation> Quotations { get; set; }
     public DbSet<PharmaCare.Domain.Models.SaleManagement.QuotationLine> QuotationLines { get; set; }
     #endregion
@@ -79,8 +65,7 @@ public class PharmaCareDBContext : IdentityDbContext<SystemUser, IdentityRole<in
     public DbSet<Party> Parties { get; set; }
     public DbSet<PharmaCare.Domain.Models.AccountManagement.AccountType> AccountTypes { get; set; }
     public DbSet<PharmaCare.Domain.Models.AccountManagement.ChartOfAccount> ChartOfAccounts { get; set; }
-    public DbSet<PharmaCare.Domain.Models.AccountManagement.JournalEntry> JournalEntries { get; set; }
-    public DbSet<PharmaCare.Domain.Models.AccountManagement.JournalEntryLine> JournalEntryLines { get; set; }
+
 
     // Fiscal Period Management
     public DbSet<PharmaCare.Domain.Models.AccountManagement.FiscalYear> FiscalYears { get; set; }
@@ -91,6 +76,15 @@ public class PharmaCareDBContext : IdentityDbContext<SystemUser, IdentityRole<in
     public DbSet<PharmaCare.Domain.Models.Finance.CustomerPayment> CustomerPayments { get; set; }
     #endregion
 
+    #region Unified Transaction Tables (GreenEnergy Pattern)
+    public DbSet<InvoiceType> InvoiceTypes { get; set; }
+    public DbSet<AccountVoucherType> AccountVoucherTypes { get; set; }
+    public DbSet<StockMain> StockMains { get; set; }
+    public DbSet<StockDetail> StockDetails { get; set; }
+    public DbSet<AccountVoucher> AccountVouchers { get; set; }
+    public DbSet<AccountVoucherDetail> AccountVoucherDetails { get; set; }
+    #endregion
+
 
     protected override void OnModelCreating(ModelBuilder builder)
     {
@@ -99,18 +93,6 @@ public class PharmaCareDBContext : IdentityDbContext<SystemUser, IdentityRole<in
         // --- GLOBAL QUERY FILTERS ---
         // Automatically filter store data based on CurrentStoreId from IStoreContext
         // Admins (IsAdmin == true) bypass these filters
-
-        // Sale
-        builder.Entity<Sale>().HasQueryFilter(x =>
-            _storeContext.IsAdmin ||
-            (x.Store_ID == _storeContext.CurrentStoreId)
-        );
-
-        // Grn
-        builder.Entity<Grn>().HasQueryFilter(x =>
-            _storeContext.IsAdmin ||
-            (x.Store_ID == _storeContext.CurrentStoreId)
-        );
 
         // PurchaseReturn
         builder.Entity<PurchaseReturn>().HasQueryFilter(x =>
@@ -135,43 +117,6 @@ public class PharmaCareDBContext : IdentityDbContext<SystemUser, IdentityRole<in
             _storeContext.IsAdmin ||
             (x.Store_ID == _storeContext.CurrentStoreId)
         );
-
-        // StockTake
-        builder.Entity<StockTake>().HasQueryFilter(x =>
-            _storeContext.IsAdmin ||
-            (x.Store_ID == _storeContext.CurrentStoreId)
-        );
-
-        // StockAdjustment
-        builder.Entity<StockAdjustment>().HasQueryFilter(x =>
-            _storeContext.IsAdmin ||
-            (x.Store_ID == _storeContext.CurrentStoreId)
-        );
-
-        // SalesReturn
-        builder.Entity<PharmaCare.Domain.Models.SaleManagement.SalesReturn>().HasQueryFilter(x =>
-            _storeContext.IsAdmin ||
-            (x.Store_ID == _storeContext.CurrentStoreId)
-        );
-
-
-        // Configure SaleLine to avoid multiple cascade paths & enforce FK names
-        builder.Entity<SaleLine>()
-            .HasOne(sl => sl.ProductBatch)
-            .WithMany()
-            .HasForeignKey(sl => sl.ProductBatch_ID)
-            .OnDelete(DeleteBehavior.NoAction);
-
-        builder.Entity<SaleLine>()
-            .HasOne(sl => sl.Product)
-            .WithMany()
-            .HasForeignKey(sl => sl.Product_ID)
-            .OnDelete(DeleteBehavior.NoAction);
-
-        builder.Entity<SaleLine>()
-            .HasOne(sl => sl.Sale)
-            .WithMany(s => s.SaleLines)
-            .HasForeignKey(sl => sl.Sale_ID);
 
         // Products - now link to SubCategory
         builder.Entity<Product>()
@@ -215,28 +160,6 @@ public class PharmaCareDBContext : IdentityDbContext<SystemUser, IdentityRole<in
             .HasOne(c => c.DamageExpenseAccount)
             .WithMany()
             .HasForeignKey(c => c.DamageExpenseAccount_ID);
-
-        // Sales
-        builder.Entity<Sale>()
-            .HasOne(s => s.Store)
-            .WithMany()
-            .HasForeignKey(s => s.Store_ID);
-
-        builder.Entity<Sale>()
-            .HasOne(s => s.Party)
-            .WithMany()
-            .HasForeignKey(s => s.Party_ID);
-
-        builder.Entity<Sale>()
-            .HasOne(s => s.Prescription)
-            .WithMany()
-            .HasForeignKey(s => s.Prescription_ID);
-
-        // Payments
-        builder.Entity<Payment>()
-            .HasOne(p => p.Sale)
-            .WithMany(s => s.Payments)
-            .HasForeignKey(p => p.Sale_ID);
 
         // StoreInventories
         builder.Entity<StoreInventory>()
@@ -284,21 +207,7 @@ public class PharmaCareDBContext : IdentityDbContext<SystemUser, IdentityRole<in
             .WithMany()
             .HasForeignKey(sa => sa.Store_ID);
 
-
-
-        // Sales & Purchasing - Decimal Precision
-        builder.Entity<Sale>()
-            .Property(s => s.Total)
-            .HasColumnType("decimal(18,2)");
-
-        builder.Entity<SaleLine>()
-            .Property(sl => sl.UnitPrice)
-            .HasColumnType("decimal(18,2)");
-
-        builder.Entity<Payment>()
-            .Property(p => p.Amount)
-            .HasColumnType("decimal(18,2)");
-
+        // PurchaseOrder - Decimal Precision
         builder.Entity<PurchaseOrder>()
             .Property(po => po.TotalAmount)
             .HasColumnType("decimal(18,2)");
@@ -338,14 +247,11 @@ public class PharmaCareDBContext : IdentityDbContext<SystemUser, IdentityRole<in
             .HasForeignKey(cp => cp.Party_ID);
 
         builder.Entity<PharmaCare.Domain.Models.Finance.CustomerPayment>()
-            .HasOne(cp => cp.Sale)
+            .HasOne(cp => cp.StockMain)
             .WithMany()
-            .HasForeignKey(cp => cp.Sale_ID);
+            .HasForeignKey(cp => cp.StockMain_ID);
 
-        builder.Entity<PharmaCare.Domain.Models.Finance.CustomerPayment>()
-            .HasOne(cp => cp.JournalEntry)
-            .WithMany()
-            .HasForeignKey(cp => cp.JournalEntry_ID);
+
 
         builder.Entity<PharmaCare.Domain.Models.Finance.CustomerPayment>()
             .Property(cp => cp.Amount)
@@ -416,89 +322,13 @@ public class PharmaCareDBContext : IdentityDbContext<SystemUser, IdentityRole<in
             .WithMany()
             .HasForeignKey(am => am.Account_ID);
 
-        // JournalEntry
-        builder.Entity<PharmaCare.Domain.Models.AccountManagement.JournalEntry>()
-            .HasKey(je => je.JournalEntryID);
 
-        // Disable OUTPUT clause for tables with triggers
-        builder.Entity<PharmaCare.Domain.Models.AccountManagement.JournalEntry>()
-            .ToTable(t => t.UseSqlOutputClause(false));
-
-        builder.Entity<PharmaCare.Domain.Models.AccountManagement.JournalEntry>()
-            .HasIndex(je => je.EntryNumber)
-            .IsUnique();
-
-        builder.Entity<PharmaCare.Domain.Models.AccountManagement.JournalEntry>()
-            .Property(je => je.TotalDebit)
-            .HasColumnType("decimal(18,2)");
-
-        builder.Entity<PharmaCare.Domain.Models.AccountManagement.JournalEntry>()
-            .Property(je => je.TotalCredit)
-            .HasColumnType("decimal(18,2)");
-
-        // Self-referencing FK for reversal tracking
-        builder.Entity<PharmaCare.Domain.Models.AccountManagement.JournalEntry>()
-            .HasOne(je => je.ReversesEntry)
-            .WithOne()
-            .HasForeignKey<PharmaCare.Domain.Models.AccountManagement.JournalEntry>(je => je.ReversesEntry_ID)
-            .OnDelete(DeleteBehavior.NoAction);
-
-        builder.Entity<PharmaCare.Domain.Models.AccountManagement.JournalEntry>()
-            .HasOne(je => je.ReversedByEntry)
-            .WithOne()
-            .HasForeignKey<PharmaCare.Domain.Models.AccountManagement.JournalEntry>(je => je.ReversedByEntry_ID)
-            .OnDelete(DeleteBehavior.NoAction);
-
-        // JournalEntryLine
-        builder.Entity<PharmaCare.Domain.Models.AccountManagement.JournalEntryLine>()
-            .HasKey(jel => jel.JournalEntryLineID);
-
-        // Disable OUTPUT clause for tables with triggers
-        builder.Entity<PharmaCare.Domain.Models.AccountManagement.JournalEntryLine>()
-            .ToTable(t => t.UseSqlOutputClause(false));
-
-        builder.Entity<PharmaCare.Domain.Models.AccountManagement.JournalEntryLine>()
-            .HasOne(jel => jel.JournalEntry)
-            .WithMany(je => je.JournalEntryLines)
-            .HasForeignKey(jel => jel.JournalEntry_ID);
-
-        builder.Entity<PharmaCare.Domain.Models.AccountManagement.JournalEntryLine>()
-            .HasOne(jel => jel.Account)
-            .WithMany(coa => coa.JournalEntryLines)
-            .HasForeignKey(jel => jel.Account_ID);
-
-        builder.Entity<PharmaCare.Domain.Models.AccountManagement.JournalEntryLine>()
-            .HasOne(jel => jel.Store)
-            .WithMany()
-            .HasForeignKey(jel => jel.Store_ID);
-
-        builder.Entity<PharmaCare.Domain.Models.AccountManagement.JournalEntryLine>()
-            .Property(jel => jel.DebitAmount)
-            .HasColumnType("decimal(18,2)");
-
-        builder.Entity<PharmaCare.Domain.Models.AccountManagement.JournalEntryLine>()
-            .Property(jel => jel.CreditAmount)
-            .HasColumnType("decimal(18,2)");
 
         // ========== PURCHASE RETURN - JOURNAL ENTRY LINKS ==========
-        builder.Entity<PurchaseReturn>()
-            .HasOne(pr => pr.JournalEntry)
-            .WithMany()
-            .HasForeignKey(pr => pr.JournalEntry_ID)
-            .OnDelete(DeleteBehavior.NoAction);
 
-        builder.Entity<PurchaseReturn>()
-            .HasOne(pr => pr.RefundJournalEntry)
-            .WithMany()
-            .HasForeignKey(pr => pr.RefundJournalEntry_ID)
-            .OnDelete(DeleteBehavior.NoAction);
 
         // ========== STOCK MOVEMENT - JOURNAL ENTRY LINK ==========
-        builder.Entity<StockMovement>()
-            .HasOne(sm => sm.JournalEntry)
-            .WithMany(je => je.StockMovements)
-            .HasForeignKey(sm => sm.JournalEntry_ID)
-            .OnDelete(DeleteBehavior.NoAction);
+
 
         builder.Entity<StockMovement>()
             .HasOne(sm => sm.RelatedMovement)
@@ -566,11 +396,168 @@ public class PharmaCareDBContext : IdentityDbContext<SystemUser, IdentityRole<in
             .ToTable(t => t.UseSqlOutputClause(false));
 
 
-        // ========== JOURNAL ENTRY - FISCAL PERIOD LINK ==========
-        builder.Entity<PharmaCare.Domain.Models.AccountManagement.JournalEntry>()
-            .HasOne(je => je.FiscalPeriod)
+
+
+
+        // ========== UNIFIED TRANSACTION TABLES (GreenEnergy Pattern) ==========
+
+        // InvoiceType
+        builder.Entity<InvoiceType>()
+            .HasKey(it => it.TypeID);
+
+        builder.Entity<InvoiceType>()
+            .HasIndex(it => it.Code)
+            .IsUnique();
+
+        // AccountVoucherType
+        builder.Entity<AccountVoucherType>()
+            .HasKey(avt => avt.VoucherTypeID);
+
+        builder.Entity<AccountVoucherType>()
+            .HasIndex(avt => avt.Code)
+            .IsUnique();
+
+        // StockMain
+        builder.Entity<StockMain>()
+            .HasKey(sm => sm.StockMainID);
+
+        builder.Entity<StockMain>()
+            .HasIndex(sm => sm.InvoiceNo)
+            .IsUnique();
+
+        builder.Entity<StockMain>()
+            .HasOne(sm => sm.InvoiceType)
             .WithMany()
-            .HasForeignKey(je => je.FiscalPeriod_ID);
+            .HasForeignKey(sm => sm.InvoiceType_ID);
+
+        builder.Entity<StockMain>()
+            .HasOne(sm => sm.Store)
+            .WithMany()
+            .HasForeignKey(sm => sm.Store_ID);
+
+        builder.Entity<StockMain>()
+            .HasOne(sm => sm.Party)
+            .WithMany()
+            .HasForeignKey(sm => sm.Party_ID);
+
+        builder.Entity<StockMain>()
+            .HasOne(sm => sm.PaymentVoucher)
+            .WithMany()
+            .HasForeignKey(sm => sm.PaymentVoucher_ID)
+            .OnDelete(DeleteBehavior.NoAction);
+
+        builder.Entity<StockMain>()
+            .HasOne(sm => sm.Account)
+            .WithMany()
+            .HasForeignKey(sm => sm.Account_ID);
+
+        builder.Entity<StockMain>()
+            .HasOne(sm => sm.ReferenceStockMain)
+            .WithMany()
+            .HasForeignKey(sm => sm.ReferenceStockMain_ID)
+            .OnDelete(DeleteBehavior.NoAction);
+
+        builder.Entity<StockMain>()
+            .HasOne(sm => sm.RefundVoucher)
+            .WithMany()
+            .HasForeignKey(sm => sm.RefundVoucher_ID)
+            .OnDelete(DeleteBehavior.NoAction);
+
+        builder.Entity<StockMain>()
+            .HasOne(sm => sm.DestinationStore)
+            .WithMany()
+            .HasForeignKey(sm => sm.DestinationStore_ID)
+            .OnDelete(DeleteBehavior.NoAction);
+
+        // StockMain global filter
+        builder.Entity<StockMain>().HasQueryFilter(x =>
+            _storeContext.IsAdmin ||
+            (x.Store_ID == _storeContext.CurrentStoreId)
+        );
+
+        // StockDetail
+        builder.Entity<StockDetail>()
+            .HasKey(sd => sd.StockDetailID);
+
+        builder.Entity<StockDetail>()
+            .HasOne(sd => sd.StockMain)
+            .WithMany(sm => sm.StockDetails)
+            .HasForeignKey(sd => sd.StockMain_ID);
+
+        builder.Entity<StockDetail>()
+            .HasOne(sd => sd.Product)
+            .WithMany()
+            .HasForeignKey(sd => sd.Product_ID);
+
+        builder.Entity<StockDetail>()
+            .HasOne(sd => sd.ProductBatch)
+            .WithMany()
+            .HasForeignKey(sd => sd.ProductBatch_ID);
+
+        // AccountVoucher
+        builder.Entity<AccountVoucher>()
+            .HasKey(av => av.VoucherID);
+
+        builder.Entity<AccountVoucher>()
+            .HasIndex(av => av.VoucherCode)
+            .IsUnique();
+
+        builder.Entity<AccountVoucher>()
+            .ToTable(t => t.UseSqlOutputClause(false));
+
+        builder.Entity<AccountVoucher>()
+            .HasOne(av => av.VoucherType)
+            .WithMany()
+            .HasForeignKey(av => av.VoucherType_ID);
+
+        builder.Entity<AccountVoucher>()
+            .HasOne(av => av.Store)
+            .WithMany()
+            .HasForeignKey(av => av.Store_ID);
+
+        builder.Entity<AccountVoucher>()
+            .HasOne(av => av.FiscalPeriod)
+            .WithMany()
+            .HasForeignKey(av => av.FiscalPeriod_ID);
+
+        builder.Entity<AccountVoucher>()
+            .HasOne(av => av.ReversedByVoucher)
+            .WithOne()
+            .HasForeignKey<AccountVoucher>(av => av.ReversedBy_ID)
+            .OnDelete(DeleteBehavior.NoAction);
+
+        builder.Entity<AccountVoucher>()
+            .HasOne(av => av.ReversesVoucher)
+            .WithOne()
+            .HasForeignKey<AccountVoucher>(av => av.Reverses_ID)
+            .OnDelete(DeleteBehavior.NoAction);
+
+        // AccountVoucherDetail
+        builder.Entity<AccountVoucherDetail>()
+            .HasKey(avd => avd.VoucherDetailID);
+
+        builder.Entity<AccountVoucherDetail>()
+            .ToTable(t => t.UseSqlOutputClause(false));
+
+        builder.Entity<AccountVoucherDetail>()
+            .HasOne(avd => avd.Voucher)
+            .WithMany(av => av.VoucherDetails)
+            .HasForeignKey(avd => avd.Voucher_ID);
+
+        builder.Entity<AccountVoucherDetail>()
+            .HasOne(avd => avd.Account)
+            .WithMany()
+            .HasForeignKey(avd => avd.Account_ID);
+
+        builder.Entity<AccountVoucherDetail>()
+            .HasOne(avd => avd.Product)
+            .WithMany()
+            .HasForeignKey(avd => avd.Product_ID);
+
+        builder.Entity<AccountVoucherDetail>()
+            .HasOne(avd => avd.Store)
+            .WithMany()
+            .HasForeignKey(avd => avd.Store_ID);
 
 
         // --- GLOBAL: CONFIGURE DATABASE SET NULL ---

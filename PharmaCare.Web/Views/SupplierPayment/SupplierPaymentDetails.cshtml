@@ -55,8 +55,8 @@
                                     <td>@Model.Party?.PartyName</td>
                                 </tr>
                                 <tr>
-                                    <th>GRN Number:</th>
-                                    <td>@Model.Grn?.GrnNumber</td>
+                                    <th>Purchase No:</th>
+                                    <td>@Model.StockMain?.InvoiceNo</td>
                                 </tr>
                                 <tr>
                                     <th>Store:</th>
@@ -115,16 +115,18 @@
                         </div>
                     }
 
-                    <!-- Journal Entry Link -->
-                    @if (Model.JournalEntry_ID.HasValue)
+                    <!-- Voucher Link -->
+                    @if (Model.Voucher_ID.HasValue)
                     {
                         <div class="alert alert-info">
                             <i class="fas fa-book me-2"></i>
-                            <strong>Journal Entry:</strong> @Model.JournalEntry?.EntryNumber
-                            <a href="@Url.Action("JournalEntryDetails", "JournalEntry", new { id = Utility.EncryptURL(Model.JournalEntry_ID.ToString2()) })"
+                            <strong>Voucher:</strong> #@Model.Voucher_ID
+                            @* 
+                            <a href="@Url.Action("VoucherDetails", "Accounting", new { id = Utility.EncryptURL(Model.Voucher_ID.ToString()) })"
                                 class="btn btn-sm btn-outline-info ms-2">
-                                View Entry
+                                View Voucher
                             </a>
+                            *@
                         </div>
                     }
 

@@ -42,5 +42,5 @@ public class ChartOfAccount : BaseModelWithStatus
     public virtual Head? Head { get; set; }
     public virtual Subhead? Subhead { get; set; }
     public virtual AccountType? AccountType { get; set; }
-    public virtual ICollection<JournalEntryLine> JournalEntryLines { get; set; } = new List<JournalEntryLine>();
+
 }

@@ -57,7 +57,7 @@ builder.Services.AddScoped<ISystemUserRepository, SystemUserRepository>();
 builder.Services.AddScoped<IUserTypeService, UserTypeService>();
 builder.Services.AddScoped<IProductService, ProductService>();
 builder.Services.AddScoped<IPurchaseOrderService, PurchaseOrderService>();
-builder.Services.AddScoped<IGrnService, GrnService>();
+builder.Services.AddScoped<IPurchaseService, PurchaseService>();
 builder.Services.AddScoped<IStockService, StockService>();
 builder.Services.AddScoped<IStoreService, StoreService>();
 builder.Services.AddScoped<IReportService, ReportService>();
@@ -73,7 +73,6 @@ builder.Services.AddScoped<ISupplierPaymentService, SupplierPaymentService>();
 builder.Services.AddScoped<ICustomerPaymentService, CustomerPaymentService>();
 // Sale Enhancement Services
 builder.Services.AddScoped<ISalesReturnService, SalesReturnService>();
-builder.Services.AddScoped<IHeldSaleService, HeldSaleService>();
 builder.Services.AddScoped<IQuotationService, QuotationService>();
 builder.Services.AddScoped<PharmaCare.Application.Interfaces.AccountManagement.IAccountingService, PharmaCare.Application.Implementations.AccountManagement.AccountingService>();
 builder.Services.AddScoped<PharmaCare.Application.Interfaces.AccountManagement.IHeadService, PharmaCare.Application.Implementations.AccountManagement.HeadService>();
@@ -86,14 +85,14 @@ builder.Services.AddScoped<PharmaCare.Domain.Interfaces.IStoreContext, StoreCont
 builder.Services.AddScoped<IUnitOfWork, PharmaCare.Infrastructure.Persistence.UnitOfWork>();
 
 // Journal Posting Engine for centralized accounting (Step 5.3)
-builder.Services.AddScoped<PharmaCare.Infrastructure.Interfaces.Accounting.IJournalPostingEngine, PharmaCare.Infrastructure.Implementations.Accounting.JournalPostingEngine>();
 
-// Inventory Accounting Service for atomic stock + accounting (Step 5.4)
-builder.Services.AddScoped<PharmaCare.Infrastructure.Inventory.FifoCostCalculator>();
-builder.Services.AddScoped<PharmaCare.Infrastructure.Interfaces.Inventory.IInventoryAccountingService, PharmaCare.Infrastructure.Inventory.InventoryAccountingService>();
 
 // Fiscal Period Service for period management (Step 5.6)
 builder.Services.AddScoped<PharmaCare.Infrastructure.Interfaces.Accounting.IFiscalPeriodService, PharmaCare.Infrastructure.Implementations.Accounting.FiscalPeriodService>();
+
+// Unified Transaction Services (GreenEnergy Pattern)
+builder.Services.AddScoped<PharmaCare.Application.Interfaces.AccountManagement.IVoucherService, PharmaCare.Application.Implementations.AccountManagement.VoucherService>();
+builder.Services.AddScoped<PharmaCare.Application.Interfaces.Inventory.IStockTransactionService, PharmaCare.Application.Implementations.Inventory.StockTransactionService>();
 
 // Fiscal Period Initializer - auto-creates fiscal year on startup
 builder.Services.AddScoped<PharmaCare.Infrastructure.Implementations.Accounting.FiscalPeriodInitializer>();
