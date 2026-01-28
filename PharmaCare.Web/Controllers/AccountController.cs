@@ -36,7 +36,7 @@ public class AccountController : Controller
         if (ModelState.IsValid)
         {
             var user = await _userManager.FindByEmailAsync(model.Email);
-            if (user != null && !user.IsDeleted && user.IsActive)
+            if (user != null && user.IsActive)
             {
                 var result = await _signInManager.PasswordSignInAsync(user, model.Password, model.RememberMe, lockoutOnFailure: false);
                 if (result.Succeeded)
@@ -76,7 +76,6 @@ public class AccountController : Controller
                 Email = model.Email,
                 FullName = model.FullName,
                 IsActive = true,
-                IsDeleted = false,
                 CreatedAt = DateTime.Now,
                 Store_ID = 1 // Default to Main Branch
             };

@@ -5,13 +5,14 @@ using PharmaCare.Domain.Entities.Security;
 using PharmaCare.Domain.Interfaces;
 using PharmaCare.Application.Interfaces;
 using PharmaCare.Infrastructure.Implementations;
+using PharmaCare.Application.Interfaces.Configuration;
+using PharmaCare.Application.Implementations.Configuration;
 
 var builder = WebApplication.CreateBuilder(args);
 var connectionString = builder.Configuration.GetConnectionString("PharmaCareDBConnectionString") 
     ?? throw new InvalidOperationException("Connection string 'PharmaCareDBConnectionString' not found.");
 
 // Database Context
-builder.Services.AddScoped<DbContext, PharmaCareDBContext>();
 builder.Services.AddDbContext<PharmaCareDBContext>(options => options.UseSqlServer(connectionString));
 
 // Store Context for multi-tenancy
@@ -33,6 +34,13 @@ builder.Services.AddDefaultIdentity<User>(options =>
 builder.Services.AddScoped(typeof(IRepository<>), typeof(Repository<>));
 builder.Services.AddScoped<IUnitOfWork, UnitOfWork>();
 builder.Services.AddScoped<IAuthService, AuthService>();
+
+// Application Services - Clean Architecture
+builder.Services.AddScoped<IStoreService, StoreService>();
+builder.Services.AddScoped<ICategoryService, CategoryService>();
+builder.Services.AddScoped<ISubCategoryService, SubCategoryService>();
+builder.Services.AddScoped<IProductService, ProductService>();
+builder.Services.AddScoped<IPartyService, PartyService>();
 
 // HTTP Context for AuthService
 builder.Services.AddHttpContextAccessor();

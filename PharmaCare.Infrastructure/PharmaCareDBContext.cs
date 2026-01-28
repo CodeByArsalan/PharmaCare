@@ -157,7 +157,7 @@ public class PharmaCareDBContext : IdentityDbContext<User, IdentityRole<int>, in
             entity.ToTable("Stores");
             entity.HasKey(e => e.StoreID);
             entity.Property(e => e.Name).IsRequired().HasMaxLength(100);
-            entity.HasQueryFilter(e => !e.IsDeleted);
+
         });
 
         builder.Entity<Category>(entity =>
@@ -165,7 +165,7 @@ public class PharmaCareDBContext : IdentityDbContext<User, IdentityRole<int>, in
             entity.ToTable("Categories");
             entity.HasKey(e => e.CategoryID);
             entity.Property(e => e.Name).IsRequired().HasMaxLength(100);
-            entity.HasQueryFilter(e => !e.IsDeleted);
+
         });
 
         builder.Entity<SubCategory>(entity =>
@@ -177,7 +177,7 @@ public class PharmaCareDBContext : IdentityDbContext<User, IdentityRole<int>, in
                 .WithMany(c => c.SubCategories)
                 .HasForeignKey(e => e.Category_ID)
                 .OnDelete(DeleteBehavior.Restrict);
-            entity.HasQueryFilter(e => !e.IsDeleted);
+
         });
 
         builder.Entity<Product>(entity =>
@@ -192,7 +192,7 @@ public class PharmaCareDBContext : IdentityDbContext<User, IdentityRole<int>, in
                 .WithMany(s => s.Products)
                 .HasForeignKey(e => e.SubCategory_ID)
                 .OnDelete(DeleteBehavior.Restrict);
-            entity.HasQueryFilter(e => !e.IsDeleted);
+
         });
 
         builder.Entity<Party>(entity =>
@@ -203,7 +203,7 @@ public class PharmaCareDBContext : IdentityDbContext<User, IdentityRole<int>, in
             entity.Property(e => e.Name).IsRequired().HasMaxLength(200);
             entity.Property(e => e.PartyType).IsRequired().HasMaxLength(20);
             entity.HasIndex(e => e.Code).IsUnique();
-            entity.HasQueryFilter(e => !e.IsDeleted);
+
         });
 
         // ========== ACCOUNTING ==========
@@ -253,7 +253,7 @@ public class PharmaCareDBContext : IdentityDbContext<User, IdentityRole<int>, in
                 .HasForeignKey(e => e.AccountType_ID)
                 .OnDelete(DeleteBehavior.Restrict);
             entity.HasIndex(e => e.Code).IsUnique();
-            entity.HasQueryFilter(e => !e.IsDeleted);
+
         });
 
         // ========== TRANSACTIONS ==========
@@ -303,7 +303,7 @@ public class PharmaCareDBContext : IdentityDbContext<User, IdentityRole<int>, in
                 .HasForeignKey(e => e.DestinationStore_ID)
                 .OnDelete(DeleteBehavior.Restrict);
 
-            entity.HasQueryFilter(e => !e.IsDeleted);
+
         });
 
         builder.Entity<StockDetail>(entity =>
@@ -409,7 +409,7 @@ public class PharmaCareDBContext : IdentityDbContext<User, IdentityRole<int>, in
                 .WithMany()
                 .HasForeignKey(e => e.DefaultExpenseAccount_ID)
                 .OnDelete(DeleteBehavior.SetNull);
-            entity.HasQueryFilter(e => !e.IsDeleted);
+
         });
 
         builder.Entity<Expense>(entity =>
@@ -436,7 +436,7 @@ public class PharmaCareDBContext : IdentityDbContext<User, IdentityRole<int>, in
                 .WithMany()
                 .HasForeignKey(e => e.Voucher_ID)
                 .OnDelete(DeleteBehavior.SetNull);
-            entity.HasQueryFilter(e => !e.IsDeleted);
+
         });
 
         builder.Entity<Payment>(entity =>
@@ -464,7 +464,7 @@ public class PharmaCareDBContext : IdentityDbContext<User, IdentityRole<int>, in
                 .WithMany()
                 .HasForeignKey(e => e.Voucher_ID)
                 .OnDelete(DeleteBehavior.SetNull);
-            entity.HasQueryFilter(e => !e.IsDeleted);
+
         });
     }
 }

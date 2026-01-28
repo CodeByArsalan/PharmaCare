@@ -9,10 +9,10 @@ namespace PharmaCare.Infrastructure.Implementations;
 /// </summary>
 public class Repository<T> : IRepository<T> where T : class
 {
-    protected readonly DbContext _context;
+    protected readonly PharmaCareDBContext _context;
     protected readonly DbSet<T> _dbSet;
 
-    public Repository(DbContext context)
+    public Repository(PharmaCareDBContext context)
     {
         _context = context;
         _dbSet = context.Set<T>();

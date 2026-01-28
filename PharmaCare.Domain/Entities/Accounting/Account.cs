@@ -4,9 +4,6 @@ using PharmaCare.Domain.Entities.Base;
 
 namespace PharmaCare.Domain.Entities.Accounting;
 
-/// <summary>
-/// Chart of Account - Individual account in the ledger.
-/// </summary>
 public class Account : BaseEntityWithStatus
 {
     [Key]
@@ -28,8 +25,5 @@ public class Account : BaseEntityWithStatus
     [StringLength(200)]
     public string Name { get; set; } = string.Empty;
 
-    /// <summary>
-    /// System accounts cannot be deleted (e.g., Cash, Bank, AR, AP)
-    /// </summary>
     public bool IsSystemAccount { get; set; }
 }

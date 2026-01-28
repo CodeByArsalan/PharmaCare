@@ -31,7 +31,7 @@ public class AuthService : IAuthService
     public async Task<AuthResult> LoginAsync(string email, string password, bool rememberMe)
     {
         var user = await _userManager.FindByEmailAsync(email);
-        if (user == null || user.IsDeleted)
+        if (user == null)
         {
             return new AuthResult { Success = false, ErrorMessage = "Invalid email or password" };
         }

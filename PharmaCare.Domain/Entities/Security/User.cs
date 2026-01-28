@@ -26,10 +26,7 @@ public class User : IdentityUser<int>
     public DateTime? UpdatedAt { get; set; }
     public int? UpdatedBy { get; set; }
 
-    // Soft Delete
-    public bool IsDeleted { get; set; }
-    public DateTime? DeletedAt { get; set; }
-    public int? DeletedBy { get; set; }
+
 
     // Navigation
     public ICollection<UserRole> UserRoles { get; set; } = new List<UserRole>();
