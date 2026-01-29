@@ -21,20 +21,18 @@
             
             <div class="row g-3">
                 <div class="col-md-6">
-                    <label class="form-label">Sub-Head Name <span class="text-danger">*</span></label>
-                    <input asp-for="SubheadName" class="form-control" placeholder="Enter Sub-Head Name" required />
-                    <span asp-validation-for="SubheadName" class="text-danger small"></span>
-                </div>
-                
-                <div class="col-md-6">
                     <label class="form-label">Account Head</label>
                     <select asp-for="AccountHead_ID" asp-items="ViewBag.Heads" class="form-select" required>
                         <option value="">-- Select Head --</option>
                     </select>
                     <span asp-validation-for="AccountHead_ID" class="text-danger small"></span>
                 </div>
+                <div class="col-md-6">
+                    <label class="form-label">Sub-Head Name <span class="text-danger">*</span></label>
+                    <input asp-for="SubheadName" class="form-control" placeholder="Enter Sub-Head Name" required />
+                    <span asp-validation-for="SubheadName" class="text-danger small"></span>
+                </div>
             </div>
-            
             <div class="text-end mt-4">
                 <a asp-action="AccountSubHeadsIndex" class="btn btn-outline-secondary me-2">Cancel</a>
                 <button type="submit" class="btn btn-primary">

@@ -35,6 +35,7 @@
         <table class="table mb-0">
             <thead>
                 <tr>
+                    <th style="width: 60px;">S.No</th>
                     <th>Full Name</th>
                     <th>Email</th>
                     <th>Phone</th>
@@ -45,11 +46,13 @@
                 </tr>
             </thead>
             <tbody>
+                @{ int count = 1; }
                 @if (Model.Any())
                 {
                     @foreach (var item in Model)
                     {
                         <tr>
+                            <td>@(count++)</td>
                             <td><strong>@item.FullName</strong></td>
                             <td>@item.Email</td>
                             <td>@(item.PhoneNumber ?? "-")</td>
@@ -92,7 +95,7 @@
                 else
                 {
                     <tr>
-                        <td colspan="7" class="text-center py-4">
+                        <td colspan="8" class="text-center py-4">
                             <div class="empty-state">
                                 <i class="fas fa-users-cog"></i>
                                 <p class="mb-0">No users found. Click "Add User" to create one.</p>

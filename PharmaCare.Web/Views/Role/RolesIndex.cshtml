@@ -35,6 +35,7 @@
         <table class="table mb-0">
             <thead>
                 <tr>
+                    <th style="width: 60px;">S.No</th>
                     <th>Name</th>
                     <th>Description</th>
                     <th>Type</th>
@@ -43,11 +44,13 @@
                 </tr>
             </thead>
             <tbody>
+                @{ int count = 1; }
                 @if (Model.Any())
                 {
                     @foreach (var item in Model)
                     {
                         <tr>
+                            <td>@(count++)</td>
                             <td><strong>@item.Name</strong></td>
                             <td>@(item.Description ?? "-")</td>
                             <td>
@@ -91,7 +94,7 @@
                 else
                 {
                     <tr>
-                        <td colspan="5" class="text-center py-4">
+                        <td colspan="6" class="text-center py-4">
                             <div class="empty-state">
                                 <i class="fas fa-user-shield"></i>
                                 <p class="mb-0">No roles found. Click "Add Role" to create one.</p>

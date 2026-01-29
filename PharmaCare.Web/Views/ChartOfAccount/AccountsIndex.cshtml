@@ -27,23 +27,26 @@
         <table class="table mb-0">
             <thead>
                 <tr>
+                    <th style="width: 60px;">S.No</th>
                     <th>Code</th>
-                    <th>Account Name</th>
                     <th>Sub-Head</th>
+                    <th>Account Name</th>
                     <th>Type</th>
                     <th>Status</th>
                     <th class="text-end">Actions</th>
                 </tr>
             </thead>
             <tbody>
+                @{ int count = 1; }
                 @if (Model.Any())
                 {
                     @foreach (var item in Model)
                     {
                         <tr>
+                            <td>@(count++)</td>
                             <td>@item.Code</td>
-                            <td><strong>@item.Name</strong></td>
                             <td>@(item.AccountSubhead?.SubheadName ?? "-")</td>
+                            <td><strong>@item.Name</strong></td>
                             <td>@(item.AccountType?.Name ?? "-")</td>
                             <td>
                                 @if (item.IsActive)
@@ -70,7 +73,7 @@
                 else
                 {
                     <tr>
-                        <td colspan="6" class="text-center py-4">
+                        <td colspan="7" class="text-center py-4">
                             <div class="empty-state">
                                 <i class="fas fa-book"></i>
                                 <p class="mb-0">No Accounts found. Click "Add Account" to create one.</p>

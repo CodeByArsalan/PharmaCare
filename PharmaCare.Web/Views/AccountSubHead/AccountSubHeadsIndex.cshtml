@@ -27,19 +27,22 @@
         <table class="table mb-0">
             <thead>
                 <tr>
-                    <th>Sub-Head Name</th>
+                    <th style="width: 60px;">S.No</th>
                     <th>Account Head</th>
+                    <th>Sub-Head Name</th>
                     <th class="text-end">Actions</th>
                 </tr>
             </thead>
             <tbody>
+                @{ int count = 1; }
                 @if (Model.Any())
                 {
                     @foreach (var item in Model)
                     {
                         <tr>
-                            <td><strong>@item.SubheadName</strong></td>
+                            <td>@(count++)</td>
                             <td>@(item.AccountHead?.HeadName ?? "-")</td>
+                            <td><strong>@item.SubheadName</strong></td>
                             <td class="text-end">
                                 <a asp-action="EditAccountSubHead" asp-route-id="@item.AccountSubheadID" class="btn btn-sm btn-outline-primary">
                                     <i class="fas fa-edit"></i>
@@ -55,7 +58,7 @@
                 else
                 {
                     <tr>
-                        <td colspan="3" class="text-center py-4">
+                        <td colspan="4" class="text-center py-4">
                             <div class="empty-state">
                                 <i class="fas fa-layer-group"></i>
                                 <p class="mb-0">No Account Sub-Heads found. Click "Add Sub-Head" to create one.</p>

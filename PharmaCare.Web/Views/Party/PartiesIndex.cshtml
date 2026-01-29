@@ -27,6 +27,7 @@
         <table class="table mb-0">
             <thead>
                 <tr>
+                    <th style="width: 60px;">S.No</th>
                     <th>Code</th>
                     <th>Name</th>
                     <th>Type</th>
@@ -37,11 +38,13 @@
                 </tr>
             </thead>
             <tbody>
+                @{ int count = 1; }
                 @if (Model.Any())
                 {
                     @foreach (var item in Model)
                     {
                         <tr>
+                            <td>@(count++)</td>
                             <td><code>@item.Code</code></td>
                             <td><strong>@item.Name</strong></td>
                             <td>
@@ -81,7 +84,7 @@
                 else
                 {
                     <tr>
-                        <td colspan="7" class="text-center py-4">
+                        <td colspan="8" class="text-center py-4">
                             <div class="empty-state">
                                 <i class="fas fa-users"></i>
                                 <p class="mb-0">No parties found. Click "Add Party" to create one.</p>

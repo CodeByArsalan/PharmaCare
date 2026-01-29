@@ -27,6 +27,7 @@
         <table class="table mb-0">
             <thead>
                 <tr>
+                    <th style="width: 60px;">S.No</th>
                     <th>Code</th>
                     <th>Product Name</th>
                     <th>SubCategory</th>
@@ -37,11 +38,13 @@
                 </tr>
             </thead>
             <tbody>
+                @{ int count = 1; }
                 @if (Model.Any())
                 {
                     @foreach (var item in Model)
                     {
                         <tr>
+                            <td>@(count++)</td>
                             <td><code>@item.Code</code></td>
                             <td><strong>@item.Name</strong></td>
                             <td>@(item.SubCategory?.Name ?? "-")</td>
@@ -72,7 +75,7 @@
                 else
                 {
                     <tr>
-                        <td colspan="7" class="text-center py-4">
+                        <td colspan="8" class="text-center py-4">
                             <div class="empty-state">
                                 <i class="fas fa-pills"></i>
                                 <p class="mb-0">No products found. Click "Add Product" to create one.</p>

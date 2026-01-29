@@ -27,6 +27,7 @@
         <table class="table mb-0">
             <thead>
                 <tr>
+                    <th style="width: 60px;">S.No</th>
                     <th>Store Name</th>
                     <th>Phone</th>
                     <th>Email</th>
@@ -36,11 +37,13 @@
                 </tr>
             </thead>
             <tbody>
+                @{ int count = 1; }
                 @if (Model.Any())
                 {
                     @foreach (var item in Model)
                     {
                         <tr>
+                            <td>@(count++)</td>
                             <td><strong>@item.Name</strong></td>
                             <td>@(item.Phone ?? "-")</td>
                             <td>@(item.Email ?? "-")</td>
@@ -70,7 +73,7 @@
                 else
                 {
                     <tr>
-                        <td colspan="6" class="text-center py-4">
+                        <td colspan="7" class="text-center py-4">
                             <div class="empty-state">
                                 <i class="fas fa-store"></i>
                                 <p class="mb-0">No stores found. Click "Add Store" to create one.</p>
