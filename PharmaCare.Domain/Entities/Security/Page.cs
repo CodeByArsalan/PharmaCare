@@ -46,4 +46,5 @@ public class Page : BaseEntityWithStatus
     // Navigation
     public ICollection<Page> ChildPages { get; set; } = new List<Page>();
     public ICollection<RolePage> RolePages { get; set; } = new List<RolePage>();
+    public ICollection<PageUrl> PageUrls { get; set; } = new List<PageUrl>();
 }

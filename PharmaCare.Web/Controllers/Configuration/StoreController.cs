@@ -1,11 +1,10 @@
-using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using PharmaCare.Application.Interfaces.Configuration;
 using PharmaCare.Domain.Entities.Configuration;
 
 namespace PharmaCare.Web.Controllers.Configuration;
 
-public class StoreController : Controller
+public class StoreController : BaseController
 {
     private readonly IStoreService _storeService;
 
@@ -14,10 +13,6 @@ public class StoreController : Controller
         _storeService = storeService;
     }
 
-    /// <summary>
-    /// Gets current user ID (placeholder - integrate with Identity)
-    /// </summary>
-    private int GetCurrentUserId() => 1; // TODO: Get from claims
 
     public async Task<IActionResult> StoresIndex()
     {
@@ -34,7 +29,7 @@ public class StoreController : Controller
     {
         if (ModelState.IsValid)
         {
-            await _storeService.CreateAsync(store, GetCurrentUserId());
+            await _storeService.CreateAsync(store, CurrentUserId);
             TempData["Success"] = "Store created successfully!";
             return RedirectToAction("StoresIndex");
         }
@@ -60,7 +55,7 @@ public class StoreController : Controller
 
         if (ModelState.IsValid)
         {
-            var updated = await _storeService.UpdateAsync(store, GetCurrentUserId());
+            var updated = await _storeService.UpdateAsync(store, CurrentUserId);
             if (!updated)
             {
                 return NotFound();
@@ -75,7 +70,7 @@ public class StoreController : Controller
     [ValidateAntiForgeryToken]
     public async Task<IActionResult> Delete(int id)
     {
-        await _storeService.ToggleStatusAsync(id, GetCurrentUserId());
+        await _storeService.ToggleStatusAsync(id, CurrentUserId);
         TempData["Success"] = "Store status updated successfully!";
         return RedirectToAction("StoresIndex");
     }

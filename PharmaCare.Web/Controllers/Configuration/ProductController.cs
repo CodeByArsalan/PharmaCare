@@ -1,4 +1,3 @@
-using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.Mvc.Rendering;
 using PharmaCare.Application.Interfaces.Configuration;
@@ -6,7 +5,7 @@ using PharmaCare.Domain.Entities.Configuration;
 
 namespace PharmaCare.Web.Controllers.Configuration;
 
-public class ProductController : Controller
+public class ProductController : BaseController
 {
     private readonly IProductService _productService;
 
@@ -14,7 +13,7 @@ public class ProductController : Controller
     {
         _productService = productService;
     }
-    private int GetCurrentUserId() => 1;
+
     public async Task<IActionResult> ProductsIndex()
     {
         var products = await _productService.GetAllAsync();
@@ -31,7 +30,7 @@ public class ProductController : Controller
     {
         if (ModelState.IsValid)
         {
-            await _productService.CreateAsync(product, GetCurrentUserId());
+            await _productService.CreateAsync(product, CurrentUserId);
             TempData["Success"] = "Product created successfully!";
             return RedirectToAction("ProductsIndex");
         }
@@ -59,7 +58,7 @@ public class ProductController : Controller
 
         if (ModelState.IsValid)
         {
-            var updated = await _productService.UpdateAsync(product, GetCurrentUserId());
+            var updated = await _productService.UpdateAsync(product, CurrentUserId);
             if (!updated)
             {
                 return NotFound();
@@ -74,7 +73,7 @@ public class ProductController : Controller
     [ValidateAntiForgeryToken]
     public async Task<IActionResult> Delete(int id)
     {
-        await _productService.ToggleStatusAsync(id, GetCurrentUserId());
+        await _productService.ToggleStatusAsync(id, CurrentUserId);
         TempData["Success"] = "Product status updated successfully!";
         return RedirectToAction("ProductsIndex");
     }

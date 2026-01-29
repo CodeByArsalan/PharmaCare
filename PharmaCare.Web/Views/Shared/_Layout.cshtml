@@ -4,156 +4,27 @@
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>@ViewData["Title"] - PharmaCare</title>
-    <link rel="stylesheet" href="~/lib/bootstrap/dist/css/bootstrap.min.css" />
+    <link rel="stylesheet" href="~/assets/css/bootstrap.min.css" />
     <link rel="stylesheet" href="~/lib/fontawesome/css/all.min.css" />
     <link rel="stylesheet" href="~/css/site.css" asp-append-version="true" />
 </head>
 <body>
-    <!-- Sidebar -->
-    <aside class="sidebar">
-        <div class="sidebar-brand">
-            <div class="sidebar-brand-icon">
-                <i class="fas fa-pills"></i>
-            </div>
-            <span class="sidebar-brand-text">PharmaCare</span>
-        </div>
-        
-        <nav>
-            <!-- Dashboard -->
-            <div class="nav-section">
-                <a asp-controller="Home" asp-action="Index" class="nav-link @(ViewContext.RouteData.Values["controller"]?.ToString() == "Home" ? "active" : "")">
-                    <i class="fas fa-home"></i>
-                    <span>Dashboard</span>
-                </a>
-            </div>
-            
-            <!-- Configuration -->
-            <div class="nav-section">
-                <div class="nav-section-title">Configuration</div>
-                <a asp-controller="Store" asp-action="StoresIndex" class="nav-link @(ViewContext.RouteData.Values["controller"]?.ToString() == "Store" ? "active" : "")">
-                    <i class="fas fa-store"></i>
-                    <span>Stores</span>
-                </a>
-                <a asp-controller="Category" asp-action="CategoriesIndex" class="nav-link @(ViewContext.RouteData.Values["controller"]?.ToString() == "Category" ? "active" : "")">
-                    <i class="fas fa-tags"></i>
-                    <span>Categories</span>
-                </a>
-                <a asp-controller="SubCategory" asp-action="SubCategoriesIndex" class="nav-link @(ViewContext.RouteData.Values["controller"]?.ToString() == "SubCategory" ? "active" : "")">
-                    <i class="fas fa-layer-group"></i>
-                    <span>SubCategories</span>
-                </a>
-                <a asp-controller="Product" asp-action="ProductsIndex" class="nav-link @(ViewContext.RouteData.Values["controller"]?.ToString() == "Product" ? "active" : "")">
-                    <i class="fas fa-pills"></i>
-                    <span>Products</span>
-                </a>
-                <a asp-controller="Party" asp-action="PartiesIndex" class="nav-link @(ViewContext.RouteData.Values["controller"]?.ToString() == "Party" ? "active" : "")">
-                    <i class="fas fa-users"></i>
-                    <span>Parties</span>
-                </a>
-            </div>
-            
-            <!-- Purchases -->
-            <div class="nav-section">
-                <div class="nav-section-title">Purchases</div>
-                <a href="#" class="nav-link">
-                    <i class="fas fa-file-invoice"></i>
-                    <span>Purchase Orders</span>
-                </a>
-                <a href="#" class="nav-link">
-                    <i class="fas fa-truck-loading"></i>
-                    <span>GRN</span>
-                </a>
-                <a href="#" class="nav-link">
-                    <i class="fas fa-undo-alt"></i>
-                    <span>Purchase Returns</span>
-                </a>
-            </div>
-            
-            <!-- Sales -->
-            <div class="nav-section">
-                <div class="nav-section-title">Sales</div>
-                <a href="#" class="nav-link">
-                    <i class="fas fa-cash-register"></i>
-                    <span>Point of Sale</span>
-                </a>
-                <a href="#" class="nav-link">
-                    <i class="fas fa-receipt"></i>
-                    <span>Sales History</span>
-                </a>
-                <a href="#" class="nav-link">
-                    <i class="fas fa-exchange-alt"></i>
-                    <span>Sale Returns</span>
-                </a>
-            </div>
-            
-            <!-- Inventory -->
-            <div class="nav-section">
-                <div class="nav-section-title">Inventory</div>
-                <a href="#" class="nav-link">
-                    <i class="fas fa-boxes"></i>
-                    <span>Stock Overview</span>
-                </a>
-                <a href="#" class="nav-link">
-                    <i class="fas fa-exchange-alt"></i>
-                    <span>Stock Transfer</span>
-                </a>
-                <a href="#" class="nav-link">
-                    <i class="fas fa-clipboard-check"></i>
-                    <span>Stock Take</span>
-                </a>
-            </div>
-            
-            <!-- Finance -->
-            <div class="nav-section">
-                <div class="nav-section-title">Finance</div>
-                <a href="#" class="nav-link">
-                    <i class="fas fa-hand-holding-usd"></i>
-                    <span>Customer Payments</span>
-                </a>
-                <a href="#" class="nav-link">
-                    <i class="fas fa-money-check-alt"></i>
-                    <span>Supplier Payments</span>
-                </a>
-                <a href="#" class="nav-link">
-                    <i class="fas fa-file-invoice-dollar"></i>
-                    <span>Expenses</span>
-                </a>
-            </div>
-            
-            <!-- Accounting -->
-            <div class="nav-section">
-                <div class="nav-section-title">Accounting</div>
-                <a href="#" class="nav-link">
-                    <i class="fas fa-sitemap"></i>
-                    <span>Chart of Accounts</span>
-                </a>
-                <a href="#" class="nav-link">
-                    <i class="fas fa-book"></i>
-                    <span>Journal Entries</span>
-                </a>
-                <a href="#" class="nav-link">
-                    <i class="fas fa-balance-scale"></i>
-                    <span>Trial Balance</span>
-                </a>
-            </div>
-            
-            <!-- User Section -->
-            <div class="nav-section" style="margin-top: auto; border-top: 1px solid var(--glass-border); padding-top: 1rem;">
-                <a asp-controller="Account" asp-action="Logout" class="nav-link">
-                    <i class="fas fa-sign-out-alt"></i>
-                    <span>Logout</span>
-                </a>
-            </div>
-        </nav>
-    </aside>
+    <!-- Sidebar (dynamic based on user permissions) -->
+    @await Html.PartialAsync("_Sidebar")
     
-    <!-- Main Content -->
-    <main class="main-content">
-        @RenderBody()
-    </main>
+    <!-- Main Content Area -->
+    <div class="main-wrapper">
+        <!-- Header with user menu -->
+        @await Html.PartialAsync("_Header")
+        
+        <!-- Page Content -->
+        <main class="main-content">
+            @RenderBody()
+        </main>
+    </div>
     
     <script src="~/lib/jquery/dist/jquery.min.js"></script>
-    <script src="~/lib/bootstrap/dist/js/bootstrap.bundle.min.js"></script>
+    <script src="~/assets/js/bootstrap.js"></script>
     <script src="~/lib/sweetalert2/sweetalert2.all.min.js"></script>
     @await RenderSectionAsync("Scripts", required: false)
 </body>

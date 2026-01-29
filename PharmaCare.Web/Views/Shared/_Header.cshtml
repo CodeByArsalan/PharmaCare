@@ -1,0 +1,221 @@
+@using PharmaCare.Application.Interfaces
+@inject ISessionService SessionService
+
+@{
+    var currentUser = SessionService.GetCurrentUser();
+    var userName = currentUser?.FullName ?? "User";
+}
+
+<header class="header">
+    <div class="header-left">
+        <button class="sidebar-toggle" id="sidebarToggle">
+            <i class="fas fa-bars"></i>
+        </button>
+    </div>
+    
+    <div class="header-right">
+        <!-- Theme Toggle Button -->
+        <button class="theme-toggle-btn" id="themeToggle" title="Toggle Theme">
+            <i class="fas fa-sun" id="themeIconLight"></i>
+            <i class="fas fa-moon" id="themeIconDark"></i>
+        </button>
+        
+        <div class="dropdown">
+            <button class="user-menu-btn dropdown-toggle" type="button" id="userMenuDropdown" 
+                    data-bs-toggle="dropdown" aria-expanded="false">
+                <i class="fas fa-user-circle me-2"></i>
+                <span>@userName</span>
+            </button>
+            <ul class="dropdown-menu dropdown-menu-end" aria-labelledby="userMenuDropdown">
+                <li>
+                    <a class="dropdown-item" asp-controller="Account" asp-action="ChangePassword">
+                        <i class="fas fa-key me-2"></i> Change Password
+                    </a>
+                </li>
+                <li><hr class="dropdown-divider"></li>
+                <li>
+                    <form asp-controller="Account" asp-action="Logout" method="post" id="headerLogoutForm">
+                        <button type="submit" class="dropdown-item text-danger">
+                            <i class="fas fa-sign-out-alt me-2"></i> Logout
+                        </button>
+                    </form>
+                </li>
+            </ul>
+        </div>
+    </div>
+</header>
+
+<script>
+    (function() {
+        const themeToggle = document.getElementById('themeToggle');
+        const html = document.documentElement;
+        
+        // Get saved theme or default to 'dark'
+        const savedTheme = localStorage.getItem('theme') || 'dark';
+        html.setAttribute('data-theme', savedTheme);
+        updateThemeIcons(savedTheme);
+        
+        themeToggle.addEventListener('click', function() {
+            const currentTheme = html.getAttribute('data-theme');
+            const newTheme = currentTheme === 'dark' ? 'light' : 'dark';
+            
+            html.setAttribute('data-theme', newTheme);
+            localStorage.setItem('theme', newTheme);
+            updateThemeIcons(newTheme);
+        });
+        
+        function updateThemeIcons(theme) {
+            const lightIcon = document.getElementById('themeIconLight');
+            const darkIcon = document.getElementById('themeIconDark');
+            
+            if (theme === 'dark') {
+                lightIcon.style.display = 'inline-block';
+                darkIcon.style.display = 'none';
+            } else {
+                lightIcon.style.display = 'none';
+                darkIcon.style.display = 'inline-block';
+            }
+        }
+    })();
+</script>
+
+<style>
+    .header {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        padding: 0.75rem 1.5rem;
+        background: var(--glass-bg, rgba(255, 255, 255, 0.95));
+        border-bottom: 1px solid var(--glass-border, rgba(0, 0, 0, 0.1));
+        backdrop-filter: blur(10px);
+        position: relative;
+        z-index: 100;
+    }
+    
+    .header-left {
+        display: flex;
+        align-items: center;
+    }
+    
+    .sidebar-toggle {
+        background: transparent;
+        border: none;
+        font-size: 1.25rem;
+        color: var(--text-secondary, #6c757d);
+        cursor: pointer;
+        padding: 0.5rem;
+        border-radius: 0.375rem;
+        transition: background-color 0.2s ease;
+    }
+    
+    .sidebar-toggle:hover {
+        background: var(--hover-bg, rgba(0, 0, 0, 0.05));
+    }
+    
+    .header-right {
+        display: flex;
+        align-items: center;
+        gap: 0.75rem;
+    }
+    
+    /* Theme Toggle Button */
+    .theme-toggle-btn {
+        width: 40px;
+        height: 40px;
+        border-radius: 50%;
+        border: 1px solid var(--glass-border, rgba(0, 0, 0, 0.1));
+        background: var(--glass-bg, rgba(255, 255, 255, 0.05));
+        color: var(--text-secondary, #6c757d);
+        cursor: pointer;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        font-size: 1.1rem;
+        transition: all 0.3s ease;
+    }
+    
+    .theme-toggle-btn:hover {
+        background: var(--glass-bg-hover, rgba(255, 255, 255, 0.1));
+        border-color: var(--primary-500, #667eea);
+        color: var(--primary-500, #667eea);
+        transform: rotate(15deg);
+    }
+    
+    .theme-toggle-btn .fa-sun {
+        color: #fbbf24;
+    }
+    
+    .theme-toggle-btn .fa-moon {
+        color: #818cf8;
+    }
+    
+    .header-right .dropdown {
+        position: relative;
+    }
+    
+    .user-menu-btn {
+        display: flex;
+        align-items: center;
+        gap: 0.5rem;
+        background: transparent;
+        border: 1px solid var(--glass-border, rgba(0, 0, 0, 0.1));
+        padding: 0.5rem 1rem;
+        border-radius: 2rem;
+        color: var(--text-primary, #212529);
+        font-weight: 500;
+        cursor: pointer;
+        transition: all 0.2s ease;
+    }
+    
+    .user-menu-btn:hover {
+        background: var(--hover-bg, rgba(0, 0, 0, 0.05));
+        border-color: var(--primary-color, #0d6efd);
+    }
+    
+    .user-menu-btn .fa-user-circle {
+        font-size: 1.25rem;
+        color: var(--primary-color, #0d6efd);
+    }
+    
+    /* Dropdown menu - hidden by default */
+    .header-right .dropdown-menu {
+        display: none;
+        position: absolute;
+        right: 0;
+        top: 100%;
+        margin-top: 0.5rem;
+        min-width: 180px;
+        box-shadow: 0 0.5rem 1rem rgba(0, 0, 0, 0.15);
+        border: 1px solid var(--glass-border, rgba(0, 0, 0, 0.1));
+        border-radius: 0.5rem;
+        padding: 0.5rem;
+        background: #fff;
+        z-index: 1000;
+    }
+    
+    /* Show when Bootstrap adds .show class */
+    .header-right .dropdown-menu.show {
+        display: block;
+    }
+    
+    .header-right .dropdown-item {
+        padding: 0.5rem 1rem;
+        border-radius: 0.375rem;
+        display: flex;
+        align-items: center;
+        color: #212529;
+        text-decoration: none;
+        background: transparent;
+        border: none;
+        width: 100%;
+        text-align: left;
+    }
+    
+    .header-right .dropdown-item:hover {
+        background: var(--hover-bg, rgba(0, 0, 0, 0.05));
+    }
+    
+    .header-right .dropdown-item.text-danger:hover {
+        background: rgba(220, 53, 69, 0.1);
+    }
+</style>

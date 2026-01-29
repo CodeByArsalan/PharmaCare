@@ -1,0 +1,70 @@
+@using PharmaCare.Application.Interfaces
+@using PharmaCare.Application.DTOs.Security
+@inject ISessionService SessionService
+
+@{
+    var sidebarMenu = SessionService.GetSidebarMenu();
+    var currentController = ViewContext.RouteData.Values["controller"]?.ToString() ?? "";
+}
+
+<aside class="sidebar">
+    <div class="sidebar-brand">
+        <div class="sidebar-brand-icon">
+            <i class="fas fa-pills"></i>
+        </div>
+        <span class="sidebar-brand-text">PharmaCare</span>
+    </div>
+    
+    <nav>
+        <!-- Dashboard (always shown for authenticated users) -->
+        <div class="nav-section">
+            <a asp-controller="Home" asp-action="Index" 
+               class="nav-link @(currentController == "Home" ? "active" : "")">
+                <i class="fas fa-home"></i>
+                <span>Dashboard</span>
+            </a>
+        </div>
+        
+        @foreach (var menuSection in sidebarMenu)
+        {
+            @if (menuSection.Children.Any())
+            {
+                <!-- Section with children -->
+                <div class="nav-section">
+                    <div class="nav-section-title">@(menuSection.Title)</div>
+                    @foreach (var item in menuSection.Children)
+                    {
+                        var isActive = string.Equals(item.Controller, currentController, StringComparison.OrdinalIgnoreCase);
+                        <a asp-controller="@item.Controller" asp-action="@item.Action" 
+                           class="nav-link @(isActive ? "active" : "")">
+                            <i class="@(item.Icon ?? "fas fa-circle")"></i>
+                            <span>@(item.Title)</span>
+                        </a>
+                    }
+                </div>
+            }
+            else if (!string.IsNullOrEmpty(menuSection.Controller))
+            {
+                <!-- Standalone page -->
+                var isStandaloneActive = string.Equals(menuSection.Controller, currentController, StringComparison.OrdinalIgnoreCase);
+                <div class="nav-section">
+                    <a asp-controller="@menuSection.Controller" asp-action="@menuSection.Action" 
+                       class="nav-link @(isStandaloneActive ? "active" : "")">
+                        <i class="@(menuSection.Icon ?? "fas fa-circle")"></i>
+                        <span>@(menuSection.Title)</span>
+                    </a>
+                </div>
+            }
+        }
+        
+        <!-- User Section (always at bottom) -->
+        <div class="nav-section" style="margin-top: auto; border-top: 1px solid var(--glass-border); padding-top: 1rem;">
+            <form asp-controller="Account" asp-action="Logout" method="post" id="logoutForm" class="d-none">
+            </form>
+            <a href="#" onclick="document.getElementById('logoutForm').submit(); return false;" class="nav-link">
+                <i class="fas fa-sign-out-alt"></i>
+                <span>Logout</span>
+            </a>
+        </div>
+    </nav>
+</aside>

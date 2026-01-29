@@ -4,10 +4,10 @@ using Microsoft.AspNetCore.Mvc;
 namespace PharmaCare.Web.Controllers;
 
 /// <summary>
-/// Home controller for dashboard
+/// Home controller for dashboard.
+/// Inherits from BaseController but the filter skips Home controller by default.
 /// </summary>
-[Authorize]
-public class HomeController : Controller
+public class HomeController : BaseController
 {
     public IActionResult Index()
     {
@@ -19,3 +19,4 @@ public class HomeController : Controller
         return View();
     }
 }
+

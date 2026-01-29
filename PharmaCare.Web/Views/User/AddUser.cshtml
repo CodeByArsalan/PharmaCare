@@ -1,0 +1,90 @@
+@model PharmaCare.Application.DTOs.Security.UserViewModel
+@{
+    ViewData["Title"] = "Add New User";
+    var roles = ViewBag.Roles as List<PharmaCare.Domain.Entities.Security.Role> ?? new List<PharmaCare.Domain.Entities.Security.Role>();
+}
+
+<!-- Page Header -->
+<div class="page-header">
+    <h4 class="page-title">
+        <i class="fas fa-user-plus"></i>
+        Add New User
+    </h4>
+    <a asp-action="UsersIndex" class="btn btn-outline-secondary">
+        <i class="fas fa-arrow-left me-2"></i>Back to List
+    </a>
+</div>
+
+<div class="card">
+    <div class="card-body">
+        <form asp-action="AddUser" method="post">
+            <div asp-validation-summary="All" class="alert alert-danger" style="display: @(ViewData.ModelState.ErrorCount > 0 ? "block" : "none")"></div>
+            
+            <div class="row g-3">
+                <div class="col-md-6">
+                    <label asp-for="FullName" class="form-label">Full Name <span class="text-danger">*</span></label>
+                    <input asp-for="FullName" class="form-control" placeholder="Enter full name" />
+                    <span asp-validation-for="FullName" class="text-danger small"></span>
+                </div>
+                
+                <div class="col-md-6">
+                    <label asp-for="Email" class="form-label">Email <span class="text-danger">*</span></label>
+                    <input asp-for="Email" type="email" class="form-control" placeholder="Enter email address" />
+                    <span asp-validation-for="Email" class="text-danger small"></span>
+                </div>
+                
+                <div class="col-md-6">
+                    <label asp-for="PhoneNumber" class="form-label">Phone Number</label>
+                    <input asp-for="PhoneNumber" class="form-control" placeholder="Enter phone number" />
+                    <span asp-validation-for="PhoneNumber" class="text-danger small"></span>
+                </div>
+                
+                <div class="col-md-6">
+                    <label asp-for="Store_ID" class="form-label">Store</label>
+                    <select asp-for="Store_ID" asp-items="ViewBag.Stores" class="form-select">
+                        <option value="">-- Select Store --</option>
+                    </select>
+                </div>
+                
+                <div class="col-md-6">
+                    <label asp-for="Password" class="form-label">Password <span class="text-danger">*</span></label>
+                    <input asp-for="Password" type="password" class="form-control" placeholder="Enter password (min 6 characters)" />
+                    <span asp-validation-for="Password" class="text-danger small"></span>
+                </div>
+                
+                <div class="col-md-6">
+                    <label asp-for="ConfirmPassword" class="form-label">Confirm Password <span class="text-danger">*</span></label>
+                    <input asp-for="ConfirmPassword" type="password" class="form-control" placeholder="Confirm password" />
+                    <span asp-validation-for="ConfirmPassword" class="text-danger small"></span>
+                </div>
+                
+                <div class="col-12">
+                    <label class="form-label">Assign Roles</label>
+                    <div class="row">
+                        @foreach (var role in roles)
+                        {
+                            <div class="col-md-3 mb-2">
+                                <div class="form-check">
+                                    <input class="form-check-input" type="checkbox" 
+                                           name="SelectedRoleIds" value="@role.RoleID" 
+                                           id="role_@role.RoleID"
+                                           @(Model.SelectedRoleIds.Contains(role.RoleID) ? "checked" : "") />
+                                    <label class="form-check-label" for="role_@role.RoleID">
+                                        @role.Name
+                                    </label>
+                                </div>
+                            </div>
+                        }
+                    </div>
+                </div>
+            </div>
+            
+            <div class="text-end mt-4">
+                <a asp-action="UsersIndex" class="btn btn-outline-secondary me-2">Cancel</a>
+                <button type="submit" class="btn btn-primary">
+                    <i class="fas fa-save me-2"></i>Save User
+                </button>
+            </div>
+        </form>
+    </div>
+</div>

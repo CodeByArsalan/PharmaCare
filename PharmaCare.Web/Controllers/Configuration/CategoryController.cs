@@ -1,4 +1,3 @@
-using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.Mvc.Rendering;
 using PharmaCare.Application.Interfaces.Configuration;
@@ -6,7 +5,7 @@ using PharmaCare.Domain.Entities.Configuration;
 
 namespace PharmaCare.Web.Controllers.Configuration;
 
-public class CategoryController : Controller
+public class CategoryController : BaseController
 {
     private readonly ICategoryService _categoryService;
 
@@ -15,7 +14,6 @@ public class CategoryController : Controller
         _categoryService = categoryService;
     }
 
-    private int GetCurrentUserId() => 1;
 
     public async Task<IActionResult> CategoriesIndex()
     {
@@ -33,7 +31,7 @@ public class CategoryController : Controller
     {
         if (ModelState.IsValid)
         {
-            await _categoryService.CreateAsync(category, GetCurrentUserId());
+            await _categoryService.CreateAsync(category, CurrentUserId);
             TempData["Success"] = "Category created successfully!";
             return RedirectToAction("CategoriesIndex");
         }
@@ -61,7 +59,7 @@ public class CategoryController : Controller
 
         if (ModelState.IsValid)
         {
-            var updated = await _categoryService.UpdateAsync(category, GetCurrentUserId());
+            var updated = await _categoryService.UpdateAsync(category, CurrentUserId);
             if (!updated)
             {
                 return NotFound();
@@ -76,7 +74,7 @@ public class CategoryController : Controller
     [ValidateAntiForgeryToken]
     public async Task<IActionResult> Delete(int id)
     {
-        await _categoryService.ToggleStatusAsync(id, GetCurrentUserId());
+        await _categoryService.ToggleStatusAsync(id, CurrentUserId);
         TempData["Success"] = "Category status updated successfully!";
         return RedirectToAction("CategoriesIndex");
     }

@@ -1,5 +1,6 @@
 using Microsoft.AspNetCore.Identity;
 using Microsoft.AspNetCore.Mvc;
+using PharmaCare.Application.Interfaces;
 using PharmaCare.Domain.Entities.Security;
 
 namespace PharmaCare.Web.Controllers;
@@ -11,18 +12,27 @@ public class AccountController : Controller
 {
     private readonly SignInManager<User> _signInManager;
     private readonly UserManager<User> _userManager;
+    private readonly ISessionService _sessionService;
 
     public AccountController(
         SignInManager<User> signInManager,
-        UserManager<User> userManager)
+        UserManager<User> userManager,
+        ISessionService sessionService)
     {
         _signInManager = signInManager;
         _userManager = userManager;
+        _sessionService = sessionService;
     }
 
     [HttpGet]
     public IActionResult Login(string? returnUrl = null)
     {
+        // If user is already authenticated, redirect to home
+        if (User.Identity?.IsAuthenticated ?? false)
+        {
+            return RedirectToAction("Index", "Home");
+        }
+        
         ViewData["ReturnUrl"] = returnUrl;
         return View();
     }
@@ -41,6 +51,8 @@ public class AccountController : Controller
                 var result = await _signInManager.PasswordSignInAsync(user, model.Password, model.RememberMe, lockoutOnFailure: false);
                 if (result.Succeeded)
                 {
+                    // Initialize session with user data and permissions
+                    await _sessionService.InitializeSessionAsync(user.Id);
                     return RedirectToLocal(returnUrl);
                 }
             }
@@ -54,6 +66,8 @@ public class AccountController : Controller
     [ValidateAntiForgeryToken]
     public async Task<IActionResult> Logout()
     {
+        // Clear session before signing out
+        _sessionService.ClearSession();
         await _signInManager.SignOutAsync();
         return RedirectToAction("Login");
     }
@@ -97,6 +111,42 @@ public class AccountController : Controller
         return View(model);
     }
 
+    [HttpGet]
+    public IActionResult ChangePassword()
+    {
+        return View(new ChangePasswordViewModel());
+    }
+
+    [HttpPost]
+    [ValidateAntiForgeryToken]
+    public async Task<IActionResult> ChangePassword(ChangePasswordViewModel model)
+    {
+        if (!ModelState.IsValid)
+        {
+            return View(model);
+        }
+
+        var user = await _userManager.GetUserAsync(User);
+        if (user == null)
+        {
+            return RedirectToAction("Login");
+        }
+
+        var result = await _userManager.ChangePasswordAsync(user, model.CurrentPassword, model.NewPassword);
+        if (result.Succeeded)
+        {
+            TempData["Success"] = "Password changed successfully!";
+            return RedirectToAction("ChangePassword");
+        }
+
+        foreach (var error in result.Errors)
+        {
+            ModelState.AddModelError(string.Empty, error.Description);
+        }
+
+        return View(model);
+    }
+
     public IActionResult AccessDenied()
     {
         return View();
@@ -132,3 +182,14 @@ public class RegisterViewModel
     public string Password { get; set; } = string.Empty;
     public string ConfirmPassword { get; set; } = string.Empty;
 }
+
+/// <summary>
+/// Change password view model
+/// </summary>
+public class ChangePasswordViewModel
+{
+    public string CurrentPassword { get; set; } = string.Empty;
+    public string NewPassword { get; set; } = string.Empty;
+    public string ConfirmNewPassword { get; set; } = string.Empty;
+}
+

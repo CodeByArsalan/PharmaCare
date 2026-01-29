@@ -1,0 +1,141 @@
+@model IEnumerable<PharmaCare.Domain.Entities.Security.Role>
+@{
+    ViewData["Title"] = "Role Management";
+}
+
+<!-- Page Header -->
+<div class="page-header">
+    <h4 class="page-title">
+        <i class="fas fa-user-shield"></i>
+        Role Management
+    </h4>
+    <a asp-action="AddRole" class="btn btn-primary">
+        <i class="fas fa-plus me-2"></i>Add Role
+    </a>
+</div>
+
+@if (TempData["Success"] != null)
+{
+    <div class="alert alert-success alert-dismissible fade show" role="alert">
+        <i class="fas fa-check-circle me-2"></i>@TempData["Success"]
+        <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+    </div>
+}
+
+@if (TempData["Error"] != null)
+{
+    <div class="alert alert-danger alert-dismissible fade show" role="alert">
+        <i class="fas fa-exclamation-circle me-2"></i>@TempData["Error"]
+        <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+    </div>
+}
+
+<div class="card">
+    <div class="card-body p-0">
+        <table class="table mb-0">
+            <thead>
+                <tr>
+                    <th>Name</th>
+                    <th>Description</th>
+                    <th>Type</th>
+                    <th>Status</th>
+                    <th class="text-end">Actions</th>
+                </tr>
+            </thead>
+            <tbody>
+                @if (Model.Any())
+                {
+                    @foreach (var item in Model)
+                    {
+                        <tr>
+                            <td><strong>@item.Name</strong></td>
+                            <td>@(item.Description ?? "-")</td>
+                            <td>
+                                @if (item.IsSystemRole)
+                                {
+                                    <span class="badge bg-warning">System</span>
+                                }
+                                else
+                                {
+                                    <span class="badge bg-secondary">Custom</span>
+                                }
+                            </td>
+                            <td>
+                                @if (item.IsActive)
+                                {
+                                    <span class="badge bg-success">Active</span>
+                                }
+                                else
+                                {
+                                    <span class="badge bg-danger">Inactive</span>
+                                }
+                            </td>
+                            <td class="text-end">
+                                <a asp-action="Permissions" asp-route-id="@item.RoleID" class="btn btn-sm btn-outline-info" title="Manage Permissions">
+                                    <i class="fas fa-key"></i>
+                                </a>
+                                <a asp-action="EditRole" asp-route-id="@item.RoleID" class="btn btn-sm btn-outline-primary">
+                                    <i class="fas fa-edit"></i>
+                                </a>
+                                @if (!item.IsSystemRole)
+                                {
+                                    <button type="button" class="btn btn-sm btn-outline-warning btn-toggle" 
+                                            data-id="@item.RoleID" data-name="@item.Name" data-status="@(item.IsActive ? "deactivate" : "activate")">
+                                        <i class="fas fa-power-off"></i>
+                                    </button>
+                                }
+                            </td>
+                        </tr>
+                    }
+                }
+                else
+                {
+                    <tr>
+                        <td colspan="5" class="text-center py-4">
+                            <div class="empty-state">
+                                <i class="fas fa-user-shield"></i>
+                                <p class="mb-0">No roles found. Click "Add Role" to create one.</p>
+                            </div>
+                        </td>
+                    </tr>
+                }
+            </tbody>
+        </table>
+    </div>
+</div>
+
+<!-- Hidden form for toggle status -->
+<form id="toggleForm" method="post" style="display: none;">
+    @Html.AntiForgeryToken()
+</form>
+
+@section Scripts {
+    <script>
+        document.querySelectorAll('.btn-toggle').forEach(function(btn) {
+            btn.addEventListener('click', function() {
+                const id = this.getAttribute('data-id');
+                const name = this.getAttribute('data-name');
+                const status = this.getAttribute('data-status');
+                
+                Swal.fire({
+                    title: status.charAt(0).toUpperCase() + status.slice(1) + ' Role?',
+                    text: `Are you sure you want to ${status} "${name}"?`,
+                    icon: 'warning',
+                    showCancelButton: true,
+                    confirmButtonColor: status === 'deactivate' ? '#dc2626' : '#10b981',
+                    cancelButtonColor: '#64748b',
+                    confirmButtonText: 'Yes, ' + status + ' it!',
+                    cancelButtonText: 'Cancel',
+                    background: '#1e293b',
+                    color: '#f1f5f9'
+                }).then((result) => {
+                    if (result.isConfirmed) {
+                        const form = document.getElementById('toggleForm');
+                        form.action = '/Role/ToggleStatus/' + id;
+                        form.submit();
+                    }
+                });
+            });
+        });
+    </script>
+}

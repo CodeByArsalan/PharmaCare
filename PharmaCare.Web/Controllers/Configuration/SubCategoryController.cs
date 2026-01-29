@@ -1,4 +1,3 @@
-using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.Mvc.Rendering;
 using PharmaCare.Application.Interfaces.Configuration;
@@ -6,7 +5,7 @@ using PharmaCare.Domain.Entities.Configuration;
 
 namespace PharmaCare.Web.Controllers.Configuration;
 
-public class SubCategoryController : Controller
+public class SubCategoryController : BaseController
 {
     private readonly ISubCategoryService _subCategoryService;
 
@@ -14,8 +13,6 @@ public class SubCategoryController : Controller
     {
         _subCategoryService = subCategoryService;
     }
-
-    private int GetCurrentUserId() => 1;
 
     public async Task<IActionResult> SubCategoriesIndex()
     {
@@ -33,7 +30,7 @@ public class SubCategoryController : Controller
     {
         if (ModelState.IsValid)
         {
-            await _subCategoryService.CreateAsync(subCategory, GetCurrentUserId());
+            await _subCategoryService.CreateAsync(subCategory, CurrentUserId);
             TempData["Success"] = "SubCategory created successfully!";
             return RedirectToAction("SubCategoriesIndex");
         }
@@ -61,7 +58,7 @@ public class SubCategoryController : Controller
 
         if (ModelState.IsValid)
         {
-            var updated = await _subCategoryService.UpdateAsync(subCategory, GetCurrentUserId());
+            var updated = await _subCategoryService.UpdateAsync(subCategory, CurrentUserId);
             if (!updated)
             {
                 return NotFound();
@@ -76,7 +73,7 @@ public class SubCategoryController : Controller
     [ValidateAntiForgeryToken]
     public async Task<IActionResult> Delete(int id)
     {
-        await _subCategoryService.ToggleStatusAsync(id, GetCurrentUserId());
+        await _subCategoryService.ToggleStatusAsync(id, CurrentUserId);
         TempData["Success"] = "SubCategory status updated successfully!";
         return RedirectToAction("SubCategoriesIndex");
     }

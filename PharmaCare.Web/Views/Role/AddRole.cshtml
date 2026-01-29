@@ -1,0 +1,42 @@
+@model PharmaCare.Domain.Entities.Security.Role
+@{
+    ViewData["Title"] = "Add New Role";
+}
+
+<!-- Page Header -->
+<div class="page-header">
+    <h4 class="page-title">
+        <i class="fas fa-plus-circle"></i>
+        Add New Role
+    </h4>
+    <a asp-action="RolesIndex" class="btn btn-outline-secondary">
+        <i class="fas fa-arrow-left me-2"></i>Back to List
+    </a>
+</div>
+
+<div class="card">
+    <div class="card-body">
+        <form asp-action="AddRole" method="post">
+            <div class="row g-3">
+                <div class="col-md-6">
+                    <label asp-for="Name" class="form-label">Role Name <span class="text-danger">*</span></label>
+                    <input asp-for="Name" class="form-control" placeholder="Enter role name" required />
+                    <span asp-validation-for="Name" class="text-danger small"></span>
+                </div>
+                
+                <div class="col-md-6">
+                    <label asp-for="Description" class="form-label">Description</label>
+                    <input asp-for="Description" class="form-control" placeholder="Enter role description" />
+                    <span asp-validation-for="Description" class="text-danger small"></span>
+                </div>
+            </div>
+            
+            <div class="text-end mt-4">
+                <a asp-action="RolesIndex" class="btn btn-outline-secondary me-2">Cancel</a>
+                <button type="submit" class="btn btn-primary">
+                    <i class="fas fa-save me-2"></i>Save Role
+                </button>
+            </div>
+        </form>
+    </div>
+</div>

@@ -7,6 +7,10 @@ using PharmaCare.Application.Interfaces;
 using PharmaCare.Infrastructure.Implementations;
 using PharmaCare.Application.Interfaces.Configuration;
 using PharmaCare.Application.Implementations.Configuration;
+using PharmaCare.Application.Interfaces.Security;
+using PharmaCare.Application.Implementations.Security;
+using PharmaCare.Infrastructure.Implementations.Security;
+using PharmaCare.Web.Middleware;
 
 var builder = WebApplication.CreateBuilder(args);
 var connectionString = builder.Configuration.GetConnectionString("PharmaCareDBConnectionString") 
@@ -30,10 +34,30 @@ builder.Services.AddDefaultIdentity<User>(options =>
     options.User.RequireUniqueEmail = true;
 }).AddEntityFrameworkStores<PharmaCareDBContext>();
 
+// Configure Authentication Cookie for "Remember Me" functionality
+builder.Services.ConfigureApplicationCookie(options =>
+{
+    options.LoginPath = "/Account/Login";
+    options.LogoutPath = "/Account/Logout";
+    options.AccessDeniedPath = "/Account/AccessDenied";
+    options.ExpireTimeSpan = TimeSpan.FromDays(30); // Cookie valid for 30 days when "Remember Me" is checked
+    options.SlidingExpiration = true; // Refresh the cookie on each request
+    options.Cookie.HttpOnly = true;
+    options.Cookie.SecurePolicy = CookieSecurePolicy.SameAsRequest;
+    options.Cookie.SameSite = SameSiteMode.Lax;
+});
+
 // Core Services
 builder.Services.AddScoped(typeof(IRepository<>), typeof(Repository<>));
 builder.Services.AddScoped<IUnitOfWork, UnitOfWork>();
 builder.Services.AddScoped<IAuthService, AuthService>();
+
+// Security Repositories (Infrastructure Layer)
+builder.Services.AddScoped<IRoleRepository, RoleRepository>();
+builder.Services.AddScoped<IUserRoleRepository, UserRoleRepository>();
+builder.Services.AddScoped<IRolePageRepository, RolePageRepository>();
+builder.Services.AddScoped<IPageRepository, PageRepository>();
+builder.Services.AddScoped<IUserManager, UserManagerAdapter>();
 
 // Application Services - Clean Architecture
 builder.Services.AddScoped<IStoreService, StoreService>();
@@ -41,6 +65,14 @@ builder.Services.AddScoped<ICategoryService, CategoryService>();
 builder.Services.AddScoped<ISubCategoryService, SubCategoryService>();
 builder.Services.AddScoped<IProductService, ProductService>();
 builder.Services.AddScoped<IPartyService, PartyService>();
+
+// Security Services (Application Layer)
+builder.Services.AddScoped<IUserService, PharmaCare.Application.Implementations.Security.UserService>();
+builder.Services.AddScoped<IRoleService, PharmaCare.Application.Implementations.Security.RoleService>();
+
+// Session and Authorization Services
+builder.Services.AddScoped<ISessionService, SessionService>();
+builder.Services.AddScoped<PharmaCare.Web.Filters.PageAuthorizationFilter>();
 
 // HTTP Context for AuthService
 builder.Services.AddHttpContextAccessor();
@@ -83,6 +115,7 @@ app.UseStaticFiles();
 app.UseRouting();
 app.UseSession();
 app.UseAuthentication();
+app.UseSessionInitialization(); // Re-initialize session for "Remember Me" users
 app.UseAuthorization();
 
 app.MapControllerRoute(

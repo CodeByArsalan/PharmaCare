@@ -30,6 +30,7 @@ public class PharmaCareDBContext : IdentityDbContext<User, IdentityRole<int>, in
     public DbSet<Role> Roles_Custom { get; set; } = null!;
     public DbSet<UserRole> UserRoles_Custom { get; set; } = null!;
     public DbSet<Page> Pages { get; set; } = null!;
+    public DbSet<PageUrl> PageUrls { get; set; } = null!;
     public DbSet<RolePage> RolePages { get; set; } = null!;
 
     // ========== CONFIGURATION ==========
@@ -149,6 +150,19 @@ public class PharmaCareDBContext : IdentityDbContext<User, IdentityRole<int>, in
                 .HasForeignKey(e => e.Page_ID)
                 .OnDelete(DeleteBehavior.Cascade);
             entity.HasIndex(e => new { e.Role_ID, e.Page_ID }).IsUnique();
+        });
+
+        builder.Entity<PageUrl>(entity =>
+        {
+            entity.ToTable("PageUrls");
+            entity.HasKey(e => e.PageUrlID);
+            entity.Property(e => e.Controller).IsRequired().HasMaxLength(100);
+            entity.Property(e => e.Action).IsRequired().HasMaxLength(100);
+            entity.HasOne(e => e.Page)
+                .WithMany(p => p.PageUrls)
+                .HasForeignKey(e => e.Page_ID)
+                .OnDelete(DeleteBehavior.Cascade);
+            entity.HasIndex(e => new { e.Controller, e.Action });
         });
 
         // ========== CONFIGURATION ==========
