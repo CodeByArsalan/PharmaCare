@@ -31,6 +31,7 @@ public class CategoryService : ICategoryService
             .Include(c => c.SaleAccount)
             .Include(c => c.StockAccount)
             .Include(c => c.COGSAccount)
+            .Include(c => c.DamageAccount)
             .OrderByDescending(c => c.IsActive)
             .ThenBy(c => c.Name)
             .ToListAsync();
@@ -63,6 +64,7 @@ public class CategoryService : ICategoryService
         existing.SaleAccount_ID = category.SaleAccount_ID;
         existing.StockAccount_ID = category.StockAccount_ID;
         existing.COGSAccount_ID = category.COGSAccount_ID;
+        existing.DamageAccount_ID = category.DamageAccount_ID;
         existing.IsActive = category.IsActive;
         existing.UpdatedAt = DateTime.Now;
         existing.UpdatedBy = userId;
@@ -93,6 +95,13 @@ public class CategoryService : ICategoryService
     {
         return await _accountRepository.Query()
             .Where(a => a.IsActive)
+            .OrderBy(a => a.Code)
+            .ToListAsync();
+    }
+    public async Task<IEnumerable<Account>> GetAccountsByTypeAsync(int typeId)
+    {
+        return await _accountRepository.Query()
+            .Where(a => a.IsActive && a.AccountType_ID == typeId)
             .OrderBy(a => a.Code)
             .ToListAsync();
     }

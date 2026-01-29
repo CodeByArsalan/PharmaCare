@@ -26,21 +26,28 @@
                 
                 <div class="col-md-6">
                     <label class="form-label">Sale Account</label>
-                    <select asp-for="SaleAccount_ID" asp-items="ViewBag.Accounts" class="form-select">
+                    <select asp-for="SaleAccount_ID" asp-items="ViewBag.SaleAccounts" class="form-select">
                         <option value="">-- Select Account --</option>
                     </select>
                 </div>
                 
                 <div class="col-md-6">
                     <label class="form-label">Stock Account</label>
-                    <select asp-for="StockAccount_ID" asp-items="ViewBag.Accounts" class="form-select">
+                    <select asp-for="StockAccount_ID" asp-items="ViewBag.StockAccounts" class="form-select">
                         <option value="">-- Select Account --</option>
                     </select>
                 </div>
                 
                 <div class="col-md-6">
-                    <label class="form-label">COGS Account</label>
-                    <select asp-for="COGSAccount_ID" asp-items="ViewBag.Accounts" class="form-select">
+                    <label class="form-label">Consumption Account</label>
+                    <select asp-for="COGSAccount_ID" asp-items="ViewBag.COGSAccounts" class="form-select">
+                        <option value="">-- Select Account --</option>
+                    </select>
+                </div>
+
+                <div class="col-md-6">
+                    <label class="form-label">Damage Account</label>
+                    <select asp-for="DamageAccount_ID" asp-items="ViewBag.DamageAccounts" class="form-select">
                         <option value="">-- Select Account --</option>
                     </select>
                 </div>

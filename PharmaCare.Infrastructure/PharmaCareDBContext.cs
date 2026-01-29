@@ -41,6 +41,7 @@ public class PharmaCareDBContext : IdentityDbContext<User, IdentityRole<int>, in
     public DbSet<Party> Parties { get; set; } = null!;
 
     // ========== ACCOUNTING ==========
+    public DbSet<AccountFamily> AccountFamilies { get; set; } = null!;
     public DbSet<AccountHead> AccountHeads { get; set; } = null!;
     public DbSet<AccountSubhead> AccountSubheads { get; set; } = null!;
     public DbSet<Account> Accounts { get; set; } = null!;
@@ -221,26 +222,33 @@ public class PharmaCareDBContext : IdentityDbContext<User, IdentityRole<int>, in
         });
 
         // ========== ACCOUNTING ==========
+        builder.Entity<AccountFamily>(entity =>
+        {
+            entity.ToTable("AccountFamilies");
+            entity.HasKey(e => e.AccountFamilyID);
+            entity.Property(e => e.FamilyName).IsRequired().HasMaxLength(100);
+        });
+
         builder.Entity<AccountHead>(entity =>
         {
             entity.ToTable("AccountHeads");
             entity.HasKey(e => e.AccountHeadID);
-            entity.Property(e => e.Code).IsRequired().HasMaxLength(10);
-            entity.Property(e => e.Name).IsRequired().HasMaxLength(100);
-            entity.HasIndex(e => e.Code).IsUnique();
+            entity.Property(e => e.HeadName).IsRequired().HasMaxLength(100);
+            entity.HasOne(e => e.AccountFamily)
+                .WithMany(f => f.AccountHeads)
+                .HasForeignKey(e => e.AccountFamily_ID)
+                .OnDelete(DeleteBehavior.Restrict);
         });
 
         builder.Entity<AccountSubhead>(entity =>
         {
             entity.ToTable("AccountSubheads");
             entity.HasKey(e => e.AccountSubheadID);
-            entity.Property(e => e.Code).IsRequired().HasMaxLength(20);
-            entity.Property(e => e.Name).IsRequired().HasMaxLength(100);
+            entity.Property(e => e.SubheadName).IsRequired().HasMaxLength(100);
             entity.HasOne(e => e.AccountHead)
                 .WithMany(h => h.AccountSubheads)
                 .HasForeignKey(e => e.AccountHead_ID)
                 .OnDelete(DeleteBehavior.Restrict);
-            entity.HasIndex(e => e.Code).IsUnique();
         });
 
         builder.Entity<AccountType>(entity =>

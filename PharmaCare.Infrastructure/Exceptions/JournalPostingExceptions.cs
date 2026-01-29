@@ -58,13 +58,13 @@ public class FiscalPeriodClosedException : JournalPostingException
 /// </summary>
 public class InactiveAccountException : JournalPostingException
 {
-    public int AccountId { get; }
+    public int AccountID { get; }
     public string AccountCode { get; }
 
     public InactiveAccountException(int accountId, string accountCode)
         : base($"Account '{accountCode}' (ID: {accountId}) is inactive.")
     {
-        AccountId = accountId;
+        AccountID = accountId;
         AccountCode = accountCode;
     }
 

@@ -3,6 +3,7 @@ using System;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Infrastructure;
 using Microsoft.EntityFrameworkCore.Metadata;
+using Microsoft.EntityFrameworkCore.Migrations;
 using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
 using PharmaCare.Infrastructure;
 
@@ -11,9 +12,11 @@ using PharmaCare.Infrastructure;
 namespace PharmaCare.Infrastructure.Migrations
 {
     [DbContext(typeof(PharmaCareDBContext))]
-    partial class PharmaCareDBContextModelSnapshot : ModelSnapshot
+    [Migration("20260129063834_FixAccountingNamingConventions")]
+    partial class FixAccountingNamingConventions
     {
-        protected override void BuildModel(ModelBuilder modelBuilder)
+        /// <inheritdoc />
+        protected override void BuildTargetModel(ModelBuilder modelBuilder)
         {
 #pragma warning disable 612, 618
             modelBuilder
@@ -324,9 +327,6 @@ namespace PharmaCare.Infrastructure.Migrations
                     b.Property<int>("CreatedBy")
                         .HasColumnType("int");
 
-                    b.Property<int?>("DamageAccount_ID")
-                        .HasColumnType("int");
-
                     b.Property<bool>("IsActive")
                         .HasColumnType("bit");
 
@@ -350,8 +350,6 @@ namespace PharmaCare.Infrastructure.Migrations
                     b.HasKey("CategoryID");
 
                     b.HasIndex("COGSAccount_ID");
-
-                    b.HasIndex("DamageAccount_ID");
 
                     b.HasIndex("SaleAccount_ID");
 
@@ -1535,10 +1533,6 @@ namespace PharmaCare.Infrastructure.Migrations
                         .WithMany()
                         .HasForeignKey("COGSAccount_ID");
 
-                    b.HasOne("PharmaCare.Domain.Entities.Accounting.Account", "DamageAccount")
-                        .WithMany()
-                        .HasForeignKey("DamageAccount_ID");
-
                     b.HasOne("PharmaCare.Domain.Entities.Accounting.Account", "SaleAccount")
                         .WithMany()
                         .HasForeignKey("SaleAccount_ID");
@@ -1548,8 +1542,6 @@ namespace PharmaCare.Infrastructure.Migrations
                         .HasForeignKey("StockAccount_ID");
 
                     b.Navigation("COGSAccount");
-
-                    b.Navigation("DamageAccount");
 
                     b.Navigation("SaleAccount");
 

@@ -17,4 +17,5 @@ public interface ICategoryService
     /// </summary>
     Task<bool> ToggleStatusAsync(int id, int userId);
     Task<IEnumerable<Account>> GetAccountsForDropdownAsync();
+    Task<IEnumerable<Account>> GetAccountsByTypeAsync(int typeId);
 }

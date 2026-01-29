@@ -1,0 +1,14 @@
+using PharmaCare.Domain.Entities.Accounting;
+
+namespace PharmaCare.Application.Interfaces.Accounting;
+
+public interface IAccountService
+{
+    Task<IEnumerable<Account>> GetAllAsync();
+    Task<Account?> GetByIdAsync(int id);
+    Task<Account> CreateAsync(Account account, int userId);
+    Task<bool> UpdateAsync(Account account, int userId);
+    Task<bool> ToggleStatusAsync(int id, int userId);
+    Task<IEnumerable<AccountSubhead>> GetSubHeadsForDropdownAsync();
+    Task<IEnumerable<AccountType>> GetAccountTypesForDropdownAsync();
+}

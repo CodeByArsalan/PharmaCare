@@ -3,6 +3,7 @@ using System;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Infrastructure;
 using Microsoft.EntityFrameworkCore.Metadata;
+using Microsoft.EntityFrameworkCore.Migrations;
 using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
 using PharmaCare.Infrastructure;
 
@@ -11,9 +12,11 @@ using PharmaCare.Infrastructure;
 namespace PharmaCare.Infrastructure.Migrations
 {
     [DbContext(typeof(PharmaCareDBContext))]
-    partial class PharmaCareDBContextModelSnapshot : ModelSnapshot
+    [Migration("20260129061836_RestructureAccountingHierarchy")]
+    partial class RestructureAccountingHierarchy
     {
-        protected override void BuildModel(ModelBuilder modelBuilder)
+        /// <inheritdoc />
+        protected override void BuildTargetModel(ModelBuilder modelBuilder)
         {
 #pragma warning disable 612, 618
             modelBuilder
@@ -161,16 +164,13 @@ namespace PharmaCare.Infrastructure.Migrations
 
             modelBuilder.Entity("PharmaCare.Domain.Entities.Accounting.Account", b =>
                 {
-                    b.Property<int>("AccountID")
+                    b.Property<int>("AccountId")
                         .ValueGeneratedOnAdd()
                         .HasColumnType("int");
 
-                    SqlServerPropertyBuilderExtensions.UseIdentityColumn(b.Property<int>("AccountID"));
+                    SqlServerPropertyBuilderExtensions.UseIdentityColumn(b.Property<int>("AccountId"));
 
-                    b.Property<int>("AccountSubhead_ID")
-                        .HasColumnType("int");
-
-                    b.Property<int>("AccountType_ID")
+                    b.Property<int>("AccountTypeId")
                         .HasColumnType("int");
 
                     b.Property<string>("Code")
@@ -195,51 +195,54 @@ namespace PharmaCare.Infrastructure.Migrations
                         .HasMaxLength(200)
                         .HasColumnType("nvarchar(200)");
 
+                    b.Property<int>("SubheadId")
+                        .HasColumnType("int");
+
                     b.Property<DateTime?>("UpdatedAt")
                         .HasColumnType("datetime2");
 
                     b.Property<int?>("UpdatedBy")
                         .HasColumnType("int");
 
-                    b.HasKey("AccountID");
+                    b.HasKey("AccountId");
 
-                    b.HasIndex("AccountSubhead_ID");
-
-                    b.HasIndex("AccountType_ID");
+                    b.HasIndex("AccountTypeId");
 
                     b.HasIndex("Code")
                         .IsUnique();
+
+                    b.HasIndex("SubheadId");
 
                     b.ToTable("Accounts", (string)null);
                 });
 
             modelBuilder.Entity("PharmaCare.Domain.Entities.Accounting.AccountFamily", b =>
                 {
-                    b.Property<int>("AccountFamilyID")
+                    b.Property<int>("FamilyId")
                         .ValueGeneratedOnAdd()
                         .HasColumnType("int");
 
-                    SqlServerPropertyBuilderExtensions.UseIdentityColumn(b.Property<int>("AccountFamilyID"));
+                    SqlServerPropertyBuilderExtensions.UseIdentityColumn(b.Property<int>("FamilyId"));
 
                     b.Property<string>("FamilyName")
                         .IsRequired()
                         .HasMaxLength(100)
                         .HasColumnType("nvarchar(100)");
 
-                    b.HasKey("AccountFamilyID");
+                    b.HasKey("FamilyId");
 
                     b.ToTable("AccountFamilies", (string)null);
                 });
 
             modelBuilder.Entity("PharmaCare.Domain.Entities.Accounting.AccountHead", b =>
                 {
-                    b.Property<int>("AccountHeadID")
+                    b.Property<int>("HeadId")
                         .ValueGeneratedOnAdd()
                         .HasColumnType("int");
 
-                    SqlServerPropertyBuilderExtensions.UseIdentityColumn(b.Property<int>("AccountHeadID"));
+                    SqlServerPropertyBuilderExtensions.UseIdentityColumn(b.Property<int>("HeadId"));
 
-                    b.Property<int>("AccountFamily_ID")
+                    b.Property<int>("FamilyId")
                         .HasColumnType("int");
 
                     b.Property<string>("HeadName")
@@ -247,22 +250,22 @@ namespace PharmaCare.Infrastructure.Migrations
                         .HasMaxLength(100)
                         .HasColumnType("nvarchar(100)");
 
-                    b.HasKey("AccountHeadID");
+                    b.HasKey("HeadId");
 
-                    b.HasIndex("AccountFamily_ID");
+                    b.HasIndex("FamilyId");
 
                     b.ToTable("AccountHeads", (string)null);
                 });
 
             modelBuilder.Entity("PharmaCare.Domain.Entities.Accounting.AccountSubhead", b =>
                 {
-                    b.Property<int>("AccountSubheadID")
+                    b.Property<int>("SubheadId")
                         .ValueGeneratedOnAdd()
                         .HasColumnType("int");
 
-                    SqlServerPropertyBuilderExtensions.UseIdentityColumn(b.Property<int>("AccountSubheadID"));
+                    SqlServerPropertyBuilderExtensions.UseIdentityColumn(b.Property<int>("SubheadId"));
 
-                    b.Property<int>("AccountHead_ID")
+                    b.Property<int>("HeadId")
                         .HasColumnType("int");
 
                     b.Property<string>("SubheadName")
@@ -270,9 +273,9 @@ namespace PharmaCare.Infrastructure.Migrations
                         .HasMaxLength(100)
                         .HasColumnType("nvarchar(100)");
 
-                    b.HasKey("AccountSubheadID");
+                    b.HasKey("SubheadId");
 
-                    b.HasIndex("AccountHead_ID");
+                    b.HasIndex("HeadId");
 
                     b.ToTable("AccountSubheads", (string)null);
                 });
@@ -324,9 +327,6 @@ namespace PharmaCare.Infrastructure.Migrations
                     b.Property<int>("CreatedBy")
                         .HasColumnType("int");
 
-                    b.Property<int?>("DamageAccount_ID")
-                        .HasColumnType("int");
-
                     b.Property<bool>("IsActive")
                         .HasColumnType("bit");
 
@@ -350,8 +350,6 @@ namespace PharmaCare.Infrastructure.Migrations
                     b.HasKey("CategoryID");
 
                     b.HasIndex("COGSAccount_ID");
-
-                    b.HasIndex("DamageAccount_ID");
 
                     b.HasIndex("SaleAccount_ID");
 
@@ -1490,15 +1488,15 @@ namespace PharmaCare.Infrastructure.Migrations
 
             modelBuilder.Entity("PharmaCare.Domain.Entities.Accounting.Account", b =>
                 {
-                    b.HasOne("PharmaCare.Domain.Entities.Accounting.AccountSubhead", "AccountSubhead")
+                    b.HasOne("PharmaCare.Domain.Entities.Accounting.AccountType", "AccountType")
                         .WithMany("Accounts")
-                        .HasForeignKey("AccountSubhead_ID")
+                        .HasForeignKey("AccountTypeId")
                         .OnDelete(DeleteBehavior.Restrict)
                         .IsRequired();
 
-                    b.HasOne("PharmaCare.Domain.Entities.Accounting.AccountType", "AccountType")
+                    b.HasOne("PharmaCare.Domain.Entities.Accounting.AccountSubhead", "AccountSubhead")
                         .WithMany("Accounts")
-                        .HasForeignKey("AccountType_ID")
+                        .HasForeignKey("SubheadId")
                         .OnDelete(DeleteBehavior.Restrict)
                         .IsRequired();
 
@@ -1511,7 +1509,7 @@ namespace PharmaCare.Infrastructure.Migrations
                 {
                     b.HasOne("PharmaCare.Domain.Entities.Accounting.AccountFamily", "AccountFamily")
                         .WithMany("AccountHeads")
-                        .HasForeignKey("AccountFamily_ID")
+                        .HasForeignKey("FamilyId")
                         .OnDelete(DeleteBehavior.Restrict)
                         .IsRequired();
 
@@ -1522,7 +1520,7 @@ namespace PharmaCare.Infrastructure.Migrations
                 {
                     b.HasOne("PharmaCare.Domain.Entities.Accounting.AccountHead", "AccountHead")
                         .WithMany("AccountSubheads")
-                        .HasForeignKey("AccountHead_ID")
+                        .HasForeignKey("HeadId")
                         .OnDelete(DeleteBehavior.Restrict)
                         .IsRequired();
 
@@ -1535,10 +1533,6 @@ namespace PharmaCare.Infrastructure.Migrations
                         .WithMany()
                         .HasForeignKey("COGSAccount_ID");
 
-                    b.HasOne("PharmaCare.Domain.Entities.Accounting.Account", "DamageAccount")
-                        .WithMany()
-                        .HasForeignKey("DamageAccount_ID");
-
                     b.HasOne("PharmaCare.Domain.Entities.Accounting.Account", "SaleAccount")
                         .WithMany()
                         .HasForeignKey("SaleAccount_ID");
@@ -1548,8 +1542,6 @@ namespace PharmaCare.Infrastructure.Migrations
                         .HasForeignKey("StockAccount_ID");
 
                     b.Navigation("COGSAccount");
-
-                    b.Navigation("DamageAccount");
 
                     b.Navigation("SaleAccount");
 

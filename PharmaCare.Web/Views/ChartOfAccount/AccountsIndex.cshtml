@@ -1,0 +1,119 @@
+@model IEnumerable<PharmaCare.Domain.Entities.Accounting.Account>
+@{
+    ViewData["Title"] = "Chart of Accounts";
+}
+
+<!-- Page Header -->
+<div class="page-header">
+    <h4 class="page-title">
+        <i class="fas fa-book"></i>
+        Chart of Accounts
+    </h4>
+    <a asp-action="AddAccount" class="btn btn-primary">
+        <i class="fas fa-plus me-2"></i>Add Account
+    </a>
+</div>
+
+@if (TempData["Success"] != null)
+{
+    <div class="alert alert-success alert-dismissible fade show" role="alert">
+        <i class="fas fa-check-circle me-2"></i>@TempData["Success"]
+        <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+    </div>
+}
+
+<div class="card">
+    <div class="card-body p-0">
+        <table class="table mb-0">
+            <thead>
+                <tr>
+                    <th>Code</th>
+                    <th>Account Name</th>
+                    <th>Sub-Head</th>
+                    <th>Type</th>
+                    <th>Status</th>
+                    <th class="text-end">Actions</th>
+                </tr>
+            </thead>
+            <tbody>
+                @if (Model.Any())
+                {
+                    @foreach (var item in Model)
+                    {
+                        <tr>
+                            <td>@item.Code</td>
+                            <td><strong>@item.Name</strong></td>
+                            <td>@(item.AccountSubhead?.SubheadName ?? "-")</td>
+                            <td>@(item.AccountType?.Name ?? "-")</td>
+                            <td>
+                                @if (item.IsActive)
+                                {
+                                    <span class="badge bg-success">Active</span>
+                                }
+                                else
+                                {
+                                    <span class="badge bg-danger">Inactive</span>
+                                }
+                            </td>
+                            <td class="text-end">
+                                <a asp-action="EditAccount" asp-route-id="@item.AccountID" class="btn btn-sm btn-outline-primary">
+                                    <i class="fas fa-edit"></i>
+                                </a>
+                                <button type="button" class="btn btn-sm btn-outline-danger btn-delete" 
+                                        data-id="@item.AccountID" data-name="@item.Name">
+                                    <i class="fas fa-toggle-on"></i>
+                                </button>
+                            </td>
+                        </tr>
+                    }
+                }
+                else
+                {
+                    <tr>
+                        <td colspan="6" class="text-center py-4">
+                            <div class="empty-state">
+                                <i class="fas fa-book"></i>
+                                <p class="mb-0">No Accounts found. Click "Add Account" to create one.</p>
+                            </div>
+                        </td>
+                    </tr>
+                }
+            </tbody>
+        </table>
+    </div>
+</div>
+
+<!-- Hidden form for delete/toggle -->
+<form id="deleteForm" method="post" style="display: none;">
+    @Html.AntiForgeryToken()
+</form>
+
+@section Scripts {
+    <script>
+        document.querySelectorAll('.btn-delete').forEach(function(btn) {
+            btn.addEventListener('click', function() {
+                const id = this.getAttribute('data-id');
+                const name = this.getAttribute('data-name');
+                
+                Swal.fire({
+                    title: 'Toggle Status?',
+                    text: `Are you sure you want to toggle status for "${name}"?`,
+                    icon: 'warning',
+                    showCancelButton: true,
+                    confirmButtonColor: '#eab308',
+                    cancelButtonColor: '#64748b',
+                    confirmButtonText: 'Yes, toggle it!',
+                    cancelButtonText: 'Cancel',
+                    background: '#1e293b',
+                    color: '#f1f5f9'
+                }).then((result) => {
+                    if (result.isConfirmed) {
+                        const form = document.getElementById('deleteForm');
+                        form.action = '/ChartOfAccount/Delete/' + id;
+                        form.submit();
+                    }
+                });
+            });
+        });
+    </script>
+}

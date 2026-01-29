@@ -11,6 +11,8 @@ using PharmaCare.Application.Interfaces.Security;
 using PharmaCare.Application.Implementations.Security;
 using PharmaCare.Infrastructure.Implementations.Security;
 using PharmaCare.Web.Middleware;
+using PharmaCare.Application.Interfaces.Accounting;
+using PharmaCare.Application.Implementations.Accounting;
 
 var builder = WebApplication.CreateBuilder(args);
 var connectionString = builder.Configuration.GetConnectionString("PharmaCareDBConnectionString") 
@@ -65,6 +67,9 @@ builder.Services.AddScoped<ICategoryService, CategoryService>();
 builder.Services.AddScoped<ISubCategoryService, SubCategoryService>();
 builder.Services.AddScoped<IProductService, ProductService>();
 builder.Services.AddScoped<IPartyService, PartyService>();
+builder.Services.AddScoped<IAccountHeadService, AccountHeadService>();
+builder.Services.AddScoped<IAccountSubHeadService, AccountSubHeadService>();
+builder.Services.AddScoped<IAccountService, AccountService>();
 
 // Security Services (Application Layer)
 builder.Services.AddScoped<IUserService, PharmaCare.Application.Implementations.Security.UserService>();

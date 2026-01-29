@@ -1,0 +1,46 @@
+@model PharmaCare.Domain.Entities.Accounting.AccountHead
+@{
+    ViewData["Title"] = "Edit Account Head";
+}
+
+<!-- Page Header -->
+<div class="page-header">
+    <h4 class="page-title">
+        <i class="fas fa-edit"></i>
+        Edit Account Head
+    </h4>
+    <a asp-action="AccountHeadsIndex" class="btn btn-outline-secondary">
+        <i class="fas fa-arrow-left me-2"></i>Back to List
+    </a>
+</div>
+
+<div class="card">
+    <div class="card-body">
+        <form asp-action="EditAccountHead" method="post">
+            <input type="hidden" asp-for="AccountHeadID" />
+            
+            <div class="row g-3">
+                <div class="col-md-6">
+                    <label class="form-label">Head Name <span class="text-danger">*</span></label>
+                    <input asp-for="HeadName" class="form-control" placeholder="Enter Head Name" required />
+                    <span asp-validation-for="HeadName" class="text-danger small"></span>
+                </div>
+                
+                <div class="col-md-6">
+                    <label class="form-label">Account Family</label>
+                    <select asp-for="AccountFamily_ID" asp-items="ViewBag.Families" class="form-select" required>
+                        <option value="">-- Select Family --</option>
+                    </select>
+                    <span asp-validation-for="AccountFamily_ID" class="text-danger small"></span>
+                </div>
+            </div>
+            
+            <div class="text-end mt-4">
+                <a asp-action="AccountHeadsIndex" class="btn btn-outline-secondary me-2">Cancel</a>
+                <button type="submit" class="btn btn-primary">
+                    <i class="fas fa-save me-2"></i>Update Account Head
+                </button>
+            </div>
+        </form>
+    </div>
+</div>

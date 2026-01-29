@@ -30,6 +30,10 @@ public class Category : BaseEntityWithStatus
     public int? COGSAccount_ID { get; set; }
     public Account? COGSAccount { get; set; }
 
+    [ForeignKey("DamageAccount")]
+    public int? DamageAccount_ID { get; set; }
+    public Account? DamageAccount { get; set; }
+
     // Navigation
     public ICollection<SubCategory> SubCategories { get; set; } = new List<SubCategory>();
 }

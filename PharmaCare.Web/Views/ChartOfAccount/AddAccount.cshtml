@@ -1,0 +1,67 @@
+@model PharmaCare.Domain.Entities.Accounting.Account
+@{
+    ViewData["Title"] = "Add New Account";
+}
+
+<!-- Page Header -->
+<div class="page-header">
+    <h4 class="page-title">
+        <i class="fas fa-plus-circle"></i>
+        Add New Account
+    </h4>
+    <a asp-action="AccountsIndex" class="btn btn-outline-secondary">
+        <i class="fas fa-arrow-left me-2"></i>Back to List
+    </a>
+</div>
+
+<div class="card">
+    <div class="card-body">
+        <form asp-action="AddAccount" method="post">
+            <div class="row g-3">
+                <div class="col-md-6">
+                    <label class="form-label">Account Code <span class="text-danger">*</span></label>
+                    <input asp-for="Code" class="form-control" placeholder="Enter Account Code" required />
+                    <span asp-validation-for="Code" class="text-danger small"></span>
+                </div>
+
+                <div class="col-md-6">
+                    <label class="form-label">Account Name <span class="text-danger">*</span></label>
+                    <input asp-for="Name" class="form-control" placeholder="Enter Account Name" required />
+                    <span asp-validation-for="Name" class="text-danger small"></span>
+                </div>
+                
+                <div class="col-md-6">
+                    <label class="form-label">Sub-Head</label>
+                    <select asp-for="AccountSubhead_ID" asp-items="ViewBag.SubHeads" class="form-select" required>
+                        <option value="">-- Select Sub-Head --</option>
+                    </select>
+                    <span asp-validation-for="AccountSubhead_ID" class="text-danger small"></span>
+                </div>
+
+                <div class="col-md-6">
+                    <label class="form-label">Account Type</label>
+                    <select asp-for="AccountType_ID" asp-items="ViewBag.AccountTypes" class="form-select" required>
+                        <option value="">-- Select Type --</option>
+                    </select>
+                    <span asp-validation-for="AccountType_ID" class="text-danger small"></span>
+                </div>
+
+                <div class="col-md-6">
+                    <div class="form-check mt-4">
+                        <input asp-for="IsSystemAccount" class="form-check-input" type="checkbox" />
+                        <label class="form-check-label" asp-for="IsSystemAccount">
+                            Is System Account (Restricted modification)
+                        </label>
+                    </div>
+                </div>
+            </div>
+            
+            <div class="text-end mt-4">
+                <a asp-action="AccountsIndex" class="btn btn-outline-secondary me-2">Cancel</a>
+                <button type="submit" class="btn btn-primary">
+                    <i class="fas fa-save me-2"></i>Save Account
+                </button>
+            </div>
+        </form>
+    </div>
+</div>
