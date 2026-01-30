@@ -24,6 +24,13 @@
             
             <div class="row g-3">
                 <div class="col-md-6">
+                    <label class="form-label">Head</label>
+                    <select asp-for="AccountHead_ID" asp-items="ViewBag.AccountHeads" class="form-select" required>
+                        <option value="">-- Select Head --</option>
+                    </select>
+                    <span asp-validation-for="AccountHead_ID" class="text-danger small"></span>
+                </div>
+                <div class="col-md-6">
                     <label class="form-label">Account Code <span class="text-danger">*</span></label>
                     <input asp-for="Code" class="form-control" placeholder="Enter Account Code" required />
                     <span asp-validation-for="Code" class="text-danger small"></span>

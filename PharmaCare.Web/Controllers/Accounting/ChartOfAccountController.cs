@@ -90,6 +90,11 @@ public class ChartOfAccountController : BaseController
             subHeads.Select(s => new { s.AccountSubheadID, Display = s.SubheadName }),
             "AccountSubheadID", "Display");
 
+        var heads = await _accountService.GetAccountHeadsForDropdownAsync();
+        ViewBag.AccountHeads = new SelectList(
+            heads.Select(h => new { h.AccountHeadID, Display = h.HeadName }),
+            "AccountHeadID", "Display");
+
         var types = await _accountService.GetAccountTypesForDropdownAsync();
         ViewBag.AccountTypes = new SelectList(
             types.Select(t => new { t.AccountTypeID, Display = t.Name }),

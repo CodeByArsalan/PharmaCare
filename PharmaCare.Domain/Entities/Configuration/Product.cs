@@ -12,6 +12,10 @@ public class Product : BaseEntityWithStatus
     [Key]
     public int ProductID { get; set; }
 
+    [ForeignKey("Category")]
+    public int? Category_ID { get; set; }
+    public Category? Category { get; set; }
+
     [ForeignKey("SubCategory")]
     public int SubCategory_ID { get; set; }
     public SubCategory? SubCategory { get; set; }

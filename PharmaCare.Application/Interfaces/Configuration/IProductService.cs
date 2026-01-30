@@ -16,5 +16,6 @@ public interface IProductService
     /// </summary>
     Task<bool> ToggleStatusAsync(int id, int userId);
     Task<IEnumerable<SubCategory>> GetSubCategoriesForDropdownAsync();
+    Task<IEnumerable<Category>> GetCategoriesForDropdownAsync();
     Task<string> GenerateProductCodeAsync();
 }

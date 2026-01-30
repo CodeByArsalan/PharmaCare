@@ -205,6 +205,11 @@ public class PharmaCareDBContext : IdentityDbContext<User, IdentityRole<int>, in
             entity.Property(e => e.Name).IsRequired().HasMaxLength(200);
             entity.HasIndex(e => e.Code).IsUnique();
             entity.HasIndex(e => e.Barcode);
+
+            entity.HasOne(e => e.Category)
+                .WithMany(s => s.Products)
+                .HasForeignKey(e => e.Category_ID)
+                .OnDelete(DeleteBehavior.Restrict);
             entity.HasOne(e => e.SubCategory)
                 .WithMany(s => s.Products)
                 .HasForeignKey(e => e.SubCategory_ID)
@@ -291,6 +296,10 @@ public class PharmaCareDBContext : IdentityDbContext<User, IdentityRole<int>, in
             entity.HasKey(e => e.AccountID);
             entity.Property(e => e.Code).IsRequired().HasMaxLength(20);
             entity.Property(e => e.Name).IsRequired().HasMaxLength(200);
+            entity.HasOne(e => e.AccountHead)
+                .WithMany(s => s.Accounts)
+                .HasForeignKey(e => e.AccountHead_ID)
+                .OnDelete(DeleteBehavior.Restrict);
             entity.HasOne(e => e.AccountSubhead)
                 .WithMany(s => s.Accounts)
                 .HasForeignKey(e => e.AccountSubhead_ID)

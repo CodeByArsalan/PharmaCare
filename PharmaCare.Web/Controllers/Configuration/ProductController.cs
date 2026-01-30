@@ -21,7 +21,7 @@ public class ProductController : BaseController
     }
     public async Task<IActionResult> AddProduct()
     {
-        await LoadSubCategoriesDropdown();
+        await LoadDropdowns();
         return View(new Product());
     }
     [HttpPost]
@@ -34,7 +34,7 @@ public class ProductController : BaseController
             TempData["Success"] = "Product created successfully!";
             return RedirectToAction("ProductsIndex");
         }
-        await LoadSubCategoriesDropdown();
+        await LoadDropdowns();
         return View(product);
     }
     public async Task<IActionResult> EditProduct(int id)
@@ -44,7 +44,7 @@ public class ProductController : BaseController
         {
             return NotFound();
         }
-        await LoadSubCategoriesDropdown();
+        await LoadDropdowns();
         return View(product);
     }
     [HttpPost]
@@ -66,7 +66,7 @@ public class ProductController : BaseController
             TempData["Success"] = "Product updated successfully!";
             return RedirectToAction("ProductsIndex");
         }
-        await LoadSubCategoriesDropdown();
+        await LoadDropdowns();
         return View(product);
     }
     [HttpPost]
@@ -77,9 +77,12 @@ public class ProductController : BaseController
         TempData["Success"] = "Product status updated successfully!";
         return RedirectToAction("ProductsIndex");
     }
-    private async Task LoadSubCategoriesDropdown()
+    private async Task LoadDropdowns()
     {
         var subCategories = await _productService.GetSubCategoriesForDropdownAsync();
         ViewBag.SubCategories = new SelectList(subCategories, "SubCategoryID", "Name");
+
+        var categories = await _productService.GetCategoriesForDropdownAsync();
+        ViewBag.Categories = new SelectList(categories, "CategoryID", "Name");
     }
 }

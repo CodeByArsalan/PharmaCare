@@ -12,15 +12,18 @@ public class ProductService : IProductService
 {
     private readonly IRepository<Product> _repository;
     private readonly IRepository<SubCategory> _subCategoryRepository;
+    private readonly IRepository<Category> _categoryRepository;
     private readonly IUnitOfWork _unitOfWork;
 
     public ProductService(
         IRepository<Product> repository,
         IRepository<SubCategory> subCategoryRepository,
+        IRepository<Category> categoryRepository,
         IUnitOfWork unitOfWork)
     {
         _repository = repository;
         _subCategoryRepository = subCategoryRepository;
+        _categoryRepository = categoryRepository;
         _unitOfWork = unitOfWork;
     }
 
@@ -28,7 +31,7 @@ public class ProductService : IProductService
     {
         return await _repository.Query()
             .Include(p => p.SubCategory)
-            .ThenInclude(s => s!.Category)
+            .Include(p => p.Category)
             .OrderByDescending(p => p.IsActive)
             .ThenBy(p => p.Name)
             .ToListAsync();
@@ -36,7 +39,10 @@ public class ProductService : IProductService
 
     public async Task<Product?> GetByIdAsync(int id)
     {
-        return await _repository.FirstOrDefaultAsync(p => p.ProductID == id);
+        return await _repository.Query()
+            .Include(p => p.Category)
+            .Include(p => p.SubCategory)
+            .FirstOrDefaultAsync(p => p.ProductID == id);
     }
 
     public async Task<Product> CreateAsync(Product product, int userId)
@@ -60,6 +66,9 @@ public class ProductService : IProductService
 
         existing.Name = product.Name;
         existing.Barcode = product.Barcode;
+        existing.Name = product.Name;
+        existing.Barcode = product.Barcode;
+        existing.Category_ID = product.Category_ID;
         existing.SubCategory_ID = product.SubCategory_ID;
         existing.CostPrice = product.CostPrice;
         existing.SellingPrice = product.SellingPrice;
@@ -95,6 +104,14 @@ public class ProductService : IProductService
         return await _subCategoryRepository.Query()
             .Where(s => s.IsActive)
             .OrderBy(s => s.Name)
+            .ToListAsync();
+    }
+
+    public async Task<IEnumerable<Category>> GetCategoriesForDropdownAsync()
+    {
+        return await _categoryRepository.Query()
+            .Where(c => c.IsActive)
+            .OrderBy(c => c.Name)
             .ToListAsync();
     }
 

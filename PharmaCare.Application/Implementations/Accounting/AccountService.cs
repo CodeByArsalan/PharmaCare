@@ -9,17 +9,20 @@ public class AccountService : IAccountService
 {
     private readonly IRepository<Account> _repository;
     private readonly IRepository<AccountSubhead> _subheadRepository;
+    private readonly IRepository<AccountHead> _headRepository;
     private readonly IRepository<AccountType> _typeRepository;
     private readonly IUnitOfWork _unitOfWork;
 
     public AccountService(
         IRepository<Account> repository,
         IRepository<AccountSubhead> subheadRepository,
+        IRepository<AccountHead> headRepository,
         IRepository<AccountType> typeRepository,
         IUnitOfWork unitOfWork)
     {
         _repository = repository;
         _subheadRepository = subheadRepository;
+        _headRepository = headRepository;
         _typeRepository = typeRepository;
         _unitOfWork = unitOfWork;
     }
@@ -28,6 +31,7 @@ public class AccountService : IAccountService
     {
         return await _repository.Query()
             .Include(a => a.AccountSubhead)
+            .Include(a => a.AccountHead)
             .Include(a => a.AccountType)
             .OrderBy(a => a.Code)
             .ToListAsync();
@@ -37,6 +41,7 @@ public class AccountService : IAccountService
     {
         return await _repository.Query()
             .Include(a => a.AccountSubhead)
+            .Include(a => a.AccountHead)
             .Include(a => a.AccountType)
             .FirstOrDefaultAsync(a => a.AccountID == id);
     }
@@ -59,6 +64,7 @@ public class AccountService : IAccountService
 
         existing.Code = account.Code;
         existing.Name = account.Name;
+        existing.AccountHead_ID = account.AccountHead_ID;
         existing.AccountSubhead_ID = account.AccountSubhead_ID;
         existing.AccountType_ID = account.AccountType_ID;
         existing.IsSystemAccount = account.IsSystemAccount;
@@ -99,6 +105,12 @@ public class AccountService : IAccountService
     {
         return await _typeRepository.Query()
             .OrderBy(t => t.Name)
+            .ToListAsync();
+    }
+    public async Task<IEnumerable<AccountHead>> GetAccountHeadsForDropdownAsync()
+    {
+        return await _headRepository.Query()
+            .OrderBy(h => h.HeadName)
             .ToListAsync();
     }
 }

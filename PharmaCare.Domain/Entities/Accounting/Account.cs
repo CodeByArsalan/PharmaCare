@@ -21,6 +21,10 @@ public class Account : BaseEntityWithStatus
     [StringLength(200)]
     public string Name { get; set; } = string.Empty;
 
+    [ForeignKey("AccountHead")]
+    public int? AccountHead_ID { get; set; }
+    public AccountHead? AccountHead { get; set; }
+
     [ForeignKey("AccountSubhead")]
     public int AccountSubhead_ID { get; set; }
     public AccountSubhead? AccountSubhead { get; set; }

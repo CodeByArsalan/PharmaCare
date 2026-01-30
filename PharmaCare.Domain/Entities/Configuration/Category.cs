@@ -36,4 +36,5 @@ public class Category : BaseEntityWithStatus
 
     // Navigation
     public ICollection<SubCategory> SubCategories { get; set; } = new List<SubCategory>();
+    public ICollection<Product> Products { get; set; } = new List<Product>();
 }

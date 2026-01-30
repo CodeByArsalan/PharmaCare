@@ -25,6 +25,13 @@
                 </div>
                 
                 <div class="col-md-6">
+                    <label class="form-label">Category <span class="text-danger">*</span></label>
+                    <select asp-for="Category_ID" asp-items="ViewBag.Categories" class="form-select" required>
+                        <option value="">-- Select Category --</option>
+                    </select>
+                </div>
+                
+                <div class="col-md-6">
                     <label class="form-label">SubCategory <span class="text-danger">*</span></label>
                     <select asp-for="SubCategory_ID" asp-items="ViewBag.SubCategories" class="form-select" required>
                         <option value="">-- Select SubCategory --</option>

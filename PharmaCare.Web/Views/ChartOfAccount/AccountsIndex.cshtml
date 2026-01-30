@@ -29,6 +29,7 @@
                 <tr>
                     <th style="width: 60px;">S.No</th>
                     <th>Code</th>
+                    <th>Head</th>
                     <th>Sub-Head</th>
                     <th>Account Name</th>
                     <th>Type</th>
@@ -45,6 +46,7 @@
                         <tr>
                             <td>@(count++)</td>
                             <td>@item.Code</td>
+                            <td>@(item.AccountHead?.HeadName ?? "-")</td>
                             <td>@(item.AccountSubhead?.SubheadName ?? "-")</td>
                             <td><strong>@item.Name</strong></td>
                             <td>@(item.AccountType?.Name ?? "-")</td>

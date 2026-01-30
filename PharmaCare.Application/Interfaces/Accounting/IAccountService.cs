@@ -10,5 +10,6 @@ public interface IAccountService
     Task<bool> UpdateAsync(Account account, int userId);
     Task<bool> ToggleStatusAsync(int id, int userId);
     Task<IEnumerable<AccountSubhead>> GetSubHeadsForDropdownAsync();
+    Task<IEnumerable<AccountHead>> GetAccountHeadsForDropdownAsync();
     Task<IEnumerable<AccountType>> GetAccountTypesForDropdownAsync();
 }

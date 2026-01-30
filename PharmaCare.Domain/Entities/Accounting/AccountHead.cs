@@ -22,4 +22,5 @@ public class AccountHead
 
     // Navigation
     public ICollection<AccountSubhead> AccountSubheads { get; set; } = new List<AccountSubhead>();
+    public ICollection<Account> Accounts { get; set; } = new List<Account>();
 }
