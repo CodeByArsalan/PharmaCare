@@ -29,18 +29,28 @@
         {
             @if (menuSection.Children.Any())
             {
+                var isChildActive = menuSection.Children.Any(c => string.Equals(c.Controller, currentController, StringComparison.OrdinalIgnoreCase));
+                var sectionId = $"menu-{menuSection.Title.Replace(" ", "-").ToLower()}";
+                
                 <!-- Section with children -->
-                <div class="nav-section">
-                    <div class="nav-section-title">@(menuSection.Title)</div>
-                    @foreach (var item in menuSection.Children)
-                    {
-                        var isActive = string.Equals(item.Controller, currentController, StringComparison.OrdinalIgnoreCase);
-                        <a asp-controller="@item.Controller" asp-action="@item.Action" 
-                           class="nav-link @(isActive ? "active" : "")">
-                            <i class="@(item.Icon ?? "fas fa-circle")"></i>
-                            <span>@(item.Title)</span>
-                        </a>
-                    }
+                <div class="nav-section @(isChildActive ? "active" : "")">
+                    <div class="nav-section-title d-flex justify-content-between align-items-center" 
+                         onclick="toggleMenuSection(this)" 
+                         style="cursor: pointer;">
+                        <span>@(menuSection.Title)</span>
+                        <i class="fas fa-chevron-right transition-icon @(isChildActive ? "rotate-90" : "")"></i>
+                    </div>
+                    <div class="nav-children" style="@(isChildActive ? "" : "display:none;")">
+                        @foreach (var item in menuSection.Children)
+                        {
+                            var isActive = string.Equals(item.Controller, currentController, StringComparison.OrdinalIgnoreCase);
+                            <a asp-controller="@item.Controller" asp-action="@item.Action" 
+                               class="nav-link @(isActive ? "active" : "")" style="padding-left: 2rem;">
+                                <i class="@(item.Icon ?? "fas fa-circle")"></i>
+                                <span>@(item.Title)</span>
+                            </a>
+                        }
+                    </div>
                 </div>
             }
             else if (!string.IsNullOrEmpty(menuSection.Controller))
@@ -56,6 +66,28 @@
                 </div>
             }
         }
+
+        <script>
+            function toggleMenuSection(element) {
+                const section = $(element).parent();
+                const children = section.find('.nav-children');
+                const icon = $(element).find('.transition-icon');
+                
+                // If this section is already open, close it
+                if (children.is(':visible')) {
+                    children.slideUp(200);
+                    icon.removeClass('rotate-90');
+                } else {
+                    // Close all other sections
+                    $('.nav-children').slideUp(200);
+                    $('.transition-icon').removeClass('rotate-90');
+                    
+                    // Open this section
+                    children.slideDown(200);
+                    icon.addClass('rotate-90');
+                }
+            }
+        </script>
         
         <!-- User Section (always at bottom) -->
         <div class="nav-section" style="margin-top: auto; border-top: 1px solid var(--glass-border); padding-top: 1rem;">

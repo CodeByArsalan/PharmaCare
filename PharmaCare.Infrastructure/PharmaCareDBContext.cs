@@ -39,6 +39,8 @@ public class PharmaCareDBContext : IdentityDbContext<User, IdentityRole<int>, in
     public DbSet<SubCategory> SubCategories { get; set; } = null!;
     public DbSet<Product> Products { get; set; } = null!;
     public DbSet<Party> Parties { get; set; } = null!;
+    public DbSet<PriceType> PriceTypes { get; set; } = null!;
+    public DbSet<ProductPrice> ProductPrices { get; set; } = null!;
 
     // ========== ACCOUNTING ==========
     public DbSet<AccountFamily> AccountFamilies { get; set; } = null!;
@@ -219,6 +221,29 @@ public class PharmaCareDBContext : IdentityDbContext<User, IdentityRole<int>, in
             entity.Property(e => e.PartyType).IsRequired().HasMaxLength(20);
             entity.HasIndex(e => e.Code).IsUnique();
 
+        });
+
+        builder.Entity<PriceType>(entity =>
+        {
+            entity.ToTable("PriceTypes");
+            entity.HasKey(e => e.PriceTypeID);
+            entity.Property(e => e.PriceTypeName).IsRequired().HasMaxLength(100);
+        });
+
+        builder.Entity<ProductPrice>(entity =>
+        {
+            entity.ToTable("ProductPrices");
+            entity.HasKey(e => e.ProductPriceID);
+            
+            entity.HasOne(e => e.Product)
+                .WithMany()
+                .HasForeignKey(e => e.Product_ID)
+                .OnDelete(DeleteBehavior.Cascade);
+
+            entity.HasOne(e => e.PriceType)
+                .WithMany()
+                .HasForeignKey(e => e.PriceType_ID)
+                .OnDelete(DeleteBehavior.Restrict);
         });
 
         // ========== ACCOUNTING ==========

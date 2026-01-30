@@ -886,6 +886,16 @@ pre {
     text-transform: uppercase;
     letter-spacing: 0.1em;
     color: var(--text-muted);
+    cursor: pointer;
+    user-select: none;
+}
+
+.transition-icon {
+    transition: transform var(--transition-base);
+}
+
+.rotate-90 {
+    transform: rotate(90deg);
 }
 
 .nav-link {
