@@ -19,12 +19,6 @@ public class Party : BaseEntityWithStatus
     [StringLength(20)]
     public string PartyType { get; set; } = "Customer";
 
-    /// <summary>
-    /// Auto-generated code (CUS-0001 or SUP-0001)
-    /// </summary>
-    [Required]
-    [StringLength(20)]
-    public string Code { get; set; } = string.Empty;
 
     [Required]
     [StringLength(200)]

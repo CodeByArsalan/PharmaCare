@@ -18,16 +18,11 @@
     <div class="card-body">
         <form asp-action="EditParty" method="post">
             <input type="hidden" asp-for="PartyID" />
-            <input type="hidden" asp-for="Code" />
             <input type="hidden" asp-for="CreatedAt" />
             <input type="hidden" asp-for="CreatedBy" />
             <input type="hidden" asp-for="IsActive" value="true" />
             
             <div class="row g-3">
-                <div class="col-md-6">
-                    <label class="form-label">Party Code</label>
-                    <input value="@Model.Code" class="form-control" disabled />
-                </div>
                 
                 <div class="col-md-6">
                     <label class="form-label">Party Type <span class="text-danger">*</span></label>

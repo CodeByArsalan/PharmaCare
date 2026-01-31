@@ -15,5 +15,4 @@ public interface IPartyService
     /// Toggles the active status of a party
     /// </summary>
     Task<bool> ToggleStatusAsync(int id, int userId);
-    Task<string> GeneratePartyCodeAsync(string partyType);
 }

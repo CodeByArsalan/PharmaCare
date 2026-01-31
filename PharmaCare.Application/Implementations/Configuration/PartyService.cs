@@ -32,7 +32,6 @@ public class PartyService : IPartyService
 
     public async Task<Party> CreateAsync(Party party, int userId)
     {
-        party.Code = await GeneratePartyCodeAsync(party.PartyType);
         party.CreatedAt = DateTime.Now;
         party.CreatedBy = userId;
         party.IsActive = true;
@@ -85,19 +84,4 @@ public class PartyService : IPartyService
         return true;
     }
 
-    public async Task<string> GeneratePartyCodeAsync(string partyType)
-    {
-        string prefix;
-        if (partyType == "Customer") prefix = "CUS";
-        else if (partyType == "Supplier") prefix = "SUP";
-        else prefix = "PRT"; // For 'Both' or others
-        
-        var lastParty = await _repository.Query()
-            .Where(p => p.PartyType == partyType)
-            .OrderByDescending(p => p.PartyID)
-            .FirstOrDefaultAsync();
-
-        int nextNumber = (lastParty?.PartyID ?? 0) + 1;
-        return $"{prefix}-{nextNumber:D4}";
-    }
 }

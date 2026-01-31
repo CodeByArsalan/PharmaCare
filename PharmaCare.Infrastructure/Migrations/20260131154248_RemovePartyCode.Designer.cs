@@ -3,6 +3,7 @@ using System;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Infrastructure;
 using Microsoft.EntityFrameworkCore.Metadata;
+using Microsoft.EntityFrameworkCore.Migrations;
 using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
 using PharmaCare.Infrastructure;
 
@@ -11,9 +12,11 @@ using PharmaCare.Infrastructure;
 namespace PharmaCare.Infrastructure.Migrations
 {
     [DbContext(typeof(PharmaCareDBContext))]
-    partial class PharmaCareDBContextModelSnapshot : ModelSnapshot
+    [Migration("20260131154248_RemovePartyCode")]
+    partial class RemovePartyCode
     {
-        protected override void BuildModel(ModelBuilder modelBuilder)
+        /// <inheritdoc />
+        protected override void BuildTargetModel(ModelBuilder modelBuilder)
         {
 #pragma warning disable 612, 618
             modelBuilder
