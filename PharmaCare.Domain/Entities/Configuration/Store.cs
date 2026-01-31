@@ -21,6 +21,5 @@ public class Store : BaseEntityWithStatus
     [StringLength(20)]
     public string? Phone { get; set; }
 
-    [StringLength(100)]
-    public string? Email { get; set; }
+
 }

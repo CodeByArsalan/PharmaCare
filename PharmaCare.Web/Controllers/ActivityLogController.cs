@@ -20,15 +20,36 @@ public class ActivityLogController : BaseController
     public async Task<IActionResult> Index(ActivityLogFilterDto? filter = null)
     {
         filter ??= new ActivityLogFilterDto();
-        
-        // Default to last 7 days if no date filter specified
-        if (!filter.FromDate.HasValue && !filter.ToDate.HasValue)
-        {
-            filter.FromDate = DateTime.Today.AddDays(-7);
-            filter.ToDate = DateTime.Today.AddDays(1);
-        }
 
-        var result = await _activityLogService.GetLogsAsync(filter);
+        // Check if any filter parameters are present in the request query
+        bool isSearch = Request.Query.ContainsKey(nameof(ActivityLogFilterDto.FromDate)) ||
+                        Request.Query.ContainsKey(nameof(ActivityLogFilterDto.ToDate)) ||
+                        Request.Query.ContainsKey(nameof(ActivityLogFilterDto.UserId)) ||
+                        Request.Query.ContainsKey(nameof(ActivityLogFilterDto.UserName)) ||
+                        Request.Query.ContainsKey(nameof(ActivityLogFilterDto.ActivityType)) ||
+                        Request.Query.ContainsKey(nameof(ActivityLogFilterDto.EntityName)) ||
+                        Request.Query.ContainsKey(nameof(ActivityLogFilterDto.EntityId)) ||
+                        Request.Query.ContainsKey(nameof(ActivityLogFilterDto.StoreId));
+
+        ActivityLogPagedResult result;
+        if (isSearch)
+        {
+            result = await _activityLogService.GetLogsAsync(filter);
+        }
+        else
+        {
+            // Initial load: Set default dates to Today for UI, but return empty results
+            filter.FromDate = DateTime.Today;
+            filter.ToDate = DateTime.Today;
+
+            result = new ActivityLogPagedResult
+            {
+                Items = new List<ActivityLogDto>(),
+                TotalCount = 0,
+                PageNumber = filter.PageNumber,
+                PageSize = filter.PageSize
+            };
+        }
         
         ViewBag.Filter = filter;
         ViewBag.ActivityTypes = GetActivityTypeOptions();

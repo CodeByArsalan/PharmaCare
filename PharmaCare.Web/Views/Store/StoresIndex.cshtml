@@ -30,7 +30,6 @@
                     <th style="width: 60px;">S.No</th>
                     <th>Store Name</th>
                     <th>Phone</th>
-                    <th>Email</th>
                     <th>Address</th>
                     <th>Status</th>
                     <th class="text-end">Actions</th>
@@ -44,7 +43,6 @@
                         <td>@(count++)</td>
                         <td><strong>@item.Name</strong></td>
                         <td>@(item.Phone ?? "-")</td>
-                        <td>@(item.Email ?? "-")</td>
                         <td>@(item.Address ?? "-")</td>
                         <td>
                             @if (item.IsActive)

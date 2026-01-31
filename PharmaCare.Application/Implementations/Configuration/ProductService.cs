@@ -68,8 +68,8 @@ public class ProductService : IProductService
         existing.ShortCode = product.ShortCode;
         existing.Category_ID = product.Category_ID;
         existing.SubCategory_ID = product.SubCategory_ID;
-        existing.CostPrice = product.CostPrice;
-        existing.SellingPrice = product.SellingPrice;
+        existing.OpeningPrice = product.OpeningPrice;
+        existing.OpeningQuantity = product.OpeningQuantity;
         existing.ReorderLevel = product.ReorderLevel;
         existing.IsActive = product.IsActive;
         existing.UpdatedAt = DateTime.Now;

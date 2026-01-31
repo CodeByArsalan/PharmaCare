@@ -111,13 +111,39 @@ public class RoleService : IRoleService
 
     public async Task<bool> UpdatePermissionsAsync(int roleId, List<RolePagePermissionDTO> permissions)
     {
-        // Remove existing permissions
-        await _rolePageRepository.RemoveByRoleIdAsync(roleId);
+        // Get existing permissions
+        var existingPermissions = await _rolePageRepository.GetPermissionsByRoleIdAsync(roleId);
 
-        // Add new permissions (only where at least one permission is granted)
         foreach (var perm in permissions)
         {
-            if (perm.CanView || perm.CanCreate || perm.CanEdit || perm.CanDelete)
+            var hasNewPermissions = perm.CanView || perm.CanCreate || perm.CanEdit || perm.CanDelete;
+            
+            // Case 1: Permission exists
+            if (existingPermissions.TryGetValue(perm.PageId, out var existingRolePage))
+            {
+                if (hasNewPermissions)
+                {
+                    // Update if tracking or values changed
+                    if (existingRolePage.CanView != perm.CanView ||
+                        existingRolePage.CanCreate != perm.CanCreate ||
+                        existingRolePage.CanEdit != perm.CanEdit ||
+                        existingRolePage.CanDelete != perm.CanDelete)
+                    {
+                        existingRolePage.CanView = perm.CanView;
+                        existingRolePage.CanCreate = perm.CanCreate;
+                        existingRolePage.CanEdit = perm.CanEdit;
+                        existingRolePage.CanDelete = perm.CanDelete;
+                        _rolePageRepository.Update(existingRolePage);
+                    }
+                }
+                else
+                {
+                    // If all permissions revoked, remove the record
+                    _rolePageRepository.Remove(existingRolePage);
+                }
+            }
+            // Case 2: New Permission being granted
+            else if (hasNewPermissions)
             {
                 await _rolePageRepository.AddAsync(new RolePage
                 {
@@ -129,6 +155,7 @@ public class RoleService : IRoleService
                     CanDelete = perm.CanDelete
                 });
             }
+            // Case 3: Permission doesn't exist and not requested -> Do nothing
         }
 
         await _rolePageRepository.SaveChangesAsync();

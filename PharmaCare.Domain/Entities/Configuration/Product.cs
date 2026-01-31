@@ -35,16 +35,15 @@ public class Product : BaseEntityWithStatus
     public string? ShortCode { get; set; }
 
     /// <summary>
-    /// Default purchase/cost price
+    /// Opening price for initial stock
     /// </summary>
     [Column(TypeName = "decimal(18,2)")]
-    public decimal CostPrice { get; set; }
+    public decimal OpeningPrice { get; set; }
 
     /// <summary>
-    /// Default selling price
+    /// Opening quantity for initial stock
     /// </summary>
-    [Column(TypeName = "decimal(18,2)")]
-    public decimal SellingPrice { get; set; }
+    public int OpeningQuantity { get; set; }
 
     /// <summary>
     /// Minimum stock level for reorder alerts

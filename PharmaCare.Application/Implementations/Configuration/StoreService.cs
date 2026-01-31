@@ -54,7 +54,7 @@ public class StoreService : IStoreService
         existing.Name = store.Name;
         existing.Address = store.Address;
         existing.Phone = store.Phone;
-        existing.Email = store.Email;
+
         existing.IsActive = store.IsActive;
         existing.UpdatedAt = DateTime.Now;
         existing.UpdatedBy = userId;

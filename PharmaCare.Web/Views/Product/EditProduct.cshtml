@@ -31,36 +31,32 @@
                     </select>
                 </div>
                 <div class="col-md-6">
-                    <label class="form-label">Product Code</label>
-                    <input value="@Model.Code" class="form-control" disabled />
-                </div>
-                
-                <div class="col-md-6">
-                    <label class="form-label">Product Name <span class="text-danger">*</span></label>
-                    <input asp-for="Name" class="form-control" placeholder="Enter product name" required />
-                    <span asp-validation-for="Name" class="text-danger small"></span>
-                </div>
-                
-                <div class="col-md-6">
                     <label class="form-label">SubCategory <span class="text-danger">*</span></label>
                     <select asp-for="SubCategory_ID" asp-items="_combobox.GetActiveSubCategories(Model.Category_ID, Model.SubCategory_ID)" class="form-select" required>
                         <option value="">-- Select SubCategory --</option>
                     </select>
                 </div>
-                
                 <div class="col-md-6">
                     <label class="form-label">Short Code</label>
                     <input asp-for="ShortCode" class="form-control" placeholder="Enter short code" />
                 </div>
-                
                 <div class="col-md-6">
-                    <label class="form-label">Cost Price <span class="text-danger">*</span></label>
-                    <input asp-for="CostPrice" type="number" step="0.01" class="form-control" placeholder="0.00" required />
+                    <label class="form-label">Product Name <span class="text-danger">*</span></label>
+                    <input asp-for="Name" class="form-control" placeholder="Enter product name" required />
+                    <span asp-validation-for="Name" class="text-danger small"></span>
+                </div>
+                <div class="col-md-6">
+                    <label class="form-label">Product Code</label>
+                    <input value="@Model.Code" class="form-control" disabled />
+                </div>
+                <div class="col-md-6">
+                    <label class="form-label">Opening Price <span class="text-danger">*</span></label>
+                    <input asp-for="OpeningPrice" type="number" step="0.01" class="form-control" placeholder="0.00" required />
                 </div>
                 
                 <div class="col-md-6">
-                    <label class="form-label">Selling Price <span class="text-danger">*</span></label>
-                    <input asp-for="SellingPrice" type="number" step="0.01" class="form-control" placeholder="0.00" required />
+                    <label class="form-label">Opening Quantity <span class="text-danger">*</span></label>
+                    <input asp-for="OpeningQuantity" type="number" class="form-control" placeholder="0" required />
                 </div>
                 
                 <div class="col-md-6">

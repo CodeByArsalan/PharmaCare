@@ -28,13 +28,13 @@
             <thead>
                 <tr>
                     <th style="width: 60px;">S.No</th>
+                    <th>Category</th>
+                    <th>SubCategory</th>
                     <th>Code</th>
                     <th>Short Code</th>
                     <th>Product Name</th>
-                    <th>Category</th>
-                    <th>SubCategory</th>
-                    <th>Cost Price</th>
-                    <th>Selling Price</th>
+                    <th>Opening Price</th>
+                    <th>Opening Qty</th>
                     <th>Status</th>
                     <th class="text-end">Actions</th>
                 </tr>
@@ -45,13 +45,13 @@
                 {
                     <tr>
                         <td>@(count++)</td>
+                        <td>@(item.Category?.Name ?? "-")</td>
+                        <td>@(item.SubCategory?.Name ?? "-")</td>
                         <td><code>@item.Code</code></td>
                         <td>@(item.ShortCode ?? "-")</td>
                         <td><strong>@item.Name</strong></td>
-                        <td>@(item.Category?.Name ?? "-")</td>
-                        <td>@(item.SubCategory?.Name ?? "-")</td>
-                        <td>@item.CostPrice.ToString("N2")</td>
-                        <td>@item.SellingPrice.ToString("N2")</td>
+                        <td>@item.OpeningPrice.ToString("N2")</td>
+                        <td>@item.OpeningQuantity</td>
                         <td>
                             @if (item.IsActive)
                             {
