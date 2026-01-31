@@ -26,7 +26,7 @@
             <div class="row g-3">
                 <div class="col-md-6">
                     <label class="form-label">Category <span class="text-danger">*</span></label>
-                    <select asp-for="Category_ID" asp-items="ViewBag.Categories" class="form-select" required>
+                    <select asp-for="Category_ID" asp-items="_combobox.GetActiveCategories(Model.Category_ID)" class="form-select" required>
                         <option value="">-- Select Category --</option>
                     </select>
                 </div>
@@ -43,14 +43,14 @@
                 
                 <div class="col-md-6">
                     <label class="form-label">SubCategory <span class="text-danger">*</span></label>
-                    <select asp-for="SubCategory_ID" asp-items="ViewBag.SubCategories" class="form-select" required>
+                    <select asp-for="SubCategory_ID" asp-items="_combobox.GetActiveSubCategories(Model.Category_ID, Model.SubCategory_ID)" class="form-select" required>
                         <option value="">-- Select SubCategory --</option>
                     </select>
                 </div>
                 
                 <div class="col-md-6">
-                    <label class="form-label">Barcode</label>
-                    <input asp-for="Barcode" class="form-control" placeholder="Enter barcode (optional)" />
+                    <label class="form-label">Short Code</label>
+                    <input asp-for="ShortCode" class="form-control" placeholder="Enter short code" />
                 </div>
                 
                 <div class="col-md-6">

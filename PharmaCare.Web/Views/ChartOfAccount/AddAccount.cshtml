@@ -20,14 +20,14 @@
             <div class="row g-3">
                 <div class="col-md-6">
                     <label class="form-label">Head</label>
-                    <select asp-for="AccountHead_ID" asp-items="ViewBag.AccountHeads" class="form-select" required>
+                    <select asp-for="AccountHead_ID" asp-items="_combobox.GetActiveAccountHeads()" class="form-select" required>
                         <option value="">-- Select Head --</option>
                     </select>
                     <span asp-validation-for="AccountHead_ID" class="text-danger small"></span>
                 </div>
                 <div class="col-md-6">
                     <label class="form-label">Sub-Head</label>
-                    <select asp-for="AccountSubhead_ID" asp-items="ViewBag.SubHeads" class="form-select" required>
+                    <select asp-for="AccountSubhead_ID" asp-items="_combobox.GetActiveAccountSubHeads()" class="form-select" required>
                         <option value="">-- Select Sub-Head --</option>
                     </select>
                     <span asp-validation-for="AccountSubhead_ID" class="text-danger small"></span>
@@ -44,7 +44,7 @@
                 </div>
                 <div class="col-md-6">
                     <label class="form-label">Account Type</label>
-                    <select asp-for="AccountType_ID" asp-items="ViewBag.AccountTypes" class="form-select" required>
+                    <select asp-for="AccountType_ID" asp-items="_combobox.GetAccountTypes()" class="form-select" required>
                         <option value="">-- Select Type --</option>
                     </select>
                     <span asp-validation-for="AccountType_ID" class="text-danger small"></span>

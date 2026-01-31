@@ -39,6 +39,15 @@ public class Party : BaseEntityWithStatus
     [StringLength(500)]
     public string? Address { get; set; }
 
+    [StringLength(50)]
+    public string? ContactNumber { get; set; }
+
+    [StringLength(50)]
+    public string? AccountNumber { get; set; }
+
+    [StringLength(50)]
+    public string? IBAN { get; set; }
+
     /// <summary>
     /// Opening balance for the party
     /// </summary>

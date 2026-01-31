@@ -22,7 +22,7 @@
             <div class="row g-3">
                 <div class="col-md-6">
                     <label class="form-label">Account Family</label>
-                    <select asp-for="AccountFamily_ID" asp-items="ViewBag.Families" class="form-select" required>
+                    <select asp-for="AccountFamily_ID" asp-items="_combobox.GetAccountFamilies(Model.AccountFamily_ID)" class="form-select" required>
                         <option value="">-- Select Family --</option>
                     </select>
                     <span asp-validation-for="AccountFamily_ID" class="text-danger small"></span>

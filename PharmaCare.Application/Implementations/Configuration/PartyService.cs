@@ -54,6 +54,9 @@ public class PartyService : IPartyService
         existing.Phone = party.Phone;
         existing.Email = party.Email;
         existing.Address = party.Address;
+        existing.ContactNumber = party.ContactNumber;
+        existing.AccountNumber = party.AccountNumber;
+        existing.IBAN = party.IBAN;
         existing.OpeningBalance = party.OpeningBalance;
         existing.CreditLimit = party.CreditLimit;
         existing.IsActive = party.IsActive;
@@ -84,7 +87,10 @@ public class PartyService : IPartyService
 
     public async Task<string> GeneratePartyCodeAsync(string partyType)
     {
-        var prefix = partyType == "Customer" ? "CUS" : "SUP";
+        string prefix;
+        if (partyType == "Customer") prefix = "CUS";
+        else if (partyType == "Supplier") prefix = "SUP";
+        else prefix = "PRT"; // For 'Both' or others
         
         var lastParty = await _repository.Query()
             .Where(p => p.PartyType == partyType)

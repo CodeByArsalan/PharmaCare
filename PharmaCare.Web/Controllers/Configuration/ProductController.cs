@@ -1,5 +1,4 @@
 using Microsoft.AspNetCore.Mvc;
-using Microsoft.AspNetCore.Mvc.Rendering;
 using PharmaCare.Application.Interfaces.Configuration;
 using PharmaCare.Domain.Entities.Configuration;
 
@@ -19,11 +18,12 @@ public class ProductController : BaseController
         var products = await _productService.GetAllAsync();
         return View("ProductsIndex", products);
     }
-    public async Task<IActionResult> AddProduct()
+
+    public IActionResult AddProduct()
     {
-        await LoadDropdowns();
         return View(new Product());
     }
+
     [HttpPost]
     [ValidateAntiForgeryToken]
     public async Task<IActionResult> AddProduct(Product product)
@@ -34,9 +34,9 @@ public class ProductController : BaseController
             TempData["Success"] = "Product created successfully!";
             return RedirectToAction("ProductsIndex");
         }
-        await LoadDropdowns();
         return View(product);
     }
+
     public async Task<IActionResult> EditProduct(int id)
     {
         var product = await _productService.GetByIdAsync(id);
@@ -44,9 +44,9 @@ public class ProductController : BaseController
         {
             return NotFound();
         }
-        await LoadDropdowns();
         return View(product);
     }
+
     [HttpPost]
     [ValidateAntiForgeryToken]
     public async Task<IActionResult> EditProduct(int id, Product product)
@@ -66,9 +66,9 @@ public class ProductController : BaseController
             TempData["Success"] = "Product updated successfully!";
             return RedirectToAction("ProductsIndex");
         }
-        await LoadDropdowns();
         return View(product);
     }
+
     [HttpPost]
     [ValidateAntiForgeryToken]
     public async Task<IActionResult> Delete(int id)
@@ -76,13 +76,5 @@ public class ProductController : BaseController
         await _productService.ToggleStatusAsync(id, CurrentUserId);
         TempData["Success"] = "Product status updated successfully!";
         return RedirectToAction("ProductsIndex");
-    }
-    private async Task LoadDropdowns()
-    {
-        var subCategories = await _productService.GetSubCategoriesForDropdownAsync();
-        ViewBag.SubCategories = new SelectList(subCategories, "SubCategoryID", "Name");
-
-        var categories = await _productService.GetCategoriesForDropdownAsync();
-        ViewBag.Categories = new SelectList(categories, "CategoryID", "Name");
     }
 }

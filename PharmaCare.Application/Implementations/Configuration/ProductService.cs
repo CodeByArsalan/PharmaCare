@@ -65,9 +65,7 @@ public class ProductService : IProductService
             return false;
 
         existing.Name = product.Name;
-        existing.Barcode = product.Barcode;
-        existing.Name = product.Name;
-        existing.Barcode = product.Barcode;
+        existing.ShortCode = product.ShortCode;
         existing.Category_ID = product.Category_ID;
         existing.SubCategory_ID = product.SubCategory_ID;
         existing.CostPrice = product.CostPrice;

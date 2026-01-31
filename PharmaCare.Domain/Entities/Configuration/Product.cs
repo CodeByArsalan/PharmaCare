@@ -32,7 +32,7 @@ public class Product : BaseEntityWithStatus
     public string Name { get; set; } = string.Empty;
 
     [StringLength(50)]
-    public string? Barcode { get; set; }
+    public string? ShortCode { get; set; }
 
     /// <summary>
     /// Default purchase/cost price

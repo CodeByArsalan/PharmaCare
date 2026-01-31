@@ -13,6 +13,7 @@ using PharmaCare.Infrastructure.Implementations.Security;
 using PharmaCare.Web.Middleware;
 using PharmaCare.Application.Interfaces.Accounting;
 using PharmaCare.Application.Implementations.Accounting;
+using PharmaCare.Infrastructure.Interfaces;
 
 var builder = WebApplication.CreateBuilder(args);
 var connectionString = builder.Configuration.GetConnectionString("PharmaCareDBConnectionString") 
@@ -53,6 +54,7 @@ builder.Services.ConfigureApplicationCookie(options =>
 builder.Services.AddScoped(typeof(IRepository<>), typeof(Repository<>));
 builder.Services.AddScoped<IUnitOfWork, UnitOfWork>();
 builder.Services.AddScoped<IAuthService, AuthService>();
+builder.Services.AddScoped<IComboboxRepository, ComboboxRepository>();
 
 // Security Repositories (Infrastructure Layer)
 builder.Services.AddScoped<IRoleRepository, RoleRepository>();

@@ -29,6 +29,7 @@
                 <tr>
                     <th style="width: 60px;">S.No</th>
                     <th>Code</th>
+                    <th>Short Code</th>
                     <th>Product Name</th>
                     <th>Category</th>
                     <th>SubCategory</th>
@@ -47,6 +48,7 @@
                         <tr>
                             <td>@(count++)</td>
                             <td><code>@item.Code</code></td>
+                            <td>@(item.ShortCode ?? "-")</td>
                             <td><strong>@item.Name</strong></td>
                             <td>@(item.Category?.Name ?? "-")</td>
                             <td>@(item.SubCategory?.Name ?? "-")</td>

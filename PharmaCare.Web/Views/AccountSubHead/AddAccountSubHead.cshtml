@@ -20,7 +20,7 @@
             <div class="row g-3">
                 <div class="col-md-6">
                     <label class="form-label">Account Head</label>
-                    <select asp-for="AccountHead_ID" asp-items="ViewBag.Heads" class="form-select" required>
+                    <select asp-for="AccountHead_ID" asp-items="_combobox.GetActiveAccountHeads()" class="form-select" required>
                         <option value="">-- Select Head --</option>
                     </select>
                     <span asp-validation-for="AccountHead_ID" class="text-danger small"></span>
