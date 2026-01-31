@@ -23,8 +23,8 @@
 }
 
 <div class="card">
-    <div class="card-body p-0">
-        <table class="table mb-0">
+    <div class="card-body">
+        <table class="table table-hover datatable">
             <thead>
                 <tr>
                     <th style="width: 60px;">S.No</th>
@@ -35,34 +35,20 @@
             </thead>
             <tbody>
                 @{ int count = 1; }
-                @if (Model.Any())
-                {
-                    @foreach (var item in Model)
-                    {
-                        <tr>
-                            <td>@(count++)</td>
-                            <td>@(item.AccountFamily?.FamilyName ?? "-")</td>
-                            <td><strong>@item.HeadName</strong></td>
-                            <td class="text-end">
-                                <a asp-action="EditAccountHead" asp-route-id="@item.AccountHeadID" class="btn btn-sm btn-outline-primary">
-                                    <i class="fas fa-edit"></i>
-                                </a>
-                                <button type="button" class="btn btn-sm btn-outline-danger btn-delete" 
-                                        data-id="@item.AccountHeadID" data-name="@item.HeadName">
-                                    <i class="fas fa-trash"></i>
-                                </button>
-                            </td>
-                        </tr>
-                    }
-                }
-                else
+                @foreach (var item in Model)
                 {
                     <tr>
-                        <td colspan="4" class="text-center py-4">
-                            <div class="empty-state">
-                                <i class="fas fa-sitemap"></i>
-                                <p class="mb-0">No Account Heads found. Click "Add Account Head" to create one.</p>
-                            </div>
+                        <td>@(count++)</td>
+                        <td>@(item.AccountFamily?.FamilyName ?? "-")</td>
+                        <td><strong>@item.HeadName</strong></td>
+                        <td class="text-end">
+                            <a asp-action="EditAccountHead" asp-route-id="@item.AccountHeadID" class="btn btn-sm btn-outline-primary">
+                                <i class="fas fa-edit"></i>
+                            </a>
+                            <button type="button" class="btn btn-sm btn-outline-danger btn-delete" 
+                                    data-id="@item.AccountHeadID" data-name="@item.HeadName">
+                                <i class="fas fa-trash"></i>
+                            </button>
                         </td>
                     </tr>
                 }

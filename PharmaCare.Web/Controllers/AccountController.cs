@@ -1,7 +1,9 @@
 using Microsoft.AspNetCore.Identity;
 using Microsoft.AspNetCore.Mvc;
 using PharmaCare.Application.Interfaces;
+using PharmaCare.Application.Interfaces.Logging;
 using PharmaCare.Domain.Entities.Security;
+using PharmaCare.Domain.Enums;
 
 namespace PharmaCare.Web.Controllers;
 
@@ -13,15 +15,18 @@ public class AccountController : Controller
     private readonly SignInManager<User> _signInManager;
     private readonly UserManager<User> _userManager;
     private readonly ISessionService _sessionService;
+    private readonly IActivityLogService _activityLogService;
 
     public AccountController(
         SignInManager<User> signInManager,
         UserManager<User> userManager,
-        ISessionService sessionService)
+        ISessionService sessionService,
+        IActivityLogService activityLogService)
     {
         _signInManager = signInManager;
         _userManager = userManager;
         _sessionService = sessionService;
+        _activityLogService = activityLogService;
     }
 
     [HttpGet]
@@ -53,6 +58,16 @@ public class AccountController : Controller
                 {
                     // Initialize session with user data and permissions
                     await _sessionService.InitializeSessionAsync(user.Id);
+                    
+                    // Log login activity
+                    await _activityLogService.LogActivityAsync(
+                        user.Id,
+                        user.UserName ?? user.Email ?? "Unknown",
+                        ActivityType.Login,
+                        "User",
+                        user.Id.ToString(),
+                        description: $"User '{user.UserName}' logged in");
+                    
                     return RedirectToLocal(returnUrl);
                 }
             }
@@ -66,6 +81,19 @@ public class AccountController : Controller
     [ValidateAntiForgeryToken]
     public async Task<IActionResult> Logout()
     {
+        // Log logout activity before clearing session
+        var user = await _userManager.GetUserAsync(User);
+        if (user != null)
+        {
+            await _activityLogService.LogActivityAsync(
+                user.Id,
+                user.UserName ?? user.Email ?? "Unknown",
+                ActivityType.Logout,
+                "User",
+                user.Id.ToString(),
+                description: $"User '{user.UserName}' logged out");
+        }
+        
         // Clear session before signing out
         _sessionService.ClearSession();
         await _signInManager.SignOutAsync();

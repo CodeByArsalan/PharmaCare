@@ -1,0 +1,83 @@
+@model IEnumerable<PharmaCare.Application.DTOs.Logging.ActivityLogDto>
+@{
+    ViewData["Title"] = $"Entity History: {ViewBag.EntityName} #{ViewBag.EntityId}";
+}
+
+<!-- Page Header -->
+<div class="page-header">
+    <h4 class="page-title">
+        <i class="fas fa-history"></i>
+        Entity History: @ViewBag.EntityName #@ViewBag.EntityId
+    </h4>
+    <a asp-action="Index" class="btn btn-outline-secondary">
+        <i class="fas fa-arrow-left me-2"></i>Back to Logs
+    </a>
+</div>
+
+<div class="card">
+    <div class="card-body p-0">
+        <table class="table mb-0">
+            <thead>
+                <tr>
+                    <th style="width: 60px;">S.No</th>
+                    <th>Timestamp</th>
+                    <th>User</th>
+                    <th>Activity</th>
+                    <th>Description</th>
+                    <th class="text-end">Actions</th>
+                </tr>
+            </thead>
+            <tbody>
+                @if (Model.Any())
+                {
+                    int sno = 1;
+                    @foreach (var log in Model)
+                    {
+                        <tr>
+                            <td>@(sno++)</td>
+                            <td>
+                                <small>@log.Timestamp.ToString("dd-MMM-yyyy hh:mm tt")</small>
+                            </td>
+                            <td>@log.UserName</td>
+                            <td>
+                                @switch (log.ActivityType)
+                                {
+                                    case PharmaCare.Domain.Enums.ActivityType.Create:
+                                        <span class="badge bg-success">Create</span>
+                                        break;
+                                    case PharmaCare.Domain.Enums.ActivityType.Update:
+                                        <span class="badge bg-warning text-dark">Update</span>
+                                        break;
+                                    case PharmaCare.Domain.Enums.ActivityType.Delete:
+                                        <span class="badge bg-danger">Delete</span>
+                                        break;
+                                    default:
+                                        <span class="badge bg-secondary">@log.ActivityTypeName</span>
+                                        break;
+                                }
+                            </td>
+                            <td><small>@log.Description</small></td>
+                            <td class="text-end">
+                                <a asp-action="Details" asp-route-id="@log.ActivityLogID" 
+                                   class="btn btn-sm btn-outline-primary">
+                                    <i class="fas fa-eye"></i>
+                                </a>
+                            </td>
+                        </tr>
+                    }
+                }
+                else
+                {
+                    <tr>
+                        <td colspan="6" class="text-center py-4">
+                            <div class="empty-state">
+                                <i class="fas fa-history"></i>
+                                <p class="mb-0">No history found for this entity.</p>
+                            </div>
+                        </td>
+                    </tr>
+                }
+            </tbody>
+        </table>
+    </div>
+</div>

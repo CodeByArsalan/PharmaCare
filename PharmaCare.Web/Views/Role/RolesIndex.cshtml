@@ -31,8 +31,8 @@
 }
 
 <div class="card">
-    <div class="card-body p-0">
-        <table class="table mb-0">
+    <div class="card-body">
+        <table class="table table-hover datatable">
             <thead>
                 <tr>
                     <th style="width: 60px;">S.No</th>
@@ -45,60 +45,46 @@
             </thead>
             <tbody>
                 @{ int count = 1; }
-                @if (Model.Any())
-                {
-                    @foreach (var item in Model)
-                    {
-                        <tr>
-                            <td>@(count++)</td>
-                            <td><strong>@item.Name</strong></td>
-                            <td>@(item.Description ?? "-")</td>
-                            <td>
-                                @if (item.IsSystemRole)
-                                {
-                                    <span class="badge bg-warning">System</span>
-                                }
-                                else
-                                {
-                                    <span class="badge bg-secondary">Custom</span>
-                                }
-                            </td>
-                            <td>
-                                @if (item.IsActive)
-                                {
-                                    <span class="badge bg-success">Active</span>
-                                }
-                                else
-                                {
-                                    <span class="badge bg-danger">Inactive</span>
-                                }
-                            </td>
-                            <td class="text-end">
-                                <a asp-action="Permissions" asp-route-id="@item.RoleID" class="btn btn-sm btn-outline-info" title="Manage Permissions">
-                                    <i class="fas fa-key"></i>
-                                </a>
-                                <a asp-action="EditRole" asp-route-id="@item.RoleID" class="btn btn-sm btn-outline-primary">
-                                    <i class="fas fa-edit"></i>
-                                </a>
-                                @if (!item.IsSystemRole)
-                                {
-                                    <button type="button" class="btn btn-sm btn-outline-warning btn-toggle" 
-                                            data-id="@item.RoleID" data-name="@item.Name" data-status="@(item.IsActive ? "deactivate" : "activate")">
-                                        <i class="fas fa-power-off"></i>
-                                    </button>
-                                }
-                            </td>
-                        </tr>
-                    }
-                }
-                else
+                @foreach (var item in Model)
                 {
                     <tr>
-                        <td colspan="6" class="text-center py-4">
-                            <div class="empty-state">
-                                <i class="fas fa-user-shield"></i>
-                                <p class="mb-0">No roles found. Click "Add Role" to create one.</p>
-                            </div>
+                        <td>@(count++)</td>
+                        <td><strong>@item.Name</strong></td>
+                        <td>@(item.Description ?? "-")</td>
+                        <td>
+                            @if (item.IsSystemRole)
+                            {
+                                <span class="badge bg-warning">System</span>
+                            }
+                            else
+                            {
+                                <span class="badge bg-secondary">Custom</span>
+                            }
+                        </td>
+                        <td>
+                            @if (item.IsActive)
+                            {
+                                <span class="badge bg-success">Active</span>
+                            }
+                            else
+                            {
+                                <span class="badge bg-danger">Inactive</span>
+                            }
+                        </td>
+                        <td class="text-end">
+                            <a asp-action="Permissions" asp-route-id="@item.RoleID" class="btn btn-sm btn-outline-info" title="Manage Permissions">
+                                <i class="fas fa-key"></i>
+                            </a>
+                            <a asp-action="EditRole" asp-route-id="@item.RoleID" class="btn btn-sm btn-outline-primary">
+                                <i class="fas fa-edit"></i>
+                            </a>
+                            @if (!item.IsSystemRole)
+                            {
+                                <button type="button" class="btn btn-sm btn-outline-warning btn-toggle" 
+                                        data-id="@item.RoleID" data-name="@item.Name" data-status="@(item.IsActive ? "deactivate" : "activate")">
+                                    <i class="fas fa-power-off"></i>
+                                </button>
+                            }
                         </td>
                     </tr>
                 }

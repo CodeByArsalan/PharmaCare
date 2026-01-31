@@ -224,6 +224,16 @@ body {
 
 /* Bootstrap Column Classes */
 @media (min-width: 768px) {
+    .col-md-2 {
+        flex: 0 0 auto;
+        width: 16.666667%;
+    }
+
+    .col-md-3 {
+        flex: 0 0 auto;
+        width: 25%;
+    }
+
     .col-md-4 {
         flex: 0 0 auto;
         width: 33.333333%;

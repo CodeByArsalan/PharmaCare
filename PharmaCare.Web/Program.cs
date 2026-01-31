@@ -14,13 +14,30 @@ using PharmaCare.Web.Middleware;
 using PharmaCare.Application.Interfaces.Accounting;
 using PharmaCare.Application.Implementations.Accounting;
 using PharmaCare.Infrastructure.Interfaces;
+using PharmaCare.Application.Interfaces.Logging;
+using PharmaCare.Application.Implementations.Logging;
+using PharmaCare.Infrastructure.Interceptors;
+using PharmaCare.Infrastructure.Implementations.Logging;
 
 var builder = WebApplication.CreateBuilder(args);
 var connectionString = builder.Configuration.GetConnectionString("PharmaCareDBConnectionString") 
     ?? throw new InvalidOperationException("Connection string 'PharmaCareDBConnectionString' not found.");
+var logConnectionString = builder.Configuration.GetConnectionString("PharmaCareLogDBConnectionString")
+    ?? throw new InvalidOperationException("Connection string 'PharmaCareLogDBConnectionString' not found.");
 
-// Database Context
-builder.Services.AddDbContext<PharmaCareDBContext>(options => options.UseSqlServer(connectionString));
+// Logging Database Context (separate database for audit logs)
+builder.Services.AddDbContext<LogDbContext>(options => options.UseSqlServer(logConnectionString));
+
+// Register the audit interceptor and logging repository
+builder.Services.AddScoped<AuditSaveChangesInterceptor>();
+builder.Services.AddScoped<IActivityLogRepository, ActivityLogRepository>();
+
+// Database Context with audit interceptor
+builder.Services.AddDbContext<PharmaCareDBContext>((serviceProvider, options) => 
+{
+    options.UseSqlServer(connectionString);
+    options.AddInterceptors(serviceProvider.GetRequiredService<AuditSaveChangesInterceptor>());
+});
 
 // Store Context for multi-tenancy
 builder.Services.AddScoped<IStoreContext, StoreContext>();
@@ -72,6 +89,9 @@ builder.Services.AddScoped<IPartyService, PartyService>();
 builder.Services.AddScoped<IAccountHeadService, AccountHeadService>();
 builder.Services.AddScoped<IAccountSubHeadService, AccountSubHeadService>();
 builder.Services.AddScoped<IAccountService, AccountService>();
+
+// Logging Services
+builder.Services.AddScoped<IActivityLogService, ActivityLogService>();
 
 // Security Services (Application Layer)
 builder.Services.AddScoped<IUserService, PharmaCare.Application.Implementations.Security.UserService>();

@@ -1,0 +1,227 @@
+@model PharmaCare.Application.DTOs.Logging.ActivityLogPagedResult
+@{
+    ViewData["Title"] = "Activity Logs";
+    var filter = ViewBag.Filter as PharmaCare.Application.DTOs.Logging.ActivityLogFilterDto;
+}
+
+<!-- Page Header -->
+<div class="page-header">
+    <h4 class="page-title">
+        <i class="fas fa-history"></i>Activity Logs
+    </h4>
+    <a asp-action="Dashboard" class="btn btn-outline-primary">
+        <i class="fas fa-chart-pie me-2"></i>Dashboard
+    </a>
+</div>
+
+<!-- Filters -->
+<div class="card">
+    <div class="card-body">
+        <form asp-action="Index" method="get">
+            <div class="row g-3">
+                <div class="col-lg-6 col-md-6">
+                    <label class="form-label">From Date</label>
+                    <input type="date" name="FromDate" class="form-control"
+                           value="@filter?.FromDate?.ToString("yyyy-MM-dd")" />
+                </div>
+                <div class="col-lg-6 col-md-6">
+                    <label class="form-label">To Date</label>
+                    <input type="date" name="ToDate" class="form-control"
+                           value="@filter?.ToDate?.ToString("yyyy-MM-dd")" />
+                </div>
+                <div class="col-lg-4 col-md-4">
+                    <label class="form-label">Activity Type</label>
+                    <select name="ActivityType" class="form-select">
+                        <option value="">All Types</option>
+                        @foreach (var type in (List<SelectListItem>)ViewBag.ActivityTypes)
+                        {
+                            <option value="@type.Value"
+                                    selected="@(filter?.ActivityType?.ToString() == type.Value)">
+                                @type.Text
+                            </option>
+                        }
+                    </select>
+                </div>
+                <div class="col-lg-4 col-md-4">
+                    <label class="form-label">Entity</label>
+                    <select name="EntityName" class="form-select">
+                        <option value="">All Entities</option>
+                        @foreach (var entity in (List<string>)ViewBag.EntityNames)
+                        {
+                            <option value="@entity"
+                                    selected="@(filter?.EntityName == entity)">
+                                @entity
+                            </option>
+                        }
+                    </select>
+                </div>
+                <div class="col-lg-4 col-md-4">
+                    <label class="form-label">User</label>
+                    <input type="text" name="UserName" class="form-control"
+                           placeholder="Username" value="@filter?.UserName" />
+                </div>
+            </div>
+            <div class="text-end mt-4">
+                <a asp-action="Index" class="btn btn-outline-secondary"><i class="fas fa-undo"></i> </a>
+                <button type="submit" class="btn btn-primary"><i class="fas fa-search"></i> Search</button>
+            </div>
+        </form>
+    </div>
+</div>
+
+<!-- Results Info -->
+<div class="d-flex justify-content-between align-items-center mb-3 mt-3">
+    <span class="text-muted">
+        Showing @Model.Items.Count of @Model.TotalCount entries (Page @Model.PageNumber of @Model.TotalPages)
+    </span>
+</div>
+
+<!-- Activity Logs Table -->
+<div class="card">
+    <div class="card-body p-0">
+        <table class="table mb-0">
+            <thead>
+                <tr>
+                    <th style="width: 60px;">S.No</th>
+                    <th>Timestamp</th>
+                    <th>User</th>
+                    <th>Activity</th>
+                    <th>Entity</th>
+                    <th>Description</th>
+                    <th class="text-end">Actions</th>
+                </tr>
+            </thead>
+            <tbody>
+                @if (Model.Items.Any())
+                {
+                    int sno = ((Model.PageNumber - 1) * Model.PageSize) + 1;
+                    @foreach (var log in Model.Items)
+                    {
+                        <tr>
+                            <td>@(sno++)</td>
+                            <td>
+                                <small>@log.Timestamp.ToString("dd-MMM-yyyy")</small><br/>
+                                <small class="text-muted">@log.Timestamp.ToString("hh:mm tt")</small>
+                            </td>
+                            <td>
+                                <a asp-action="UserHistory" asp-route-userId="@log.UserId">
+                                    @log.UserName
+                                </a>
+                            </td>
+                            <td>
+                                @switch (log.ActivityType)
+                                {
+                                    case PharmaCare.Domain.Enums.ActivityType.Create:
+                                        <span class="badge bg-success">Create</span>
+                                        break;
+                                    case PharmaCare.Domain.Enums.ActivityType.Update:
+                                        <span class="badge bg-warning text-dark">Update</span>
+                                        break;
+                                    case PharmaCare.Domain.Enums.ActivityType.Delete:
+                                        <span class="badge bg-danger">Delete</span>
+                                        break;
+                                    case PharmaCare.Domain.Enums.ActivityType.Login:
+                                        <span class="badge bg-info">Login</span>
+                                        break;
+                                    case PharmaCare.Domain.Enums.ActivityType.Logout:
+                                        <span class="badge bg-secondary">Logout</span>
+                                        break;
+                                    default:
+                                        <span class="badge bg-secondary">@log.ActivityTypeName</span>
+                                        break;
+                                }
+                            </td>
+                            <td>
+                                @if (!string.IsNullOrEmpty(log.EntityId))
+                                {
+                                    <a asp-action="EntityHistory" 
+                                       asp-route-entityName="@log.EntityName" 
+                                       asp-route-entityId="@log.EntityId">
+                                        @log.EntityName #@log.EntityId
+                                    </a>
+                                }
+                                else
+                                {
+                                    <span>@log.EntityName</span>
+                                }
+                            </td>
+                            <td>
+                                <small>@log.Description</small>
+                            </td>
+                            <td class="text-end">
+                                <a asp-action="Details" asp-route-id="@log.ActivityLogID" 
+                                   class="btn btn-sm btn-outline-primary">
+                                    <i class="fas fa-eye"></i>
+                                </a>
+                            </td>
+                        </tr>
+                    }
+                }
+                else
+                {
+                    <tr>
+                        <td colspan="7" class="text-center py-4">
+                            <div class="empty-state">
+                                <i class="fas fa-history"></i>
+                                <p class="mb-0">No activity logs found for the selected filters.</p>
+                            </div>
+                        </td>
+                    </tr>
+                }
+            </tbody>
+        </table>
+    </div>
+</div>
+
+<!-- Pagination -->
+@if (Model.TotalPages > 1)
+{
+    <nav class="mt-4">
+        <ul class="pagination justify-content-center">
+            @if (Model.HasPreviousPage)
+            {
+                <li class="page-item">
+                    <a class="page-link" asp-action="Index" 
+                       asp-route-PageNumber="@(Model.PageNumber - 1)"
+                       asp-route-FromDate="@filter?.FromDate?.ToString("yyyy-MM-dd")"
+                       asp-route-ToDate="@filter?.ToDate?.ToString("yyyy-MM-dd")"
+                       asp-route-ActivityType="@filter?.ActivityType"
+                       asp-route-EntityName="@filter?.EntityName"
+                       asp-route-UserName="@filter?.UserName">
+                        <i class="fas fa-chevron-left"></i>
+                    </a>
+                </li>
+            }
+            
+            @for (int i = Math.Max(1, Model.PageNumber - 2); i <= Math.Min(Model.TotalPages, Model.PageNumber + 2); i++)
+            {
+                <li class="page-item @(i == Model.PageNumber ? "active" : "")">
+                    <a class="page-link" asp-action="Index" 
+                       asp-route-PageNumber="@i"
+                       asp-route-FromDate="@filter?.FromDate?.ToString("yyyy-MM-dd")"
+                       asp-route-ToDate="@filter?.ToDate?.ToString("yyyy-MM-dd")"
+                       asp-route-ActivityType="@filter?.ActivityType"
+                       asp-route-EntityName="@filter?.EntityName"
+                       asp-route-UserName="@filter?.UserName">
+                        @i
+                    </a>
+                </li>
+            }
+            
+            @if (Model.HasNextPage)
+            {
+                <li class="page-item">
+                    <a class="page-link" asp-action="Index" 
+                       asp-route-PageNumber="@(Model.PageNumber + 1)"
+                       asp-route-FromDate="@filter?.FromDate?.ToString("yyyy-MM-dd")"
+                       asp-route-ToDate="@filter?.ToDate?.ToString("yyyy-MM-dd")"
+                       asp-route-ActivityType="@filter?.ActivityType"
+                       asp-route-EntityName="@filter?.EntityName"
+                       asp-route-UserName="@filter?.UserName">
+                        <i class="fas fa-chevron-right"></i>
+                    </a>
+                </li>
+            }
+        </ul>
+    </nav>
+}

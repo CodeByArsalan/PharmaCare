@@ -1,0 +1,174 @@
+@model PharmaCare.Application.DTOs.Logging.ActivityLogDto
+@{
+    ViewData["Title"] = "Activity Log Details";
+}
+
+<!-- Page Header -->
+<div class="page-header">
+    <h4 class="page-title">
+        <i class="fas fa-info-circle"></i>
+        Activity Log Details
+    </h4>
+    <a asp-action="Index" class="btn btn-outline-secondary">
+        <i class="fas fa-arrow-left me-2"></i>Back to Logs
+    </a>
+</div>
+
+<div class="row">
+    <!-- Log Info Card -->
+    <div class="col-md-6">
+        <div class="card mb-4">
+            <div class="card-header">
+                <h5 class="mb-0">
+                    <i class="fas fa-clipboard-list me-2"></i>Log Information
+                </h5>
+            </div>
+            <div class="card-body">
+                <table class="table table-borderless">
+                    <tr>
+                        <th style="width: 150px;">Log ID</th>
+                        <td>@Model.ActivityLogID</td>
+                    </tr>
+                    <tr>
+                        <th>Timestamp</th>
+                        <td>@Model.Timestamp.ToString("dd-MMM-yyyy hh:mm:ss tt")</td>
+                    </tr>
+                    <tr>
+                        <th>Activity Type</th>
+                        <td>
+                            @switch (Model.ActivityType)
+                            {
+                                case PharmaCare.Domain.Enums.ActivityType.Create:
+                                    <span class="badge bg-success fs-6">Create</span>
+                                    break;
+                                case PharmaCare.Domain.Enums.ActivityType.Update:
+                                    <span class="badge bg-warning text-dark fs-6">Update</span>
+                                    break;
+                                case PharmaCare.Domain.Enums.ActivityType.Delete:
+                                    <span class="badge bg-danger fs-6">Delete</span>
+                                    break;
+                                case PharmaCare.Domain.Enums.ActivityType.Login:
+                                    <span class="badge bg-info fs-6">Login</span>
+                                    break;
+                                case PharmaCare.Domain.Enums.ActivityType.Logout:
+                                    <span class="badge bg-secondary fs-6">Logout</span>
+                                    break;
+                                default:
+                                    <span class="badge bg-secondary fs-6">@Model.ActivityTypeName</span>
+                                    break;
+                            }
+                        </td>
+                    </tr>
+                    <tr>
+                        <th>Entity</th>
+                        <td>
+                            <strong>@Model.EntityName</strong>
+                            @if (!string.IsNullOrEmpty(Model.EntityId))
+                            {
+                                <span class="text-muted"> (ID: @Model.EntityId)</span>
+                            }
+                        </td>
+                    </tr>
+                    <tr>
+                        <th>Description</th>
+                        <td>@Model.Description</td>
+                    </tr>
+                </table>
+            </div>
+        </div>
+    </div>
+
+    <!-- User Info Card -->
+    <div class="col-md-6">
+        <div class="card mb-4">
+            <div class="card-header">
+                <h5 class="mb-0">
+                    <i class="fas fa-user me-2"></i>User Information
+                </h5>
+            </div>
+            <div class="card-body">
+                <table class="table table-borderless">
+                    <tr>
+                        <th style="width: 150px;">User ID</th>
+                        <td>@Model.UserId</td>
+                    </tr>
+                    <tr>
+                        <th>Username</th>
+                        <td>
+                            <a asp-action="UserHistory" asp-route-userId="@Model.UserId">
+                                @Model.UserName
+                            </a>
+                        </td>
+                    </tr>
+                    <tr>
+                        <th>IP Address</th>
+                        <td><code>@(Model.IpAddress ?? "N/A")</code></td>
+                    </tr>
+                    <tr>
+                        <th>Store ID</th>
+                        <td>@(Model.StoreId?.ToString() ?? "N/A")</td>
+                    </tr>
+                </table>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Values Comparison -->
+@if (!string.IsNullOrEmpty(Model.OldValues) || !string.IsNullOrEmpty(Model.NewValues))
+{
+    <div class="row">
+        @if (!string.IsNullOrEmpty(Model.OldValues))
+        {
+            <div class="col-md-6">
+                <div class="card mb-4">
+                    <div class="card-header bg-danger text-white">
+                        <h5 class="mb-0">
+                            <i class="fas fa-minus-circle me-2"></i>Old Values
+                        </h5>
+                    </div>
+                    <div class="card-body">
+                        <pre class="bg-dark text-light p-3 rounded" style="max-height: 400px; overflow: auto;">@FormatJson(Model.OldValues)</pre>
+                    </div>
+                </div>
+            </div>
+        }
+        
+        @if (!string.IsNullOrEmpty(Model.NewValues))
+        {
+            <div class="col-md-6">
+                <div class="card mb-4">
+                    <div class="card-header bg-success text-white">
+                        <h5 class="mb-0">
+                            <i class="fas fa-plus-circle me-2"></i>New Values
+                        </h5>
+                    </div>
+                    <div class="card-body">
+                        <pre class="bg-dark text-light p-3 rounded" style="max-height: 400px; overflow: auto;">@FormatJson(Model.NewValues)</pre>
+                    </div>
+                </div>
+            </div>
+        }
+    </div>
+}
+
+@functions {
+    string FormatJson(string? json)
+    {
+        if (string.IsNullOrEmpty(json))
+            return "N/A";
+        
+        try
+        {
+            var obj = System.Text.Json.JsonSerializer.Deserialize<object>(json);
+            return System.Text.Json.JsonSerializer.Serialize(obj, new System.Text.Json.JsonSerializerOptions 
+            { 
+                WriteIndented = true 
+            });
+        }
+        catch
+        {
+            return json;
+        }
+    }
+}

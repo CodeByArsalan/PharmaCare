@@ -1,0 +1,102 @@
+@model IEnumerable<PharmaCare.Application.DTOs.Logging.ActivityLogDto>
+@{
+    ViewData["Title"] = $"User History";
+}
+
+<!-- Page Header -->
+<div class="page-header">
+    <h4 class="page-title">
+        <i class="fas fa-user-clock"></i>
+        User Activity History
+    </h4>
+    <a asp-action="Index" class="btn btn-outline-secondary">
+        <i class="fas fa-arrow-left me-2"></i>Back to Logs
+    </a>
+</div>
+
+<div class="card">
+    <div class="card-body p-0">
+        <table class="table mb-0">
+            <thead>
+                <tr>
+                    <th style="width: 60px;">S.No</th>
+                    <th>Timestamp</th>
+                    <th>Activity</th>
+                    <th>Entity</th>
+                    <th>Description</th>
+                    <th class="text-end">Actions</th>
+                </tr>
+            </thead>
+            <tbody>
+                @if (Model.Any())
+                {
+                    int sno = 1;
+                    @foreach (var log in Model)
+                    {
+                        <tr>
+                            <td>@(sno++)</td>
+                            <td>
+                                <small>@log.Timestamp.ToString("dd-MMM-yyyy hh:mm tt")</small>
+                            </td>
+                            <td>
+                                @switch (log.ActivityType)
+                                {
+                                    case PharmaCare.Domain.Enums.ActivityType.Create:
+                                        <span class="badge bg-success">Create</span>
+                                        break;
+                                    case PharmaCare.Domain.Enums.ActivityType.Update:
+                                        <span class="badge bg-warning text-dark">Update</span>
+                                        break;
+                                    case PharmaCare.Domain.Enums.ActivityType.Delete:
+                                        <span class="badge bg-danger">Delete</span>
+                                        break;
+                                    case PharmaCare.Domain.Enums.ActivityType.Login:
+                                        <span class="badge bg-info">Login</span>
+                                        break;
+                                    case PharmaCare.Domain.Enums.ActivityType.Logout:
+                                        <span class="badge bg-secondary">Logout</span>
+                                        break;
+                                    default:
+                                        <span class="badge bg-secondary">@log.ActivityTypeName</span>
+                                        break;
+                                }
+                            </td>
+                            <td>
+                                @if (!string.IsNullOrEmpty(log.EntityId))
+                                {
+                                    <a asp-action="EntityHistory" 
+                                       asp-route-entityName="@log.EntityName" 
+                                       asp-route-entityId="@log.EntityId">
+                                        @log.EntityName #@log.EntityId
+                                    </a>
+                                }
+                                else
+                                {
+                                    <span>@log.EntityName</span>
+                                }
+                            </td>
+                            <td><small>@log.Description</small></td>
+                            <td class="text-end">
+                                <a asp-action="Details" asp-route-id="@log.ActivityLogID" 
+                                   class="btn btn-sm btn-outline-primary">
+                                    <i class="fas fa-eye"></i>
+                                </a>
+                            </td>
+                        </tr>
+                    }
+                }
+                else
+                {
+                    <tr>
+                        <td colspan="6" class="text-center py-4">
+                            <div class="empty-state">
+                                <i class="fas fa-user-clock"></i>
+                                <p class="mb-0">No activity found for this user.</p>
+                            </div>
+                        </td>
+                    </tr>
+                }
+            </tbody>
+        </table>
+    </div>
+</div>

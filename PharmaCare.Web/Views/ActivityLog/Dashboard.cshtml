@@ -1,0 +1,163 @@
+@model PharmaCare.Application.Interfaces.Logging.ActivityLogSummary
+@{
+    ViewData["Title"] = "Activity Dashboard";
+}
+
+<!-- Page Header -->
+<div class="page-header">
+    <h4 class="page-title">
+        <i class="fas fa-chart-pie"></i>
+        Activity Dashboard
+    </h4>
+    <a asp-action="Index" class="btn btn-outline-secondary">
+        <i class="fas fa-list me-2"></i>View All Logs
+    </a>
+</div>
+
+<!-- Summary Cards -->
+<div class="row mb-4">
+    <div class="col-md-3">
+        <div class="card text-center">
+            <div class="card-body">
+                <i class="fas fa-clipboard-list fa-2x mb-2 text-primary"></i>
+                <h3 class="mb-0">@Model.TotalLogs.ToString("N0")</h3>
+                <small class="text-muted">Total Logs (30 days)</small>
+            </div>
+        </div>
+    </div>
+    <div class="col-md-3">
+        <div class="card text-center">
+            <div class="card-body">
+                <i class="fas fa-calendar-day fa-2x mb-2 text-info"></i>
+                <h3 class="mb-0">@Model.TodayLogs.ToString("N0")</h3>
+                <small class="text-muted">Today's Activity</small>
+            </div>
+        </div>
+    </div>
+    <div class="col-md-3">
+        <div class="card text-center">
+            <div class="card-body">
+                <i class="fas fa-plus-circle fa-2x mb-2 text-success"></i>
+                <h3 class="mb-0">@Model.CreateCount.ToString("N0")</h3>
+                <small class="text-muted">Records Created</small>
+            </div>
+        </div>
+    </div>
+    <div class="col-md-3">
+        <div class="card text-center">
+            <div class="card-body">
+                <i class="fas fa-sign-in-alt fa-2x mb-2 text-warning"></i>
+                <h3 class="mb-0">@Model.LoginCount.ToString("N0")</h3>
+                <small class="text-muted">User Logins</small>
+            </div>
+        </div>
+    </div>
+</div>
+
+<div class="row">
+    <!-- Activity Breakdown -->
+    <div class="col-md-4">
+        <div class="card mb-4">
+            <div class="card-header">
+                <h5 class="mb-0">
+                    <i class="fas fa-chart-bar me-2"></i>Activity Breakdown
+                </h5>
+            </div>
+            <div class="card-body">
+                <div class="d-flex justify-content-between mb-2">
+                    <span><span class="badge bg-success me-2">Create</span></span>
+                    <span>@Model.CreateCount</span>
+                </div>
+                <div class="progress mb-3" style="height: 8px;">
+                    @{
+                        var total = Model.CreateCount + Model.UpdateCount + Model.DeleteCount;
+                        var createPct = total > 0 ? (Model.CreateCount * 100 / total) : 0;
+                        var updatePct = total > 0 ? (Model.UpdateCount * 100 / total) : 0;
+                        var deletePct = total > 0 ? (Model.DeleteCount * 100 / total) : 0;
+                    }
+                    <div class="progress-bar bg-success" style="width: @createPct%"></div>
+                </div>
+                
+                <div class="d-flex justify-content-between mb-2">
+                    <span><span class="badge bg-warning text-dark me-2">Update</span></span>
+                    <span>@Model.UpdateCount</span>
+                </div>
+                <div class="progress mb-3" style="height: 8px;">
+                    <div class="progress-bar bg-warning" style="width: @updatePct%"></div>
+                </div>
+                
+                <div class="d-flex justify-content-between mb-2">
+                    <span><span class="badge bg-danger me-2">Delete</span></span>
+                    <span>@Model.DeleteCount</span>
+                </div>
+                <div class="progress" style="height: 8px;">
+                    <div class="progress-bar bg-danger" style="width: @deletePct%"></div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Top Entities -->
+    <div class="col-md-4">
+        <div class="card mb-4">
+            <div class="card-header">
+                <h5 class="mb-0">
+                    <i class="fas fa-database me-2"></i>Top Entities
+                </h5>
+            </div>
+            <div class="card-body p-0">
+                <table class="table mb-0">
+                    <tbody>
+                        @foreach (var entity in Model.TopEntities)
+                        {
+                            <tr>
+                                <td>@entity.Key</td>
+                                <td class="text-end">
+                                    <span class="badge bg-primary">@entity.Value</span>
+                                </td>
+                            </tr>
+                        }
+                        @if (!Model.TopEntities.Any())
+                        {
+                            <tr>
+                                <td colspan="2" class="text-center text-muted">No data</td>
+                            </tr>
+                        }
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    </div>
+
+    <!-- Top Users -->
+    <div class="col-md-4">
+        <div class="card mb-4">
+            <div class="card-header">
+                <h5 class="mb-0">
+                    <i class="fas fa-users me-2"></i>Most Active Users
+                </h5>
+            </div>
+            <div class="card-body p-0">
+                <table class="table mb-0">
+                    <tbody>
+                        @foreach (var user in Model.TopUsers)
+                        {
+                            <tr>
+                                <td>@user.Key</td>
+                                <td class="text-end">
+                                    <span class="badge bg-info">@user.Value</span>
+                                </td>
+                            </tr>
+                        }
+                        @if (!Model.TopUsers.Any())
+                        {
+                            <tr>
+                                <td colspan="2" class="text-center text-muted">No data</td>
+                            </tr>
+                        }
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    </div>
+</div>

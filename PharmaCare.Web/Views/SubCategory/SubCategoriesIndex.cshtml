@@ -23,8 +23,8 @@
 }
 
 <div class="card">
-    <div class="card-body p-0">
-        <table class="table mb-0">
+    <div class="card-body">
+        <table class="table table-hover datatable">
             <thead>
                 <tr>
                     <th style="width: 60px;">S.No</th>
@@ -36,44 +36,30 @@
             </thead>
             <tbody>
                 @{ int count = 1; }
-                @if (Model.Any())
-                {
-                    @foreach (var item in Model)
-                    {
-                        <tr>
-                            <td>@(count++)</td>
-                            <td>@(item.Category?.Name ?? "-")</td>
-                            <td><strong>@item.Name</strong></td>
-                            <td>
-                                @if (item.IsActive)
-                                {
-                                    <span class="badge bg-success">Active</span>
-                                }
-                                else
-                                {
-                                    <span class="badge bg-danger">Inactive</span>
-                                }
-                            </td>
-                            <td class="text-end">
-                                <a asp-action="EditSubCategory" asp-route-id="@item.SubCategoryID" class="btn btn-sm btn-outline-primary">
-                                    <i class="fas fa-edit"></i>
-                                </a>
-                                <button type="button" class="btn btn-sm btn-outline-danger btn-delete" 
-                                        data-id="@item.SubCategoryID" data-name="@item.Name">
-                                    <i class="fas fa-trash"></i>
-                                </button>
-                            </td>
-                        </tr>
-                    }
-                }
-                else
+                @foreach (var item in Model)
                 {
                     <tr>
-                        <td colspan="5" class="text-center py-4">
-                            <div class="empty-state">
-                                <i class="fas fa-layer-group"></i>
-                                <p class="mb-0">No subcategories found. Click "Add SubCategory" to create one.</p>
-                            </div>
+                        <td>@(count++)</td>
+                        <td>@(item.Category?.Name ?? "-")</td>
+                        <td><strong>@item.Name</strong></td>
+                        <td>
+                            @if (item.IsActive)
+                            {
+                                <span class="badge bg-success">Active</span>
+                            }
+                            else
+                            {
+                                <span class="badge bg-danger">Inactive</span>
+                            }
+                        </td>
+                        <td class="text-end">
+                            <a asp-action="EditSubCategory" asp-route-id="@item.SubCategoryID" class="btn btn-sm btn-outline-primary">
+                                <i class="fas fa-edit"></i>
+                            </a>
+                            <button type="button" class="btn btn-sm btn-outline-danger btn-delete" 
+                                    data-id="@item.SubCategoryID" data-name="@item.Name">
+                                <i class="fas fa-trash"></i>
+                            </button>
                         </td>
                     </tr>
                 }

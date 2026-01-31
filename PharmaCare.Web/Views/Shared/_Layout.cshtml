@@ -6,6 +6,7 @@
     <title>@ViewData["Title"] - PharmaCare</title>
     <link rel="stylesheet" href="~/assets/css/bootstrap.min.css" />
     <link rel="stylesheet" href="~/lib/fontawesome/css/all.min.css" />
+    <link rel="stylesheet" href="~/lib/datatables-bs5/css/dataTables.bootstrap5.min.css" />
     <link rel="stylesheet" href="~/css/site.css" asp-append-version="true" />
 </head>
 <body>
@@ -26,6 +27,9 @@
     <script src="~/lib/jquery/dist/jquery.min.js"></script>
     <script src="~/assets/js/bootstrap.js"></script>
     <script src="~/lib/sweetalert2/sweetalert2.all.min.js"></script>
+    <script src="~/lib/datatables/js/jquery.dataTables.min.js"></script>
+    <script src="~/lib/datatables-bs5/js/dataTables.bootstrap5.min.js"></script>
+    <script src="~/js/datatable-init.js" asp-append-version="true"></script>
     @await RenderSectionAsync("Scripts", required: false)
 </body>
 </html>

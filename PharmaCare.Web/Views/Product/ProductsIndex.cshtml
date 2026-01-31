@@ -23,8 +23,8 @@
 }
 
 <div class="card">
-    <div class="card-body p-0">
-        <table class="table mb-0">
+    <div class="card-body">
+        <table class="table table-hover datatable">
             <thead>
                 <tr>
                     <th style="width: 60px;">S.No</th>
@@ -41,49 +41,35 @@
             </thead>
             <tbody>
                 @{ int count = 1; }
-                @if (Model.Any())
-                {
-                    @foreach (var item in Model)
-                    {
-                        <tr>
-                            <td>@(count++)</td>
-                            <td><code>@item.Code</code></td>
-                            <td>@(item.ShortCode ?? "-")</td>
-                            <td><strong>@item.Name</strong></td>
-                            <td>@(item.Category?.Name ?? "-")</td>
-                            <td>@(item.SubCategory?.Name ?? "-")</td>
-                            <td>@item.CostPrice.ToString("N2")</td>
-                            <td>@item.SellingPrice.ToString("N2")</td>
-                            <td>
-                                @if (item.IsActive)
-                                {
-                                    <span class="badge bg-success">Active</span>
-                                }
-                                else
-                                {
-                                    <span class="badge bg-danger">Inactive</span>
-                                }
-                            </td>
-                            <td class="text-end">
-                                <a asp-action="EditProduct" asp-route-id="@item.ProductID" class="btn btn-sm btn-outline-primary">
-                                    <i class="fas fa-edit"></i>
-                                </a>
-                                <button type="button" class="btn btn-sm btn-outline-danger btn-delete" 
-                                        data-id="@item.ProductID" data-name="@item.Name">
-                                    <i class="fas fa-trash"></i>
-                                </button>
-                            </td>
-                        </tr>
-                    }
-                }
-                else
+                @foreach (var item in Model)
                 {
                     <tr>
-                        <td colspan="8" class="text-center py-4">
-                            <div class="empty-state">
-                                <i class="fas fa-pills"></i>
-                                <p class="mb-0">No products found. Click "Add Product" to create one.</p>
-                            </div>
+                        <td>@(count++)</td>
+                        <td><code>@item.Code</code></td>
+                        <td>@(item.ShortCode ?? "-")</td>
+                        <td><strong>@item.Name</strong></td>
+                        <td>@(item.Category?.Name ?? "-")</td>
+                        <td>@(item.SubCategory?.Name ?? "-")</td>
+                        <td>@item.CostPrice.ToString("N2")</td>
+                        <td>@item.SellingPrice.ToString("N2")</td>
+                        <td>
+                            @if (item.IsActive)
+                            {
+                                <span class="badge bg-success">Active</span>
+                            }
+                            else
+                            {
+                                <span class="badge bg-danger">Inactive</span>
+                            }
+                        </td>
+                        <td class="text-end">
+                            <a asp-action="EditProduct" asp-route-id="@item.ProductID" class="btn btn-sm btn-outline-primary">
+                                <i class="fas fa-edit"></i>
+                            </a>
+                            <button type="button" class="btn btn-sm btn-outline-danger btn-delete" 
+                                    data-id="@item.ProductID" data-name="@item.Name">
+                                <i class="fas fa-trash"></i>
+                            </button>
                         </td>
                     </tr>
                 }
