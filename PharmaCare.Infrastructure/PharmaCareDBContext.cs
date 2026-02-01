@@ -201,9 +201,7 @@ public class PharmaCareDBContext : IdentityDbContext<User, IdentityRole<int>, in
         {
             entity.ToTable("Products");
             entity.HasKey(e => e.ProductID);
-            entity.Property(e => e.Code).IsRequired().HasMaxLength(20);
             entity.Property(e => e.Name).IsRequired().HasMaxLength(200);
-            entity.HasIndex(e => e.Code).IsUnique();
             entity.HasIndex(e => e.ShortCode);
 
             entity.HasOne(e => e.Category)

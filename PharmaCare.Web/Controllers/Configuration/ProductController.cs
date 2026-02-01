@@ -1,6 +1,7 @@
 using Microsoft.AspNetCore.Mvc;
 using PharmaCare.Application.Interfaces.Configuration;
 using PharmaCare.Domain.Entities.Configuration;
+using PharmaCare.ViewModels;
 
 namespace PharmaCare.Web.Controllers.Configuration;
 
@@ -19,22 +20,57 @@ public class ProductController : BaseController
         return View("ProductsIndex", products);
     }
 
-    public IActionResult AddProduct()
+    public async Task<IActionResult> AddProduct()
     {
-        return View(new Product());
+        var priceTypes = await _productService.GetPriceTypesAsync();
+        var vm = new ProductViewModel();
+        
+        foreach (var pt in priceTypes)
+        {
+            vm.ProductPrices.Add(new Application.DTOs.Configuration.ProductPriceDto
+            {
+                PriceTypeId = pt.PriceTypeID,
+                PriceTypeName = pt.PriceTypeName,
+                Price = 0,
+                IsSelected = false
+            });
+        }
+        
+        return View(vm);
     }
 
     [HttpPost]
     [ValidateAntiForgeryToken]
-    public async Task<IActionResult> AddProduct(Product product)
+    public async Task<IActionResult> AddProduct(ProductViewModel vm)
     {
         if (ModelState.IsValid)
         {
-            await _productService.CreateAsync(product, CurrentUserId);
+            // Create Product
+            var createdProduct = await _productService.CreateAsync(vm, CurrentUserId);
+            
+            // Save Prices
+            await _productService.SaveProductPricesAsync(createdProduct.ProductID, vm.ProductPrices, CurrentUserId);
+            
             TempData["Success"] = "Product created successfully!";
             return RedirectToAction("ProductsIndex");
         }
-        return View(product);
+        
+        // If failed, reload valid price types just in case (though model should hold them)
+        // Usually needed if we want to ensure names are correct if they weren't bound or were manipulated
+         if (!vm.ProductPrices.Any())
+         {
+             var priceTypes = await _productService.GetPriceTypesAsync();
+             foreach (var pt in priceTypes)
+             {
+                 vm.ProductPrices.Add(new Application.DTOs.Configuration.ProductPriceDto
+                 {
+                     PriceTypeId = pt.PriceTypeID,
+                     PriceTypeName = pt.PriceTypeName
+                 });
+             }
+         }
+        
+        return View(vm);
     }
 
     public async Task<IActionResult> EditProduct(int id)
@@ -44,29 +80,70 @@ public class ProductController : BaseController
         {
             return NotFound();
         }
-        return View(product);
+
+        // Map to ViewModel
+        var vm = new ProductViewModel
+        {
+            ProductID = product.ProductID,
+            ShortCode = product.ShortCode,
+            Name = product.Name,
+            Category_ID = product.Category_ID,
+            SubCategory_ID = product.SubCategory_ID,
+            OpeningPrice = product.OpeningPrice,
+            OpeningQuantity = product.OpeningQuantity,
+            ReorderLevel = product.ReorderLevel,
+            IsActive = product.IsActive,
+            CreatedAt = product.CreatedAt,
+            CreatedBy = product.CreatedBy,
+            UpdatedAt = product.UpdatedAt,
+            UpdatedBy = product.UpdatedBy
+        };
+
+        // Load Prices
+        var priceTypes = await _productService.GetPriceTypesAsync();
+        var existingPrices = await _productService.GetProductPricesAsync(id);
+
+        foreach (var pt in priceTypes)
+        {
+            var existing = existingPrices.FirstOrDefault(pp => pp.PriceType_ID == pt.PriceTypeID);
+            
+            vm.ProductPrices.Add(new Application.DTOs.Configuration.ProductPriceDto
+            {
+                PriceTypeId = pt.PriceTypeID,
+                PriceTypeName = pt.PriceTypeName,
+                Price = existing?.SalePrice ?? 0,
+                IsSelected = existing != null
+            });
+        }
+
+        return View(vm);
     }
 
     [HttpPost]
     [ValidateAntiForgeryToken]
-    public async Task<IActionResult> EditProduct(int id, Product product)
+    public async Task<IActionResult> EditProduct(int id, ProductViewModel vm)
     {
-        if (id != product.ProductID)
+        if (id != vm.ProductID)
         {
             return NotFound();
         }
 
         if (ModelState.IsValid)
         {
-            var updated = await _productService.UpdateAsync(product, CurrentUserId);
+            var updated = await _productService.UpdateAsync(vm, CurrentUserId);
             if (!updated)
             {
                 return NotFound();
             }
+            
+            // Save Prices
+            await _productService.SaveProductPricesAsync(id, vm.ProductPrices, CurrentUserId);
+            
             TempData["Success"] = "Product updated successfully!";
             return RedirectToAction("ProductsIndex");
         }
-        return View(product);
+        
+        return View(vm);
     }
 
     [HttpPost]
@@ -76,5 +153,11 @@ public class ProductController : BaseController
         await _productService.ToggleStatusAsync(id, CurrentUserId);
         TempData["Success"] = "Product status updated successfully!";
         return RedirectToAction("ProductsIndex");
+    }
+    [HttpGet]
+    public async Task<IActionResult> GetSubCategoriesByCategoryId(int categoryId)
+    {
+        var subCategories = await _productService.GetSubCategoriesByCategoryIdAsync(categoryId);
+        return Json(subCategories.Select(s => new { id = s.SubCategoryID, name = s.Name }));
     }
 }

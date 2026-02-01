@@ -100,4 +100,11 @@ public class ChartOfAccountController : BaseController
             types.Select(t => new { t.AccountTypeID, Display = t.Name }),
             "AccountTypeID", "Display");
     }
+
+    [HttpGet]
+    public async Task<IActionResult> GetSubHeadsByHeadId(int headId)
+    {
+        var subHeads = await _accountService.GetSubHeadsByHeadIdAsync(headId);
+        return Json(subHeads.Select(s => new { id = s.AccountSubheadID, name = s.SubheadName }));
+    }
 }

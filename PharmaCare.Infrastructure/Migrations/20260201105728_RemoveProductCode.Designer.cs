@@ -3,6 +3,7 @@ using System;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Infrastructure;
 using Microsoft.EntityFrameworkCore.Metadata;
+using Microsoft.EntityFrameworkCore.Migrations;
 using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
 using PharmaCare.Infrastructure;
 
@@ -11,9 +12,11 @@ using PharmaCare.Infrastructure;
 namespace PharmaCare.Infrastructure.Migrations
 {
     [DbContext(typeof(PharmaCareDBContext))]
-    partial class PharmaCareDBContextModelSnapshot : ModelSnapshot
+    [Migration("20260201105728_RemoveProductCode")]
+    partial class RemoveProductCode
     {
-        protected override void BuildModel(ModelBuilder modelBuilder)
+        /// <inheritdoc />
+        protected override void BuildTargetModel(ModelBuilder modelBuilder)
         {
 #pragma warning disable 612, 618
             modelBuilder
@@ -1406,10 +1409,6 @@ namespace PharmaCare.Infrastructure.Migrations
 
                     b.Property<decimal>("TotalDebit")
                         .HasColumnType("decimal(18,2)");
-
-                    b.Property<string>("VoidReason")
-                        .HasMaxLength(500)
-                        .HasColumnType("nvarchar(500)");
 
                     b.Property<DateTime>("VoucherDate")
                         .HasColumnType("datetime2");

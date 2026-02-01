@@ -1,4 +1,5 @@
 using Microsoft.EntityFrameworkCore;
+using PharmaCare.Application.DTOs.Configuration;
 using PharmaCare.Application.Interfaces;
 using PharmaCare.Application.Interfaces.Configuration;
 using PharmaCare.Domain.Entities.Configuration;
@@ -13,17 +14,23 @@ public class ProductService : IProductService
     private readonly IRepository<Product> _repository;
     private readonly IRepository<SubCategory> _subCategoryRepository;
     private readonly IRepository<Category> _categoryRepository;
+    private readonly IRepository<PriceType> _priceTypeRepository;
+    private readonly IRepository<ProductPrice> _productPriceRepository;
     private readonly IUnitOfWork _unitOfWork;
 
     public ProductService(
         IRepository<Product> repository,
         IRepository<SubCategory> subCategoryRepository,
         IRepository<Category> categoryRepository,
+        IRepository<PriceType> priceTypeRepository,
+        IRepository<ProductPrice> productPriceRepository,
         IUnitOfWork unitOfWork)
     {
         _repository = repository;
         _subCategoryRepository = subCategoryRepository;
         _categoryRepository = categoryRepository;
+        _priceTypeRepository = priceTypeRepository;
+        _productPriceRepository = productPriceRepository;
         _unitOfWork = unitOfWork;
     }
 
@@ -47,7 +54,6 @@ public class ProductService : IProductService
 
     public async Task<Product> CreateAsync(Product product, int userId)
     {
-        product.Code = await GenerateProductCodeAsync();
         product.CreatedAt = DateTime.Now;
         product.CreatedBy = userId;
         product.IsActive = true;
@@ -113,13 +119,78 @@ public class ProductService : IProductService
             .ToListAsync();
     }
 
-    public async Task<string> GenerateProductCodeAsync()
+    public async Task<IEnumerable<SubCategory>> GetSubCategoriesByCategoryIdAsync(int categoryId)
     {
-        var lastProduct = await _repository.Query()
-            .OrderByDescending(p => p.ProductID)
-            .FirstOrDefaultAsync();
+        return await _subCategoryRepository.Query()
+            .Where(s => s.Category_ID == categoryId && s.IsActive)
+            .OrderBy(s => s.Name)
+            .ToListAsync();
+    }
 
-        int nextNumber = (lastProduct?.ProductID ?? 0) + 1;
-        return $"PRD-{nextNumber:D4}";
+
+
+    public async Task<IEnumerable<PriceType>> GetPriceTypesAsync()
+    {
+        return await _priceTypeRepository.Query()
+            .Where(pt => pt.IsActive)
+            .OrderBy(pt => pt.PriceTypeName)
+            .ToListAsync();
+    }
+
+    public async Task<IEnumerable<ProductPrice>> GetProductPricesAsync(int productId)
+    {
+        return await _productPriceRepository.Query()
+            .Include(pp => pp.PriceType)
+            .Where(pp => pp.Product_ID == productId && pp.IsActive)
+            .ToListAsync();
+    }
+
+    public async Task SaveProductPricesAsync(int productId, List<ProductPriceDto> prices, int userId)
+    {
+        var existingPrices = await _productPriceRepository.Query()
+            .Where(pp => pp.Product_ID == productId)
+            .ToListAsync();
+
+        foreach (var priceDto in prices)
+        {
+            var existingPrice = existingPrices.FirstOrDefault(pp => pp.PriceType_ID == priceDto.PriceTypeId);
+
+            if (priceDto.IsSelected)
+            {
+                if (existingPrice != null)
+                {
+                    existingPrice.SalePrice = priceDto.Price;
+                    existingPrice.IsActive = true;
+                    existingPrice.UpdatedAt = DateTime.Now;
+                    existingPrice.UpdatedBy = userId;
+                    _productPriceRepository.Update(existingPrice);
+                }
+                else
+                {
+                    var newPrice = new ProductPrice
+                    {
+                        Product_ID = productId,
+                        PriceType_ID = priceDto.PriceTypeId,
+                        SalePrice = priceDto.Price,
+                        IsActive = true,
+                        CreatedAt = DateTime.Now,
+                        CreatedBy = userId
+                    };
+                    await _productPriceRepository.AddAsync(newPrice);
+                }
+            }
+            else
+            {
+                if (existingPrice != null && existingPrice.IsActive)
+                {
+                    existingPrice.IsActive = false;
+                    existingPrice.UpdatedAt = DateTime.Now;
+                    existingPrice.UpdatedBy = userId;
+                    _productPriceRepository.Update(existingPrice);
+                }
+            }
+        }
+
+        await _unitOfWork.SaveChangesAsync();
     }
 }

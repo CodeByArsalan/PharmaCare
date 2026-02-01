@@ -1,3 +1,4 @@
+using PharmaCare.Application.DTOs.Configuration;
 using PharmaCare.Domain.Entities.Configuration;
 
 namespace PharmaCare.Application.Interfaces.Configuration;
@@ -17,5 +18,10 @@ public interface IProductService
     Task<bool> ToggleStatusAsync(int id, int userId);
     Task<IEnumerable<SubCategory>> GetSubCategoriesForDropdownAsync();
     Task<IEnumerable<Category>> GetCategoriesForDropdownAsync();
-    Task<string> GenerateProductCodeAsync();
+    Task<IEnumerable<SubCategory>> GetSubCategoriesByCategoryIdAsync(int categoryId);
+    
+    // Price Management
+    Task<IEnumerable<PriceType>> GetPriceTypesAsync();
+    Task<IEnumerable<ProductPrice>> GetProductPricesAsync(int productId);
+    Task SaveProductPricesAsync(int productId, List<ProductPriceDto> prices, int userId);
 }

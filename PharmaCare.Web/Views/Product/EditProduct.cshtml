@@ -1,4 +1,4 @@
-@model PharmaCare.Domain.Entities.Configuration.Product
+@model PharmaCare.ViewModels.ProductViewModel
 @{
     ViewData["Title"] = "Edit Product";
 }
@@ -18,7 +18,6 @@
     <div class="card-body">
         <form asp-action="EditProduct" method="post">
             <input type="hidden" asp-for="ProductID" />
-            <input type="hidden" asp-for="Code" />
             <input type="hidden" asp-for="CreatedAt" />
             <input type="hidden" asp-for="CreatedBy" />
             <input type="hidden" asp-for="IsActive" value="true" />
@@ -45,10 +44,7 @@
                     <input asp-for="Name" class="form-control" placeholder="Enter product name" required />
                     <span asp-validation-for="Name" class="text-danger small"></span>
                 </div>
-                <div class="col-md-6">
-                    <label class="form-label">Product Code</label>
-                    <input value="@Model.Code" class="form-control" disabled />
-                </div>
+
                 <div class="col-md-6">
                     <label class="form-label">Opening Price <span class="text-danger">*</span></label>
                     <input asp-for="OpeningPrice" type="number" step="0.01" class="form-control" placeholder="0.00" required />
@@ -64,7 +60,45 @@
                     <input asp-for="ReorderLevel" type="number" class="form-control" placeholder="Minimum stock level" />
                 </div>
             </div>
-            
+
+            <div class="row mt-4">
+                <div class="col-12">
+                    <h5 class="mb-3">Pricing Configuration</h5>
+                    <div class="table-responsive">
+                        <table class="table table-bordered table-hover">
+                            <thead class="table-dark">
+                                <tr>
+                                    <th style="width: 50px;" class="text-center">Select</th>
+                                    <th>Price Type</th>
+                                    <th style="width: 300px;">Price</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                @for (int i = 0; i < Model.ProductPrices.Count; i++)
+                                {
+                                    <tr>
+                                        <td class="text-center">
+                                            <input type="hidden" asp-for="ProductPrices[i].PriceTypeId" />
+                                            <input type="hidden" asp-for="ProductPrices[i].PriceTypeName" />
+                                            <input asp-for="ProductPrices[i].IsSelected" class="form-check-input price-check" data-index="@i" />
+                                        </td>
+                                        <td>@Model.ProductPrices[i].PriceTypeName</td>
+                                        <td>
+                                            <div class="input-group">
+                                                <span class="input-group-text">PKR</span>
+                                                <input asp-for="ProductPrices[i].Price" type="number" step="0.01" 
+                                                       class="form-control price-input" data-index="@i" 
+                                                       disabled="@(!Model.ProductPrices[i].IsSelected ? "disabled" : null)" />
+                                            </div>
+                                        </td>
+                                    </tr>
+                                }
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            </div>
+
             <div class="text-end mt-4">
                 <a asp-action="ProductsIndex" class="btn btn-outline-secondary me-2">Cancel</a>
                 <button type="submit" class="btn btn-primary">
@@ -74,3 +108,51 @@
         </form>
     </div>
 </div>
+
+@section Scripts {
+    <script>
+        $(document).ready(function() {
+            // Price Checkbox Logic
+            $('.price-check').change(function() {
+                var index = $(this).data('index');
+                var input = $('.price-input[data-index="' + index + '"]');
+                if($(this).is(':checked')) {
+                    input.prop('disabled', false);
+                    input.focus();
+                } else {
+                    input.prop('disabled', true);
+                    input.val(0.00);
+                }
+            });
+
+             // Cascading Sub-Category Logic
+            $('#Category_ID').change(function() {
+                var categoryId = $(this).val();
+                var $subCategory = $('#SubCategory_ID');
+                
+                // clear existing
+                $subCategory.empty();
+                $subCategory.append('<option value="">-- Select SubCategory --</option>');
+
+                if (categoryId) {
+                    $.ajax({
+                        url: '/Product/GetSubCategoriesByCategoryId',
+                        type: 'GET',
+                        data: { categoryId: categoryId },
+                        success: function(data) {
+                            $.each(data, function(index, item) {
+                                $subCategory.append($('<option>', {
+                                    value: item.id,
+                                    text: item.name
+                                }));
+                            });
+                        },
+                        error: function(xhr, status, error) {
+                            console.error("Error fetching subcategories:", error);
+                        }
+                    });
+                }
+            });
+        });
+    </script>
+}

@@ -1347,3 +1347,28 @@ textarea {
     background: var(--glass-bg-hover) !important;
     border-color: var(--glass-border-hover) !important;
 }
+/* ========================================
+   MODALS (DARK THEME FIX)
+   ======================================== */
+.modal-content {
+    background-color: var(--bg-card);
+    border: 1px solid var(--glass-border);
+    color: var(--text-primary);
+}
+
+.modal-header {
+    border-bottom: 1px solid var(--glass-border);
+}
+
+.modal-footer {
+    border-top: 1px solid var(--glass-border);
+}
+
+/* Fix close button visibility in dark mode */
+.btn-close {
+    filter: invert(1) grayscale(100%) brightness(200%);
+}
+
+[data-theme="light"] .btn-close {
+    filter: none;
+}

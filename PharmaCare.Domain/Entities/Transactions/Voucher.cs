@@ -59,6 +59,12 @@ public class Voucher
     [StringLength(500)]
     public string? Narration { get; set; }
 
+    /// <summary>
+    /// Reason for voiding the voucher
+    /// </summary>
+    [StringLength(500)]
+    public string? VoidReason { get; set; }
+
     // ========== REVERSAL TRACKING ==========
     public bool IsReversed { get; set; }
 

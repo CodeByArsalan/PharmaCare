@@ -113,4 +113,12 @@ public class AccountService : IAccountService
             .OrderBy(h => h.HeadName)
             .ToListAsync();
     }
+
+    public async Task<IEnumerable<AccountSubhead>> GetSubHeadsByHeadIdAsync(int headId)
+    {
+        return await _subheadRepository.Query()
+            .Where(s => s.AccountHead_ID == headId)
+            .OrderBy(s => s.SubheadName)
+            .ToListAsync();
+    }
 }

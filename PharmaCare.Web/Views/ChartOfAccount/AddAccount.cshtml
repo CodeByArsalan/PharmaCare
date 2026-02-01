@@ -27,7 +27,7 @@
                 </div>
                 <div class="col-md-6">
                     <label class="form-label">Sub-Head</label>
-                    <select asp-for="AccountSubhead_ID" asp-items="_combobox.GetActiveAccountSubHeads()" class="form-select" required>
+                    <select asp-for="AccountSubhead_ID" asp-items="_combobox.GetActiveAccountSubHeads(Model.AccountHead_ID ?? 0)" class="form-select" required>
                         <option value="">-- Select Sub-Head --</option>
                     </select>
                     <span asp-validation-for="AccountSubhead_ID" class="text-danger small"></span>
@@ -68,3 +68,36 @@
         </form>
     </div>
 </div>
+
+@section Scripts {
+    <script>
+        $(document).ready(function() {
+            $('#AccountHead_ID').change(function() {
+                var headId = $(this).val();
+                var $subHead = $('#AccountSubhead_ID');
+                
+                $subHead.empty();
+                $subHead.append('<option value="">-- Select Sub-Head --</option>');
+
+                if (headId) {
+                    $.ajax({
+                        url: '/ChartOfAccount/GetSubHeadsByHeadId',
+                        type: 'GET',
+                        data: { headId: headId },
+                        success: function(data) {
+                            $.each(data, function(index, item) {
+                                $subHead.append($('<option>', {
+                                    value: item.id,
+                                    text: item.name
+                                }));
+                            });
+                        },
+                        error: function(xhr, status, error) {
+                            console.error("Error fetching sub-heads:", error);
+                        }
+                    });
+                }
+            });
+        });
+    </script>
+}

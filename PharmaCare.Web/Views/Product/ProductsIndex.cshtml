@@ -30,7 +30,6 @@
                     <th style="width: 60px;">S.No</th>
                     <th>Category</th>
                     <th>SubCategory</th>
-                    <th>Code</th>
                     <th>Short Code</th>
                     <th>Product Name</th>
                     <th>Opening Price</th>
@@ -47,7 +46,6 @@
                         <td>@(count++)</td>
                         <td>@(item.Category?.Name ?? "-")</td>
                         <td>@(item.SubCategory?.Name ?? "-")</td>
-                        <td><code>@item.Code</code></td>
                         <td>@(item.ShortCode ?? "-")</td>
                         <td><strong>@item.Name</strong></td>
                         <td>@item.OpeningPrice.ToString("N2")</td>

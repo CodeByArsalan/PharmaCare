@@ -1,0 +1,237 @@
+@model PharmaCare.Web.ViewModels.Accounting.JournalVoucherViewModel
+@{
+    ViewData["Title"] = "New Journal Voucher";
+    var accounts = ViewBag.Accounts as List<PharmaCare.Domain.Entities.Accounting.Account>;
+    var voucherTypes = ViewBag.VoucherTypes as List<PharmaCare.Domain.Entities.Transactions.VoucherType>;
+}
+
+<div class="page-header">
+    <h4 class="page-title">
+        <i class="fas fa-plus-circle"></i> New Journal Voucher
+    </h4>
+    <a asp-action="JournalVoucherIndex" class="btn btn-outline-secondary">
+        <i class="fas fa-arrow-left"></i> Back to List
+    </a>
+</div>
+
+<div class="card">
+    <div class="card-body">
+        <form asp-action="AddJournalVoucher" method="post" id="jvForm">
+            <div class="alert alert-danger d-none" id="errorAlert"></div>
+            @if (!ViewData.ModelState.IsValid)
+            {
+                <div class="alert alert-danger">
+                    <div asp-validation-summary="All" class="text-danger"></div>
+                </div>
+            }
+
+            <div class="row g-3">
+                <div class="col-md-4">
+                    <label asp-for="VoucherType_ID" class="form-label"></label>
+                    <select asp-for="VoucherType_ID" class="form-select" required>
+                        <option value="">Select Type</option>
+                        @if (voucherTypes != null)
+                        {
+                            foreach (var type in voucherTypes)
+                            {
+                                <option value="@type.VoucherTypeID">@type.Code - @type.Name</option>
+                            }
+                        }
+                    </select>
+                    <span asp-validation-for="VoucherType_ID" class="text-danger"></span>
+                </div>
+                <div class="col-md-4">
+                    <label asp-for="VoucherDate" class="form-label"></label>
+                    <input asp-for="VoucherDate" class="form-control" />
+                    <span asp-validation-for="VoucherDate" class="text-danger"></span>
+                </div>
+                <div class="col-md-4">
+                    <label class="form-label">Status</label>
+                    <input type="text" class="form-control fw-bold" value="Draft" readonly />
+                </div>
+                <div class="col-md-12">
+                    <label asp-for="Narration" class="form-label"></label>
+                    <input asp-for="Narration" class="form-control" placeholder="Enter narration..." />
+                    <span asp-validation-for="Narration" class="text-danger"></span>
+                </div>
+            </div>
+            <div class="d-flex justify-content-between align-items-center mt-4 mb-3">
+                <h5 class="mb-0">Voucher Details</h5>
+                <button type="button" class="btn btn-sm btn-outline-primary" id="addRowBtn">
+                    <i class="fas fa-plus"></i> Add Row
+                </button>
+            </div>
+            <div class="table-responsive">
+                <table class="table table-bordered" id="detailsTable">
+                    <thead class="table-light">
+                        <tr>
+                            <th style="width: 30%">Account</th>
+                            <th style="width: 30%">Description</th>
+                            <th style="width: 15%">Debit</th>
+                            <th style="width: 15%">Credit</th>
+                            <th style="width: 10%">Action</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        @for (int i = 0; i < Model.VoucherDetails.Count; i++)
+                        {
+                            <tr class="detail-row">
+                                <td>
+                                    <select name="VoucherDetails[@i].Account_ID" class="form-select account-select" required>
+                                        <option value="">Select Account</option>
+                                        @if (accounts != null)
+                                        {
+                                            foreach (var acc in accounts)
+                                            {
+                                                <!option value="@acc.AccountID" @(acc.AccountID == Model.VoucherDetails[i].Account_ID ? "selected" : "")>
+                                                    @acc.Code - @acc.Name
+                                                </!option>
+                                            }
+                                        }
+                                    </select>
+                                </td>
+                                <td>
+                                    <input type="text" name="VoucherDetails[@i].Description" value="@Model.VoucherDetails[i].Description" class="form-control" />
+                                </td>
+                                <td>
+                                    <input type="number" step="0.01" name="VoucherDetails[@i].DebitAmount" value="@Model.VoucherDetails[i].DebitAmount" class="form-control debit-input" onchange="calcTotals()" />
+                                </td>
+                                <td>
+                                    <input type="number" step="0.01" name="VoucherDetails[@i].CreditAmount" value="@Model.VoucherDetails[i].CreditAmount" class="form-control credit-input" onchange="calcTotals()" />
+                                </td>
+                                <td class="text-center">
+                                    <button type="button" class="btn btn-sm btn-outline-danger remove-row"><i class="fas fa-trash"></i></button>
+                                </td>
+                            </tr>
+                        }
+                    </tbody>
+                    <tfoot class="table-light">
+                        <tr>
+                            <td colspan="2" class="text-end fw-bold">Totals:</td>
+                            <td><input type="text" id="totalDebit" class="form-control fw-bold" readonly value="0.00" /></td>
+                            <td><input type="text" id="totalCredit" class="form-control fw-bold" readonly value="0.00" /></td>
+                            <td></td>
+                        </tr>
+                        <tr>
+                            <td colspan="2" class="text-end fw-bold">Difference:</td>
+                             <td colspan="2"><span id="diffDisplay" class="fw-bold text-success">0.00</span></td>
+                             <td></td>
+                        </tr>
+                    </tfoot>
+                </table>
+            </div>
+
+
+
+            <div class="text-end">
+                <a asp-action="JournalVoucherIndex" class="btn btn-secondary me-2">Cancel</a>
+                <button type="submit" class="btn btn-primary" id="saveBtn">
+                    <i class="fas fa-save me-2"></i> Save & Post
+                </button>
+            </div>
+        </form>
+    </div>
+</div>
+
+@section Scripts {
+    <script>
+        $(document).ready(function() {
+            calcTotals(); // Initial calc
+
+            $('#addRowBtn').click(function() {
+                var index = $('#detailsTable tbody tr').length;
+                var newRow = `
+                    <tr class="detail-row">
+                        <td>
+                            <select name="VoucherDetails[${index}].Account_ID" class="form-select account-select" required>
+                                <option value="">Select Account</option>
+                                @if (accounts != null)
+                                {
+                                    foreach (var acc in accounts)
+                                    {
+                                        <option value="@acc.AccountID">@acc.Code - @acc.Name</option>
+                                    }
+                                }
+                            </select>
+                        </td>
+                        <td>
+                            <input type="text" name="VoucherDetails[${index}].Description" class="form-control" />
+                        </td>
+                        <td>
+                            <input type="number" step="0.01" name="VoucherDetails[${index}].DebitAmount" value="0" class="form-control debit-input" onchange="calcTotals()" />
+                        </td>
+                        <td>
+                            <input type="number" step="0.01" name="VoucherDetails[${index}].CreditAmount" value="0" class="form-control credit-input" onchange="calcTotals()" />
+                        </td>
+                        <td class="text-center">
+                            <button type="button" class="btn btn-sm btn-outline-danger remove-row"><i class="fas fa-trash"></i></button>
+                        </td>
+                    </tr>
+                `;
+                $('#detailsTable tbody').append(newRow);
+            });
+
+            $(document).on('click', '.remove-row', function() {
+                $(this).closest('tr').remove();
+                reindexRows();
+                calcTotals();
+            });
+
+            $('#jvForm').submit(function(e) {
+                var debit = parseFloat($('#totalDebit').val());
+                var credit = parseFloat($('#totalCredit').val());
+                var diff = Math.abs(debit - credit);
+
+                if (diff > 0.01) {
+                    e.preventDefault();
+                    $('#errorAlert').removeClass('d-none').text('Total Debit and Credit must match!');
+                    $('html, body').animate({ scrollTop: 0 }, 'fast');
+                } else if (debit === 0 && credit === 0) {
+                     e.preventDefault();
+                    $('#errorAlert').removeClass('d-none').text('Voucher cannot be empty.');
+                }
+            });
+        });
+
+        function calcTotals() {
+            var totalDebit = 0;
+            var totalCredit = 0;
+
+            $('.debit-input').each(function() {
+                var val = parseFloat($(this).val()) || 0;
+                totalDebit += val;
+            });
+            $('.credit-input').each(function() {
+                var val = parseFloat($(this).val()) || 0;
+                totalCredit += val;
+            });
+
+            $('#totalDebit').val(totalDebit.toFixed(2));
+            $('#totalCredit').val(totalCredit.toFixed(2));
+
+            var diff = totalDebit - totalCredit;
+            var diffSpan = $('#diffDisplay');
+            diffSpan.text(diff.toFixed(2));
+
+            if (Math.abs(diff) > 0.01) {
+                diffSpan.removeClass('text-success').addClass('text-danger');
+                $('#saveBtn').prop('disabled', true);
+            } else {
+                diffSpan.removeClass('text-danger').addClass('text-success');
+                $('#saveBtn').prop('disabled', false);
+            }
+        }
+
+        function reindexRows() {
+            $('#detailsTable tbody tr').each(function(index) {
+                $(this).find('select, input').each(function() {
+                    var name = $(this).attr('name');
+                    if (name) {
+                        var newName = name.replace(/\[\d+\]/, '[' + index + ']');
+                        $(this).attr('name', newName);
+                    }
+                });
+            });
+        }
+    </script>
+}

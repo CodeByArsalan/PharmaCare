@@ -12,4 +12,5 @@ public interface IAccountService
     Task<IEnumerable<AccountSubhead>> GetSubHeadsForDropdownAsync();
     Task<IEnumerable<AccountHead>> GetAccountHeadsForDropdownAsync();
     Task<IEnumerable<AccountType>> GetAccountTypesForDropdownAsync();
+    Task<IEnumerable<AccountSubhead>> GetSubHeadsByHeadIdAsync(int headId);
 }

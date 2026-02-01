@@ -18,6 +18,8 @@ using PharmaCare.Application.Interfaces.Logging;
 using PharmaCare.Application.Implementations.Logging;
 using PharmaCare.Infrastructure.Interceptors;
 using PharmaCare.Infrastructure.Implementations.Logging;
+using PharmaCare.Application.Interfaces.Transactions;
+using PharmaCare.Application.Implementations.Transactions;
 
 var builder = WebApplication.CreateBuilder(args);
 var connectionString = builder.Configuration.GetConnectionString("PharmaCareDBConnectionString") 
@@ -89,6 +91,7 @@ builder.Services.AddScoped<IPartyService, PartyService>();
 builder.Services.AddScoped<IAccountHeadService, AccountHeadService>();
 builder.Services.AddScoped<IAccountSubHeadService, AccountSubHeadService>();
 builder.Services.AddScoped<IAccountService, AccountService>();
+builder.Services.AddScoped<IJournalVoucherService, JournalVoucherService>();
 
 // Logging Services
 builder.Services.AddScoped<IActivityLogService, ActivityLogService>();

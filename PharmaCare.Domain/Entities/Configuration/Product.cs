@@ -20,13 +20,6 @@ public class Product : BaseEntityWithStatus
     public int SubCategory_ID { get; set; }
     public SubCategory? SubCategory { get; set; }
 
-    /// <summary>
-    /// Auto-generated product code (PRD-0001)
-    /// </summary>
-    [Required]
-    [StringLength(20)]
-    public string Code { get; set; } = string.Empty;
-
     [Required]
     [StringLength(200)]
     public string Name { get; set; } = string.Empty;
