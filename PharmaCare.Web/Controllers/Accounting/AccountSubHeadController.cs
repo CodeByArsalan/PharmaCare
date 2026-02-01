@@ -33,7 +33,7 @@ public class AccountSubHeadController : BaseController
         if (ModelState.IsValid)
         {
             await _accountSubHeadService.CreateAsync(accountSubHead);
-            TempData["Success"] = "Account Sub-Head created successfully!";
+            ShowMessage(MessageType.Success, "Account Sub-Head created successfully!");
             return RedirectToAction("AccountSubHeadsIndex");
         }
         await LoadHeadsDropdown();
@@ -67,7 +67,7 @@ public class AccountSubHeadController : BaseController
             {
                 return NotFound();
             }
-            TempData["Success"] = "Account Sub-Head updated successfully!";
+            ShowMessage(MessageType.Success, "Account Sub-Head updated successfully!");
             return RedirectToAction("AccountSubHeadsIndex");
         }
         await LoadHeadsDropdown();
@@ -79,7 +79,7 @@ public class AccountSubHeadController : BaseController
     public async Task<IActionResult> Delete(int id)
     {
         await _accountSubHeadService.DeleteAsync(id);
-        TempData["Success"] = "Account Sub-Head deleted successfully!";
+        ShowMessage(MessageType.Success, "Account Sub-Head deleted successfully!");
         return RedirectToAction("AccountSubHeadsIndex");
     }
 

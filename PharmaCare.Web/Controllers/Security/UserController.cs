@@ -63,7 +63,7 @@ public class UserController : BaseController
             return View(model);
         }
 
-        TempData["Success"] = "User created successfully!";
+        ShowMessage(MessageType.Success, "User created successfully!");
         return RedirectToAction("UsersIndex");
     }
 
@@ -132,7 +132,7 @@ public class UserController : BaseController
             return View(model);
         }
 
-        TempData["Success"] = "User updated successfully!";
+        ShowMessage(MessageType.Success, "User updated successfully!");
         return RedirectToAction("UsersIndex");
     }
 
@@ -141,7 +141,7 @@ public class UserController : BaseController
     public async Task<IActionResult> ToggleStatus(int id)
     {
         await _userService.ToggleUserStatusAsync(id, CurrentUserId);
-        TempData["Success"] = "User status updated successfully!";
+        ShowMessage(MessageType.Success, "User status updated successfully!");
         return RedirectToAction("UsersIndex");
     }
 

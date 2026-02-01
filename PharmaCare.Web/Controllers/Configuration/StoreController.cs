@@ -30,7 +30,7 @@ public class StoreController : BaseController
         if (ModelState.IsValid)
         {
             await _storeService.CreateAsync(store, CurrentUserId);
-            TempData["Success"] = "Store created successfully!";
+            ShowMessage(MessageType.Success, "Store created successfully!");
             return RedirectToAction("StoresIndex");
         }
         return View(store);
@@ -61,7 +61,7 @@ public class StoreController : BaseController
                 return NotFound();
             }
             
-            TempData["Success"] = "Store updated successfully!";
+            ShowMessage(MessageType.Success, "Store updated successfully!");
             return RedirectToAction("StoresIndex");
         }
         return View(store);
@@ -71,7 +71,7 @@ public class StoreController : BaseController
     public async Task<IActionResult> Delete(int id)
     {
         await _storeService.ToggleStatusAsync(id, CurrentUserId);
-        TempData["Success"] = "Store status updated successfully!";
+        ShowMessage(MessageType.Success, "Store status updated successfully!");
         return RedirectToAction("StoresIndex");
     }
 }

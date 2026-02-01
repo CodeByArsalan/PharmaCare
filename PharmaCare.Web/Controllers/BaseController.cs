@@ -60,4 +60,26 @@ public abstract class BaseController : Controller
         var userRoles = CurrentUserRoleNames;
         return roleNames.Any(r => userRoles.Contains(r, StringComparer.OrdinalIgnoreCase));
     }
+
+    /// <summary>
+    /// Shows a toast notification message after redirect.
+    /// </summary>
+    /// <param name="type">Type of message (Success, Error, Warning, Info)</param>
+    /// <param name="message">The message to display</param>
+    protected void ShowMessage(MessageType type, string message)
+    {
+        TempData["ToastType"] = type.ToString().ToLower();
+        TempData["ToastMessage"] = message;
+    }
+}
+
+/// <summary>
+/// Message types for toast notifications.
+/// </summary>
+public enum MessageType
+{
+    Success,
+    Error,
+    Warning,
+    Info
 }

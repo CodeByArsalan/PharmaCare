@@ -33,7 +33,7 @@ public class AccountHeadController : BaseController
         if (ModelState.IsValid)
         {
             await _accountHeadService.CreateAsync(accountHead);
-            TempData["Success"] = "Account Head created successfully!";
+            ShowMessage(MessageType.Success, "Account Head created successfully!");
             return RedirectToAction("AccountHeadsIndex");
         }
         await LoadFamiliesDropdown();
@@ -67,7 +67,7 @@ public class AccountHeadController : BaseController
             {
                 return NotFound();
             }
-            TempData["Success"] = "Account Head updated successfully!";
+            ShowMessage(MessageType.Success, "Account Head updated successfully!");
             return RedirectToAction("AccountHeadsIndex");
         }
         await LoadFamiliesDropdown();
@@ -79,7 +79,7 @@ public class AccountHeadController : BaseController
     public async Task<IActionResult> Delete(int id)
     {
         await _accountHeadService.DeleteAsync(id);
-        TempData["Success"] = "Account Head deleted successfully!";
+        ShowMessage(MessageType.Success, "Account Head deleted successfully!");
         return RedirectToAction("AccountHeadsIndex");
     }
 

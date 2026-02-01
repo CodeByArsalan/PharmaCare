@@ -51,7 +51,7 @@ public class ProductController : BaseController
             // Save Prices
             await _productService.SaveProductPricesAsync(createdProduct.ProductID, vm.ProductPrices, CurrentUserId);
             
-            TempData["Success"] = "Product created successfully!";
+            ShowMessage(MessageType.Success, "Product created successfully!");
             return RedirectToAction("ProductsIndex");
         }
         
@@ -139,7 +139,7 @@ public class ProductController : BaseController
             // Save Prices
             await _productService.SaveProductPricesAsync(id, vm.ProductPrices, CurrentUserId);
             
-            TempData["Success"] = "Product updated successfully!";
+            ShowMessage(MessageType.Success, "Product updated successfully!");
             return RedirectToAction("ProductsIndex");
         }
         
@@ -151,7 +151,7 @@ public class ProductController : BaseController
     public async Task<IActionResult> Delete(int id)
     {
         await _productService.ToggleStatusAsync(id, CurrentUserId);
-        TempData["Success"] = "Product status updated successfully!";
+        ShowMessage(MessageType.Success, "Product status updated successfully!");
         return RedirectToAction("ProductsIndex");
     }
     [HttpGet]

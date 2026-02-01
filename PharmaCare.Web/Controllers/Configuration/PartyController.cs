@@ -29,7 +29,7 @@ public class PartyController : BaseController
         if (ModelState.IsValid)
         {
             await _partyService.CreateAsync(party, CurrentUserId);
-            TempData["Success"] = "Party created successfully!";
+            ShowMessage(MessageType.Success, "Party created successfully!");
             return RedirectToAction("PartiesIndex");
         }
         return View(party);
@@ -59,7 +59,7 @@ public class PartyController : BaseController
             {
                 return NotFound();
             }
-            TempData["Success"] = "Party updated successfully!";
+            ShowMessage(MessageType.Success, "Party updated successfully!");
             return RedirectToAction("PartiesIndex");
         }
         return View(party);
@@ -69,7 +69,7 @@ public class PartyController : BaseController
     public async Task<IActionResult> Delete(int id)
     {
         await _partyService.ToggleStatusAsync(id, CurrentUserId);
-        TempData["Success"] = "Party status updated successfully!";
+        ShowMessage(MessageType.Success, "Party status updated successfully!");
         return RedirectToAction("PartiesIndex");
     }
 }

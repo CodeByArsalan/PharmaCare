@@ -30,6 +30,7 @@
     <script src="~/lib/datatables/js/jquery.dataTables.min.js"></script>
     <script src="~/lib/datatables-bs5/js/dataTables.bootstrap5.min.js"></script>
     <script src="~/js/datatable-init.js" asp-append-version="true"></script>
+    @await Html.PartialAsync("_ToastNotifications")
     @await RenderSectionAsync("Scripts", required: false)
 </body>
 </html>

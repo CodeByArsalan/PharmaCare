@@ -33,7 +33,7 @@ public class ChartOfAccountController : BaseController
         if (ModelState.IsValid)
         {
             await _accountService.CreateAsync(account, CurrentUserId);
-            TempData["Success"] = "Account created successfully!";
+            ShowMessage(MessageType.Success, "Account created successfully!");
             return RedirectToAction("AccountsIndex");
         }
         await LoadDropdowns();
@@ -67,7 +67,7 @@ public class ChartOfAccountController : BaseController
             {
                 return NotFound();
             }
-            TempData["Success"] = "Account updated successfully!";
+            ShowMessage(MessageType.Success, "Account updated successfully!");
             return RedirectToAction("AccountsIndex");
         }
         await LoadDropdowns();
@@ -79,7 +79,7 @@ public class ChartOfAccountController : BaseController
     public async Task<IActionResult> Delete(int id)
     {
         await _accountService.ToggleStatusAsync(id, CurrentUserId);
-        TempData["Success"] = "Account status updated successfully!";
+        ShowMessage(MessageType.Success, "Account status updated successfully!");
         return RedirectToAction("AccountsIndex");
     }
 

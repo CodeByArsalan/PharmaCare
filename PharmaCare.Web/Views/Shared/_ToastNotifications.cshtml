@@ -1,0 +1,28 @@
+@{
+    var toastType = TempData["ToastType"] as string;
+    var toastMessage = TempData["ToastMessage"] as string;
+}
+
+@if (!string.IsNullOrEmpty(toastMessage))
+{
+    <script>
+        document.addEventListener('DOMContentLoaded', function() {
+            const Toast = Swal.mixin({
+                toast: true,
+                position: 'top-end',
+                showConfirmButton: false,
+                timer: 3000,
+                timerProgressBar: true,
+                didOpen: (toast) => {
+                    toast.addEventListener('mouseenter', Swal.stopTimer);
+                    toast.addEventListener('mouseleave', Swal.resumeTimer);
+                }
+            });
+
+            Toast.fire({
+                icon: '@toastType',
+                title: '@Html.Raw(toastMessage?.Replace("'", "\\'"))'
+            });
+        });
+    </script>
+}

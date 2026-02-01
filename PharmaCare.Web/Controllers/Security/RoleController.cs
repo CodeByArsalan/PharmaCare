@@ -38,7 +38,7 @@ public class RoleController : BaseController
         }
 
         await _roleService.CreateRoleAsync(role, CurrentUserId);
-        TempData["Success"] = "Role created successfully!";
+        ShowMessage(MessageType.Success, "Role created successfully!");
         return RedirectToAction("RolesIndex");
     }
 
@@ -72,7 +72,7 @@ public class RoleController : BaseController
             return NotFound();
         }
 
-        TempData["Success"] = "Role updated successfully!";
+        ShowMessage(MessageType.Success, "Role updated successfully!");
         return RedirectToAction("RolesIndex");
     }
 
@@ -83,11 +83,11 @@ public class RoleController : BaseController
         var result = await _roleService.ToggleRoleStatusAsync(id, CurrentUserId);
         if (!result)
         {
-            TempData["Error"] = "Cannot modify system roles.";
+            ShowMessage(MessageType.Error, "Cannot modify system roles.");
         }
         else
         {
-            TempData["Success"] = "Role status updated successfully!";
+            ShowMessage(MessageType.Success, "Role status updated successfully!");
         }
         return RedirectToAction("RolesIndex");
     }
@@ -117,7 +117,7 @@ public class RoleController : BaseController
     public async Task<IActionResult> SavePermissions(int roleId, List<RolePagePermissionDTO> permissions)
     {
         await _roleService.UpdatePermissionsAsync(roleId, permissions);
-        TempData["Success"] = "Permissions saved successfully!";
+        ShowMessage(MessageType.Success, "Permissions saved successfully!");
         return RedirectToAction("RolesIndex");
     }
 }

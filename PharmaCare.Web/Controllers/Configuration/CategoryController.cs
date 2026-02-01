@@ -32,7 +32,7 @@ public class CategoryController : BaseController
         if (ModelState.IsValid)
         {
             await _categoryService.CreateAsync(category, CurrentUserId);
-            TempData["Success"] = "Category created successfully!";
+            ShowMessage(MessageType.Success, "Category created successfully!");
             return RedirectToAction("CategoriesIndex");
         }
         await LoadAccountsDropdowns();
@@ -64,7 +64,7 @@ public class CategoryController : BaseController
             {
                 return NotFound();
             }
-            TempData["Success"] = "Category updated successfully!";
+            ShowMessage(MessageType.Success, "Category updated successfully!");
             return RedirectToAction("CategoriesIndex");
         }
         await LoadAccountsDropdowns();
@@ -75,7 +75,7 @@ public class CategoryController : BaseController
     public async Task<IActionResult> Delete(int id)
     {
         await _categoryService.ToggleStatusAsync(id, CurrentUserId);
-        TempData["Success"] = "Category status updated successfully!";
+        ShowMessage(MessageType.Success, "Category status updated successfully!");
         return RedirectToAction("CategoriesIndex");
     }
     private async Task LoadAccountsDropdowns()

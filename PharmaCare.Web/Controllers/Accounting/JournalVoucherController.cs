@@ -77,7 +77,7 @@ public class JournalVoucherController : BaseController
                 };
 
                 await _jvService.CreateJournalVoucherAsync(dto, CurrentUserId);
-                TempData["Success"] = "Journal Voucher created successfully!";
+                ShowMessage(MessageType.Success, "Journal Voucher created successfully!");
                 return RedirectToAction(nameof(JournalVoucherIndex));
             }
             catch (Exception ex)
@@ -96,18 +96,18 @@ public class JournalVoucherController : BaseController
     {
         if (string.IsNullOrWhiteSpace(voidReason))
         {
-            TempData["Error"] = "Void Reason is required.";
+            ShowMessage(MessageType.Error, "Void Reason is required.");
             return RedirectToAction(nameof(JournalVoucherIndex));
         }
 
         var success = await _jvService.VoidVoucherAsync(id, voidReason, CurrentUserId);
         if (success)
         {
-            TempData["Success"] = "Voucher voided and reversed successfully.";
+            ShowMessage(MessageType.Success, "Voucher voided and reversed successfully.");
         }
         else
         {
-            TempData["Error"] = "Failed to void voucher. It may be already voided or invalid.";
+            ShowMessage(MessageType.Error, "Failed to void voucher. It may be already voided or invalid.");
         }
 
         return RedirectToAction(nameof(JournalVoucherIndex));

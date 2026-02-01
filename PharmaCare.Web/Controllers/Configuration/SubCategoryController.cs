@@ -31,7 +31,7 @@ public class SubCategoryController : BaseController
         if (ModelState.IsValid)
         {
             await _subCategoryService.CreateAsync(subCategory, CurrentUserId);
-            TempData["Success"] = "SubCategory created successfully!";
+            ShowMessage(MessageType.Success, "SubCategory created successfully!");
             return RedirectToAction("SubCategoriesIndex");
         }
         await LoadCategoriesDropdown();
@@ -63,7 +63,7 @@ public class SubCategoryController : BaseController
             {
                 return NotFound();
             }
-            TempData["Success"] = "SubCategory updated successfully!";
+            ShowMessage(MessageType.Success, "SubCategory updated successfully!");
             return RedirectToAction("SubCategoriesIndex");
         }
         await LoadCategoriesDropdown();
@@ -74,7 +74,7 @@ public class SubCategoryController : BaseController
     public async Task<IActionResult> Delete(int id)
     {
         await _subCategoryService.ToggleStatusAsync(id, CurrentUserId);
-        TempData["Success"] = "SubCategory status updated successfully!";
+        ShowMessage(MessageType.Success, "SubCategory status updated successfully!");
         return RedirectToAction("SubCategoriesIndex");
     }
     private async Task LoadCategoriesDropdown()
