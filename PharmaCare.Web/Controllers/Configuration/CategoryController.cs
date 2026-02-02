@@ -82,22 +82,22 @@ public class CategoryController : BaseController
     {
         var saleAccounts = await _categoryService.GetAccountsByTypeAsync(8);
         ViewBag.SaleAccounts = new SelectList(
-            saleAccounts.Select(a => new { a.AccountID, Display = a.Code + " - " + a.Name }),
+            saleAccounts.Select(a => new { a.AccountID, Display = a.Name }),
             "AccountID", "Display");
 
         var stockAccounts = await _categoryService.GetAccountsByTypeAsync(6);
         ViewBag.StockAccounts = new SelectList(
-            stockAccounts.Select(a => new { a.AccountID, Display = a.Code + " - " + a.Name }),
+            stockAccounts.Select(a => new { a.AccountID, Display = a.Name }),
             "AccountID", "Display");
 
         var cogsAccounts = await _categoryService.GetAccountsByTypeAsync(7);
         ViewBag.COGSAccounts = new SelectList(
-            cogsAccounts.Select(a => new { a.AccountID, Display = a.Code + " - " + a.Name }),
+            cogsAccounts.Select(a => new { a.AccountID, Display = a.Name }),
             "AccountID", "Display");
 
         var damageAccounts = await _categoryService.GetAccountsByTypeAsync(9);
         ViewBag.DamageAccounts = new SelectList(
-            damageAccounts.Select(a => new { a.AccountID, Display = a.Code + " - " + a.Name }),
+            damageAccounts.Select(a => new { a.AccountID, Display = a.Name }),
             "AccountID", "Display");
     }
 }

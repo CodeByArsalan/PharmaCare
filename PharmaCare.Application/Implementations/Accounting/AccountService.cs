@@ -33,7 +33,7 @@ public class AccountService : IAccountService
             .Include(a => a.AccountSubhead)
             .Include(a => a.AccountHead)
             .Include(a => a.AccountType)
-            .OrderBy(a => a.Code)
+            .OrderBy(a => a.Name)
             .ToListAsync();
     }
 
@@ -62,7 +62,7 @@ public class AccountService : IAccountService
         var existing = await _repository.FirstOrDefaultAsync(a => a.AccountID == account.AccountID);
         if (existing == null) return false;
 
-        existing.Code = account.Code;
+
         existing.Name = account.Name;
         existing.AccountHead_ID = account.AccountHead_ID;
         existing.AccountSubhead_ID = account.AccountSubhead_ID;

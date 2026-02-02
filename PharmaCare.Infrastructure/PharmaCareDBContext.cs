@@ -290,7 +290,7 @@ public class PharmaCareDBContext : IdentityDbContext<User, IdentityRole<int>, in
         {
             entity.ToTable("Accounts");
             entity.HasKey(e => e.AccountID);
-            entity.Property(e => e.Code).IsRequired().HasMaxLength(20);
+
             entity.Property(e => e.Name).IsRequired().HasMaxLength(200);
             entity.HasOne(e => e.AccountHead)
                 .WithMany(s => s.Accounts)
@@ -304,7 +304,7 @@ public class PharmaCareDBContext : IdentityDbContext<User, IdentityRole<int>, in
                 .WithMany(t => t.Accounts)
                 .HasForeignKey(e => e.AccountType_ID)
                 .OnDelete(DeleteBehavior.Restrict);
-            entity.HasIndex(e => e.Code).IsUnique();
+
 
         });
 

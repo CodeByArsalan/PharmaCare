@@ -34,7 +34,7 @@
                         {
                             foreach (var type in voucherTypes)
                             {
-                                <option value="@type.VoucherTypeID">@type.Code - @type.Name</option>
+                                <option value="@type.VoucherTypeID">@type.Name</option>
                             }
                         }
                     </select>
@@ -62,7 +62,7 @@
                 </button>
             </div>
             <div class="table-responsive">
-                <table class="table table-bordered" id="detailsTable">
+                <table class="table table-hover table-bordered" id="detailsTable">
                     <thead class="table-light">
                         <tr>
                             <th style="width: 30%">Account</th>
@@ -84,7 +84,7 @@
                                             foreach (var acc in accounts)
                                             {
                                                 <!option value="@acc.AccountID" @(acc.AccountID == Model.VoucherDetails[i].Account_ID ? "selected" : "")>
-                                                    @acc.Code - @acc.Name
+                                                    @acc.Name
                                                 </!option>
                                             }
                                         }
@@ -149,7 +149,7 @@
                                 {
                                     foreach (var acc in accounts)
                                     {
-                                        <option value="@acc.AccountID">@acc.Code - @acc.Name</option>
+                                        <option value="@acc.AccountID">@acc.Name</option>
                                     }
                                 }
                             </select>

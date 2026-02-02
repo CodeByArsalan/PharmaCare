@@ -11,11 +11,16 @@ namespace PharmaCare.Application.Implementations.Configuration;
 public class PartyService : IPartyService
 {
     private readonly IRepository<Party> _repository;
+    private readonly IRepository<PharmaCare.Domain.Entities.Accounting.Account> _accountRepository;
     private readonly IUnitOfWork _unitOfWork;
 
-    public PartyService(IRepository<Party> repository, IUnitOfWork unitOfWork)
+    public PartyService(
+        IRepository<Party> repository, 
+        IRepository<PharmaCare.Domain.Entities.Accounting.Account> accountRepository,
+        IUnitOfWork unitOfWork)
     {
         _repository = repository;
+        _accountRepository = accountRepository;
         _unitOfWork = unitOfWork;
     }
 
@@ -37,6 +42,43 @@ public class PartyService : IPartyService
         party.IsActive = true;
 
         await _repository.AddAsync(party);
+
+        // Automate Account Creation
+        int headId = 0;
+        int subheadId = 0;
+        int typeId = 0;
+
+        if (party.PartyType.Equals("Supplier", StringComparison.OrdinalIgnoreCase))
+        {
+            headId = 6;
+            subheadId = 5;
+            typeId = 4;
+        }
+        else if (party.PartyType.Equals("Customer", StringComparison.OrdinalIgnoreCase) || 
+                 party.PartyType.Equals("Both", StringComparison.OrdinalIgnoreCase))
+        {
+            headId = 1;
+            subheadId = 2;
+            typeId = 3;
+        }
+
+        if (headId > 0 && subheadId > 0)
+        {
+            var account = new PharmaCare.Domain.Entities.Accounting.Account
+            {
+                Name = party.Name,
+                AccountHead_ID = headId,
+                AccountSubhead_ID = subheadId,
+                AccountType_ID = typeId,
+                IsSystemAccount = false,
+                IsActive = true,
+                CreatedAt = DateTime.Now,
+                CreatedBy = userId
+            };
+
+            await _accountRepository.AddAsync(account);
+        }
+
         await _unitOfWork.SaveChangesAsync();
         
         return party;

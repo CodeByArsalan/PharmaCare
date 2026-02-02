@@ -95,14 +95,14 @@ public class CategoryService : ICategoryService
     {
         return await _accountRepository.Query()
             .Where(a => a.IsActive)
-            .OrderBy(a => a.Code)
+            .OrderBy(a => a.Name)
             .ToListAsync();
     }
     public async Task<IEnumerable<Account>> GetAccountsByTypeAsync(int typeId)
     {
         return await _accountRepository.Query()
             .Where(a => a.IsActive && a.AccountType_ID == typeId)
-            .OrderBy(a => a.Code)
+            .OrderBy(a => a.Name)
             .ToListAsync();
     }
 }

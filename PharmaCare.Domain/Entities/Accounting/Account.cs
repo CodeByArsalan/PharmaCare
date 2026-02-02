@@ -13,9 +13,7 @@ public class Account : BaseEntityWithStatus
     [Key]
     public int AccountID { get; set; }
 
-    [Required]
-    [StringLength(20)]
-    public string Code { get; set; } = string.Empty;
+
 
     [Required]
     [StringLength(200)]
