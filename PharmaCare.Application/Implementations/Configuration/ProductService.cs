@@ -36,12 +36,57 @@ public class ProductService : IProductService
 
     public async Task<IEnumerable<Product>> GetAllAsync()
     {
-        return await _repository.Query()
+        // Default behavior: Top 50 newest products
+        return await GetFilteredProductsAsync(null, null, null, null);
+    }
+
+    public async Task<IEnumerable<Product>> GetFilteredProductsAsync(int? categoryId, int? subCategoryId, bool? isActive, string? searchTerm)
+    {
+        var query = _repository.Query()
             .Include(p => p.SubCategory)
             .Include(p => p.Category)
-            .OrderByDescending(p => p.IsActive)
-            .ThenBy(p => p.Name)
-            .ToListAsync();
+            .AsQueryable();
+
+        if (categoryId.HasValue)
+        {
+            query = query.Where(p => p.Category_ID == categoryId.Value);
+        }
+
+        if (subCategoryId.HasValue)
+        {
+            query = query.Where(p => p.SubCategory_ID == subCategoryId.Value);
+        }
+
+        if (isActive.HasValue)
+        {
+            query = query.Where(p => p.IsActive == isActive.Value);
+        }
+
+        if (!string.IsNullOrWhiteSpace(searchTerm))
+        {
+            searchTerm = searchTerm.ToLower();
+            query = query.Where(p => p.Name.ToLower().Contains(searchTerm) || 
+                                     (p.ShortCode != null && p.ShortCode.ToLower().Contains(searchTerm)));
+        }
+
+        // Apply sorting: Order by ProductID descending (newest first)
+        query = query.OrderByDescending(p => p.ProductID);
+
+        // Limit results if no search/filter to verify "Top 50" requirement for default view
+        // But users might want to see all filtered results. 
+        // Instructions said: "Default Display: Initially display the top 50 products"
+        // So applied only when no filters are present? Or always top 50?
+        // Usually filtering implies seeing all matches. Limiting might confuse.
+        // I will limit to 50 only if no filters are provided (initial load).
+        
+        bool hasFilters = categoryId.HasValue || subCategoryId.HasValue || isActive.HasValue || !string.IsNullOrWhiteSpace(searchTerm);
+        
+        if (!hasFilters)
+        {
+            query = query.Take(50);
+        }
+
+        return await query.ToListAsync();
     }
 
     public async Task<Product?> GetByIdAsync(int id)
@@ -155,7 +200,7 @@ public class ProductService : IProductService
         {
             var existingPrice = existingPrices.FirstOrDefault(pp => pp.PriceType_ID == priceDto.PriceTypeId);
 
-            if (priceDto.IsSelected)
+            if (priceDto.Price > 0)
             {
                 if (existingPrice != null)
                 {

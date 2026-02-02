@@ -61,7 +61,6 @@
                         <table class="table table-bordered table-hover">
                             <thead class="table-dark">
                                 <tr>
-                                    <th style="width: 50px;" class="text-center">Select</th>
                                     <th>Price Type</th>
                                     <th style="width: 300px;">Price</th>
                                 </tr>
@@ -70,18 +69,16 @@
                                 @for (int i = 0; i < Model.ProductPrices.Count; i++)
                                 {
                                     <tr>
-                                        <td class="text-center">
+                                        <td>
                                             <input type="hidden" asp-for="ProductPrices[i].PriceTypeId" />
                                             <input type="hidden" asp-for="ProductPrices[i].PriceTypeName" />
-                                            <input asp-for="ProductPrices[i].IsSelected" class="form-check-input price-check" data-index="@i" />
+                                            @Model.ProductPrices[i].PriceTypeName
                                         </td>
-                                        <td>@Model.ProductPrices[i].PriceTypeName</td>
                                         <td>
                                             <div class="input-group">
                                                 <span class="input-group-text">PKR</span>
                                                 <input asp-for="ProductPrices[i].Price" type="number" step="0.01" 
-                                                       class="form-control price-input" data-index="@i" 
-                                                       disabled="@(!Model.ProductPrices[i].IsSelected ? "disabled" : null)" />
+                                                       class="form-control" placeholder="0.00" />
                                             </div>
                                         </td>
                                     </tr>
@@ -104,18 +101,7 @@
 @section Scripts {
     <script>
         $(document).ready(function() {
-            // Price Checkbox Logic
-            $('.price-check').change(function() {
-                var index = $(this).data('index');
-                var input = $('.price-input[data-index="' + index + '"]');
-                if($(this).is(':checked')) {
-                    input.prop('disabled', false);
-                    input.focus();
-                } else {
-                    input.prop('disabled', true);
-                    input.val(0.00);
-                }
-            });
+
 
             // Cascading Sub-Category Logic
             $('#Category_ID').change(function() {

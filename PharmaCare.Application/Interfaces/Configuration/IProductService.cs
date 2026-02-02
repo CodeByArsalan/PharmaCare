@@ -12,6 +12,7 @@ public interface IProductService
     Task<Product?> GetByIdAsync(int id);
     Task<Product> CreateAsync(Product product, int userId);
     Task<bool> UpdateAsync(Product product, int userId);
+    Task<IEnumerable<Product>> GetFilteredProductsAsync(int? categoryId, int? subCategoryId, bool? isActive, string? searchTerm);
     /// <summary>
     /// Toggles the active status of a product
     /// </summary>

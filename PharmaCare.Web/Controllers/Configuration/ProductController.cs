@@ -1,4 +1,5 @@
 using Microsoft.AspNetCore.Mvc;
+using Microsoft.AspNetCore.Mvc.Rendering;
 using PharmaCare.Application.Interfaces.Configuration;
 using PharmaCare.Domain.Entities.Configuration;
 using PharmaCare.ViewModels;
@@ -14,10 +15,54 @@ public class ProductController : BaseController
         _productService = productService;
     }
 
-    public async Task<IActionResult> ProductsIndex()
+    public async Task<IActionResult> ProductsIndex(int? categoryId, int? subCategoryId, int? status, string? searchTerm, string? activeTab)
     {
-        var products = await _productService.GetAllAsync();
-        return View("ProductsIndex", products);
+        // Populate Dropdowns for filter
+        var categories = await _productService.GetCategoriesForDropdownAsync();
+        ViewBag.Categories = new SelectList(categories, "CategoryID", "Name", categoryId);
+
+        if (categoryId.HasValue)
+        {
+            var subCategories = await _productService.GetSubCategoriesByCategoryIdAsync(categoryId.Value);
+            ViewBag.SubCategories = new SelectList(subCategories, "SubCategoryID", "Name", subCategoryId);
+        }
+        else
+        {
+            ViewBag.SubCategories = new SelectList(Enumerable.Empty<SelectListItem>());
+        }
+
+        // Status Logic: 1 = Active, 0 = Inactive, null = All
+        bool? isActive = status.HasValue ? (status.Value == 1) : null;
+        ViewBag.CurrentStatus = status;
+        ViewBag.CurrentSearch = searchTerm;
+        ViewBag.CurrentCategory = categoryId;
+        ViewBag.CurrentSubCategory = subCategoryId;
+
+        // Get Products
+        var products = await _productService.GetFilteredProductsAsync(categoryId, subCategoryId, isActive, searchTerm);
+
+        // Prepare Add Product form data
+        var priceTypes = await _productService.GetPriceTypesAsync();
+        var newProductVm = new ProductViewModel();
+        foreach (var pt in priceTypes)
+        {
+            newProductVm.ProductPrices.Add(new Application.DTOs.Configuration.ProductPriceDto
+            {
+                PriceTypeId = pt.PriceTypeID,
+                PriceTypeName = pt.PriceTypeName,
+                Price = 0
+            });
+        }
+
+        // Combine into ProductIndexViewModel
+        var vm = new ProductIndexViewModel
+        {
+            Products = products,
+            NewProduct = newProductVm,
+            ActiveTab = activeTab ?? "products"
+        };
+
+        return View("ProductsIndex", vm);
     }
 
     public async Task<IActionResult> AddProduct()
@@ -31,8 +76,7 @@ public class ProductController : BaseController
             {
                 PriceTypeId = pt.PriceTypeID,
                 PriceTypeName = pt.PriceTypeName,
-                Price = 0,
-                IsSelected = false
+                Price = 0
             });
         }
         
@@ -41,7 +85,7 @@ public class ProductController : BaseController
 
     [HttpPost]
     [ValidateAntiForgeryToken]
-    public async Task<IActionResult> AddProduct(ProductViewModel vm)
+    public async Task<IActionResult> AddProduct([Bind(Prefix = "NewProduct")] ProductViewModel vm)
     {
         if (ModelState.IsValid)
         {
@@ -52,25 +96,12 @@ public class ProductController : BaseController
             await _productService.SaveProductPricesAsync(createdProduct.ProductID, vm.ProductPrices, CurrentUserId);
             
             ShowMessage(MessageType.Success, "Product created successfully!");
-            return RedirectToAction("ProductsIndex");
+            return RedirectToAction("ProductsIndex", new { activeTab = "products" });
         }
         
-        // If failed, reload valid price types just in case (though model should hold them)
-        // Usually needed if we want to ensure names are correct if they weren't bound or were manipulated
-         if (!vm.ProductPrices.Any())
-         {
-             var priceTypes = await _productService.GetPriceTypesAsync();
-             foreach (var pt in priceTypes)
-             {
-                 vm.ProductPrices.Add(new Application.DTOs.Configuration.ProductPriceDto
-                 {
-                     PriceTypeId = pt.PriceTypeID,
-                     PriceTypeName = pt.PriceTypeName
-                 });
-             }
-         }
-        
-        return View(vm);
+        // On validation failure, redirect back to the index with the "add" tab active
+        ShowMessage(MessageType.Error, "Please correct the validation errors and try again.");
+        return RedirectToAction("ProductsIndex", new { activeTab = "add" });
     }
 
     public async Task<IActionResult> EditProduct(int id)
@@ -111,8 +142,7 @@ public class ProductController : BaseController
             {
                 PriceTypeId = pt.PriceTypeID,
                 PriceTypeName = pt.PriceTypeName,
-                Price = existing?.SalePrice ?? 0,
-                IsSelected = existing != null
+                Price = existing?.SalePrice ?? 0
             });
         }
 

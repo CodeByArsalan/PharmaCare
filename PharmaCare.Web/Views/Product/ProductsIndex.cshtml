@@ -1,4 +1,4 @@
-@model IEnumerable<PharmaCare.Domain.Entities.Configuration.Product>
+@model PharmaCare.ViewModels.ProductIndexViewModel
 @{
     ViewData["Title"] = "Product Management";
 }
@@ -9,9 +9,6 @@
         <i class="fas fa-pills"></i>
         Product Management
     </h4>
-    <a asp-action="AddProduct" class="btn btn-primary">
-        <i class="fas fa-plus me-2"></i>Add Product
-    </a>
 </div>
 
 @if (TempData["Success"] != null)
@@ -22,57 +19,207 @@
     </div>
 }
 
-<div class="card">
-    <div class="card-body">
-        <table class="table table-hover datatable">
-            <thead>
-                <tr>
-                    <th style="width: 60px;">S.No</th>
-                    <th>Category</th>
-                    <th>SubCategory</th>
-                    <th>Short Code</th>
-                    <th>Product Name</th>
-                    <th>Opening Price</th>
-                    <th>Opening Qty</th>
-                    <th>Status</th>
-                    <th class="text-end">Actions</th>
-                </tr>
-            </thead>
-            <tbody>
-                @{ int count = 1; }
-                @foreach (var item in Model)
-                {
-                    <tr>
-                        <td>@(count++)</td>
-                        <td>@(item.Category?.Name ?? "-")</td>
-                        <td>@(item.SubCategory?.Name ?? "-")</td>
-                        <td>@(item.ShortCode ?? "-")</td>
-                        <td><strong>@item.Name</strong></td>
-                        <td>@item.OpeningPrice.ToString("N2")</td>
-                        <td>@item.OpeningQuantity</td>
-                        <td>
-                            @if (item.IsActive)
-                            {
-                                <span class="badge bg-success">Active</span>
-                            }
-                            else
-                            {
-                                <span class="badge bg-danger">Inactive</span>
-                            }
-                        </td>
-                        <td class="text-end">
-                            <a asp-action="EditProduct" asp-route-id="@item.ProductID" class="btn btn-sm btn-outline-primary">
-                                <i class="fas fa-edit"></i>
-                            </a>
-                            <button type="button" class="btn btn-sm btn-outline-danger btn-delete" 
-                                    data-id="@item.ProductID" data-name="@item.Name">
-                                <i class="fas fa-trash"></i>
-                            </button>
-                        </td>
-                    </tr>
-                }
-            </tbody>
-        </table>
+<!-- Tabs Navigation -->
+<ul class="nav nav-tabs mb-4" id="productTabs" role="tablist">
+    <li class="nav-item" role="presentation">
+        <button class="nav-link @(Model.ActiveTab == "products" ? "active" : "")" id="products-tab" data-bs-toggle="tab" 
+                data-bs-target="#products-content" type="button" role="tab" aria-controls="products-content" 
+                aria-selected="@(Model.ActiveTab == "products" ? "true" : "false")">
+            <i class="fas fa-list me-2"></i>Products
+        </button>
+    </li>
+    <li class="nav-item" role="presentation">
+        <button class="nav-link @(Model.ActiveTab == "add" ? "active" : "")" id="add-tab" data-bs-toggle="tab" 
+                data-bs-target="#add-content" type="button" role="tab" aria-controls="add-content" 
+                aria-selected="@(Model.ActiveTab == "add" ? "true" : "false")">
+            <i class="fas fa-plus me-2"></i>Add Product
+        </button>
+    </li>
+</ul>
+
+<!-- Tab Content -->
+<div class="tab-content" id="productTabsContent">
+    <!-- Products List Tab -->
+    <div class="tab-pane fade @(Model.ActiveTab == "products" ? "show active" : "")" id="products-content" role="tabpanel" aria-labelledby="products-tab">
+        <!-- Filter Card -->
+        <div class="card mb-4">
+            <div class="card-body">
+                <form method="get" asp-action="ProductsIndex" id="filterForm">
+                    <input type="hidden" name="activeTab" value="products" />
+                    <div class="row g-3">
+                        <div class="col-md-3">
+                            <label class="form-label">Category</label>
+                            <select name="categoryId" id="categoryId" class="form-select" asp-items="ViewBag.Categories">
+                                <option value="">-- All Categories --</option>
+                            </select>
+                        </div>
+                        <div class="col-md-3">
+                            <label class="form-label">SubCategory</label>
+                            <select name="subCategoryId" id="subCategoryId" class="form-select" asp-items="ViewBag.SubCategories">
+                                <option value="">-- All SubCategories --</option>
+                            </select>
+                        </div>
+                        <div class="col-md-3">
+                            <label class="form-label">Status</label>
+                            <select name="status" id="filterStatus" class="form-select">
+                            </select>
+                        </div>
+                        <div class="col-md-3">
+                            <label class="form-label">Product Name</label>
+                            <div class="input-group">
+                                <input type="text" name="searchTerm" class="form-control" placeholder="Search by name or code..." value="@ViewBag.CurrentSearch">
+                                <button type="submit" class="btn btn-primary">
+                                    <i class="fas fa-search"></i>
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+                </form>
+            </div>
+        </div>
+
+        <!-- Products Table -->
+        <div class="card">
+            <div class="card-body">
+                <table class="table table-hover datatable">
+                    <thead>
+                        <tr>
+                            <th style="width: 60px;">S.No</th>
+                            <th>Category</th>
+                            <th>SubCategory</th>
+                            <th>Short Code</th>
+                            <th>Product Name</th>
+                            <th>Opening Price</th>
+                            <th>Opening Qty</th>
+                            <th>Status</th>
+                            <th class="text-end">Actions</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        @{ int count = 1; }
+                        @foreach (var item in Model.Products)
+                        {
+                            <tr>
+                                <td>@(count++)</td>
+                                <td>@(item.Category?.Name ?? "-")</td>
+                                <td>@(item.SubCategory?.Name ?? "-")</td>
+                                <td>@(item.ShortCode ?? "-")</td>
+                                <td><strong>@item.Name</strong></td>
+                                <td>@item.OpeningPrice.ToString("N2")</td>
+                                <td>@item.OpeningQuantity</td>
+                                <td>
+                                    @if (item.IsActive)
+                                    {
+                                        <span class="badge bg-success">Active</span>
+                                    }
+                                    else
+                                    {
+                                        <span class="badge bg-danger">Inactive</span>
+                                    }
+                                </td>
+                                <td class="text-end">
+                                    <a asp-action="EditProduct" asp-route-id="@item.ProductID" class="btn btn-sm btn-outline-primary">
+                                        <i class="fas fa-edit"></i>
+                                    </a>
+                                    <button type="button" class="btn btn-sm btn-outline-danger btn-delete" 
+                                            data-id="@item.ProductID" data-name="@item.Name">
+                                        <i class="fas fa-trash"></i>
+                                    </button>
+                                </td>
+                            </tr>
+                        }
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    </div>
+
+    <!-- Add Product Tab -->
+    <div class="tab-pane fade @(Model.ActiveTab == "add" ? "show active" : "")" id="add-content" role="tabpanel" aria-labelledby="add-tab">
+        <div class="card">
+            <div class="card-body">
+                <form asp-action="AddProduct" method="post">
+                    <div class="row g-3">
+                        <div class="col-md-6">
+                            <label class="form-label">Category <span class="text-danger">*</span></label>
+                            <select asp-for="NewProduct.Category_ID" asp-items="_combobox.GetActiveCategories()" class="form-select" id="addCategory_ID" required>
+                                <option value="">-- Select Category --</option>
+                            </select>
+                        </div>
+                        <div class="col-md-6">
+                            <label class="form-label">SubCategory <span class="text-danger">*</span></label>
+                            <select asp-for="NewProduct.SubCategory_ID" asp-items="_combobox.GetActiveSubCategories(Model.NewProduct.Category_ID ?? 0)" class="form-select" id="addSubCategory_ID" required>
+                                <option value="">-- Select SubCategory --</option>
+                            </select>
+                        </div>
+
+                        <div class="col-md-6">
+                            <label class="form-label">Short Code</label>
+                            <input asp-for="NewProduct.ShortCode" class="form-control" placeholder="Enter short code" />
+                        </div>
+                        <div class="col-md-6">
+                            <label class="form-label">Product Name <span class="text-danger">*</span></label>
+                            <input asp-for="NewProduct.Name" class="form-control" placeholder="Enter product name" required />
+                            <span asp-validation-for="NewProduct.Name" class="text-danger small"></span>
+                        </div>
+                        <div class="col-md-6">
+                            <label class="form-label">Opening Price <span class="text-danger">*</span></label>
+                            <input asp-for="NewProduct.OpeningPrice" type="number" step="0.01" class="form-control" placeholder="0.00" required />
+                        </div>
+                        <div class="col-md-6">
+                            <label class="form-label">Opening Quantity <span class="text-danger">*</span></label>
+                            <input asp-for="NewProduct.OpeningQuantity" type="number" class="form-control" placeholder="0" required />
+                        </div>
+                        <div class="col-md-6">
+                            <label class="form-label">Reorder Level</label>
+                            <input asp-for="NewProduct.ReorderLevel" type="number" class="form-control" placeholder="Minimum stock level" value="0" />
+                        </div>
+                    </div>
+
+                    <div class="row mt-4">
+                        <div class="col-12">
+                            <h5 class="mb-3">Pricing Configuration</h5>
+                            <div class="table-responsive">
+                                <table class="table table-bordered table-hover">
+                                    <thead class="table-dark">
+                                        <tr>
+                                            <th>Price Type</th>
+                                            <th style="width: 300px;">Price</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody>
+                                        @for (int i = 0; i < Model.NewProduct.ProductPrices.Count; i++)
+                                        {
+                                            <tr>
+                                                <td>
+                                                    <input type="hidden" asp-for="NewProduct.ProductPrices[i].PriceTypeId" />
+                                                    <input type="hidden" asp-for="NewProduct.ProductPrices[i].PriceTypeName" />
+                                                    @Model.NewProduct.ProductPrices[i].PriceTypeName
+                                                </td>
+                                                <td>
+                                                    <div class="input-group">
+                                                        <span class="input-group-text">PKR</span>
+                                                        <input asp-for="NewProduct.ProductPrices[i].Price" type="number" step="0.01" 
+                                                               class="form-control" placeholder="0.00" />
+                                                    </div>
+                                                </td>
+                                            </tr>
+                                        }
+                                    </tbody>
+                                </table>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="text-end mt-4">
+                        <button type="button" class="btn btn-outline-secondary me-2" onclick="switchToProductsTab()">Cancel</button>
+                        <button type="submit" class="btn btn-primary">
+                            <i class="fas fa-save me-2"></i>Save Product
+                        </button>
+                    </div>
+                </form>
+            </div>
+        </div>
     </div>
 </div>
 
@@ -83,6 +230,12 @@
 
 @section Scripts {
     <script>
+        // Switch to Products tab
+        function switchToProductsTab() {
+            var productsTab = new bootstrap.Tab(document.getElementById('products-tab'));
+            productsTab.show();
+        }
+
         document.querySelectorAll('.btn-delete').forEach(function(btn) {
             btn.addEventListener('click', function() {
                 const id = this.getAttribute('data-id');
@@ -106,6 +259,65 @@
                         form.submit();
                     }
                 });
+            });
+        });
+
+        // Cascading SubCategory for Filters
+        $(document).ready(function() {
+            // Populate Status dropdown
+            var currentStatus = '@ViewBag.CurrentStatus';
+            var $status = $('#filterStatus');
+            $status.append('<option value=""' + (currentStatus === '' ? ' selected' : '') + '>-- All Status --</option>');
+            $status.append('<option value="1"' + (currentStatus === '1' ? ' selected' : '') + '>Active</option>');
+            $status.append('<option value="0"' + (currentStatus === '0' ? ' selected' : '') + '>Inactive</option>');
+
+            $('#categoryId').change(function() {
+                var categoryId = $(this).val();
+                var $subCategory = $('#subCategoryId');
+                
+                $subCategory.empty();
+                $subCategory.append('<option value="">-- All SubCategories --</option>');
+
+                if (categoryId) {
+                    $.ajax({
+                        url: '/Product/GetSubCategoriesByCategoryId',
+                        type: 'GET',
+                        data: { categoryId: categoryId },
+                        success: function(data) {
+                            $.each(data, function(index, item) {
+                                $subCategory.append($('<option>', {
+                                    value: item.id,
+                                    text: item.name
+                                }));
+                            });
+                        }
+                    });
+                }
+            });
+
+            // Cascading SubCategory for Add Product Form
+            $('#addCategory_ID').change(function() {
+                var categoryId = $(this).val();
+                var $subCategory = $('#addSubCategory_ID');
+                
+                $subCategory.empty();
+                $subCategory.append('<option value="">-- Select SubCategory --</option>');
+
+                if (categoryId) {
+                    $.ajax({
+                        url: '/Product/GetSubCategoriesByCategoryId',
+                        type: 'GET',
+                        data: { categoryId: categoryId },
+                        success: function(data) {
+                            $.each(data, function(index, item) {
+                                $subCategory.append($('<option>', {
+                                    value: item.id,
+                                    text: item.name
+                                }));
+                            });
+                        }
+                    });
+                }
             });
         });
     </script>
