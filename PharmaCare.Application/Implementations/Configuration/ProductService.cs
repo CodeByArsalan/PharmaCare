@@ -122,6 +122,7 @@ public class ProductService : IProductService
         existing.OpeningPrice = product.OpeningPrice;
         existing.OpeningQuantity = product.OpeningQuantity;
         existing.ReorderLevel = product.ReorderLevel;
+        existing.UnitsInPack = product.UnitsInPack;
         existing.IsActive = product.IsActive;
         existing.UpdatedAt = DateTime.Now;
         existing.UpdatedBy = userId;

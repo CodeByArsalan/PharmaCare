@@ -106,7 +106,18 @@
                                 <td>@(item.ShortCode ?? "-")</td>
                                 <td><strong>@item.Name</strong></td>
                                 <td>@item.OpeningPrice.ToString("N2")</td>
-                                <td>@item.OpeningQuantity</td>
+                                <td>
+                                    @if (item.UnitsInPack > 1)
+                                    {
+                                        int boxes = item.OpeningQuantity / item.UnitsInPack;
+                                        int units = item.OpeningQuantity % item.UnitsInPack;
+                                        <span>@boxes Boxes, @units Units</span>
+                                    }
+                                    else
+                                    {
+                                        @item.OpeningQuantity
+                                    }
+                                </td>
                                 <td>
                                     @if (item.IsActive)
                                     {
@@ -167,8 +178,17 @@
                             <input asp-for="NewProduct.OpeningPrice" type="number" step="0.01" class="form-control" placeholder="0.00" required />
                         </div>
                         <div class="col-md-6">
-                            <label class="form-label">Opening Quantity <span class="text-danger">*</span></label>
-                            <input asp-for="NewProduct.OpeningQuantity" type="number" class="form-control" placeholder="0" required />
+                            <label class="form-label">Units In Pack <span class="text-danger">*</span></label>
+                            <input asp-for="NewProduct.UnitsInPack" type="number" class="form-control" value="1" min="1" required />
+                            <small class="text-muted">Enter 1 for single unit items</small>
+                        </div>
+                        <div class="col-md-3">
+                            <label class="form-label">Opening Boxes</label>
+                            <input asp-for="NewProduct.OpeningStockBoxes" type="number" class="form-control" placeholder="0" min="0" />
+                        </div>
+                        <div class="col-md-3">
+                            <label class="form-label">Opening Units</label>
+                            <input asp-for="NewProduct.OpeningStockUnits" type="number" class="form-control" placeholder="0" min="0" />
                         </div>
                         <div class="col-md-6">
                             <label class="form-label">Reorder Level</label>

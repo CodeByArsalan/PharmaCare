@@ -89,6 +89,9 @@ public class ProductController : BaseController
     {
         if (ModelState.IsValid)
         {
+            // Calculate Total Opening Quantity
+            vm.OpeningQuantity = (vm.OpeningStockBoxes * vm.UnitsInPack) + vm.OpeningStockUnits;
+
             // Create Product
             var createdProduct = await _productService.CreateAsync(vm, CurrentUserId);
             
@@ -123,12 +126,25 @@ public class ProductController : BaseController
             OpeningPrice = product.OpeningPrice,
             OpeningQuantity = product.OpeningQuantity,
             ReorderLevel = product.ReorderLevel,
+            UnitsInPack = product.UnitsInPack,
             IsActive = product.IsActive,
             CreatedAt = product.CreatedAt,
             CreatedBy = product.CreatedBy,
             UpdatedAt = product.UpdatedAt,
             UpdatedBy = product.UpdatedBy
         };
+
+        // Calculate Boxes and Units for display
+        if (vm.UnitsInPack > 0)
+        {
+            vm.OpeningStockBoxes = vm.OpeningQuantity / vm.UnitsInPack;
+            vm.OpeningStockUnits = vm.OpeningQuantity % vm.UnitsInPack;
+        }
+        else 
+        {
+            vm.OpeningStockBoxes = 0;
+            vm.OpeningStockUnits = vm.OpeningQuantity;
+        }
 
         // Load Prices
         var priceTypes = await _productService.GetPriceTypesAsync();
@@ -160,6 +176,11 @@ public class ProductController : BaseController
 
         if (ModelState.IsValid)
         {
+             // Calculate Total Opening Quantity on Edit (if needed to update inventory from here, 
+             // though usually Opening Stock is static after creation. 
+             // Assuming user can correct it here if they made a mistake)
+             vm.OpeningQuantity = (vm.OpeningStockBoxes * vm.UnitsInPack) + vm.OpeningStockUnits;
+
             var updated = await _productService.UpdateAsync(vm, CurrentUserId);
             if (!updated)
             {

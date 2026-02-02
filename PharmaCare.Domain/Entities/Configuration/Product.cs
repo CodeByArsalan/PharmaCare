@@ -42,4 +42,10 @@ public class Product : BaseEntityWithStatus
     /// Minimum stock level for reorder alerts
     /// </summary>
     public int ReorderLevel { get; set; }
+
+    /// <summary>
+    /// Number of units in a pack (e.g., 10 tablets per strip/box). Default is 1.
+    /// Used for unit conversion in inventory tracking.
+    /// </summary>
+    public int UnitsInPack { get; set; } = 1;
 }

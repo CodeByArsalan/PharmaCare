@@ -51,8 +51,19 @@
                 </div>
                 
                 <div class="col-md-6">
-                    <label class="form-label">Opening Quantity <span class="text-danger">*</span></label>
-                    <input asp-for="OpeningQuantity" type="number" class="form-control" placeholder="0" required />
+                    <label class="form-label">Units In Pack <span class="text-danger">*</span></label>
+                    <input asp-for="UnitsInPack" type="number" class="form-control" min="1" required />
+                     <small class="text-muted">Enter 1 for single unit items</small>
+                </div>
+                
+                <div class="col-md-3">
+                    <label class="form-label">Opening Boxes</label>
+                    <input asp-for="OpeningStockBoxes" type="number" class="form-control" min="0" />
+                </div>
+                
+                <div class="col-md-3">
+                    <label class="form-label">Opening Units</label>
+                    <input asp-for="OpeningStockUnits" type="number" class="form-control" min="0" />
                 </div>
                 
                 <div class="col-md-6">
