@@ -1,0 +1,161 @@
+@model IEnumerable<PharmaCare.Domain.Entities.Transactions.StockMain>
+@{
+    ViewData["Title"] = "Purchase Orders";
+}
+
+<!-- Page Header -->
+<div class="page-header">
+    <h4 class="page-title">
+        <i class="fas fa-file-invoice"></i>
+        Purchase Orders
+    </h4>
+    <a asp-action="AddPurchaseOrder" class="btn btn-primary">
+        <i class="fas fa-plus me-2"></i>Add Purchase Order
+    </a>
+</div>
+
+<div class="card">
+    <div class="card-body p-0">
+        <table class="table table-hover mb-0" id="purchaseOrdersTable">
+            <thead>
+                <tr>
+                    <th style="width: 50px;">S.No</th>
+                    <th>PO Number</th>
+                    <th>Date</th>
+                    <th>Supplier</th>
+                    <th class="text-end">Amount</th>
+                    <th>Status</th>
+                    <th class="text-end" style="width: 200px;">Actions</th>
+                </tr>
+            </thead>
+            <tbody>
+                @if (Model.Any())
+                {
+                    var sno = 1;
+                    @foreach (var item in Model)
+                    {
+                        <tr>
+                            <td>@(sno++)</td>
+                            <td><strong>@item.TransactionNo</strong></td>
+                            <td>@item.TransactionDate.ToString("dd/MM/yyyy")</td>
+                            <td>@item.Party?.Name</td>
+                            <td class="text-end">@item.TotalAmount.ToString("N2")</td>
+                            <td>
+                                @if (item.Status == "Draft")
+                                {
+                                    <span class="badge bg-warning">Draft</span>
+                                }
+                                else if (item.Status == "Approved")
+                                {
+                                    <span class="badge bg-success">Approved</span>
+                                }
+                                else if (item.Status == "Void")
+                                {
+                                    <span class="badge bg-danger">Void</span>
+                                }
+                            </td>
+                            <td class="text-end">
+                                @if (item.Status == "Draft")
+                                {
+                                    <a asp-action="EditPurchaseOrder" asp-route-id="@item.StockMainID" class="btn btn-sm btn-outline-primary" title="Edit">
+                                        <i class="fas fa-edit"></i>
+                                    </a>
+                                    <button type="button" class="btn btn-sm btn-outline-success btn-approve" 
+                                            data-id="@item.StockMainID" data-no="@item.TransactionNo" title="Approve">
+                                        <i class="fas fa-check"></i>
+                                    </button>
+                                    <button type="button" class="btn btn-sm btn-outline-danger btn-delete" 
+                                            data-id="@item.StockMainID" data-no="@item.TransactionNo" title="Cancel">
+                                        <i class="fas fa-times"></i>
+                                    </button>
+                                }
+                                else
+                                {
+                                    <span class="text-muted small">No actions</span>
+                                }
+                            </td>
+                        </tr>
+                    }
+                }
+                else
+                {
+                    <tr>
+                        <td colspan="7" class="text-center py-4">
+                            <div class="empty-state">
+                                <i class="fas fa-file-invoice fa-3x text-muted mb-3"></i>
+                                <p class="mb-0">No purchase orders found. Click "Add Purchase Order" to create one.</p>
+                            </div>
+                        </td>
+                    </tr>
+                }
+            </tbody>
+        </table>
+    </div>
+</div>
+
+<!-- Hidden forms for approve and delete -->
+<form id="approveForm" method="post" asp-action="Approve" style="display: none;">
+    @Html.AntiForgeryToken()
+    <input type="hidden" name="id" id="approveId" />
+</form>
+
+<form id="deleteForm" method="post" asp-action="Delete" style="display: none;">
+    @Html.AntiForgeryToken()
+    <input type="hidden" name="id" id="deleteId" />
+</form>
+
+@section Scripts {
+    <script>
+        // Approve button handler
+        document.querySelectorAll('.btn-approve').forEach(function(btn) {
+            btn.addEventListener('click', function() {
+                const id = this.getAttribute('data-id');
+                const no = this.getAttribute('data-no');
+                
+                Swal.fire({
+                    title: 'Approve Purchase Order?',
+                    text: `Are you sure you want to approve "${no}"?`,
+                    icon: 'question',
+                    showCancelButton: true,
+                    confirmButtonColor: '#10b981',
+                    cancelButtonColor: '#64748b',
+                    confirmButtonText: 'Yes, approve it!',
+                    cancelButtonText: 'Cancel',
+                    background: '#1e293b',
+                    color: '#f1f5f9'
+                }).then((result) => {
+                    if (result.isConfirmed) {
+                        document.getElementById('approveId').value = id;
+                        document.getElementById('approveForm').submit();
+                    }
+                });
+            });
+        });
+
+        // Delete button handler
+        document.querySelectorAll('.btn-delete').forEach(function(btn) {
+            btn.addEventListener('click', function() {
+                const id = this.getAttribute('data-id');
+                const no = this.getAttribute('data-no');
+                
+                Swal.fire({
+                    title: 'Cancel Purchase Order?',
+                    text: `Are you sure you want to cancel "${no}"?`,
+                    icon: 'warning',
+                    showCancelButton: true,
+                    confirmButtonColor: '#dc2626',
+                    cancelButtonColor: '#64748b',
+                    confirmButtonText: 'Yes, cancel it!',
+                    cancelButtonText: 'No',
+                    background: '#1e293b',
+                    color: '#f1f5f9'
+                }).then((result) => {
+                    if (result.isConfirmed) {
+                        document.getElementById('deleteId').value = id;
+                        document.getElementById('deleteForm').submit();
+                    }
+                });
+            });
+        });
+    </script>
+}

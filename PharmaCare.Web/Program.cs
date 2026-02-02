@@ -89,6 +89,11 @@ builder.Services.AddScoped<IAccountSubHeadService, AccountSubHeadService>();
 builder.Services.AddScoped<IAccountService, AccountService>();
 builder.Services.AddScoped<IJournalVoucherService, JournalVoucherService>();
 
+// Purchase Management Services
+builder.Services.AddScoped<IPurchaseOrderService, PurchaseOrderService>();
+builder.Services.AddScoped<IPurchaseService, PurchaseService>();
+builder.Services.AddScoped<IPurchaseReturnService, PurchaseReturnService>();
+
 // Logging Services
 builder.Services.AddScoped<IActivityLogService, ActivityLogService>();
 

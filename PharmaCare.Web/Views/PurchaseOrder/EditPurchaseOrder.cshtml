@@ -1,0 +1,262 @@
+@model PharmaCare.Domain.Entities.Transactions.StockMain
+@{
+    ViewData["Title"] = "Edit Purchase Order";
+}
+
+<!-- Page Header -->
+<div class="page-header">
+    <h4 class="page-title">
+        <i class="fas fa-edit"></i>
+        Edit Purchase Order - @Model.TransactionNo
+    </h4>
+    <a asp-action="PurchaseOrdersIndex" class="btn btn-outline-secondary">
+        <i class="fas fa-arrow-left me-2"></i>Back to List
+    </a>
+</div>
+
+<div class="card">
+    <div class="card-body">
+        <form asp-action="EditPurchaseOrder" method="post" id="purchaseOrderForm">
+            <input type="hidden" asp-for="StockMainID" />
+            <input type="hidden" asp-for="TransactionType_ID" />
+            <input type="hidden" asp-for="TransactionNo" />
+            <input type="hidden" asp-for="Status" />
+            <input type="hidden" asp-for="PaymentStatus" />
+            <input type="hidden" asp-for="CreatedAt" />
+            <input type="hidden" asp-for="CreatedBy" />
+
+            <!-- Header Section -->
+            <div class="row g-3 mb-4">
+                <div class="col-md-4">
+                    <label class="form-label">Supplier <span class="text-danger">*</span></label>
+                    <select asp-for="Party_ID" asp-items="ViewBag.Suppliers" class="form-select" required>
+                        <option value="">-- Select Supplier --</option>
+                    </select>
+                    <span asp-validation-for="Party_ID" class="text-danger small"></span>
+                </div>
+                <div class="col-md-4">
+                    <label class="form-label">Date <span class="text-danger">*</span></label>
+                    <input asp-for="TransactionDate" type="date" class="form-control" required />
+                    <span asp-validation-for="TransactionDate" class="text-danger small"></span>
+                </div>
+                <div class="col-md-4">
+                    <label class="form-label">Remarks</label>
+                    <input asp-for="Remarks" class="form-control" placeholder="Optional remarks" />
+                </div>
+            </div>
+
+            <!-- Line Items Section -->
+            <div class="card mb-4">
+                <div class="card-header d-flex justify-content-between align-items-center">
+                    <h6 class="mb-0"><i class="fas fa-list me-2"></i>Line Items</h6>
+                    <button type="button" class="btn btn-sm btn-primary" id="addLineBtn">
+                        <i class="fas fa-plus me-1"></i>Add Item
+                    </button>
+                </div>
+                <div class="card-body p-0">
+                    <div class="table-responsive">
+                        <table class="table table-bordered mb-0" id="lineItemsTable">
+                            <thead class="table-light">
+                                <tr>
+                                    <th style="width: 50px;">#</th>
+                                    <th style="min-width: 250px;">Product <span class="text-danger">*</span></th>
+                                    <th style="width: 120px;">Quantity <span class="text-danger">*</span></th>
+                                    <th style="width: 140px;">Unit Price <span class="text-danger">*</span></th>
+                                    <th style="width: 140px;">Line Total</th>
+                                    <th style="width: 60px;"></th>
+                                </tr>
+                            </thead>
+                            <tbody id="lineItemsBody">
+                                <!-- Dynamic rows will be added here -->
+                            </tbody>
+                            <tfoot>
+                                <tr class="table-light">
+                                    <td colspan="4" class="text-end"><strong>Sub Total:</strong></td>
+                                    <td class="text-end"><strong id="subTotalDisplay">0.00</strong></td>
+                                    <td></td>
+                                </tr>
+                            </tfoot>
+                        </table>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Totals Section -->
+            <div class="row g-3 mb-4">
+                <div class="col-md-4 offset-md-8">
+                    <div class="card">
+                        <div class="card-body">
+                            <div class="d-flex justify-content-between align-items-center">
+                                <strong>Total Amount:</strong>
+                                <strong class="fs-4" id="totalAmountDisplay" style="color: var(--bs-success);">0.00</strong>
+                            </div>
+                            <input type="hidden" asp-for="SubTotal" id="subTotal" />
+                            <input type="hidden" asp-for="TotalAmount" id="totalAmount" />
+                            <input type="hidden" asp-for="DiscountPercent" value="0" />
+                            <input type="hidden" asp-for="DiscountAmount" value="0" />
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <div class="text-end">
+                <a asp-action="PurchaseOrdersIndex" class="btn btn-outline-secondary me-2">Cancel</a>
+                <button type="submit" class="btn btn-primary">
+                    <i class="fas fa-save me-2"></i>Update Purchase Order
+                </button>
+            </div>
+        </form>
+    </div>
+</div>
+
+@section Scripts {
+    <script>
+        let products = [];
+        let rowIndex = 0;
+        // Project to avoid circular reference
+        const existingDetails = @Html.Raw(Json.Serialize(Model.StockDetails.Select(d => new {
+            product_ID = d.Product_ID,
+            quantity = d.Quantity,
+            unitPrice = d.UnitPrice,
+            costPrice = d.CostPrice,
+            lineTotal = d.LineTotal
+        })));
+
+        // Load products on page load
+        document.addEventListener('DOMContentLoaded', async function() {
+            const response = await fetch('@Url.Action("GetProducts")');
+            products = await response.json();
+            
+            // Load existing details
+            if (existingDetails && existingDetails.length > 0) {
+                existingDetails.forEach(detail => {
+                    addLineItem(detail);
+                });
+            } else {
+                addLineItem();
+            }
+            
+            calculateTotals();
+        });
+
+        // Add line item button
+        document.getElementById('addLineBtn').addEventListener('click', function() { addLineItem(); });
+
+        function addLineItem(detail = null) {
+            const tbody = document.getElementById('lineItemsBody');
+            const row = document.createElement('tr');
+            row.id = `row_${rowIndex}`;
+            
+            let productOptions = '<option value="">-- Select Product --</option>';
+            products.forEach(p => {
+                const selected = detail && detail.product_ID === p.id ? 'selected' : '';
+                productOptions += `<option value="${p.id}" data-cost="${p.costPrice}" ${selected}>${p.name}</option>`;
+            });
+
+            const quantity = detail ? detail.quantity : 1;
+            const unitPrice = detail ? detail.unitPrice : 0;
+            const costPrice = detail ? detail.costPrice : 0;
+            const lineTotal = detail ? detail.lineTotal : 0;
+
+            row.innerHTML = `
+                <td class="align-middle">${rowIndex + 1}</td>
+                <td>
+                    <select name="StockDetails[${rowIndex}].Product_ID" class="form-select product-select" required>
+                        ${productOptions}
+                    </select>
+                </td>
+                <td>
+                    <input type="number" name="StockDetails[${rowIndex}].Quantity" class="form-control quantity-input" 
+                           step="0.0001" min="0.0001" value="${quantity}" required />
+                </td>
+                <td>
+                    <input type="number" name="StockDetails[${rowIndex}].UnitPrice" class="form-control price-input" 
+                           step="0.01" min="0" value="${unitPrice}" required />
+                    <input type="hidden" name="StockDetails[${rowIndex}].CostPrice" class="cost-price-input" value="${costPrice}" />
+                </td>
+                <td>
+                    <input type="number" name="StockDetails[${rowIndex}].LineTotal" class="form-control line-total" 
+                           readonly value="${lineTotal}" />
+                </td>
+                <td class="text-center align-middle">
+                    <button type="button" class="btn btn-sm btn-outline-danger remove-row-btn">
+                        <i class="fas fa-trash"></i>
+                    </button>
+                </td>
+            `;
+
+            tbody.appendChild(row);
+            
+            // Add event listeners
+            row.querySelector('.product-select').addEventListener('change', onProductChange);
+            row.querySelector('.quantity-input').addEventListener('input', calculateLineTotal);
+            row.querySelector('.price-input').addEventListener('input', calculateLineTotal);
+            row.querySelector('.remove-row-btn').addEventListener('click', removeRow);
+
+            rowIndex++;
+        }
+
+        function onProductChange(e) {
+            const row = e.target.closest('tr');
+            const selectedOption = e.target.options[e.target.selectedIndex];
+            const costPrice = parseFloat(selectedOption.dataset.cost) || 0;
+            
+            row.querySelector('.cost-price-input').value = costPrice;
+            row.querySelector('.price-input').value = costPrice.toFixed(2);
+            calculateLineTotal({ target: row.querySelector('.quantity-input') });
+        }
+
+        function calculateLineTotal(e) {
+            const row = e.target.closest('tr');
+            const quantity = parseFloat(row.querySelector('.quantity-input').value) || 0;
+            const unitPrice = parseFloat(row.querySelector('.price-input').value) || 0;
+            const lineTotal = quantity * unitPrice;
+            
+            row.querySelector('.line-total').value = lineTotal.toFixed(2);
+            calculateTotals();
+        }
+
+        function removeRow(e) {
+            const tbody = document.getElementById('lineItemsBody');
+            if (tbody.children.length > 1) {
+                e.target.closest('tr').remove();
+                renumberRows();
+                calculateTotals();
+            } else {
+                Swal.fire({
+                    icon: 'warning',
+                    title: 'Cannot Remove',
+                    text: 'At least one line item is required.',
+                    background: '#1e293b',
+                    color: '#f1f5f9'
+                });
+            }
+        }
+
+        function renumberRows() {
+            const rows = document.querySelectorAll('#lineItemsBody tr');
+            rows.forEach((row, idx) => {
+                row.cells[0].textContent = idx + 1;
+                row.querySelector('.product-select').name = `StockDetails[${idx}].Product_ID`;
+                row.querySelector('.quantity-input').name = `StockDetails[${idx}].Quantity`;
+                row.querySelector('.price-input').name = `StockDetails[${idx}].UnitPrice`;
+                row.querySelector('.cost-price-input').name = `StockDetails[${idx}].CostPrice`;
+                row.querySelector('.line-total').name = `StockDetails[${idx}].LineTotal`;
+            });
+            rowIndex = rows.length;
+        }
+
+        function calculateTotals() {
+            const lineTotals = document.querySelectorAll('.line-total');
+            let total = 0;
+            lineTotals.forEach(input => {
+                total += parseFloat(input.value) || 0;
+            });
+
+            document.getElementById('subTotalDisplay').textContent = total.toFixed(2);
+            document.getElementById('subTotal').value = total.toFixed(2);
+            document.getElementById('totalAmountDisplay').textContent = total.toFixed(2);
+            document.getElementById('totalAmount').value = total.toFixed(2);
+        }
+    </script>
+}

@@ -1,0 +1,129 @@
+@model PharmaCare.Domain.Entities.Transactions.StockMain
+@{
+    ViewData["Title"] = "View Purchase Return";
+}
+
+<!-- Page Header -->
+<div class="page-header">
+    <h4 class="page-title">
+        <i class="fas fa-eye"></i>
+        Purchase Return Details - @Model.TransactionNo
+    </h4>
+    <a asp-action="PurchaseReturnsIndex" class="btn btn-outline-secondary">
+        <i class="fas fa-arrow-left me-2"></i>Back to List
+    </a>
+</div>
+
+<div class="card mb-4">
+    <div class="card-header">
+        <h6 class="mb-0"><i class="fas fa-info-circle me-2"></i>Transaction Information</h6>
+    </div>
+    <div class="card-body">
+        <div class="row">
+            <div class="col-md-3">
+                <label class="form-label text-muted small">Return Number</label>
+                <p class="mb-0"><strong>@Model.TransactionNo</strong></p>
+            </div>
+            <div class="col-md-3">
+                <label class="form-label text-muted small">Date</label>
+                <p class="mb-0">@Model.TransactionDate.ToString("dd/MM/yyyy")</p>
+            </div>
+            <div class="col-md-3">
+                <label class="form-label text-muted small">Supplier</label>
+                <p class="mb-0">@Model.Party?.Name</p>
+            </div>
+            <div class="col-md-3">
+                <label class="form-label text-muted small">Status</label>
+                <p class="mb-0">
+                    @if (Model.Status == "Approved")
+                    {
+                        <span class="badge bg-success">Approved</span>
+                    }
+                    else if (Model.Status == "Void")
+                    {
+                        <span class="badge bg-danger">Void</span>
+                    }
+                </p>
+            </div>
+        </div>
+        @if (Model.ReferenceStockMain != null)
+        {
+            <div class="row mt-3">
+                <div class="col-md-6">
+                    <label class="form-label text-muted small">Reference GRN</label>
+                    <p class="mb-0">@Model.ReferenceStockMain.TransactionNo</p>
+                </div>
+            </div>
+        }
+        @if (!string.IsNullOrEmpty(Model.Remarks))
+        {
+            <div class="row mt-3">
+                <div class="col-12">
+                    <label class="form-label text-muted small">Remarks</label>
+                    <p class="mb-0">@Model.Remarks</p>
+                </div>
+            </div>
+        }
+    </div>
+</div>
+
+<!-- Line Items -->
+<div class="card mb-4">
+    <div class="card-header">
+        <h6 class="mb-0"><i class="fas fa-list me-2"></i>Return Items</h6>
+    </div>
+    <div class="card-body p-0">
+        <table class="table table-bordered mb-0">
+            <thead class="table-light">
+                <tr>
+                    <th style="width: 50px;">#</th>
+                    <th>Product</th>
+                    <th class="text-end" style="width: 120px;">Quantity</th>
+                    <th class="text-end" style="width: 140px;">Cost Price</th>
+                    <th class="text-end" style="width: 140px;">Line Total</th>
+                </tr>
+            </thead>
+            <tbody>
+                @{ var lineNo = 1; }
+                @foreach (var detail in Model.StockDetails)
+                {
+                    <tr>
+                        <td>@(lineNo++)</td>
+                        <td>@detail.Product?.Name</td>
+                        <td class="text-end">@detail.Quantity.ToString("N4")</td>
+                        <td class="text-end">@detail.CostPrice.ToString("N2")</td>
+                        <td class="text-end">@detail.LineTotal.ToString("N2")</td>
+                    </tr>
+                }
+            </tbody>
+            <tfoot>
+                <tr class="table-warning">
+                    <td colspan="4" class="text-end"><strong>Total Return Amount:</strong></td>
+                    <td class="text-end"><strong>@Model.TotalAmount.ToString("N2")</strong></td>
+                </tr>
+            </tfoot>
+        </table>
+    </div>
+</div>
+
+<!-- Void Information -->
+@if (Model.Status == "Void")
+{
+    <div class="card border-danger">
+        <div class="card-header bg-danger text-white">
+            <h6 class="mb-0"><i class="fas fa-ban me-2"></i>Void Information</h6>
+        </div>
+        <div class="card-body">
+            <div class="row">
+                <div class="col-md-4">
+                    <label class="form-label text-muted small">Voided At</label>
+                    <p class="mb-0">@Model.VoidedAt?.ToString("dd/MM/yyyy HH:mm")</p>
+                </div>
+                <div class="col-md-8">
+                    <label class="form-label text-muted small">Reason</label>
+                    <p class="mb-0">@Model.VoidReason</p>
+                </div>
+            </div>
+        </div>
+    </div>
+}

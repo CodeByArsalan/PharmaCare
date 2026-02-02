@@ -1,0 +1,278 @@
+@model PharmaCare.Domain.Entities.Transactions.StockMain
+@{
+    ViewData["Title"] = "Add Purchase (GRN)";
+}
+
+<!-- Page Header -->
+<div class="page-header">
+    <h4 class="page-title">
+        <i class="fas fa-plus-circle"></i>
+        Add Purchase (GRN)
+    </h4>
+    <a asp-action="PurchasesIndex" class="btn btn-outline-secondary">
+        <i class="fas fa-arrow-left me-2"></i>Back to List
+    </a>
+</div>
+
+<div class="card">
+    <div class="card-body">
+        <form asp-action="AddPurchase" method="post" id="purchaseForm">
+            <!-- Header Section -->
+            <div class="row g-3 mb-4">
+                <div class="col-md-3">
+                    <label class="form-label">Supplier <span class="text-danger">*</span></label>
+                    <select asp-for="Party_ID" asp-items="ViewBag.Suppliers" class="form-select" id="supplierSelect" required>
+                        <option value="">-- Select Supplier --</option>
+                    </select>
+                    <span asp-validation-for="Party_ID" class="text-danger small"></span>
+                </div>
+                <div class="col-md-3">
+                    <label class="form-label">Date <span class="text-danger">*</span></label>
+                    <input asp-for="TransactionDate" type="date" class="form-control" required />
+                </div>
+                <div class="col-md-3">
+                    <label class="form-label">Reference PO</label>
+                    <select asp-for="ReferenceStockMain_ID" class="form-select" id="poSelect">
+                        <option value="">-- No PO (Direct Purchase) --</option>
+                    </select>
+                </div>
+                <div class="col-md-3">
+                    <label class="form-label">Remarks</label>
+                    <input asp-for="Remarks" class="form-control" placeholder="Optional remarks" />
+                </div>
+            </div>
+
+            <!-- Line Items Section -->
+            <div class="card mb-4">
+                <div class="card-header d-flex justify-content-between align-items-center">
+                    <h6 class="mb-0"><i class="fas fa-list me-2"></i>Line Items</h6>
+                    <button type="button" class="btn btn-sm btn-primary" id="addLineBtn">
+                        <i class="fas fa-plus me-1"></i>Add Item
+                    </button>
+                </div>
+                <div class="card-body p-0">
+                    <div class="table-responsive">
+                        <table class="table table-bordered mb-0">
+                            <thead class="table-light">
+                                <tr>
+                                    <th style="width: 50px;">#</th>
+                                    <th style="min-width: 250px;">Product <span class="text-danger">*</span></th>
+                                    <th style="width: 120px;">Quantity <span class="text-danger">*</span></th>
+                                    <th style="width: 140px;">Cost Price <span class="text-danger">*</span></th>
+                                    <th style="width: 140px;">Line Total</th>
+                                    <th style="width: 60px;"></th>
+                                </tr>
+                            </thead>
+                            <tbody id="lineItemsBody">
+                            </tbody>
+                            <tfoot>
+                                <tr class="table-light">
+                                    <td colspan="4" class="text-end"><strong>Sub Total:</strong></td>
+                                    <td class="text-end"><strong id="subTotalDisplay">0.00</strong></td>
+                                    <td></td>
+                                </tr>
+                            </tfoot>
+                        </table>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Totals Section -->
+            <div class="row g-3 mb-4">
+                <div class="col-md-6 offset-md-6">
+                    <div class="card bg-light">
+                        <div class="card-body">
+                            <div class="row g-2">
+                                <div class="col-6">
+                                    <label class="form-label">Discount %</label>
+                                    <input asp-for="DiscountPercent" type="number" step="0.01" min="0" max="100" 
+                                           class="form-control" id="discountPercent" value="0" />
+                                </div>
+                                <div class="col-6">
+                                    <label class="form-label">Discount Amount</label>
+                                    <input asp-for="DiscountAmount" type="number" step="0.01" min="0" 
+                                           class="form-control" id="discountAmount" value="0" readonly />
+                                </div>
+                                <div class="col-12">
+                                    <hr class="my-2" />
+                                    <div class="d-flex justify-content-between">
+                                        <strong>Total Amount:</strong>
+                                        <strong class="text-primary fs-5" id="totalAmountDisplay">0.00</strong>
+                                    </div>
+                                    <input type="hidden" asp-for="SubTotal" id="subTotal" />
+                                    <input type="hidden" asp-for="TotalAmount" id="totalAmount" />
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <div class="text-end">
+                <a asp-action="PurchasesIndex" class="btn btn-outline-secondary me-2">Cancel</a>
+                <button type="submit" class="btn btn-primary">
+                    <i class="fas fa-save me-2"></i>Save Purchase
+                </button>
+            </div>
+        </form>
+    </div>
+</div>
+
+@section Scripts {
+    <script>
+        let products = [];
+        let rowIndex = 0;
+
+        document.addEventListener('DOMContentLoaded', async function() {
+            const response = await fetch('@Url.Action("GetProducts")');
+            products = await response.json();
+            addLineItem();
+        });
+
+        // Supplier change - load POs
+        document.getElementById('supplierSelect').addEventListener('change', async function() {
+            const supplierId = this.value;
+            const poSelect = document.getElementById('poSelect');
+            poSelect.innerHTML = '<option value="">-- No PO (Direct Purchase) --</option>';
+            
+            if (supplierId) {
+                const response = await fetch(`@Url.Action("GetPurchaseOrders")?supplierId=${supplierId}`);
+                const pos = await response.json();
+                pos.forEach(po => {
+                    poSelect.innerHTML += `<option value="${po.id}" data-details='${JSON.stringify(po.details)}'>${po.transactionNo} - ${po.date} (${po.total.toFixed(2)})</option>`;
+                });
+            }
+        });
+
+        // PO change - load details
+        document.getElementById('poSelect').addEventListener('change', function() {
+            const selectedOption = this.options[this.selectedIndex];
+            if (selectedOption.value && selectedOption.dataset.details) {
+                const details = JSON.parse(selectedOption.dataset.details);
+                document.getElementById('lineItemsBody').innerHTML = '';
+                rowIndex = 0;
+                details.forEach(d => addLineItem(d));
+                calculateTotals();
+            }
+        });
+
+        document.getElementById('addLineBtn').addEventListener('click', function() { addLineItem(); });
+
+        function addLineItem(detail = null) {
+            const tbody = document.getElementById('lineItemsBody');
+            const row = document.createElement('tr');
+            
+            let productOptions = '<option value="">-- Select Product --</option>';
+            products.forEach(p => {
+                const selected = detail && detail.productId === p.id ? 'selected' : '';
+                productOptions += `<option value="${p.id}" data-cost="${p.costPrice}" ${selected}>${p.name}</option>`;
+            });
+
+            const quantity = detail ? detail.quantity : 1;
+            const costPrice = detail ? detail.costPrice : 0;
+            const lineTotal = detail ? detail.lineTotal : 0;
+
+            row.innerHTML = `
+                <td class="align-middle">${rowIndex + 1}</td>
+                <td>
+                    <select name="StockDetails[${rowIndex}].Product_ID" class="form-select product-select" required>
+                        ${productOptions}
+                    </select>
+                </td>
+                <td>
+                    <input type="number" name="StockDetails[${rowIndex}].Quantity" class="form-control quantity-input" 
+                           step="0.0001" min="0.0001" value="${quantity}" required />
+                </td>
+                <td>
+                    <input type="number" name="StockDetails[${rowIndex}].CostPrice" class="form-control cost-input" 
+                           step="0.01" min="0" value="${costPrice}" required />
+                    <input type="hidden" name="StockDetails[${rowIndex}].UnitPrice" class="unit-price-input" value="${costPrice}" />
+                </td>
+                <td>
+                    <input type="number" name="StockDetails[${rowIndex}].LineTotal" class="form-control line-total" 
+                           readonly value="${lineTotal}" />
+                    <input type="hidden" name="StockDetails[${rowIndex}].LineCost" class="line-cost" value="${lineTotal}" />
+                </td>
+                <td class="text-center align-middle">
+                    <button type="button" class="btn btn-sm btn-outline-danger remove-row-btn">
+                        <i class="fas fa-trash"></i>
+                    </button>
+                </td>
+            `;
+
+            tbody.appendChild(row);
+            
+            row.querySelector('.product-select').addEventListener('change', onProductChange);
+            row.querySelector('.quantity-input').addEventListener('input', calculateLineTotal);
+            row.querySelector('.cost-input').addEventListener('input', calculateLineTotal);
+            row.querySelector('.remove-row-btn').addEventListener('click', removeRow);
+
+            rowIndex++;
+        }
+
+        function onProductChange(e) {
+            const row = e.target.closest('tr');
+            const selectedOption = e.target.options[e.target.selectedIndex];
+            const costPrice = parseFloat(selectedOption.dataset.cost) || 0;
+            
+            row.querySelector('.cost-input').value = costPrice.toFixed(2);
+            row.querySelector('.unit-price-input').value = costPrice.toFixed(2);
+            calculateLineTotal({ target: row.querySelector('.quantity-input') });
+        }
+
+        function calculateLineTotal(e) {
+            const row = e.target.closest('tr');
+            const quantity = parseFloat(row.querySelector('.quantity-input').value) || 0;
+            const costPrice = parseFloat(row.querySelector('.cost-input').value) || 0;
+            const lineTotal = quantity * costPrice;
+            
+            row.querySelector('.line-total').value = lineTotal.toFixed(2);
+            row.querySelector('.line-cost').value = lineTotal.toFixed(2);
+            row.querySelector('.unit-price-input').value = costPrice.toFixed(2);
+            calculateTotals();
+        }
+
+        function removeRow(e) {
+            const tbody = document.getElementById('lineItemsBody');
+            if (tbody.children.length > 1) {
+                e.target.closest('tr').remove();
+                renumberRows();
+                calculateTotals();
+            }
+        }
+
+        function renumberRows() {
+            const rows = document.querySelectorAll('#lineItemsBody tr');
+            rows.forEach((row, idx) => {
+                row.cells[0].textContent = idx + 1;
+                row.querySelector('.product-select').name = `StockDetails[${idx}].Product_ID`;
+                row.querySelector('.quantity-input').name = `StockDetails[${idx}].Quantity`;
+                row.querySelector('.cost-input').name = `StockDetails[${idx}].CostPrice`;
+                row.querySelector('.unit-price-input').name = `StockDetails[${idx}].UnitPrice`;
+                row.querySelector('.line-total').name = `StockDetails[${idx}].LineTotal`;
+                row.querySelector('.line-cost').name = `StockDetails[${idx}].LineCost`;
+            });
+            rowIndex = rows.length;
+        }
+
+        function calculateTotals() {
+            const lineTotals = document.querySelectorAll('.line-total');
+            let subTotal = 0;
+            lineTotals.forEach(input => {
+                subTotal += parseFloat(input.value) || 0;
+            });
+
+            const discountPercent = parseFloat(document.getElementById('discountPercent').value) || 0;
+            const discountAmount = Math.round(subTotal * discountPercent / 100 * 100) / 100;
+            const totalAmount = subTotal - discountAmount;
+
+            document.getElementById('subTotalDisplay').textContent = subTotal.toFixed(2);
+            document.getElementById('subTotal').value = subTotal.toFixed(2);
+            document.getElementById('discountAmount').value = discountAmount.toFixed(2);
+            document.getElementById('totalAmountDisplay').textContent = totalAmount.toFixed(2);
+            document.getElementById('totalAmount').value = totalAmount.toFixed(2);
+        }
+
+        document.getElementById('discountPercent').addEventListener('input', calculateTotals);
+    </script>
+}
