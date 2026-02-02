@@ -118,8 +118,7 @@ public class AccountController : Controller
                 Email = model.Email,
                 FullName = model.FullName,
                 IsActive = true,
-                CreatedAt = DateTime.Now,
-                Store_ID = 1 // Default to Main Branch
+                CreatedAt = DateTime.Now
             };
 
             var result = await _userManager.CreateAsync(user, model.Password);

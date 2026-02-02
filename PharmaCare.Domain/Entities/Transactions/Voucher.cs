@@ -1,6 +1,5 @@
 using System.ComponentModel.DataAnnotations;
 using System.ComponentModel.DataAnnotations.Schema;
-using PharmaCare.Domain.Entities.Configuration;
 
 namespace PharmaCare.Domain.Entities.Transactions;
 
@@ -26,9 +25,6 @@ public class Voucher
 
     public DateTime VoucherDate { get; set; } = DateTime.Now;
 
-    [ForeignKey("Store")]
-    public int? Store_ID { get; set; }
-    public Store? Store { get; set; }
 
     // ========== TOTALS (must balance) ==========
     [Column(TypeName = "decimal(18,2)")]

@@ -1,4 +1,3 @@
-using PharmaCare.Domain.Entities.Configuration;
 using PharmaCare.Domain.Entities.Security;
 
 namespace PharmaCare.Application.Interfaces.Security;
@@ -9,7 +8,7 @@ namespace PharmaCare.Application.Interfaces.Security;
 public interface IUserService
 {
     /// <summary>
-    /// Get all users with their roles and store info.
+    /// Get all users with their roles info.
     /// </summary>
     Task<List<User>> GetAllUsersAsync();
 
@@ -42,9 +41,4 @@ public interface IUserService
     /// Get all roles for dropdown.
     /// </summary>
     Task<List<Role>> GetRolesForDropdownAsync();
-
-    /// <summary>
-    /// Get all stores for dropdown.
-    /// </summary>
-    Task<List<Store>> GetStoresForDropdownAsync();
 }

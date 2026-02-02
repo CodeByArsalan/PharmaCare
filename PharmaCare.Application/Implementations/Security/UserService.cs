@@ -1,6 +1,5 @@
 using PharmaCare.Application.Interfaces;
 using PharmaCare.Application.Interfaces.Security;
-using PharmaCare.Domain.Entities.Configuration;
 using PharmaCare.Domain.Entities.Security;
 
 namespace PharmaCare.Application.Implementations.Security;
@@ -13,20 +12,17 @@ public class UserService : IUserService
     private readonly IUserManager _userManager;
     private readonly IUserRoleRepository _userRoleRepository;
     private readonly IRoleRepository _roleRepository;
-    private readonly IRepository<Store> _storeRepository;
     private readonly IRepository<User> _userRepository;
 
     public UserService(
         IUserManager userManager,
         IUserRoleRepository userRoleRepository,
         IRoleRepository roleRepository,
-        IRepository<Store> storeRepository,
         IRepository<User> userRepository)
     {
         _userManager = userManager;
         _userRoleRepository = userRoleRepository;
         _roleRepository = roleRepository;
-        _storeRepository = storeRepository;
         _userRepository = userRepository;
     }
 
@@ -85,7 +81,6 @@ public class UserService : IUserService
         existingUser.Email = user.Email;
         existingUser.UserName = user.Email;
         existingUser.PhoneNumber = user.PhoneNumber;
-        existingUser.Store_ID = user.Store_ID;
         existingUser.UpdatedAt = DateTime.Now;
         existingUser.UpdatedBy = updatedBy;
 
@@ -132,12 +127,6 @@ public class UserService : IUserService
     {
         return await _roleRepository.GetActiveRolesAsync();
     }
-
-    public async Task<List<Store>> GetStoresForDropdownAsync()
-    {
-        var stores = await _storeRepository.FindAsync(s => s.IsActive);
-        return stores.OrderBy(s => s.Name).ToList();
-    }
 }
 
 // Extension to add ToListAsync for IQueryable without EF Core dependency in Application layer
@@ -148,3 +137,4 @@ internal static class QueryableExtensions
         return await Task.Run(() => query.ToList());
     }
 }
+

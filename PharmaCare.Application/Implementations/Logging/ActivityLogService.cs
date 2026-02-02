@@ -4,7 +4,6 @@ using PharmaCare.Application.DTOs.Logging;
 using PharmaCare.Application.Interfaces.Logging;
 using PharmaCare.Domain.Entities.Logging;
 using PharmaCare.Domain.Enums;
-using PharmaCare.Domain.Interfaces;
 
 namespace PharmaCare.Application.Implementations.Logging;
 
@@ -12,16 +11,13 @@ public class ActivityLogService : IActivityLogService
 {
     private readonly IActivityLogRepository _logRepository;
     private readonly IHttpContextAccessor _httpContextAccessor;
-    private readonly IStoreContext _storeContext;
 
     public ActivityLogService(
         IActivityLogRepository logRepository,
-        IHttpContextAccessor httpContextAccessor,
-        IStoreContext storeContext)
+        IHttpContextAccessor httpContextAccessor)
     {
         _logRepository = logRepository;
         _httpContextAccessor = httpContextAccessor;
-        _storeContext = storeContext;
     }
 
     public async Task LogActivityAsync(
@@ -49,7 +45,7 @@ public class ActivityLogService : IActivityLogService
             UserAgent = GetUserAgent(httpContext),
             Timestamp = DateTime.Now,
             Description = description ?? GenerateDescription(activityType, entityName, entityId),
-            StoreId = _storeContext.CurrentStoreId
+            StoreId = null
         };
 
         await _logRepository.AddAsync(log);

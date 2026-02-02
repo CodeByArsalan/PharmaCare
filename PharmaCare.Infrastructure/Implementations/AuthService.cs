@@ -66,8 +66,8 @@ public class AuthService : IAuthService
 
     public async Task<int?> GetCurrentUserStoreIdAsync()
     {
-        var user = await GetCurrentUserAsync();
-        return user?.Store_ID;
+        // Store functionality removed - return null
+        return await Task.FromResult<int?>(null);
     }
 
     public async Task<bool> HasPermissionAsync(int userId, string controller, string action, string permissionType)

@@ -6,7 +6,6 @@ using Microsoft.EntityFrameworkCore.Diagnostics;
 using Microsoft.Extensions.DependencyInjection;
 using PharmaCare.Domain.Entities.Logging;
 using PharmaCare.Domain.Enums;
-using PharmaCare.Domain.Interfaces;
 
 namespace PharmaCare.Infrastructure.Interceptors;
 
@@ -17,19 +16,16 @@ public class AuditSaveChangesInterceptor : SaveChangesInterceptor
 {
     private readonly IHttpContextAccessor _httpContextAccessor;
     private readonly IServiceProvider _serviceProvider;
-    private readonly IStoreContext _storeContext;
 
     // Track audit entries during the save operation
     private List<AuditEntry> _pendingAuditEntries = new();
 
     public AuditSaveChangesInterceptor(
         IHttpContextAccessor httpContextAccessor,
-        IServiceProvider serviceProvider,
-        IStoreContext storeContext)
+        IServiceProvider serviceProvider)
     {
         _httpContextAccessor = httpContextAccessor;
         _serviceProvider = serviceProvider;
-        _storeContext = storeContext;
     }
 
     public override InterceptionResult<int> SavingChanges(
@@ -77,7 +73,6 @@ public class AuditSaveChangesInterceptor : SaveChangesInterceptor
         var userName = GetCurrentUserName(httpContext);
         var ipAddress = GetClientIpAddress(httpContext);
         var userAgent = GetUserAgent(httpContext);
-        var storeId = _storeContext.CurrentStoreId;
 
         foreach (var entry in context.ChangeTracker.Entries())
         {
@@ -91,7 +86,7 @@ public class AuditSaveChangesInterceptor : SaveChangesInterceptor
                 UserName = userName,
                 IpAddress = ipAddress,
                 UserAgent = userAgent,
-                StoreId = storeId,
+                StoreId = null,
                 EntityName = entry.Entity.GetType().Name,
                 Entry = entry
             };

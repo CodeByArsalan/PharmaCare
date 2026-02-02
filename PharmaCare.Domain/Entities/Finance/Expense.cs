@@ -1,7 +1,6 @@
 using System.ComponentModel.DataAnnotations;
 using System.ComponentModel.DataAnnotations.Schema;
 using PharmaCare.Domain.Entities.Base;
-using PharmaCare.Domain.Entities.Configuration;
 using PharmaCare.Domain.Entities.Accounting;
 using PharmaCare.Domain.Entities.Transactions;
 
@@ -19,9 +18,6 @@ public class Expense : BaseEntity
     public int ExpenseCategory_ID { get; set; }
     public ExpenseCategory? ExpenseCategory { get; set; }
 
-    [ForeignKey("Store")]
-    public int Store_ID { get; set; }
-    public Store? Store { get; set; }
 
     /// <summary>
     /// Source account (Cash/Bank) - CREDIT side

@@ -2,7 +2,6 @@ using Microsoft.AspNetCore.Identity;
 using Microsoft.EntityFrameworkCore;
 using PharmaCare.Infrastructure;
 using PharmaCare.Domain.Entities.Security;
-using PharmaCare.Domain.Interfaces;
 using PharmaCare.Application.Interfaces;
 using PharmaCare.Infrastructure.Implementations;
 using PharmaCare.Application.Interfaces.Configuration;
@@ -41,8 +40,6 @@ builder.Services.AddDbContext<PharmaCareDBContext>((serviceProvider, options) =>
     options.AddInterceptors(serviceProvider.GetRequiredService<AuditSaveChangesInterceptor>());
 });
 
-// Store Context for multi-tenancy
-builder.Services.AddScoped<IStoreContext, StoreContext>();
 
 // Identity
 builder.Services.AddDefaultIdentity<User>(options =>
@@ -83,7 +80,6 @@ builder.Services.AddScoped<IPageRepository, PageRepository>();
 builder.Services.AddScoped<IUserManager, UserManagerAdapter>();
 
 // Application Services - Clean Architecture
-builder.Services.AddScoped<IStoreService, StoreService>();
 builder.Services.AddScoped<ICategoryService, CategoryService>();
 builder.Services.AddScoped<ISubCategoryService, SubCategoryService>();
 builder.Services.AddScoped<IProductService, ProductService>();

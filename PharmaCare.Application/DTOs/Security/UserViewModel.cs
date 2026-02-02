@@ -23,9 +23,6 @@ public class UserViewModel
     [Display(Name = "Phone Number")]
     public string? PhoneNumber { get; set; }
 
-    [Display(Name = "Store")]
-    public int? Store_ID { get; set; }
-
     [DataType(DataType.Password)]
     [Display(Name = "Password")]
     [StringLength(100, MinimumLength = 6, ErrorMessage = "Password must be at least 6 characters.")]

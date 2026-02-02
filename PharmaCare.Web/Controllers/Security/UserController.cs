@@ -50,8 +50,7 @@ public class UserController : BaseController
         {
             FullName = model.FullName,
             Email = model.Email,
-            PhoneNumber = model.PhoneNumber,
-            Store_ID = model.Store_ID
+            PhoneNumber = model.PhoneNumber
         };
 
         var result = await _userService.CreateUserAsync(user, model.Password!, model.SelectedRoleIds, CurrentUserId);
@@ -83,7 +82,6 @@ public class UserController : BaseController
             FullName = user.FullName,
             Email = user.Email ?? string.Empty,
             PhoneNumber = user.PhoneNumber,
-            Store_ID = user.Store_ID,
             SelectedRoleIds = roleIds,
             IsActive = user.IsActive
         };
@@ -119,8 +117,7 @@ public class UserController : BaseController
             Id = model.Id,
             FullName = model.FullName,
             Email = model.Email,
-            PhoneNumber = model.PhoneNumber,
-            Store_ID = model.Store_ID
+            PhoneNumber = model.PhoneNumber
         };
 
         var result = await _userService.UpdateUserAsync(user, model.Password, model.SelectedRoleIds, CurrentUserId);
@@ -148,9 +145,6 @@ public class UserController : BaseController
     private async Task LoadDropdowns()
     {
         var roles = await _userService.GetRolesForDropdownAsync();
-        var stores = await _userService.GetStoresForDropdownAsync();
-
         ViewBag.Roles = roles;
-        ViewBag.Stores = new SelectList(stores, "StoreID", "Name");
     }
 }

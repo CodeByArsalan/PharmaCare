@@ -8,7 +8,7 @@ namespace PharmaCare.Domain.Entities.Transactions;
 
 /// <summary>
 /// Stock Main - Unified header for all inventory transactions.
-/// Replaces: GRN, Sale, PurchaseReturn, SalesReturn, StockTransfer, StockAdjustment
+/// Replaces: GRN, Sale, PurchaseReturn, SalesReturn, StockAdjustment
 /// </summary>
 public class StockMain : BaseEntity
 {
@@ -29,11 +29,7 @@ public class StockMain : BaseEntity
 
     public DateTime TransactionDate { get; set; } = DateTime.Now;
 
-    // ========== LOCATION & PARTY ==========
-    [ForeignKey("Store")]
-    public int Store_ID { get; set; }
-    public Store? Store { get; set; }
-
+    // ========== PARTY ==========
     [ForeignKey("Party")]
     public int? Party_ID { get; set; }
     public Party? Party { get; set; }
@@ -75,24 +71,15 @@ public class StockMain : BaseEntity
     public int? Voucher_ID { get; set; }
     public Voucher? Voucher { get; set; }
 
-    // ========== REFERENCE (FOR RETURNS/TRANSFERS) ==========
+    // ========== REFERENCE (FOR RETURNS) ==========
     /// <summary>
-    /// Links to original transaction (for returns) or paired transaction (for transfers)
+    /// Links to original transaction (for returns)
     /// </summary>
     [ForeignKey("ReferenceStockMain")]
     public int? ReferenceStockMain_ID { get; set; }
     public StockMain? ReferenceStockMain { get; set; }
 
-    // ========== TRANSFER SPECIFIC ==========
-    /// <summary>
-    /// Destination store for transfers
-    /// </summary>
-    [ForeignKey("DestinationStore")]
-    public int? DestinationStore_ID { get; set; }
-    public Store? DestinationStore { get; set; }
 
-    public int? ReceivedBy { get; set; }
-    public DateTime? ReceivedAt { get; set; }
 
     // ========== REMARKS ==========
     [StringLength(500)]

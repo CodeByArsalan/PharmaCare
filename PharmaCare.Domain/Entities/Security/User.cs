@@ -1,7 +1,6 @@
 using System.ComponentModel.DataAnnotations;
 using System.ComponentModel.DataAnnotations.Schema;
 using Microsoft.AspNetCore.Identity;
-using PharmaCare.Domain.Entities.Configuration;
 
 namespace PharmaCare.Domain.Entities.Security;
 
@@ -13,10 +12,6 @@ public class User : IdentityUser<int>
     [Required]
     [StringLength(100)]
     public string FullName { get; set; } = string.Empty;
-
-    [ForeignKey("Store")]
-    public int? Store_ID { get; set; }
-    public Store? Store { get; set; }
 
     public bool IsActive { get; set; } = true;
 

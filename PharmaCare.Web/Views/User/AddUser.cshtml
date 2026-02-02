@@ -40,13 +40,6 @@
                 </div>
                 
                 <div class="col-md-6">
-                    <label asp-for="Store_ID" class="form-label">Store</label>
-                    <select asp-for="Store_ID" asp-items="_combobox.GetActiveStores()" class="form-select">
-                        <option value="">-- Select Store --</option>
-                    </select>
-                </div>
-                
-                <div class="col-md-6">
                     <label asp-for="Password" class="form-label">Password <span class="text-danger">*</span></label>
                     <input asp-for="Password" type="password" class="form-control" placeholder="Enter password (min 6 characters)" />
                     <span asp-validation-for="Password" class="text-danger small"></span>

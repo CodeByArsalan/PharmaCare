@@ -1,8 +1,8 @@
 using System.ComponentModel.DataAnnotations;
 using System.ComponentModel.DataAnnotations.Schema;
 using PharmaCare.Domain.Entities.Base;
-using PharmaCare.Domain.Entities.Configuration;
 using PharmaCare.Domain.Entities.Accounting;
+using PharmaCare.Domain.Entities.Configuration;
 using PharmaCare.Domain.Entities.Transactions;
 
 namespace PharmaCare.Domain.Entities.Finance;
@@ -32,10 +32,6 @@ public class Payment : BaseEntity
     [ForeignKey("StockMain")]
     public int? StockMain_ID { get; set; }
     public StockMain? StockMain { get; set; }
-
-    [ForeignKey("Store")]
-    public int Store_ID { get; set; }
-    public Store? Store { get; set; }
 
     /// <summary>
     /// Cash/Bank account used for payment

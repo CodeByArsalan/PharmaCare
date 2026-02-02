@@ -34,9 +34,8 @@ public class SessionService : ISessionService
     {
         if (Session == null) return;
 
-        // Fetch user with store info
+        // Fetch user
         var user = await _context.Users
-            .Include(u => u.Store)
             .FirstOrDefaultAsync(u => u.Id == userId);
 
         if (user == null) return;
@@ -56,8 +55,8 @@ public class SessionService : ISessionService
             UserId = user.Id,
             FullName = user.FullName,
             Email = user.Email ?? string.Empty,
-            StoreId = user.Store_ID,
-            StoreName = user.Store?.Name,
+            StoreId = null,
+            StoreName = null,
             RoleIds = userRoles.Select(r => r.RoleID).ToList(),
             RoleNames = userRoles.Select(r => r.Name).ToList()
         };

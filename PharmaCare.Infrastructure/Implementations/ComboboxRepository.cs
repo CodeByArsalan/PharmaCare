@@ -14,20 +14,6 @@ public class ComboboxRepository : IComboboxRepository
 
     #region Configuration Dropdowns
 
-    public IEnumerable<SelectListItem> GetActiveStores(int? selectedValue = null)
-    {
-        return _context.Stores
-            .Where(s => s.IsActive)
-            .OrderBy(s => s.Name)
-            .Select(s => new SelectListItem
-            {
-                Value = s.StoreID.ToString(),
-                Text = s.Name,
-                Selected = selectedValue.HasValue && s.StoreID == selectedValue.Value
-            })
-            .ToList();
-    }
-
     public IEnumerable<SelectListItem> GetActiveCategories(int? selectedValue = null)
     {
         return _context.Categories

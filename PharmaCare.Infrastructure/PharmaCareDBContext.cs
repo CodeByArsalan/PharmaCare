@@ -5,9 +5,7 @@ using PharmaCare.Domain.Entities.Security;
 using PharmaCare.Domain.Entities.Configuration;
 using PharmaCare.Domain.Entities.Accounting;
 using PharmaCare.Domain.Entities.Transactions;
-using PharmaCare.Domain.Entities.Inventory;
 using PharmaCare.Domain.Entities.Finance;
-using PharmaCare.Domain.Interfaces;
 
 namespace PharmaCare.Infrastructure;
 
@@ -16,14 +14,9 @@ namespace PharmaCare.Infrastructure;
 /// </summary>
 public class PharmaCareDBContext : IdentityDbContext<User, IdentityRole<int>, int>
 {
-    private readonly IStoreContext _storeContext;
-
-    public PharmaCareDBContext(
-        DbContextOptions<PharmaCareDBContext> options,
-        IStoreContext storeContext)
+    public PharmaCareDBContext(DbContextOptions<PharmaCareDBContext> options)
         : base(options)
     {
-        _storeContext = storeContext;
     }
 
     // ========== SECURITY ==========
@@ -34,7 +27,6 @@ public class PharmaCareDBContext : IdentityDbContext<User, IdentityRole<int>, in
     public DbSet<RolePage> RolePages { get; set; } = null!;
 
     // ========== CONFIGURATION ==========
-    public DbSet<Store> Stores { get; set; } = null!;
     public DbSet<Category> Categories { get; set; } = null!;
     public DbSet<SubCategory> SubCategories { get; set; } = null!;
     public DbSet<Product> Products { get; set; } = null!;
@@ -57,8 +49,7 @@ public class PharmaCareDBContext : IdentityDbContext<User, IdentityRole<int>, in
     public DbSet<Voucher> Vouchers { get; set; } = null!;
     public DbSet<VoucherDetail> VoucherDetails { get; set; } = null!;
 
-    // ========== INVENTORY ==========
-    public DbSet<StoreInventory> StoreInventories { get; set; } = null!;
+
 
     // ========== FINANCE ==========
     public DbSet<ExpenseCategory> ExpenseCategories { get; set; } = null!;
@@ -169,13 +160,6 @@ public class PharmaCareDBContext : IdentityDbContext<User, IdentityRole<int>, in
         });
 
         // ========== CONFIGURATION ==========
-        builder.Entity<Store>(entity =>
-        {
-            entity.ToTable("Stores");
-            entity.HasKey(e => e.StoreID);
-            entity.Property(e => e.Name).IsRequired().HasMaxLength(100);
-
-        });
 
         builder.Entity<Category>(entity =>
         {
@@ -330,11 +314,6 @@ public class PharmaCareDBContext : IdentityDbContext<User, IdentityRole<int>, in
                 .HasForeignKey(e => e.TransactionType_ID)
                 .OnDelete(DeleteBehavior.Restrict);
 
-            entity.HasOne(e => e.Store)
-                .WithMany()
-                .HasForeignKey(e => e.Store_ID)
-                .OnDelete(DeleteBehavior.Restrict);
-
             entity.HasOne(e => e.Party)
                 .WithMany()
                 .HasForeignKey(e => e.Party_ID)
@@ -349,13 +328,6 @@ public class PharmaCareDBContext : IdentityDbContext<User, IdentityRole<int>, in
                 .WithMany()
                 .HasForeignKey(e => e.ReferenceStockMain_ID)
                 .OnDelete(DeleteBehavior.Restrict);
-
-            entity.HasOne(e => e.DestinationStore)
-                .WithMany()
-                .HasForeignKey(e => e.DestinationStore_ID)
-                .OnDelete(DeleteBehavior.Restrict);
-
-
         });
 
         builder.Entity<StockDetail>(entity =>
@@ -393,11 +365,6 @@ public class PharmaCareDBContext : IdentityDbContext<User, IdentityRole<int>, in
                 .HasForeignKey(e => e.VoucherType_ID)
                 .OnDelete(DeleteBehavior.Restrict);
 
-            entity.HasOne(e => e.Store)
-                .WithMany()
-                .HasForeignKey(e => e.Store_ID)
-                .OnDelete(DeleteBehavior.Restrict);
-
             entity.HasOne(e => e.ReversedByVoucher)
                 .WithOne()
                 .HasForeignKey<Voucher>(e => e.ReversedByVoucher_ID)
@@ -431,22 +398,6 @@ public class PharmaCareDBContext : IdentityDbContext<User, IdentityRole<int>, in
                 .OnDelete(DeleteBehavior.SetNull);
         });
 
-        // ========== INVENTORY ==========
-        builder.Entity<StoreInventory>(entity =>
-        {
-            entity.ToTable("StoreInventories");
-            entity.HasKey(e => e.StoreInventoryID);
-            entity.HasOne(e => e.Store)
-                .WithMany()
-                .HasForeignKey(e => e.Store_ID)
-                .OnDelete(DeleteBehavior.Cascade);
-            entity.HasOne(e => e.Product)
-                .WithMany()
-                .HasForeignKey(e => e.Product_ID)
-                .OnDelete(DeleteBehavior.Cascade);
-            entity.HasIndex(e => new { e.Store_ID, e.Product_ID }).IsUnique();
-        });
-
         // ========== FINANCE ==========
         builder.Entity<ExpenseCategory>(entity =>
         {
@@ -471,10 +422,6 @@ public class PharmaCareDBContext : IdentityDbContext<User, IdentityRole<int>, in
             entity.HasOne(e => e.ExpenseCategory)
                 .WithMany(c => c.Expenses)
                 .HasForeignKey(e => e.ExpenseCategory_ID)
-                .OnDelete(DeleteBehavior.Restrict);
-            entity.HasOne(e => e.Store)
-                .WithMany()
-                .HasForeignKey(e => e.Store_ID)
                 .OnDelete(DeleteBehavior.Restrict);
             entity.HasOne(e => e.SourceAccount)
                 .WithMany()
@@ -504,10 +451,6 @@ public class PharmaCareDBContext : IdentityDbContext<User, IdentityRole<int>, in
                 .WithMany()
                 .HasForeignKey(e => e.StockMain_ID)
                 .OnDelete(DeleteBehavior.SetNull);
-            entity.HasOne(e => e.Store)
-                .WithMany()
-                .HasForeignKey(e => e.Store_ID)
-                .OnDelete(DeleteBehavior.Restrict);
             entity.HasOne(e => e.Account)
                 .WithMany()
                 .HasForeignKey(e => e.Account_ID)

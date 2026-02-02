@@ -11,11 +11,6 @@ public interface IComboboxRepository
     #region Configuration Dropdowns
 
     /// <summary>
-    /// Gets active stores for dropdown.
-    /// </summary>
-    IEnumerable<SelectListItem> GetActiveStores(int? selectedValue = null);
-
-    /// <summary>
     /// Gets active categories for dropdown.
     /// </summary>
     IEnumerable<SelectListItem> GetActiveCategories(int? selectedValue = null);
