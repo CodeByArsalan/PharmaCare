@@ -15,4 +15,9 @@ public interface IPartyService
     /// Toggles the active status of a party
     /// </summary>
     Task<bool> ToggleStatusAsync(int id, int userId);
+
+    /// <summary>
+    /// Gets a party with their linked Account for accounting operations
+    /// </summary>
+    Task<Party?> GetByIdWithAccountAsync(int id);
 }

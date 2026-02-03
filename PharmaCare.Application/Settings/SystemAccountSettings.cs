@@ -11,4 +11,14 @@ public class SystemAccountSettings
     /// Account ID used for walking customer transactions.
     /// </summary>
     public int WalkingCustomerAccountId { get; set; }
+
+    /// <summary>
+    /// Account ID for Sales Revenue (Income).
+    /// </summary>
+    public int SalesRevenueAccountId { get; set; }
+
+    /// <summary>
+    /// Account ID for Cash (for immediate payments).
+    /// </summary>
+    public int CashAccountId { get; set; }
 }

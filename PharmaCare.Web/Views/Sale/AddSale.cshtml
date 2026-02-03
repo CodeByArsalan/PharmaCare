@@ -1,0 +1,298 @@
+@model PharmaCare.Domain.Entities.Transactions.StockMain
+@{
+    ViewData["Title"] = "Add Sale";
+}
+
+<!-- Page Header -->
+<div class="page-header">
+    <h4 class="page-title">
+        <i class="fas fa-plus-circle"></i>
+        Add Sale
+    </h4>
+    <a asp-action="SalesIndex" class="btn btn-outline-secondary">
+        <i class="fas fa-arrow-left me-2"></i>Back to List
+    </a>
+</div>
+
+<div class="card">
+    <div class="card-body">
+        <form asp-action="AddSale" method="post" id="saleForm">
+            <!-- Header Section -->
+            <div class="row g-3 mb-4">
+                <div class="col-md-4">
+                    <label class="form-label">Customer</label>
+                    <select asp-for="Party_ID" asp-items="ViewBag.Customers" class="form-select" id="customerSelect">
+                        <option value="">-- Walk-in Customer --</option>
+                    </select>
+                    <span asp-validation-for="Party_ID" class="text-danger small"></span>
+                </div>
+                <div class="col-md-4">
+                    <label class="form-label">Date <span class="text-danger">*</span></label>
+                    <input asp-for="TransactionDate" type="date" class="form-control" required />
+                </div>
+                <div class="col-md-4">
+                    <label class="form-label">Remarks</label>
+                    <input asp-for="Remarks" class="form-control" placeholder="Optional remarks" />
+                </div>
+            </div>
+
+            <!-- Line Items Section -->
+            <div class="card mb-4">
+                <div class="card-header d-flex justify-content-between align-items-center">
+                    <h6 class="mb-0"><i class="fas fa-list me-2"></i>Line Items</h6>
+                    <button type="button" class="btn btn-sm btn-primary" id="addLineBtn">
+                        <i class="fas fa-plus me-1"></i>Add Item
+                    </button>
+                </div>
+                <div class="card-body p-0">
+                    <div class="table-responsive">
+                        <table class="table table-bordered mb-0">
+                            <thead class="table-light">
+                                <tr>
+                                    <th style="width: 50px;">#</th>
+                                    <th style="min-width: 250px;">Product <span class="text-danger">*</span></th>
+                                    <th style="width: 120px;">Quantity <span class="text-danger">*</span></th>
+                                    <th style="width: 140px;">Unit Price <span class="text-danger">*</span></th>
+                                    <th style="width: 140px;">Line Total</th>
+                                    <th style="width: 60px;"></th>
+                                </tr>
+                            </thead>
+                            <tbody id="lineItemsBody">
+                            </tbody>
+                            <tfoot>
+                                <tr class="table-light">
+                                    <td colspan="4" class="text-end"><strong>Sub Total:</strong></td>
+                                    <td class="text-end"><strong id="subTotalDisplay">0.00</strong></td>
+                                    <td></td>
+                                </tr>
+                            </tfoot>
+                        </table>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Totals & Payment Section -->
+            <div class="row g-3 mb-4">
+                <div class="col-md-6 offset-md-6">
+                    <div class="card bg-light">
+                        <div class="card-body">
+                            <div class="row g-2">
+                                <div class="col-6">
+                                    <label class="form-label">Discount %</label>
+                                    <input asp-for="DiscountPercent" type="number" step="0.01" min="0" max="100" 
+                                           class="form-control" id="discountPercent" value="0" />
+                                </div>
+                                <div class="col-6">
+                                    <label class="form-label">Discount Amount</label>
+                                    <input asp-for="DiscountAmount" type="number" step="0.01" min="0" 
+                                           class="form-control" id="discountAmount" value="0" readonly />
+                                </div>
+                                <div class="col-12">
+                                    <hr class="my-2" />
+                                    <div class="d-flex justify-content-between mb-2">
+                                        <strong>Total Amount:</strong>
+                                        <strong class="text-primary fs-5" id="totalAmountDisplay">0.00</strong>
+                                    </div>
+                                    <input type="hidden" asp-for="SubTotal" id="subTotal" />
+                                    <input type="hidden" asp-for="TotalAmount" id="totalAmount" />
+                                </div>
+                                <div class="col-12">
+                                    <hr class="my-2" />
+                                    <h6 class="text-muted mb-2"><i class="fas fa-money-bill-wave me-1"></i>Payment</h6>
+                                </div>
+                                <div class="col-6">
+                                    <label class="form-label">Amount Received</label>
+                                    <input asp-for="PaidAmount" type="number" step="0.01" min="0" 
+                                           class="form-control" id="paidAmount" value="0" />
+                                </div>
+                                <div class="col-6">
+                                    <label class="form-label">Balance</label>
+                                    <input type="number" class="form-control" id="balanceDisplay" 
+                                           readonly value="0.00" />
+                                    <input type="hidden" asp-for="BalanceAmount" id="balanceAmount" />
+                                </div>
+                                <div class="col-12">
+                                    <div class="alert mb-0 mt-2" id="paymentStatusAlert">
+                                        <span id="paymentStatusText"></span>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <div class="text-end">
+                <a asp-action="SalesIndex" class="btn btn-outline-secondary me-2">Cancel</a>
+                <button type="submit" class="btn btn-primary">
+                    <i class="fas fa-save me-2"></i>Save Sale
+                </button>
+            </div>
+        </form>
+    </div>
+</div>
+
+@section Scripts {
+    <script>
+        let products = [];
+        let rowIndex = 0;
+
+        document.addEventListener('DOMContentLoaded', async function() {
+            const response = await fetch('@Url.Action("GetProducts")');
+            products = await response.json();
+            addLineItem();
+        });
+
+        document.getElementById('addLineBtn').addEventListener('click', function() { addLineItem(); });
+
+        function addLineItem(detail = null) {
+            const tbody = document.getElementById('lineItemsBody');
+            const row = document.createElement('tr');
+            
+            let productOptions = '<option value="">-- Select Product --</option>';
+            products.forEach(p => {
+                const selected = detail && detail.productId === p.id ? 'selected' : '';
+                productOptions += `<option value="${p.id}" data-price="${p.unitPrice}" ${selected}>${p.name}</option>`;
+            });
+
+            const quantity = detail ? detail.quantity : 1;
+            const unitPrice = detail ? detail.unitPrice : 0;
+            const lineTotal = detail ? detail.lineTotal : 0;
+
+            row.innerHTML = `
+                <td class="align-middle">${rowIndex + 1}</td>
+                <td>
+                    <select name="StockDetails[${rowIndex}].Product_ID" class="form-select product-select" required>
+                        ${productOptions}
+                    </select>
+                </td>
+                <td>
+                    <input type="number" name="StockDetails[${rowIndex}].Quantity" class="form-control quantity-input" 
+                           step="0.0001" min="0.0001" value="${quantity}" required />
+                </td>
+                <td>
+                    <input type="number" name="StockDetails[${rowIndex}].UnitPrice" class="form-control price-input" 
+                           step="0.01" min="0" value="${unitPrice}" required />
+                    <input type="hidden" name="StockDetails[${rowIndex}].CostPrice" class="cost-price-input" value="0" />
+                </td>
+                <td>
+                    <input type="number" name="StockDetails[${rowIndex}].LineTotal" class="form-control line-total" 
+                           readonly value="${lineTotal}" />
+                    <input type="hidden" name="StockDetails[${rowIndex}].LineCost" class="line-cost" value="0" />
+                </td>
+                <td class="text-center align-middle">
+                    <button type="button" class="btn btn-sm btn-outline-danger remove-row-btn">
+                        <i class="fas fa-trash"></i>
+                    </button>
+                </td>
+            `;
+
+            tbody.appendChild(row);
+            
+            row.querySelector('.product-select').addEventListener('change', onProductChange);
+            row.querySelector('.quantity-input').addEventListener('input', calculateLineTotal);
+            row.querySelector('.price-input').addEventListener('input', calculateLineTotal);
+            row.querySelector('.remove-row-btn').addEventListener('click', removeRow);
+
+            rowIndex++;
+        }
+
+        function onProductChange(e) {
+            const row = e.target.closest('tr');
+            const selectedOption = e.target.options[e.target.selectedIndex];
+            const unitPrice = parseFloat(selectedOption.dataset.price) || 0;
+            
+            row.querySelector('.price-input').value = unitPrice.toFixed(2);
+            calculateLineTotal({ target: row.querySelector('.quantity-input') });
+        }
+
+        function calculateLineTotal(e) {
+            const row = e.target.closest('tr');
+            const quantity = parseFloat(row.querySelector('.quantity-input').value) || 0;
+            const unitPrice = parseFloat(row.querySelector('.price-input').value) || 0;
+            const lineTotal = quantity * unitPrice;
+            
+            row.querySelector('.line-total').value = lineTotal.toFixed(2);
+            calculateTotals();
+        }
+
+        function removeRow(e) {
+            const tbody = document.getElementById('lineItemsBody');
+            if (tbody.children.length > 1) {
+                e.target.closest('tr').remove();
+                renumberRows();
+                calculateTotals();
+            }
+        }
+
+        function renumberRows() {
+            const rows = document.querySelectorAll('#lineItemsBody tr');
+            rows.forEach((row, idx) => {
+                row.cells[0].textContent = idx + 1;
+                row.querySelector('.product-select').name = `StockDetails[${idx}].Product_ID`;
+                row.querySelector('.quantity-input').name = `StockDetails[${idx}].Quantity`;
+                row.querySelector('.price-input').name = `StockDetails[${idx}].UnitPrice`;
+                row.querySelector('.cost-price-input').name = `StockDetails[${idx}].CostPrice`;
+                row.querySelector('.line-total').name = `StockDetails[${idx}].LineTotal`;
+                row.querySelector('.line-cost').name = `StockDetails[${idx}].LineCost`;
+            });
+            rowIndex = rows.length;
+        }
+
+        function calculateTotals() {
+            const lineTotals = document.querySelectorAll('.line-total');
+            let subTotal = 0;
+            lineTotals.forEach(input => {
+                subTotal += parseFloat(input.value) || 0;
+            });
+
+            const discountPercent = parseFloat(document.getElementById('discountPercent').value) || 0;
+            const discountAmount = Math.round(subTotal * discountPercent / 100 * 100) / 100;
+            const totalAmount = subTotal - discountAmount;
+
+            document.getElementById('subTotalDisplay').textContent = subTotal.toFixed(2);
+            document.getElementById('subTotal').value = subTotal.toFixed(2);
+            document.getElementById('discountAmount').value = discountAmount.toFixed(2);
+            document.getElementById('totalAmountDisplay').textContent = totalAmount.toFixed(2);
+            document.getElementById('totalAmount').value = totalAmount.toFixed(2);
+
+            // Calculate balance
+            calculatePayment();
+        }
+
+        function calculatePayment() {
+            const totalAmount = parseFloat(document.getElementById('totalAmount').value) || 0;
+            const paidAmount = parseFloat(document.getElementById('paidAmount').value) || 0;
+            const balance = totalAmount - paidAmount;
+
+            document.getElementById('balanceDisplay').value = balance.toFixed(2);
+            document.getElementById('balanceAmount').value = balance.toFixed(2);
+
+            // Update payment status
+            const alertDiv = document.getElementById('paymentStatusAlert');
+            const statusText = document.getElementById('paymentStatusText');
+
+            if (totalAmount === 0) {
+                alertDiv.className = 'alert alert-secondary mb-0 mt-2';
+                statusText.innerHTML = '<i class="fas fa-info-circle me-1"></i>Add items to calculate total';
+            } else if (paidAmount >= totalAmount) {
+                alertDiv.className = 'alert alert-success mb-0 mt-2';
+                statusText.innerHTML = '<i class="fas fa-check-circle me-1"></i>Fully Paid';
+            } else if (paidAmount > 0) {
+                alertDiv.className = 'alert alert-warning mb-0 mt-2';
+                statusText.innerHTML = '<i class="fas fa-exclamation-circle me-1"></i>Partial Payment - Balance: ' + balance.toFixed(2);
+            } else {
+                alertDiv.className = 'alert alert-info mb-0 mt-2';
+                statusText.innerHTML = '<i class="fas fa-money-bill me-1"></i>No Payment - Credit Sale';
+            }
+        }
+
+        document.getElementById('discountPercent').addEventListener('input', calculateTotals);
+        document.getElementById('paidAmount').addEventListener('input', calculatePayment);
+
+        // Initialize payment status on page load
+        document.addEventListener('DOMContentLoaded', function() {
+            setTimeout(calculatePayment, 100);
+        });
+    </script>
+}

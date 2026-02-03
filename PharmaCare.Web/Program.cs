@@ -101,6 +101,10 @@ builder.Services.AddScoped<IPurchaseOrderService, PurchaseOrderService>();
 builder.Services.AddScoped<IPurchaseService, PurchaseService>();
 builder.Services.AddScoped<IPurchaseReturnService, PurchaseReturnService>();
 
+// Sales Management Services
+builder.Services.AddScoped<ISaleService, SaleService>();
+builder.Services.AddScoped<ISaleReturnService, SaleReturnService>();
+
 // Finance Services
 builder.Services.AddScoped<IPaymentService, PaymentService>();
 builder.Services.AddScoped<ICustomerPaymentService, CustomerPaymentService>();

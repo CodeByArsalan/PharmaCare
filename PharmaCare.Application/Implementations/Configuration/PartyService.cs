@@ -139,4 +139,11 @@ public class PartyService : IPartyService
         return true;
     }
 
+    public async Task<Party?> GetByIdWithAccountAsync(int id)
+    {
+        return await _repository.Query()
+            .Include(p => p.Account)
+            .FirstOrDefaultAsync(p => p.PartyID == id);
+    }
+
 }
