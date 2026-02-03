@@ -1,0 +1,94 @@
+@model PharmaCare.Domain.Entities.Finance.Payment
+@{
+    ViewData["Title"] = "Receipt Details";
+}
+
+<!-- Page Header -->
+<div class="page-header">
+    <h4 class="page-title">
+        <i class="fas fa-receipt"></i>
+        Receipt Details
+    </h4>
+    <div class="ms-auto">
+        <a asp-action="ReceiptsIndex" class="btn btn-outline-secondary">
+            <i class="fas fa-arrow-left"></i> Back to Receipts
+        </a>
+    </div>
+</div>
+
+<div class="row">
+    <div class="col-md-8">
+        <div class="card">
+            <div class="card-header bg-primary text-white">
+                <h5 class="mb-0">
+                    <i class="fas fa-file-invoice"></i> Receipt: @Model.Reference
+                </h5>
+            </div>
+            <div class="card-body">
+                <div class="row">
+                    <div class="col-md-6">
+                        <h6 class="text-muted mb-3">Receipt Information</h6>
+                        <table class="table table-sm table-borderless">
+                            <tr>
+                                <td style="width: 150px;"><strong>Reference:</strong></td>
+                                <td>@Model.Reference</td>
+                            </tr>
+                            <tr>
+                                <td><strong>Date:</strong></td>
+                                <td>@Model.PaymentDate.ToString("dd/MM/yyyy")</td>
+                            </tr>
+                            <tr>
+                                <td><strong>Amount:</strong></td>
+                                <td><span class="badge bg-success fs-5">PKR @Model.Amount.ToString("N2")</span></td>
+                            </tr>
+                            <tr>
+                                <td><strong>Method:</strong></td>
+                                <td>
+                                    <span class="badge bg-@(Model.PaymentMethod == "Cash" ? "success" : Model.PaymentMethod == "Bank" ? "primary" : "warning")">
+                                        @Model.PaymentMethod
+                                    </span>
+                                </td>
+                            </tr>
+                            <tr>
+                                <td><strong>Account:</strong></td>
+                                <td>@Model.Account?.Name</td>
+                            </tr>
+                        </table>
+                    </div>
+                    <div class="col-md-6">
+                        <h6 class="text-muted mb-3">Customer & Sale Information</h6>
+                        <table class="table table-sm table-borderless">
+                            <tr>
+                                <td style="width: 150px;"><strong>Customer:</strong></td>
+                                <td>@(Model.Party?.Name ?? "Walking Customer")</td>
+                            </tr>
+                            <tr>
+                                <td><strong>Sale Ref:</strong></td>
+                                <td>@Model.StockMain?.TransactionNo</td>
+                            </tr>
+                            @if (Model.Voucher_ID.HasValue)
+                            {
+                                <tr>
+                                    <td><strong>Voucher:</strong></td>
+                                    <td>@Model.Voucher?.VoucherNo</td>
+                                </tr>
+                            }
+                        </table>
+                    </div>
+                </div>
+
+                @if (!string.IsNullOrEmpty(Model.Remarks))
+                {
+                    <hr />
+                    <h6 class="text-muted">Remarks</h6>
+                    <p>@Model.Remarks</p>
+                }
+            </div>
+            <div class="card-footer text-muted">
+                <small>
+                    Created: @Model.CreatedAt.ToString("dd/MM/yyyy HH:mm")
+                </small>
+            </div>
+        </div>
+    </div>
+</div>

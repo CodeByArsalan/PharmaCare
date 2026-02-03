@@ -1,0 +1,100 @@
+@model PharmaCare.Domain.Entities.Finance.Payment
+@{
+    ViewData["Title"] = "Payment Details";
+}
+
+<!-- Page Header -->
+<div class="page-header">
+    <h4 class="page-title">
+        <i class="fas fa-receipt"></i>
+        Payment Details - @Model.Reference
+    </h4>
+    <a asp-action="PaymentsIndex" class="btn btn-outline-secondary">
+        <i class="fas fa-arrow-left me-2"></i>Back to List
+    </a>
+</div>
+
+<div class="row">
+    <div class="col-md-8">
+        <div class="card">
+            <div class="card-header">
+                <h6 class="mb-0"><i class="fas fa-info-circle me-2"></i>Payment Information</h6>
+            </div>
+            <div class="card-body">
+                <div class="row">
+                    <div class="col-md-6">
+                        <table class="table table-sm table-borderless">
+                            <tr>
+                                <td class="text-muted" style="width: 40%;">Reference:</td>
+                                <td><strong>@Model.Reference</strong></td>
+                            </tr>
+                            <tr>
+                                <td class="text-muted">Payment Date:</td>
+                                <td>@Model.PaymentDate.ToString("dd/MM/yyyy")</td>
+                            </tr>
+                            <tr>
+                                <td class="text-muted">Supplier:</td>
+                                <td>@Model.Party?.Name</td>
+                            </tr>
+                            <tr>
+                                <td class="text-muted">Payment Method:</td>
+                                <td>
+                                    <span class="badge bg-@(Model.PaymentMethod == "Cash" ? "success" : Model.PaymentMethod == "Bank" ? "primary" : "warning")">
+                                        @Model.PaymentMethod
+                                    </span>
+                                </td>
+                            </tr>
+                        </table>
+                    </div>
+                    <div class="col-md-6">
+                        <table class="table table-sm table-borderless">
+                            <tr>
+                                <td class="text-muted" style="width: 40%;">Account:</td>
+                                <td>@Model.Account?.Name</td>
+                            </tr>
+                            @if (Model.PaymentMethod == "Cheque")
+                            {
+                                <tr>
+                                    <td class="text-muted">Cheque No:</td>
+                                    <td>@Model.ChequeNo</td>
+                                </tr>
+                                <tr>
+                                    <td class="text-muted">Cheque Date:</td>
+                                    <td>@Model.ChequeDate?.ToString("dd/MM/yyyy")</td>
+                                </tr>
+                            }
+                            <tr>
+                                <td class="text-muted">Purchase Ref:</td>
+                                <td>
+                                    @if (Model.StockMain != null)
+                                    {
+                                        <a asp-controller="Purchase" asp-action="ViewPurchase" asp-route-id="@Model.StockMain_ID">
+                                            @Model.StockMain.TransactionNo
+                                        </a>
+                                    }
+                                </td>
+                            </tr>
+                        </table>
+                    </div>
+                </div>
+
+                @if (!string.IsNullOrEmpty(Model.Remarks))
+                {
+                    <div class="mt-3">
+                        <label class="text-muted">Remarks:</label>
+                        <p class="mb-0">@Model.Remarks</p>
+                    </div>
+                }
+            </div>
+        </div>
+    </div>
+
+    <div class="col-md-12 mt-2">
+        <div class="card">
+            <div class="card-body text-center">
+                <h6 class="text-muted mb-2">Payment Amount</h6>
+                <h2 class="text-success mb-0">PKR @Model.Amount.ToString("N2")</h2>
+            </div>
+        </div>
+    </div>
+</div>

@@ -120,7 +120,7 @@
 <!-- Void Information -->
 @if (Model.Status == "Void")
 {
-    <div class="card border-danger">
+    <div class="card border-danger mb-4">
         <div class="card-header bg-danger text-white">
             <h6 class="mb-0"><i class="fas fa-ban me-2"></i>Void Information</h6>
         </div>
@@ -138,3 +138,127 @@
         </div>
     </div>
 }
+
+<!-- Payment Section -->
+@if (Model.Status == "Approved")
+{
+    <div class="card mb-4">
+        <div class="card-header d-flex justify-content-between align-items-center">
+            <h6 class="mb-0"><i class="fas fa-money-bill-wave me-2"></i>Payment Information</h6>
+            @if (Model.BalanceAmount > 0)
+            {
+                <a asp-controller="SupplierPayment" asp-action="MakePayment" asp-route-stockMainId="@Model.StockMainID" 
+                   class="btn btn-sm btn-success">
+                    <i class="fas fa-plus me-1"></i>Make Payment
+                </a>
+            }
+        </div>
+        <div class="card-body">
+            <div class="row text-center mb-4">
+                <div class="col-md-4">
+                    <div class="card bg-light">
+                        <div class="card-body py-3">
+                            <h6 class="text-muted mb-1">Total Amount</h6>
+                            <h4 class="mb-0">@Model.TotalAmount.ToString("N2")</h4>
+                        </div>
+                    </div>
+                </div>
+                <div class="col-md-4">
+                    <div class="card bg-success text-white">
+                        <div class="card-body py-3">
+                            <h6 class="mb-1">Paid Amount</h6>
+                            <h4 class="mb-0">@Model.PaidAmount.ToString("N2")</h4>
+                        </div>
+                    </div>
+                </div>
+                <div class="col-md-4">
+                    <div class="card @(Model.BalanceAmount > 0 ? "bg-danger text-white" : "bg-secondary text-white")">
+                        <div class="card-body py-3">
+                            <h6 class="mb-1">Balance</h6>
+                            <h4 class="mb-0">@Model.BalanceAmount.ToString("N2")</h4>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <div class="d-flex align-items-center mb-3">
+                <span class="me-2">Payment Status:</span>
+                @if (Model.PaymentStatus == "Paid")
+                {
+                    <span class="badge bg-success">Fully Paid</span>
+                }
+                else if (Model.PaymentStatus == "Partial")
+                {
+                    <span class="badge bg-warning text-dark">Partially Paid</span>
+                }
+                else
+                {
+                    <span class="badge bg-danger">Unpaid</span>
+                }
+            </div>
+
+            <!-- Payment History -->
+            <h6 class="mb-3"><i class="fas fa-history me-2"></i>Payment History</h6>
+            <div id="paymentHistoryContainer">
+                <div class="text-center text-muted py-3">
+                    <i class="fas fa-spinner fa-spin me-2"></i>Loading payment history...
+                </div>
+            </div>
+        </div>
+    </div>
+}
+
+@section Scripts {
+    <script>
+        document.addEventListener('DOMContentLoaded', function() {
+            loadPaymentHistory();
+        });
+
+        async function loadPaymentHistory() {
+            try {
+                const response = await fetch('@Url.Action("GetPaymentHistory", "SupplierPayment", new { stockMainId = Model.StockMainID })');
+                const payments = await response.json();
+                
+                const container = document.getElementById('paymentHistoryContainer');
+                
+                if (payments.length === 0) {
+                    container.innerHTML = '<p class="text-muted mb-0">No payments recorded yet.</p>';
+                    return;
+                }
+
+                let html = `
+                    <table class="table table-sm table-bordered mb-0">
+                        <thead class="table-light">
+                            <tr>
+                                <th>Reference</th>
+                                <th>Date</th>
+                                <th>Method</th>
+                                <th>Account</th>
+                                <th class="text-end">Amount</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                `;
+                
+                payments.forEach(p => {
+                    html += `
+                        <tr>
+                            <td>${p.reference}</td>
+                            <td>${p.date}</td>
+                            <td><span class="badge bg-${p.method === 'Cash' ? 'success' : p.method === 'Bank' ? 'primary' : 'warning'}">${p.method}</span></td>
+                            <td>${p.account || '-'}</td>
+                            <td class="text-end"><strong>${parseFloat(p.amount).toFixed(2)}</strong></td>
+                        </tr>
+                    `;
+                });
+                
+                html += '</tbody></table>';
+                container.innerHTML = html;
+            } catch (error) {
+                document.getElementById('paymentHistoryContainer').innerHTML = 
+                    '<p class="text-danger mb-0">Error loading payment history.</p>';
+            }
+        }
+    </script>
+}
+

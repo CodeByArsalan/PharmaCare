@@ -1,0 +1,80 @@
+@model IEnumerable<PharmaCare.Domain.Entities.Finance.Payment>
+@{
+    ViewData["Title"] = "Customer Receipts";
+}
+
+<!-- Page Header -->
+<div class="page-header">
+    <h4 class="page-title">
+        <i class="fas fa-hand-holding-usd"></i>
+        Customer Receipts
+    </h4>
+    <div class="ms-auto">
+        <a asp-action="PendingSales" class="btn btn-primary">
+            <i class="fas fa-plus"></i> New Receipt
+        </a>
+    </div>
+</div>
+
+<div class="card">
+    <div class="card-body">
+        <div class="table-responsive">
+            <table class="table table-hover" id="receiptsTable">
+                <thead>
+                    <tr>
+                        <th style="width: 50px;">S.No</th>
+                        <th>Reference</th>
+                        <th>Date</th>
+                        <th>Customer</th>
+                        <th>Sale Ref</th>
+                        <th>Method</th>
+                        <th class="text-end">Amount</th>
+                        <th class="text-end" style="width: 100px;">Actions</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    @{int sNo = 1;}
+                    @foreach (var receipt in Model)
+                    {
+                        <tr>
+                            <td>@(sNo++)</td>
+                            <td><strong>@receipt.Reference</strong></td>
+                            <td>@receipt.PaymentDate.ToString("dd/MM/yyyy")</td>
+                            <td>@(receipt.Party?.Name ?? "Walking Customer")</td>
+                            <td>
+                                @if (receipt.StockMain != null)
+                                {
+                                    <span>@receipt.StockMain.TransactionNo</span>
+                                }
+                            </td>
+                            <td>
+                                <span class="badge bg-@(receipt.PaymentMethod == "Cash" ? "success" : receipt.PaymentMethod == "Bank" ? "primary" : "warning")">
+                                    @receipt.PaymentMethod
+                                </span>
+                            </td>
+                            <td class="text-end"><strong>@receipt.Amount.ToString("N2")</strong></td>
+                            <td class="text-end">
+                                <a asp-action="ViewReceipt" asp-route-id="@receipt.PaymentID" class="btn btn-sm btn-outline-primary" title="View">
+                                    <i class="fas fa-eye"></i>
+                                </a>
+                            </td>
+                        </tr>
+                    }
+                </tbody>
+            </table>
+        </div>
+    </div>
+</div>
+
+@section Scripts {
+    <script>
+        $(document).ready(function() {
+            if (!$.fn.DataTable.isDataTable('#receiptsTable')) {
+                $('#receiptsTable').DataTable({
+                    order: [[2, 'desc']],
+                    pageLength: 25
+                });
+            }
+        });
+    </script>
+}

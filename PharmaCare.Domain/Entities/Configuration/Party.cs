@@ -1,5 +1,6 @@
 using System.ComponentModel.DataAnnotations;
 using System.ComponentModel.DataAnnotations.Schema;
+using PharmaCare.Domain.Entities.Accounting;
 using PharmaCare.Domain.Entities.Base;
 
 namespace PharmaCare.Domain.Entities.Configuration;
@@ -53,4 +54,12 @@ public class Party : BaseEntityWithStatus
     /// </summary>
     [Column(TypeName = "decimal(18,2)")]
     public decimal CreditLimit { get; set; }
+
+    /// <summary>
+    /// Foreign key to the party's accounting ledger account.
+    /// Suppliers get AP accounts, Customers get AR accounts.
+    /// </summary>
+    [ForeignKey("Account")]
+    public int? Account_ID { get; set; }
+    public Account? Account { get; set; }
 }

@@ -41,8 +41,6 @@ public class PartyService : IPartyService
         party.CreatedBy = userId;
         party.IsActive = true;
 
-        await _repository.AddAsync(party);
-
         // Automate Account Creation
         int headId = 0;
         int subheadId = 0;
@@ -77,8 +75,13 @@ public class PartyService : IPartyService
             };
 
             await _accountRepository.AddAsync(account);
+            await _unitOfWork.SaveChangesAsync();
+
+            // Link the account back to the party
+            party.Account_ID = account.AccountID;
         }
 
+        await _repository.AddAsync(party);
         await _unitOfWork.SaveChangesAsync();
         
         return party;
@@ -86,9 +89,19 @@ public class PartyService : IPartyService
 
     public async Task<bool> UpdateAsync(Party party, int userId)
     {
-        var existing = await GetByIdAsync(party.PartyID);
+        var existing = await _repository.Query()
+            .Include(p => p.Account)
+            .FirstOrDefaultAsync(p => p.PartyID == party.PartyID);
         if (existing == null)
             return false;
+
+        // Sync account name if party name changed
+        if (existing.Account != null && existing.Name != party.Name)
+        {
+            existing.Account.Name = party.Name;
+            existing.Account.UpdatedAt = DateTime.Now;
+            existing.Account.UpdatedBy = userId;
+        }
 
         existing.Name = party.Name;
         existing.PartyType = party.PartyType;

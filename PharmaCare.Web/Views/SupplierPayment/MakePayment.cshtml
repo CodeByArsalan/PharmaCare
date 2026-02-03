@@ -1,0 +1,164 @@
+@model PharmaCare.Domain.Entities.Finance.Payment
+@{
+    ViewData["Title"] = "Make Payment";
+    var grn = ViewBag.GRN as PharmaCare.Domain.Entities.Transactions.StockMain;
+}
+
+<!-- Page Header -->
+<div class="page-header">
+    <h4 class="page-title">
+        <i class="fas fa-money-bill-wave"></i>
+        Make Payment
+    </h4>
+    <a asp-controller="Purchase" asp-action="ViewPurchase" asp-route-id="@grn?.StockMainID" class="btn btn-outline-secondary">
+        <i class="fas fa-arrow-left me-2"></i>Back to Purchase
+    </a>
+</div>
+
+<div class="row">
+    <!-- GRN Details -->
+    <div class="col-md-4">
+        <div class="card mb-4">
+            <div class="card-header">
+                <h6 class="mb-0"><i class="fas fa-file-invoice me-2"></i>Purchase Details</h6>
+            </div>
+            <div class="card-body">
+                <table class="table table-sm table-borderless mb-0">
+                    <tr>
+                        <td class="text-muted">Reference:</td>
+                        <td><strong>@grn?.TransactionNo</strong></td>
+                    </tr>
+                    <tr>
+                        <td class="text-muted">Date:</td>
+                        <td>@grn?.TransactionDate.ToString("dd/MM/yyyy")</td>
+                    </tr>
+                    <tr>
+                        <td class="text-muted">Supplier:</td>
+                        <td>@grn?.Party?.Name</td>
+                    </tr>
+                    <tr>
+                        <td class="text-muted">Total Amount:</td>
+                        <td><strong>@grn?.TotalAmount.ToString("N2")</strong></td>
+                    </tr>
+                    <tr>
+                        <td class="text-muted">Paid Amount:</td>
+                        <td class="text-success">@grn?.PaidAmount.ToString("N2")</td>
+                    </tr>
+                    <tr>
+                        <td class="text-muted">Balance:</td>
+                        <td><strong class="text-danger fs-5">@grn?.BalanceAmount.ToString("N2")</strong></td>
+                    </tr>
+                </table>
+            </div>
+        </div>
+    </div>
+
+    <!-- Payment Form -->
+    <div class="col-md-8">
+        <div class="card">
+            <div class="card-header">
+                <h6 class="mb-0"><i class="fas fa-credit-card me-2"></i>Payment Details</h6>
+            </div>
+            <div class="card-body">
+                <form asp-action="MakePayment" method="post">
+                    <input type="hidden" asp-for="StockMain_ID" />
+                    <input type="hidden" asp-for="Party_ID" />
+
+                    <div class="row g-3">
+                        <div class="col-md-6">
+                            <label class="form-label">Payment Amount <span class="text-danger">*</span></label>
+                            <div class="input-group">
+                                <span class="input-group-text">PKR</span>
+                                <input asp-for="Amount" type="number" step="0.01" min="0.01" 
+                                       max="@grn?.BalanceAmount" class="form-control fs-5" id="paymentAmount" 
+                                       placeholder="Enter any amount" required />
+                            </div>
+                            <div class="form-text">Max: @grn?.BalanceAmount.ToString("N2")</div>
+                            <span asp-validation-for="Amount" class="text-danger small"></span>
+                            
+                            <!-- Quick Amount Buttons -->
+                            <div class="btn-group btn-group-sm mt-2" role="group">
+                                <button type="button" class="btn btn-outline-success" id="payFullBtn">
+                                    <i class="fas fa-check-double me-1"></i>Full
+                                </button>
+                                <button type="button" class="btn btn-outline-primary" id="payHalfBtn">
+                                    <i class="fas fa-divide me-1"></i>Half
+                                </button>
+                                <button type="button" class="btn btn-outline-secondary" id="clearBtn">
+                                    <i class="fas fa-eraser me-1"></i>Clear
+                                </button>
+                            </div>
+                        </div>
+                        <div class="col-md-6">
+                            <label class="form-label">Payment Date <span class="text-danger">*</span></label>
+                            <input asp-for="PaymentDate" type="date" class="form-control" required />
+                            <span asp-validation-for="PaymentDate" class="text-danger small"></span>
+                        </div>
+                        <div class="col-md-6">
+                            <label class="form-label">Payment Method <span class="text-danger">*</span></label>
+                            <select asp-for="PaymentMethod" asp-items="ViewBag.PaymentMethods" class="form-select" id="paymentMethod" required>
+                            </select>
+                        </div>
+                        <div class="col-md-6">
+                            <label class="form-label">Account <span class="text-danger">*</span></label>
+                            <select asp-for="Account_ID" asp-items="ViewBag.Accounts" class="form-select" required>
+                                <option value="">-- Select Account --</option>
+                            </select>
+                            <span asp-validation-for="Account_ID" class="text-danger small"></span>
+                        </div>
+                        <div class="col-md-6" id="chequeNoGroup" style="display: none;">
+                            <label class="form-label">Cheque No</label>
+                            <input asp-for="ChequeNo" class="form-control" placeholder="Enter cheque number" />
+                        </div>
+                        <div class="col-md-6" id="chequeDateGroup" style="display: none;">
+                            <label class="form-label">Cheque Date</label>
+                            <input asp-for="ChequeDate" type="date" class="form-control" />
+                        </div>
+                        <div class="col-12">
+                            <label class="form-label">Remarks</label>
+                            <textarea asp-for="Remarks" class="form-control" rows="2" placeholder="Optional remarks"></textarea>
+                        </div>
+                    </div>
+
+                    <hr class="my-4" />
+
+                    <div class="text-end">
+                        <a asp-controller="Purchase" asp-action="ViewPurchase" asp-route-id="@grn?.StockMainID" class="btn btn-outline-secondary me-2">Cancel</a>
+                        <button type="submit" class="btn btn-success">
+                            <i class="fas fa-check me-2"></i>Record Payment
+                        </button>
+                    </div>
+                </form>
+            </div>
+        </div>
+    </div>
+</div>
+
+@section Scripts {
+    <script>
+        const balance = @(grn?.BalanceAmount ?? 0);
+        const half = Math.round(balance / 2 * 100) / 100;
+
+        document.getElementById('payFullBtn').addEventListener('click', function() {
+            document.getElementById('paymentAmount').value = balance.toFixed(2);
+        });
+
+        document.getElementById('payHalfBtn').addEventListener('click', function() {
+            document.getElementById('paymentAmount').value = half.toFixed(2);
+        });
+
+        document.getElementById('clearBtn').addEventListener('click', function() {
+            document.getElementById('paymentAmount').value = '';
+            document.getElementById('paymentAmount').focus();
+        });
+
+        document.getElementById('paymentMethod').addEventListener('change', function() {
+            const isCheque = this.value === 'Cheque';
+            document.getElementById('chequeNoGroup').style.display = isCheque ? 'block' : 'none';
+            document.getElementById('chequeDateGroup').style.display = isCheque ? 'block' : 'none';
+        });
+
+        // Clear default value so user enters custom amount
+        document.getElementById('paymentAmount').value = '';
+    </script>
+}

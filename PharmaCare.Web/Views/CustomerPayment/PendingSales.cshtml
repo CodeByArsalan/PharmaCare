@@ -1,0 +1,82 @@
+@model IEnumerable<PharmaCare.Domain.Entities.Transactions.StockMain>
+@{
+    ViewData["Title"] = "Pending Sales";
+}
+
+<!-- Page Header -->
+<div class="page-header">
+    <h4 class="page-title">
+        <i class="fas fa-clock"></i>
+        Pending Sales - Collect Payment
+    </h4>
+    <div class="ms-auto">
+        <a asp-action="ReceiptsIndex" class="btn btn-outline-secondary">
+            <i class="fas fa-list"></i> View All Receipts
+        </a>
+    </div>
+</div>
+
+<div class="card">
+    <div class="card-body">
+        @if (!Model.Any())
+        {
+            <div class="alert alert-info">
+                <i class="fas fa-info-circle"></i> No pending sales found. All sales are fully paid.
+            </div>
+        }
+        else
+        {
+            <div class="table-responsive">
+                <table class="table table-hover" id="pendingSalesTable">
+                    <thead>
+                        <tr>
+                            <th style="width: 50px;">S.No</th>
+                            <th>Transaction No</th>
+                            <th>Date</th>
+                            <th>Customer</th>
+                            <th class="text-end">Total Amount</th>
+                            <th class="text-end">Paid Amount</th>
+                            <th class="text-end">Balance</th>
+                            <th class="text-end" style="width: 120px;">Action</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        @{int sNo = 1;}
+                        @foreach (var sale in Model)
+                        {
+                            <tr>
+                                <td>@(sNo++)</td>
+                                <td><strong>@sale.TransactionNo</strong></td>
+                                <td>@sale.TransactionDate.ToString("dd/MM/yyyy")</td>
+                                <td>@(sale.Party?.Name ?? "Walking Customer")</td>
+                                <td class="text-end">@sale.TotalAmount.ToString("N2")</td>
+                                <td class="text-end">@sale.PaidAmount.ToString("N2")</td>
+                                <td class="text-end">
+                                    <span class="badge bg-danger">@sale.BalanceAmount.ToString("N2")</span>
+                                </td>
+                                <td class="text-end">
+                                    <a asp-action="ReceivePayment" asp-route-stockMainId="@sale.StockMainID" class="btn btn-sm btn-success">
+                                        <i class="fas fa-hand-holding-usd"></i> Receive
+                                    </a>
+                                </td>
+                            </tr>
+                        }
+                    </tbody>
+                </table>
+            </div>
+        }
+    </div>
+</div>
+
+@section Scripts {
+    <script>
+        $(document).ready(function() {
+            if (!$.fn.DataTable.isDataTable('#pendingSalesTable')) {
+                $('#pendingSalesTable').DataTable({
+                    order: [[2, 'desc']],
+                    pageLength: 25
+                });
+            }
+        });
+    </script>
+}

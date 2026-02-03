@@ -1,0 +1,77 @@
+@model IEnumerable<PharmaCare.Domain.Entities.Finance.Payment>
+@{
+    ViewData["Title"] = "Supplier Payments";
+}
+
+<!-- Page Header -->
+<div class="page-header">
+    <h4 class="page-title">
+        <i class="fas fa-money-bill-wave"></i>
+        Supplier Payments
+    </h4>    
+</div>
+
+<div class="card">
+    <div class="card-body">
+        <div class="table-responsive">
+            <table class="table table-hover" id="paymentsTable">
+                <thead>
+                    <tr>
+                        <th style="width: 50px;">S.No</th>
+                        <th>Reference</th>
+                        <th>Date</th>
+                        <th>Supplier</th>
+                        <th>Purchase Ref</th>
+                        <th>Method</th>
+                        <th class="text-end">Amount</th>
+                        <th class="text-end" style="width: 100px;">Actions</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    @{int sNo = 1;}
+                    @foreach (var payment in Model)
+                    {
+                        <tr>
+                            <td>@(sNo++)</td>
+                            <td><strong>@payment.Reference</strong></td>
+                            <td>@payment.PaymentDate.ToString("dd/MM/yyyy")</td>
+                            <td>@payment.Party?.Name</td>
+                            <td>
+                                @if (payment.StockMain != null)
+                                {
+                                    <a asp-controller="Purchase" asp-action="ViewPurchase" asp-route-id="@payment.StockMain_ID">
+                                        @payment.StockMain.TransactionNo
+                                    </a>
+                                }
+                            </td>
+                            <td>
+                                <span class="badge bg-@(payment.PaymentMethod == "Cash" ? "success" : payment.PaymentMethod == "Bank" ? "primary" : "warning")">
+                                    @payment.PaymentMethod
+                                </span>
+                            </td>
+                            <td class="text-end"><strong>@payment.Amount.ToString("N2")</strong></td>
+                            <td class="text-end">
+                                <a asp-action="ViewPayment" asp-route-id="@payment.PaymentID" class="btn btn-sm btn-outline-primary" title="View">
+                                    <i class="fas fa-eye"></i>
+                                </a>
+                            </td>
+                        </tr>
+                    }
+                </tbody>
+            </table>
+        </div>
+    </div>
+</div>
+
+@section Scripts {
+    <script>
+        $(document).ready(function() {
+            if (!$.fn.DataTable.isDataTable('#paymentsTable')) {
+                $('#paymentsTable').DataTable({
+                    order: [[2, 'desc']],
+                    pageLength: 25
+                });
+            }
+        });
+    </script>
+}
