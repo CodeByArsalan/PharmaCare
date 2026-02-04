@@ -26,28 +26,28 @@
                 
                 <div class="col-md-6">
                     <label class="form-label">Sale Account</label>
-                    <select asp-for="SaleAccount_ID" asp-items="_combobox.GetActiveAccounts()" class="form-select">
+                    <select asp-for="SaleAccount_ID" asp-items="_combobox.GetAccountsByType(8)" class="form-select">
                         <option value="">-- Select Account --</option>
                     </select>
                 </div>
                 
                 <div class="col-md-6">
                     <label class="form-label">Stock Account</label>
-                    <select asp-for="StockAccount_ID" asp-items="_combobox.GetActiveAccounts()" class="form-select">
+                    <select asp-for="StockAccount_ID" asp-items="_combobox.GetAccountsByType(6)" class="form-select">
                         <option value="">-- Select Account --</option>
                     </select>
                 </div>
                 
                 <div class="col-md-6">
                     <label class="form-label">Consumption Account</label>
-                    <select asp-for="COGSAccount_ID" asp-items="_combobox.GetActiveAccounts()" class="form-select">
+                    <select asp-for="COGSAccount_ID" asp-items="_combobox.GetAccountsByType(7)" class="form-select">
                         <option value="">-- Select Account --</option>
                     </select>
                 </div>
 
                 <div class="col-md-6">
                     <label class="form-label">Damage Account</label>
-                    <select asp-for="DamageAccount_ID" asp-items="_combobox.GetActiveAccounts()" class="form-select">
+                    <select asp-for="DamageAccount_ID" asp-items="_combobox.GetAccountsByType(9)" class="form-select">
                         <option value="">-- Select Account --</option>
                     </select>
                 </div>

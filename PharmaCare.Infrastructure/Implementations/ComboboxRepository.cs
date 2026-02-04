@@ -154,6 +154,20 @@ public class ComboboxRepository : IComboboxRepository
             .ToList();
     }
 
+    public IEnumerable<SelectListItem> GetAccountsByType(int accountTypeId, int? selectedValue = null)
+    {
+        return _context.Accounts
+            .Where(a => a.IsActive && a.AccountType_ID == accountTypeId)
+            .OrderBy(a => a.Name)
+            .Select(a => new SelectListItem
+            {
+                Value = a.AccountID.ToString(),
+                Text = a.Name,
+                Selected = selectedValue.HasValue && a.AccountID == selectedValue.Value
+            })
+            .ToList();
+    }
+
     #endregion
 
     #region Security Dropdowns

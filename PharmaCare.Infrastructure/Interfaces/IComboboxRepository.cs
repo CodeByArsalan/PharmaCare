@@ -59,6 +59,11 @@ public interface IComboboxRepository
     /// </summary>
     IEnumerable<SelectListItem> GetActiveAccounts(int? selectedValue = null);
 
+    /// <summary>
+    /// Gets active accounts filtered by account type ID for dropdown.
+    /// </summary>
+    IEnumerable<SelectListItem> GetAccountsByType(int accountTypeId, int? selectedValue = null);
+
     #endregion
 
     #region Security Dropdowns

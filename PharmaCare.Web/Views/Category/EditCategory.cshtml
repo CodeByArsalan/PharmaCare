@@ -31,28 +31,28 @@
                 
                 <div class="col-md-6">
                     <label class="form-label">Sale Account</label>
-                    <select asp-for="SaleAccount_ID" asp-items="_combobox.GetActiveAccounts(Model.SaleAccount_ID)" class="form-select">
+                    <select asp-for="SaleAccount_ID" asp-items="_combobox.GetAccountsByType(8, Model.SaleAccount_ID)" class="form-select">
                         <option value="">-- Select Account --</option>
                     </select>
                 </div>
                 
                 <div class="col-md-6">
                     <label class="form-label">Stock Account</label>
-                    <select asp-for="StockAccount_ID" asp-items="_combobox.GetActiveAccounts(Model.StockAccount_ID)" class="form-select">
+                    <select asp-for="StockAccount_ID" asp-items="_combobox.GetAccountsByType(6, Model.StockAccount_ID)" class="form-select">
                         <option value="">-- Select Account --</option>
                     </select>
                 </div>
                 
                 <div class="col-md-6">
                     <label class="form-label">Consumption Account</label>
-                    <select asp-for="COGSAccount_ID" asp-items="_combobox.GetActiveAccounts(Model.COGSAccount_ID)" class="form-select">
+                    <select asp-for="COGSAccount_ID" asp-items="_combobox.GetAccountsByType(7, Model.COGSAccount_ID)" class="form-select">
                         <option value="">-- Select Account --</option>
                     </select>
                 </div>
 
                 <div class="col-md-6">
                     <label class="form-label">Damage Account</label>
-                    <select asp-for="DamageAccount_ID" asp-items="_combobox.GetActiveAccounts(Model.DamageAccount_ID)" class="form-select">
+                    <select asp-for="DamageAccount_ID" asp-items="_combobox.GetAccountsByType(9, Model.DamageAccount_ID)" class="form-select">
                         <option value="">-- Select Account --</option>
                     </select>
                 </div>
