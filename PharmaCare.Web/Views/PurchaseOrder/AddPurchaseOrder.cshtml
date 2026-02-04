@@ -48,7 +48,7 @@
                 <div class="card-body p-0">
                     <div class="table-responsive">
                         <table class="table table-bordered mb-0" id="lineItemsTable">
-                            <thead class="table-light">
+                            <thead style="background-color: var(--bg-card); color: var(--text-primary);">
                                 <tr>
                                     <th style="width: 50px;">#</th>
                                     <th style="min-width: 250px;">Product <span class="text-danger">*</span></th>
@@ -62,7 +62,7 @@
                                 <!-- Dynamic rows will be added here -->
                             </tbody>
                             <tfoot>
-                                <tr class="table-light">
+                                <tr style="background-color: var(--bg-elevated); color: var(--text-primary);">
                                     <td colspan="4" class="text-end"><strong>Sub Total:</strong></td>
                                     <td class="text-end"><strong id="subTotalDisplay">0.00</strong></td>
                                     <td></td>
@@ -76,11 +76,11 @@
             <!-- Totals Section -->
             <div class="row g-3 mb-4">
                 <div class="col-md-4 offset-md-8">
-                    <div class="card">
+                    <div class="card border-success">
                         <div class="card-body">
                             <div class="d-flex justify-content-between align-items-center">
-                                <strong>Total Amount:</strong>
-                                <strong class="fs-4" id="totalAmountDisplay" style="color: var(--bs-success);">0.00</strong>
+                                <span class="fw-bold" style="color: var(--text-primary);">Total Amount:</span>
+                                <span class="fs-4 fw-bold" id="totalAmountDisplay" style="color: #4ade80;">0.00</span>
                             </div>
                             <input type="hidden" asp-for="SubTotal" id="subTotal" />
                             <input type="hidden" asp-for="TotalAmount" id="totalAmount" />

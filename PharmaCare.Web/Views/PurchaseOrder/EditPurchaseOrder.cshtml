@@ -56,7 +56,7 @@
                 <div class="card-body p-0">
                     <div class="table-responsive">
                         <table class="table table-bordered mb-0" id="lineItemsTable">
-                            <thead class="table-light">
+                            <thead style="background-color: var(--bg-card); color: var(--text-primary);">
                                 <tr>
                                     <th style="width: 50px;">#</th>
                                     <th style="min-width: 250px;">Product <span class="text-danger">*</span></th>
@@ -70,7 +70,7 @@
                                 <!-- Dynamic rows will be added here -->
                             </tbody>
                             <tfoot>
-                                <tr class="table-light">
+                                <tr style="background-color: var(--bg-elevated); color: var(--text-primary);">
                                     <td colspan="4" class="text-end"><strong>Sub Total:</strong></td>
                                     <td class="text-end"><strong id="subTotalDisplay">0.00</strong></td>
                                     <td></td>
@@ -83,17 +83,40 @@
 
             <!-- Totals Section -->
             <div class="row g-3 mb-4">
-                <div class="col-md-4 offset-md-8">
-                    <div class="card">
+                <div class="col-md-6 offset-md-6">
+                    <div class="card" style="background-color: var(--bg-card); border-color: var(--glass-border);">
                         <div class="card-body">
-                            <div class="d-flex justify-content-between align-items-center">
-                                <strong>Total Amount:</strong>
-                                <strong class="fs-4" id="totalAmountDisplay" style="color: var(--bs-success);">0.00</strong>
+                            <div class="row g-2">
+                                <div class="col-4">
+                                    <label class="form-label">Total Amount</label>
+                                    <input asp-for="TotalAmount" type="number" step="0.01" min="0" 
+                                           class="form-control" id="totalAmountInput" />
+                                </div>
+                                <div class="col-4">
+                                    <label class="form-label">Paid Amount</label>
+                                    <input asp-for="PaidAmount" type="number" step="0.01" min="0" 
+                                           class="form-control" id="paidAmount" />
+                                </div>
+                                <div class="col-4">
+                                    <label class="form-label">Balance Amount</label>
+                                    <input asp-for="BalanceAmount" type="number" step="0.01" 
+                                           class="form-control" id="balanceAmount" readonly />
+                                </div>
+                                <div class="col-12">
+                                    <hr class="my-2" />
+                                    <div class="d-flex justify-content-between">
+                                        <strong style="color: var(--text-primary);">Sub Total:</strong>
+                                        <strong class="fs-5" id="subTotalSummary" style="color: #94a3b8;">0.00</strong>
+                                    </div>
+                                    <div class="d-flex justify-content-between mt-1">
+                                        <strong style="color: var(--text-primary);">Net Payable:</strong>
+                                        <strong class="fs-5" id="totalAmountDisplay" style="color: #38bdf8;">0.00</strong>
+                                    </div>
+                                    <input type="hidden" asp-for="SubTotal" id="subTotal" />
+                                    <input type="hidden" asp-for="DiscountPercent" value="0" />
+                                    <input type="hidden" asp-for="DiscountAmount" value="0" />
+                                </div>
                             </div>
-                            <input type="hidden" asp-for="SubTotal" id="subTotal" />
-                            <input type="hidden" asp-for="TotalAmount" id="totalAmount" />
-                            <input type="hidden" asp-for="DiscountPercent" value="0" />
-                            <input type="hidden" asp-for="DiscountAmount" value="0" />
                         </div>
                     </div>
                 </div>
@@ -248,15 +271,40 @@
 
         function calculateTotals() {
             const lineTotals = document.querySelectorAll('.line-total');
-            let total = 0;
+            let subTotal = 0;
             lineTotals.forEach(input => {
-                total += parseFloat(input.value) || 0;
+                subTotal += parseFloat(input.value) || 0;
             });
 
-            document.getElementById('subTotalDisplay').textContent = total.toFixed(2);
-            document.getElementById('subTotal').value = total.toFixed(2);
-            document.getElementById('totalAmountDisplay').textContent = total.toFixed(2);
-            document.getElementById('totalAmount').value = total.toFixed(2);
+            // Update SubTotal display
+            document.getElementById('subTotalDisplay').textContent = subTotal.toFixed(2);
+            document.getElementById('subTotal').value = subTotal.toFixed(2);
+            document.getElementById('subTotalSummary').textContent = subTotal.toFixed(2);
+
+            // Set TotalAmount to SubTotal by default (user can override)
+            const totalAmountInput = document.getElementById('totalAmountInput');
+            if (parseFloat(totalAmountInput.value) === 0 || totalAmountInput.dataset.autoSet === 'true') {
+                totalAmountInput.value = subTotal.toFixed(2);
+                totalAmountInput.dataset.autoSet = 'true';
+            }
+
+            calculateBalance();
         }
+
+        function calculateBalance() {
+            const totalAmount = parseFloat(document.getElementById('totalAmountInput').value) || 0;
+            const paidAmount = parseFloat(document.getElementById('paidAmount').value) || 0;
+            const balanceAmount = totalAmount - paidAmount;
+
+            document.getElementById('balanceAmount').value = balanceAmount.toFixed(2);
+            document.getElementById('totalAmountDisplay').textContent = totalAmount.toFixed(2);
+        }
+
+        // Event listeners for payment fields
+        document.getElementById('totalAmountInput').addEventListener('input', function() {
+            this.dataset.autoSet = 'false';
+            calculateBalance();
+        });
+        document.getElementById('paidAmount').addEventListener('input', calculateBalance);
     </script>
 }

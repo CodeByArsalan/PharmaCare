@@ -899,3 +899,148 @@ body {
     color: var(--text-secondary);
     width: 40%;
 }
+
+/* ===================================================================
+   DARK THEME OVERRIDES
+   Ensures proper text visibility and contrast in dark mode
+   =================================================================== */
+
+/* Dark theme detection - supports both data-bs-theme and data-theme attributes */
+[data-bs-theme="dark"] .table-light,
+[data-bs-theme="dark"] .table-light>th,
+[data-bs-theme="dark"] .table-light>td,
+[data-bs-theme="dark"] thead.table-light th,
+[data-bs-theme="dark"] tfoot.table-light td,
+[data-bs-theme="dark"] tr.table-light td,
+[data-bs-theme="dark"] tr.table-light th,
+[data-theme="dark"] .table-light,
+[data-theme="dark"] .table-light>th,
+[data-theme="dark"] .table-light>td,
+[data-theme="dark"] thead.table-light th,
+[data-theme="dark"] tfoot.table-light td,
+[data-theme="dark"] tr.table-light td,
+[data-theme="dark"] tr.table-light th {
+    background-color: #1e293b !important;
+    color: #f1f5f9 !important;
+    border-color: #334155 !important;
+}
+
+/* bg-light override for dark theme */
+[data-bs-theme="dark"] .bg-light,
+[data-theme="dark"] .bg-light {
+    background-color: #1e293b !important;
+    color: #f1f5f9 !important;
+}
+
+/* bg-light card specific styling */
+[data-bs-theme="dark"] .card.bg-light,
+[data-theme="dark"] .card.bg-light {
+    background-color: #1e293b !important;
+    color: #f1f5f9 !important;
+    border-color: #334155 !important;
+}
+
+[data-bs-theme="dark"] .card.bg-light .form-label,
+[data-theme="dark"] .card.bg-light .form-label {
+    color: #cbd5e1 !important;
+}
+
+/* table-primary override for dark theme */
+[data-bs-theme="dark"] .table-primary,
+[data-bs-theme="dark"] .table-primary>td,
+[data-bs-theme="dark"] .table-primary>th,
+[data-bs-theme="dark"] tr.table-primary td,
+[data-bs-theme="dark"] tr.table-primary th,
+[data-theme="dark"] .table-primary,
+[data-theme="dark"] .table-primary>td,
+[data-theme="dark"] .table-primary>th,
+[data-theme="dark"] tr.table-primary td,
+[data-theme="dark"] tr.table-primary th {
+    background-color: #0c4a6e !important;
+    color: #f1f5f9 !important;
+    border-color: #075985 !important;
+}
+
+/* table-warning override for dark theme */
+[data-bs-theme="dark"] .table-warning,
+[data-bs-theme="dark"] .table-warning>td,
+[data-bs-theme="dark"] .table-warning>th,
+[data-bs-theme="dark"] tr.table-warning td,
+[data-bs-theme="dark"] tr.table-warning th,
+[data-theme="dark"] .table-warning,
+[data-theme="dark"] .table-warning>td,
+[data-theme="dark"] .table-warning>th,
+[data-theme="dark"] tr.table-warning td,
+[data-theme="dark"] tr.table-warning th {
+    background-color: #78350f !important;
+    color: #fef3c7 !important;
+    border-color: #92400e !important;
+}
+
+/* table-secondary override for dark theme */
+[data-bs-theme="dark"] .table-secondary,
+[data-bs-theme="dark"] .table-secondary>td,
+[data-bs-theme="dark"] .table-secondary>th,
+[data-bs-theme="dark"] tr.table-secondary td,
+[data-bs-theme="dark"] tr.table-secondary th,
+[data-theme="dark"] .table-secondary,
+[data-theme="dark"] .table-secondary>td,
+[data-theme="dark"] .table-secondary>th,
+[data-theme="dark"] tr.table-secondary td,
+[data-theme="dark"] tr.table-secondary th {
+    background-color: #064e3b !important;
+    color: #d1fae5 !important;
+    border-color: #065f46 !important;
+}
+
+/* Ensure text-muted is visible in dark theme within bg-light cards */
+[data-bs-theme="dark"] .bg-light .text-muted,
+[data-theme="dark"] .bg-light .text-muted {
+    color: #94a3b8 !important;
+}
+
+/* Ensure text-secondary is visible in dark theme */
+[data-bs-theme="dark"] .bg-light .text-secondary,
+[data-theme="dark"] .bg-light .text-secondary {
+    color: #94a3b8 !important;
+}
+
+/* Form control styling within bg-light cards in dark theme */
+[data-bs-theme="dark"] .bg-light .form-control,
+[data-bs-theme="dark"] .bg-light .form-select,
+[data-theme="dark"] .bg-light .form-control,
+[data-theme="dark"] .bg-light .form-select {
+    background-color: #0f172a !important;
+    color: #f1f5f9 !important;
+    border-color: #334155 !important;
+}
+
+[data-bs-theme="dark"] .bg-light .form-control:focus,
+[data-bs-theme="dark"] .bg-light .form-select:focus,
+[data-theme="dark"] .bg-light .form-control:focus,
+[data-theme="dark"] .bg-light .form-select:focus {
+    background-color: #1e293b !important;
+    border-color: #0ea5e9 !important;
+}
+
+/* Override text-success for better visibility in dark theme */
+[data-bs-theme="dark"] .text-success,
+[data-theme="dark"] .text-success {
+    color: #4ade80 !important;
+    /* Brighter green for dark theme */
+}
+
+/* Override text-primary for better visibility in dark theme */
+[data-bs-theme="dark"] .text-primary,
+[data-theme="dark"] .text-primary {
+    color: #38bdf8 !important;
+    /* Brighter blue for dark theme */
+}
+
+/* Card text visibility in dark theme */
+[data-bs-theme="dark"] .card .fw-bold,
+[data-bs-theme="dark"] .card strong,
+[data-theme="dark"] .card .fw-bold,
+[data-theme="dark"] .card strong {
+    color: #e2e8f0 !important;
+}
