@@ -29,11 +29,46 @@ public class SupplierPaymentController : BaseController
         _partyService = partyService;
     }
 
-    /// Displays list of all supplier payments.
-    public async Task<IActionResult> PaymentsIndex()
+    /// Displays list of GRNs with payment information.
+    public async Task<IActionResult> PaymentsIndex(int? supplierId, string? paymentStatus, DateTime? fromDate, DateTime? toDate)
     {
-        var payments = await _paymentService.GetAllSupplierPaymentsAsync();
-        return View(payments);
+        // Get all GRNs (purchases)
+        var grns = await _purchaseService.GetAllAsync();
+        var grnList = grns.ToList();
+
+        // Apply filters
+        if (supplierId.HasValue)
+        {
+            grnList = grnList.Where(g => g.Party_ID == supplierId.Value).ToList();
+        }
+
+        if (!string.IsNullOrEmpty(paymentStatus) && paymentStatus != "All")
+        {
+            grnList = grnList.Where(g => g.PaymentStatus == paymentStatus).ToList();
+        }
+
+        if (fromDate.HasValue)
+        {
+            grnList = grnList.Where(g => g.TransactionDate >= fromDate.Value).ToList();
+        }
+
+        if (toDate.HasValue)
+        {
+            grnList = grnList.Where(g => g.TransactionDate <= toDate.Value).ToList();
+        }
+
+        // Load suppliers for dropdown
+        var parties = await _partyService.GetAllAsync();
+        ViewBag.Suppliers = parties.Where(p => p.IsActive && p.PartyType == "Supplier").ToList();
+        ViewBag.PaymentStatuses = new[] { "All", "Paid", "Partial", "Unpaid" };
+
+        // Preserve filter values
+        ViewBag.SelectedSupplier = supplierId;
+        ViewBag.SelectedStatus = paymentStatus ?? "All";
+        ViewBag.FromDate = fromDate;
+        ViewBag.ToDate = toDate ?? DateTime.Today;
+
+        return View(grnList);
     }
 
     /// Shows form to make a payment for a GRN.
@@ -84,7 +119,7 @@ public class SupplierPaymentController : BaseController
             {
                 await _paymentService.CreatePaymentAsync(payment, CurrentUserId);
                 ShowMessage(MessageType.Success, "Payment recorded successfully!");
-                return RedirectToAction("ViewPurchase", "Purchase", new { id = payment.StockMain_ID });
+                return RedirectToAction(nameof(PaymentsIndex));
             }
             catch (Exception ex)
             {
@@ -117,8 +152,13 @@ public class SupplierPaymentController : BaseController
     public async Task<IActionResult> GetPaymentHistory(int stockMainId)
     {
         var payments = await _paymentService.GetPaymentsByTransactionAsync(stockMainId);
-        var result = payments.Select(p => new
+        
+        // Order by PaymentID descending (newest first) and add serial number
+        var orderedPayments = payments.OrderByDescending(p => p.PaymentID).ToList();
+        int sNo = 1;
+        var result = orderedPayments.Select(p => new
         {
+            sNo = sNo++,
             reference = p.Reference,
             date = p.PaymentDate.ToString("dd/MM/yyyy"),
             amount = p.Amount,

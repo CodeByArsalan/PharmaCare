@@ -13,4 +13,9 @@ public interface IAccountService
     Task<IEnumerable<AccountHead>> GetAccountHeadsForDropdownAsync();
     Task<IEnumerable<AccountType>> GetAccountTypesForDropdownAsync();
     Task<IEnumerable<AccountSubhead>> GetSubHeadsByHeadIdAsync(int headId);
+    
+    /// <summary>
+    /// Gets accounts with AccountType_ID 1 (Cash) or 2 (Bank) for payment selection.
+    /// </summary>
+    Task<IEnumerable<Account>> GetCashBankAccountsAsync();
 }

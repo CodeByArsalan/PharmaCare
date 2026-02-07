@@ -24,7 +24,8 @@ public class PaymentService : IPaymentService
 
     private const string GRN_TRANSACTION_TYPE_CODE = "GRN";
     private const string PREFIX = "PAY";
-    private const string VOUCHER_TYPE_CODE = "PV"; // Payment Voucher
+    private const string CASH_PAYMENT_VOUCHER_CODE = "CP"; // Cash Payment Voucher
+    private const string BANK_PAYMENT_VOUCHER_CODE = "BP"; // Bank Payment Voucher
 
     public PaymentService(
         IRepository<Payment> paymentRepository,
@@ -166,14 +167,18 @@ public class PaymentService : IPaymentService
         string supplierName,
         int userId)
     {
-        // Get Payment Voucher type
+        // Determine voucher type based on payment method (CP for Cash, BP for Bank)
+        var voucherTypeCode = payment.PaymentMethod == "Bank" 
+            ? BANK_PAYMENT_VOUCHER_CODE 
+            : CASH_PAYMENT_VOUCHER_CODE;
+
         var voucherType = await _voucherTypeRepository.Query()
-            .FirstOrDefaultAsync(vt => vt.Code == VOUCHER_TYPE_CODE);
+            .FirstOrDefaultAsync(vt => vt.Code == voucherTypeCode);
 
         if (voucherType == null)
-            throw new InvalidOperationException($"Voucher type '{VOUCHER_TYPE_CODE}' not found. Please ensure it exists in the database.");
+            throw new InvalidOperationException($"Voucher type '{voucherTypeCode}' not found. Please ensure it exists in the database.");
 
-        var voucherNo = await GenerateVoucherNoAsync();
+        var voucherNo = await GenerateVoucherNoAsync(voucherTypeCode);
 
         var voucher = new Voucher
         {
@@ -183,8 +188,8 @@ public class PaymentService : IPaymentService
             TotalDebit = payment.Amount,
             TotalCredit = payment.Amount,
             Status = "Posted",
-            SourceTable = "Payment",
-            SourceID = null, // Will be updated after payment is saved
+            SourceTable = "StockMain",
+            SourceID = payment.StockMain_ID, // Link to the purchase transaction
             Narration = $"Payment to supplier: {supplierName}. Ref: {payment.Reference}",
             CreatedAt = DateTime.Now,
             CreatedBy = userId,
@@ -238,9 +243,9 @@ public class PaymentService : IPaymentService
         return $"{datePrefix}{nextNum:D4}";
     }
 
-    private async Task<string> GenerateVoucherNoAsync()
+    private async Task<string> GenerateVoucherNoAsync(string voucherTypeCode)
     {
-        var datePrefix = $"PV-{DateTime.Now:yyyyMMdd}-";
+        var datePrefix = $"{voucherTypeCode}-{DateTime.Now:yyyyMMdd}-";
 
         var lastVoucher = await _voucherRepository.Query()
             .Where(v => v.VoucherNo.StartsWith(datePrefix))

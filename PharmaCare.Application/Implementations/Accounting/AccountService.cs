@@ -121,4 +121,13 @@ public class AccountService : IAccountService
             .OrderBy(s => s.SubheadName)
             .ToListAsync();
     }
+
+    public async Task<IEnumerable<Account>> GetCashBankAccountsAsync()
+    {
+        return await _repository.Query()
+            .Include(a => a.AccountType)
+            .Where(a => a.IsActive && (a.AccountType_ID == 1 || a.AccountType_ID == 2))
+            .OrderBy(a => a.Name)
+            .ToListAsync();
+    }
 }

@@ -86,7 +86,7 @@
                                 <div class="col-4">
                                     <label class="form-label">Total Amount</label>
                                     <input asp-for="TotalAmount" type="number" step="0.01" min="0" 
-                                           class="form-control" id="totalAmountInput" value="0" />
+                                           class="form-control" id="totalAmountInput" value="0" readonly />
                                 </div>
                                 <div class="col-4">
                                     <label class="form-label">Paid Amount</label>
@@ -98,16 +98,19 @@
                                     <input asp-for="BalanceAmount" type="number" step="0.01" 
                                            class="form-control" id="balanceAmount" value="0" readonly />
                                 </div>
+                                <!-- Payment Account Dropdown -->
+                                <div class="col-12" id="paymentAccountContainer" style="display: none;">
+                                    <label class="form-label">Payment Account <span class="text-danger">*</span></label>
+                                    <select name="PaymentAccountId" id="paymentAccountId" class="form-select">
+                                        <option value="">-- Select Account --</option>
+                                        @foreach (var account in (SelectList)ViewBag.PaymentAccounts)
+                                        {
+                                            <option value="@account.Value">@account.Text</option>
+                                        }
+                                    </select>
+                                    <div class="invalid-feedback">Please select a payment account.</div>
+                                </div>
                                 <div class="col-12">
-                                    <hr class="my-2" />
-                                    <div class="d-flex justify-content-between">
-                                        <strong style="color: var(--text-primary);">Sub Total:</strong>
-                                        <strong class="fs-5" id="subTotalSummary" style="color: #94a3b8;">0.00</strong>
-                                    </div>
-                                    <div class="d-flex justify-content-between mt-1">
-                                        <strong style="color: var(--text-primary);">Net Payable:</strong>
-                                        <strong class="fs-5" id="totalAmountDisplay" style="color: #38bdf8;">0.00</strong>
-                                    </div>
                                     <input type="hidden" asp-for="SubTotal" id="subTotal" />
                                     <input type="hidden" asp-for="DiscountPercent" value="0" />
                                     <input type="hidden" asp-for="DiscountAmount" value="0" />
@@ -272,17 +275,12 @@
                 subTotal += parseFloat(input.value) || 0;
             });
 
-            // Update SubTotal display
+            // Update SubTotal display and hidden field
             document.getElementById('subTotalDisplay').textContent = subTotal.toFixed(2);
             document.getElementById('subTotal').value = subTotal.toFixed(2);
-            document.getElementById('subTotalSummary').textContent = subTotal.toFixed(2);
 
-            // Set TotalAmount to SubTotal by default (user can override)
-            const totalAmountInput = document.getElementById('totalAmountInput');
-            if (parseFloat(totalAmountInput.value) === 0 || totalAmountInput.dataset.autoSet === 'true') {
-                totalAmountInput.value = subTotal.toFixed(2);
-                totalAmountInput.dataset.autoSet = 'true';
-            }
+            // Always update TotalAmount to match SubTotal (since no discounts are applied)
+            document.getElementById('totalAmountInput').value = subTotal.toFixed(2);
 
             calculateBalance();
         }
@@ -293,14 +291,27 @@
             const balanceAmount = totalAmount - paidAmount;
 
             document.getElementById('balanceAmount').value = balanceAmount.toFixed(2);
-            document.getElementById('totalAmountDisplay').textContent = totalAmount.toFixed(2);
         }
 
-        // Event listeners for payment fields
-        document.getElementById('totalAmountInput').addEventListener('input', function() {
-            this.dataset.autoSet = 'false';
+        // Event listener for paid amount
+        document.getElementById('paidAmount').addEventListener('input', function() {
             calculateBalance();
+            togglePaymentAccount();
         });
-        document.getElementById('paidAmount').addEventListener('input', calculateBalance);
+
+        function togglePaymentAccount() {
+            const paidAmount = parseFloat(document.getElementById('paidAmount').value) || 0;
+            const container = document.getElementById('paymentAccountContainer');
+            const select = document.getElementById('paymentAccountId');
+            
+            if (paidAmount > 0) {
+                container.style.display = 'block';
+                select.setAttribute('required', 'required');
+            } else {
+                container.style.display = 'none';
+                select.removeAttribute('required');
+                select.value = ''; // Clear selection when hidden
+            }
+        }
     </script>
 }

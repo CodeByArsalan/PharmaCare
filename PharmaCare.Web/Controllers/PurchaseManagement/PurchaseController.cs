@@ -1,6 +1,7 @@
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.Mvc.Rendering;
+using PharmaCare.Application.Interfaces.Accounting;
 using PharmaCare.Application.Interfaces.Configuration;
 using PharmaCare.Application.Interfaces.Transactions;
 using PharmaCare.Domain.Entities.Transactions;
@@ -16,15 +17,18 @@ public class PurchaseController : BaseController
     private readonly IPurchaseService _purchaseService;
     private readonly IPartyService _partyService;
     private readonly IProductService _productService;
+    private readonly IAccountService _accountService;
 
     public PurchaseController(
         IPurchaseService purchaseService,
         IPartyService partyService,
-        IProductService productService)
+        IProductService productService,
+        IAccountService accountService)
     {
         _purchaseService = purchaseService;
         _partyService = partyService;
         _productService = productService;
+        _accountService = accountService;
     }
 
     /// <summary>
@@ -54,7 +58,7 @@ public class PurchaseController : BaseController
     /// </summary>
     [HttpPost]
     [ValidateAntiForgeryToken]
-    public async Task<IActionResult> AddPurchase(StockMain purchase)
+    public async Task<IActionResult> AddPurchase(StockMain purchase, int? PaymentAccountId)
     {
         // Remove validation for navigation properties
         ModelState.Remove("TransactionType");
@@ -80,7 +84,7 @@ public class PurchaseController : BaseController
         {
             try
             {
-                await _purchaseService.CreateAsync(purchase, CurrentUserId);
+                await _purchaseService.CreateAsync(purchase, CurrentUserId, PaymentAccountId);
                 ShowMessage(MessageType.Success, "Purchase created successfully!");
                 return RedirectToAction(nameof(PurchasesIndex));
             }
@@ -206,6 +210,14 @@ public class PurchaseController : BaseController
             pos,
             "StockMainID",
             "TransactionNo"
+        );
+
+        // Load Cash/Bank accounts for payment
+        var accounts = await _accountService.GetCashBankAccountsAsync();
+        ViewBag.PaymentAccounts = new SelectList(
+            accounts,
+            "AccountID",
+            "Name"
         );
     }
 }

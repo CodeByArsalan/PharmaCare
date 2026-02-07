@@ -20,7 +20,10 @@ public interface IPurchaseService
     /// <summary>
     /// Creates a new purchase/GRN.
     /// </summary>
-    Task<StockMain> CreateAsync(StockMain purchase, int userId);
+    /// <param name="purchase">The purchase entity</param>
+    /// <param name="userId">The user creating the purchase</param>
+    /// <param name="paymentAccountId">Optional: Cash/Bank account ID for payment (if PaidAmount > 0)</param>
+    Task<StockMain> CreateAsync(StockMain purchase, int userId, int? paymentAccountId = null);
 
     /// <summary>
     /// Gets approved purchase orders available for GRN.

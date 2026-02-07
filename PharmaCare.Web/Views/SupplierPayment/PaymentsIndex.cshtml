@@ -1,59 +1,124 @@
-@model IEnumerable<PharmaCare.Domain.Entities.Finance.Payment>
+@model IEnumerable<PharmaCare.Domain.Entities.Transactions.StockMain>
 @{
     ViewData["Title"] = "Supplier Payments";
+    var suppliers = (IEnumerable<PharmaCare.Domain.Entities.Configuration.Party>)ViewBag.Suppliers;
+    var statuses = (string[])ViewBag.PaymentStatuses;
 }
 
 <!-- Page Header -->
-<div class="page-header">
+<div class="page-header d-flex justify-content-between align-items-center">
     <h4 class="page-title">
         <i class="fas fa-money-bill-wave"></i>
         Supplier Payments
-    </h4>    
+    </h4>
 </div>
 
+<!-- Filters Card -->
+<div class="card mb-4">
+    <div class="card-body">
+        <form asp-action="PaymentsIndex" method="get">
+            <div class="row g-3 align-items-end">
+                <div class="col-md-3">
+                    <label class="form-label">Supplier</label>
+                    <select name="supplierId" id="supplierFilter" class="form-select">
+                        <option value="">All Suppliers</option>
+                        @foreach (var supplier in suppliers)
+                        {
+                            <option value="@supplier.PartyID" selected="@(ViewBag.SelectedSupplier != null && (int)ViewBag.SelectedSupplier == supplier.PartyID)">
+                                @supplier.Name
+                            </option>
+                        }
+                    </select>
+                </div>
+                <div class="col-md-2">
+                    <label class="form-label">Payment Status</label>
+                    <select name="paymentStatus" id="statusFilter" class="form-select">
+                        @foreach (var status in statuses)
+                        {
+                            <option value="@status" selected="@((string)ViewBag.SelectedStatus == status)">@status</option>
+                        }
+                    </select>
+                </div>
+                <div class="col-md-2">
+                    <label class="form-label">From Date</label>
+                    <input type="date" name="fromDate" id="fromDate" class="form-control" 
+                           value="@(ViewBag.FromDate != null ? ((DateTime)ViewBag.FromDate).ToString("yyyy-MM-dd") : "")" />
+                </div>
+                <div class="col-md-2">
+                    <label class="form-label">To Date</label>
+                    <input type="date" name="toDate" id="toDate" class="form-control" 
+                           value="@(((DateTime)ViewBag.ToDate).ToString("yyyy-MM-dd"))" />
+                </div>
+                <div class="col-md-3">
+                    <button type="submit" class="btn btn-primary">
+                        <i class="fas fa-search"></i> Search
+                    </button>
+                    <a asp-action="PaymentsIndex" class="btn btn-outline-secondary">
+                        <i class="fas fa-times"></i> Reset
+                    </a>
+                </div>
+            </div>
+        </form>
+    </div>
+</div>
+
+<!-- GRNs Table -->
 <div class="card">
     <div class="card-body">
         <div class="table-responsive">
-            <table class="table table-hover" id="paymentsTable">
+            <table class="table table-hover" id="grnsTable">
                 <thead>
                     <tr>
                         <th style="width: 50px;">S.No</th>
-                        <th>Reference</th>
+                        <th>GRN Number</th>
                         <th>Date</th>
                         <th>Supplier</th>
-                        <th>Purchase Ref</th>
-                        <th>Method</th>
-                        <th class="text-end">Amount</th>
-                        <th class="text-end" style="width: 100px;">Actions</th>
+                        <th class="text-end">Total Amount</th>
+                        <th class="text-end">Paid Amount</th>
+                        <th class="text-end">Remaining</th>
+                        <th>Status</th>
+                        <th class="text-center" style="width: 150px;">Actions</th>
                     </tr>
                 </thead>
                 <tbody>
                     @{int sNo = 1;}
-                    @foreach (var payment in Model)
+                    @foreach (var grn in Model)
                     {
                         <tr>
                             <td>@(sNo++)</td>
-                            <td><strong>@payment.Reference</strong></td>
-                            <td>@payment.PaymentDate.ToString("dd/MM/yyyy")</td>
-                            <td>@payment.Party?.Name</td>
+                            <td><strong>@grn.TransactionNo</strong></td>
+                            <td>@grn.TransactionDate.ToString("dd/MM/yyyy")</td>
+                            <td>@grn.Party?.Name</td>
+                            <td class="text-end">@grn.TotalAmount.ToString("N2")</td>
+                            <td class="text-end text-success">@grn.PaidAmount.ToString("N2")</td>
+                            <td class="text-end @(grn.BalanceAmount > 0 ? "text-danger fw-bold" : "text-success")">
+                                @grn.BalanceAmount.ToString("N2")
+                            </td>
                             <td>
-                                @if (payment.StockMain != null)
+                                @{
+                                    var statusClass = grn.PaymentStatus switch
+                                    {
+                                        "Paid" => "success",
+                                        "Partial" => "warning",
+                                        _ => "danger"
+                                    };
+                                }
+                                <span class="badge bg-@statusClass">@grn.PaymentStatus</span>
+                            </td>
+                            <td class="text-center">
+                                @if (grn.BalanceAmount > 0)
                                 {
-                                    <a asp-controller="Purchase" asp-action="ViewPurchase" asp-route-id="@payment.StockMain_ID">
-                                        @payment.StockMain.TransactionNo
+                                    <a asp-action="MakePayment" asp-route-stockMainId="@grn.StockMainID" 
+                                       class="btn btn-sm btn-success" title="Make Payment">
+                                        <i class="fas fa-dollar-sign"></i> Pay
                                     </a>
                                 }
-                            </td>
-                            <td>
-                                <span class="badge bg-@(payment.PaymentMethod == "Cash" ? "success" : payment.PaymentMethod == "Bank" ? "primary" : "warning")">
-                                    @payment.PaymentMethod
-                                </span>
-                            </td>
-                            <td class="text-end"><strong>@payment.Amount.ToString("N2")</strong></td>
-                            <td class="text-end">
-                                <a asp-action="ViewPayment" asp-route-id="@payment.PaymentID" class="btn btn-sm btn-outline-primary" title="View">
+                                <button type="button" class="btn btn-sm btn-outline-primary view-payments-btn" 
+                                        data-stock-main-id="@grn.StockMainID" 
+                                        data-grn-no="@grn.TransactionNo"
+                                        title="View Payments">
                                     <i class="fas fa-eye"></i>
-                                </a>
+                                </button>
                             </td>
                         </tr>
                     }
@@ -63,15 +128,99 @@
     </div>
 </div>
 
+<!-- Payment History Modal -->
+<div class="modal fade" id="paymentHistoryModal" tabindex="-1">
+    <div class="modal-dialog modal-lg">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title">
+                    <i class="fas fa-history"></i> 
+                    Payment History - <span id="modalGrnNo"></span>
+                </h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body">
+                <div id="paymentHistoryLoading" class="text-center py-4" style="display: none;">
+                    <div class="spinner-border text-primary" role="status"></div>
+                    <p class="mt-2">Loading payments...</p>
+                </div>
+                <div id="paymentHistoryContent">
+                    <table class="table table-sm" id="paymentHistoryTable">
+                        <thead>
+                            <tr>
+                                <th style="width: 50px;">S.No</th>
+                                <th>Reference</th>
+                                <th>Date</th>
+                                <th>Method</th>
+                                <th>Account</th>
+                                <th class="text-end">Amount</th>
+                            </tr>
+                        </thead>
+                        <tbody></tbody>
+                    </table>
+                    <div id="noPaymentsMessage" class="text-center py-3" style="display: none;">
+                        <i class="fas fa-info-circle text-muted fa-2x"></i>
+                        <p class="mt-2 text-muted">No payments found for this GRN.</p>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
 @section Scripts {
     <script>
         $(document).ready(function() {
-            if (!$.fn.DataTable.isDataTable('#paymentsTable')) {
-                $('#paymentsTable').DataTable({
+            // Initialize DataTable
+            if (!$.fn.DataTable.isDataTable('#grnsTable')) {
+                $('#grnsTable').DataTable({
                     order: [[2, 'desc']],
-                    pageLength: 25
+                    pageLength: 25,
+                    columnDefs: [
+                        { orderable: false, targets: [8] }
+                    ]
                 });
             }
+
+            // View Payments Modal
+            $('.view-payments-btn').on('click', function() {
+                var stockMainId = $(this).data('stock-main-id');
+                var grnNo = $(this).data('grn-no');
+
+                $('#modalGrnNo').text(grnNo);
+                $('#paymentHistoryLoading').show();
+                $('#paymentHistoryTable tbody').empty();
+                $('#noPaymentsMessage').hide();
+                $('#paymentHistoryModal').modal('show');
+
+                $.get('@Url.Action("GetPaymentHistory")', { stockMainId: stockMainId })
+                    .done(function(data) {
+                        $('#paymentHistoryLoading').hide();
+                        
+                        if (data.length === 0) {
+                            $('#noPaymentsMessage').show();
+                            return;
+                        }
+
+                        var tbody = $('#paymentHistoryTable tbody');
+                        data.forEach(function(p) {
+                            tbody.append(`
+                                <tr>
+                                    <td>${p.sNo}</td>
+                                    <td><strong>${p.reference}</strong></td>
+                                    <td>${p.date}</td>
+                                    <td><span class="badge bg-${p.method === 'Cash' ? 'success' : 'primary'}">${p.method}</span></td>
+                                    <td>${p.account || '-'}</td>
+                                    <td class="text-end"><strong>${parseFloat(p.amount).toFixed(2)}</strong></td>
+                                </tr>
+                            `);
+                        });
+                    })
+                    .fail(function() {
+                        $('#paymentHistoryLoading').hide();
+                        $('#noPaymentsMessage').html('<p class="text-danger">Error loading payments.</p>').show();
+                    });
+            });
         });
     </script>
 }
