@@ -1,44 +1,39 @@
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.Mvc.Rendering;
+using PharmaCare.Application.Interfaces.Accounting;
 using PharmaCare.Application.Interfaces.Configuration;
 using PharmaCare.Application.Interfaces.Transactions;
 using PharmaCare.Domain.Entities.Transactions;
 
 namespace PharmaCare.Web.Controllers.SalesManagement;
 
-/// <summary>
-/// Controller for managing Sales.
-/// </summary>
 [Authorize]
 public class SaleController : BaseController
 {
     private readonly ISaleService _saleService;
     private readonly IPartyService _partyService;
     private readonly IProductService _productService;
+    private readonly IAccountService _accountService;
 
     public SaleController(
         ISaleService saleService,
         IPartyService partyService,
-        IProductService productService)
+        IProductService productService,
+        IAccountService accountService)
     {
         _saleService = saleService;
         _partyService = partyService;
         _productService = productService;
+        _accountService = accountService;
     }
 
-    /// <summary>
-    /// Displays list of all sales.
-    /// </summary>
     public async Task<IActionResult> SalesIndex()
     {
         var sales = await _saleService.GetAllAsync();
         return View(sales);
     }
 
-    /// <summary>
-    /// Shows form to create a new sale.
-    /// </summary>
     public async Task<IActionResult> AddSale()
     {
         await LoadDropdownsAsync();
@@ -49,9 +44,6 @@ public class SaleController : BaseController
         });
     }
 
-    /// <summary>
-    /// Creates a new sale.
-    /// </summary>
     [HttpPost]
     [ValidateAntiForgeryToken]
     public async Task<IActionResult> AddSale(StockMain sale)
@@ -101,9 +93,6 @@ public class SaleController : BaseController
         return View(sale);
     }
 
-    /// <summary>
-    /// Shows details of a sale.
-    /// </summary>
     public async Task<IActionResult> ViewSale(int id)
     {
         var sale = await _saleService.GetByIdAsync(id);
@@ -155,7 +144,8 @@ public class SaleController : BaseController
             {
                 id = p.ProductID,
                 name = p.Name,
-                unitPrice = p.OpeningPrice
+                unitPrice = p.OpeningPrice,
+                stockQuantity = p.OpeningQuantity
             })
             .ToList();
 
@@ -177,6 +167,14 @@ public class SaleController : BaseController
         ViewBag.Products = new SelectList(
             products.Where(p => p.IsActive),
             "ProductID",
+            "Name"
+        );
+
+        // Load Cash/Bank accounts for payment
+        var accounts = await _accountService.GetCashBankAccountsAsync();
+        ViewBag.PaymentAccounts = new SelectList(
+            accounts,
+            "AccountID",
             "Name"
         );
     }

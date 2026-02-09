@@ -153,10 +153,44 @@
         });
 
         document.getElementById('paymentMethod').addEventListener('change', function() {
-            const isCheque = this.value === 'Cheque';
+            const method = this.value;
+            const isCheque = method === 'Cheque';
+            
+            // Toggle cheque fields
             document.getElementById('chequeNoGroup').style.display = isCheque ? 'block' : 'none';
             document.getElementById('chequeDateGroup').style.display = isCheque ? 'block' : 'none';
+
+            // Load accounts based on method
+            const accountSelect = document.getElementById('Account_ID');
+            accountSelect.innerHTML = '<option value="">Loading...</option>';
+
+            let typeId = 0;
+            if (method === 'Cash') typeId = 1;
+            else if (method === 'Bank') typeId = 2; // Bank and Cheque usually go to Bank accounts
+            else if (method === 'Cheque') typeId = 2;
+
+            if (typeId > 0) {
+                fetch(`@Url.Action("GetAccountsByType")?typeId=${typeId}`)
+                    .then(response => response.json())
+                    .then(data => {
+                        accountSelect.innerHTML = '<option value="">-- Select Account --</option>';
+                        data.forEach(account => {
+                            accountSelect.innerHTML += `<option value="${account.id}">${account.name}</option>`;
+                        });
+                    })
+                    .catch(error => {
+                        console.error('Error loading accounts:', error);
+                        accountSelect.innerHTML = '<option value="">Error loading accounts</option>';
+                    });
+            } else {
+                accountSelect.innerHTML = '<option value="">-- Select Method First --</option>';
+            }
         });
+
+        // Trigger change to load initial accounts if method is selected
+        if(document.getElementById('paymentMethod').value) {
+            document.getElementById('paymentMethod').dispatchEvent(new Event('change'));
+        }
 
         // Clear default value so user enters custom amount
         document.getElementById('paymentAmount').value = '';

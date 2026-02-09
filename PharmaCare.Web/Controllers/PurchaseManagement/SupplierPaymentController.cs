@@ -169,6 +169,19 @@ public class SupplierPaymentController : BaseController
         return Json(result);
     }
 
+    /// Gets accounts by type ID (AJAX).
+    [HttpGet]
+    public async Task<IActionResult> GetAccountsByType(int typeId)
+    {
+        var accounts = await _accountService.GetAllAsync();
+        var filteredAccounts = accounts
+            .Where(a => a.IsActive && a.AccountType_ID == typeId)
+            .Select(a => new { id = a.AccountID, name = a.Name })
+            .ToList();
+
+        return Json(filteredAccounts);
+    }
+
     private async Task LoadDropdownsAsync()
     {
         // Load cash/bank accounts for payment (filter by AccountType Code)
