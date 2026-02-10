@@ -165,12 +165,15 @@
             let productOptions = '<option value="">-- Select Product --</option>';
             products.forEach(p => {
                 const selected = detail && detail.productId === p.id ? 'selected' : '';
-                productOptions += `<option value="${p.id}" data-price="${p.unitPrice}" ${selected}>${p.name}</option>`;
+                const costPrice = p.costPrice ?? p.unitPrice;
+                productOptions += `<option value="${p.id}" data-price="${p.unitPrice}" data-cost="${costPrice}" ${selected}>${p.name}</option>`;
             });
 
             const quantity = detail ? detail.quantity : 1;
             const unitPrice = detail ? detail.unitPrice : 0;
+            const costPrice = detail ? (detail.costPrice ?? detail.unitPrice) : 0;
             const lineTotal = detail ? detail.lineTotal : 0;
+            const lineCost = detail ? (detail.lineCost ?? (quantity * costPrice)) : 0;
 
             row.innerHTML = `
                 <td class="align-middle">${rowIndex + 1}</td>
@@ -186,12 +189,12 @@
                 <td>
                     <input type="number" name="StockDetails[${rowIndex}].UnitPrice" class="form-control price-input" 
                            step="0.01" min="0" value="${unitPrice}" required />
-                    <input type="hidden" name="StockDetails[${rowIndex}].CostPrice" class="cost-price-input" value="0" />
+                    <input type="hidden" name="StockDetails[${rowIndex}].CostPrice" class="cost-price-input" value="${costPrice}" />
                 </td>
                 <td>
                     <input type="number" name="StockDetails[${rowIndex}].LineTotal" class="form-control line-total" 
                            readonly value="${lineTotal}" />
-                    <input type="hidden" name="StockDetails[${rowIndex}].LineCost" class="line-cost" value="0" />
+                    <input type="hidden" name="StockDetails[${rowIndex}].LineCost" class="line-cost" value="${lineCost}" />
                 </td>
                 <td class="text-center align-middle">
                     <button type="button" class="btn btn-sm btn-outline-danger remove-row-btn">
@@ -214,8 +217,10 @@
             const row = e.target.closest('tr');
             const selectedOption = e.target.options[e.target.selectedIndex];
             const unitPrice = parseFloat(selectedOption.dataset.price) || 0;
+            const costPrice = parseFloat(selectedOption.dataset.cost) || unitPrice;
             
             row.querySelector('.price-input').value = unitPrice.toFixed(2);
+            row.querySelector('.cost-price-input').value = costPrice.toFixed(2);
             calculateLineTotal({ target: row.querySelector('.quantity-input') });
         }
 
@@ -223,9 +228,12 @@
             const row = e.target.closest('tr');
             const quantity = parseFloat(row.querySelector('.quantity-input').value) || 0;
             const unitPrice = parseFloat(row.querySelector('.price-input').value) || 0;
+            const costPrice = parseFloat(row.querySelector('.cost-price-input').value) || 0;
             const lineTotal = quantity * unitPrice;
+            const lineCost = quantity * costPrice;
             
             row.querySelector('.line-total').value = lineTotal.toFixed(2);
+            row.querySelector('.line-cost').value = lineCost.toFixed(2);
             calculateTotals();
         }
 

@@ -138,6 +138,83 @@ public class CustomerPaymentController : BaseController
         return Json(result);
     }
 
+    /// Gets accounts by type ID (AJAX).
+    [HttpGet]
+    public async Task<IActionResult> GetAccountsByType(int typeId)
+    {
+        var accounts = await _accountService.GetAllAsync();
+        var filteredAccounts = accounts
+            .Where(a => a.IsActive && a.AccountType_ID == typeId)
+            .Select(a => new { id = a.AccountID, name = a.Name })
+            .ToList();
+
+        return Json(filteredAccounts);
+    }
+
+    /// Displays list of all customer refunds.
+    public async Task<IActionResult> RefundsIndex()
+    {
+        var refunds = await _customerPaymentService.GetAllRefundsAsync();
+        return View(refunds);
+    }
+
+    /// Shows form to create a customer refund.
+    public async Task<IActionResult> Refund()
+    {
+        await LoadDropdownsAsync();
+
+        var parties = await _partyService.GetAllAsync();
+        ViewBag.Customers = new SelectList(
+            parties.Where(p => p.IsActive && p.PartyType == "Customer"),
+            "PartyID",
+            "Name"
+        );
+
+        return View(new Payment
+        {
+            PaymentDate = DateTime.Now,
+            PaymentMethod = "Cash"
+        });
+    }
+
+    /// Processes a customer refund.
+    [HttpPost]
+    [ValidateAntiForgeryToken]
+    public async Task<IActionResult> Refund(Payment payment)
+    {
+        ModelState.Remove("Party");
+        ModelState.Remove("StockMain");
+        ModelState.Remove("Account");
+        ModelState.Remove("Voucher");
+        ModelState.Remove("PaymentType");
+        ModelState.Remove("Reference");
+
+        if (ModelState.IsValid)
+        {
+            try
+            {
+                await _customerPaymentService.CreateRefundAsync(payment, CurrentUserId);
+                ShowMessage(MessageType.Success, "Customer refund recorded successfully!");
+                return RedirectToAction(nameof(RefundsIndex));
+            }
+            catch (Exception ex)
+            {
+                ModelState.AddModelError("", ex.Message);
+            }
+        }
+
+        await LoadDropdownsAsync();
+
+        var parties = await _partyService.GetAllAsync();
+        ViewBag.Customers = new SelectList(
+            parties.Where(p => p.IsActive && p.PartyType == "Customer"),
+            "PartyID",
+            "Name"
+        );
+
+        return View(payment);
+    }
+
     private async Task LoadDropdownsAsync()
     {
         // Load cash/bank accounts for receipt (filter by AccountType Code)

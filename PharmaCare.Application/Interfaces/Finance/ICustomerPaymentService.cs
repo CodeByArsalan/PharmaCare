@@ -38,4 +38,16 @@ public interface ICustomerPaymentService
     /// Uses the configured walking customer account.
     /// </summary>
     Task<Payment> CreateWalkingCustomerReceiptAsync(Payment payment, int userId);
+
+    /// <summary>
+    /// Creates a refund payment to a customer (reverse of receipt).
+    /// DR: Customer Account (A/R) — increases what they can claim
+    /// CR: Cash/Bank Account — cash goes out
+    /// </summary>
+    Task<Payment> CreateRefundAsync(Payment payment, int userId);
+
+    /// <summary>
+    /// Gets all customer refunds.
+    /// </summary>
+    Task<IEnumerable<Payment>> GetAllRefundsAsync();
 }

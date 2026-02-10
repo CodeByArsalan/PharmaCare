@@ -155,7 +155,9 @@ public class SaleReturnController : BaseController
                 productName = d.Product?.Name,
                 quantity = d.Quantity,
                 unitPrice = d.UnitPrice,
-                lineTotal = d.LineTotal
+                costPrice = d.CostPrice,
+                lineTotal = d.LineTotal,
+                lineCost = d.LineCost
             })
         }).ToList();
 
@@ -175,7 +177,8 @@ public class SaleReturnController : BaseController
             {
                 id = p.ProductID,
                 name = p.Name,
-                unitPrice = p.OpeningPrice
+                unitPrice = p.OpeningPrice,
+                costPrice = p.OpeningPrice
             })
             .ToList();
 

@@ -1,0 +1,75 @@
+@model IEnumerable<PharmaCare.Domain.Entities.Finance.Payment>
+@{
+    ViewData["Title"] = "Customer Refunds";
+}
+
+<!-- Page Header -->
+<div class="page-header d-flex justify-content-between align-items-center">
+    <h4 class="page-title">
+        <i class="fas fa-undo-alt"></i>
+        Customer Refunds
+    </h4>
+    <div>
+        <a asp-action="ReceiptsIndex" class="btn btn-outline-secondary me-2">
+            <i class="fas fa-arrow-left me-1"></i>Receipts
+        </a>
+        <a asp-action="Refund" class="btn btn-danger">
+            <i class="fas fa-plus me-2"></i>New Refund
+        </a>
+    </div>
+</div>
+
+<!-- Refunds Table -->
+<div class="card">
+    <div class="card-body">
+        <div class="table-responsive">
+            <table class="table table-hover" id="refundsTable">
+                <thead>
+                    <tr>
+                        <th style="width: 50px;">S.No</th>
+                        <th>Reference</th>
+                        <th>Date</th>
+                        <th>Customer</th>
+                        <th>Method</th>
+                        <th>Account</th>
+                        <th class="text-end">Amount</th>
+                        <th>Remarks</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    @{int sNo = 1;}
+                    @foreach (var refund in Model)
+                    {
+                        <tr>
+                            <td>@(sNo++)</td>
+                            <td><strong>@refund.Reference</strong></td>
+                            <td>@refund.PaymentDate.ToString("dd/MM/yyyy")</td>
+                            <td>@refund.Party?.Name</td>
+                            <td>
+                                <span class="badge bg-@(refund.PaymentMethod == "Cash" ? "success" : "primary")">
+                                    @refund.PaymentMethod
+                                </span>
+                            </td>
+                            <td>@refund.Account?.Name</td>
+                            <td class="text-end"><strong>@refund.Amount.ToString("N2")</strong></td>
+                            <td>@refund.Remarks</td>
+                        </tr>
+                    }
+                </tbody>
+            </table>
+        </div>
+    </div>
+</div>
+
+@section Scripts {
+    <script>
+        $(document).ready(function () {
+            if (!$.fn.DataTable.isDataTable('#refundsTable')) {
+                $('#refundsTable').DataTable({
+                    order: [[2, 'desc']],
+                    pageLength: 25
+                });
+            }
+        });
+    </script>
+}

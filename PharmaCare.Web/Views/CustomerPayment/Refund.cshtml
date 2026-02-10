@@ -1,0 +1,152 @@
+@model PharmaCare.Domain.Entities.Finance.Payment
+@{
+    ViewData["Title"] = "Customer Refund";
+}
+
+<!-- Page Header -->
+<div class="page-header">
+    <h4 class="page-title">
+        <i class="fas fa-undo-alt"></i>
+        Customer Refund
+    </h4>
+    <a asp-action="RefundsIndex" class="btn btn-outline-secondary">
+        <i class="fas fa-arrow-left me-2"></i>Back to Refunds
+    </a>
+</div>
+
+<div asp-validation-summary="All" class="text-danger mb-3"></div>
+
+<div class="row g-4">
+    <!-- Refund Form -->
+    <div class="col-md-8">
+        <div class="card">
+            <div class="card-header">
+                <h6 class="mb-0"><i class="fas fa-credit-card me-2"></i>Refund Details</h6>
+            </div>
+            <div class="card-body">
+                <form asp-action="Refund" method="post">
+                    <div class="row g-3">
+                        <div class="col-md-6">
+                            <label class="form-label">Customer <span class="text-danger">*</span></label>
+                            <select asp-for="Party_ID" asp-items="ViewBag.Customers" class="form-select" required>
+                                <option value="">-- Select Customer --</option>
+                            </select>
+                            <span asp-validation-for="Party_ID" class="text-danger small"></span>
+                        </div>
+                        <div class="col-md-6">
+                            <label class="form-label">Refund Amount <span class="text-danger">*</span></label>
+                            <div class="input-group">
+                                <span class="input-group-text">PKR</span>
+                                <input asp-for="Amount" type="number" step="0.01" min="0.01"
+                                       class="form-control fs-5" placeholder="Enter amount" required />
+                            </div>
+                            <span asp-validation-for="Amount" class="text-danger small"></span>
+                        </div>
+                        <div class="col-md-6">
+                            <label class="form-label">Refund Date <span class="text-danger">*</span></label>
+                            <input asp-for="PaymentDate" type="date" class="form-control" required />
+                        </div>
+                        <div class="col-md-6">
+                            <label class="form-label">Payment Method <span class="text-danger">*</span></label>
+                            <select asp-for="PaymentMethod" asp-items="ViewBag.PaymentMethods" class="form-select" id="paymentMethod" required>
+                            </select>
+                        </div>
+                        <div class="col-md-6">
+                            <label class="form-label">Account <span class="text-danger">*</span></label>
+                            <select asp-for="Account_ID" asp-items="ViewBag.Accounts" class="form-select" required>
+                                <option value="">-- Select Account --</option>
+                            </select>
+                            <span asp-validation-for="Account_ID" class="text-danger small"></span>
+                        </div>
+                        <div class="col-md-6" id="chequeNoGroup" style="display: none;">
+                            <label class="form-label">Cheque No</label>
+                            <input asp-for="ChequeNo" class="form-control" placeholder="Enter cheque number" />
+                        </div>
+                        <div class="col-md-6" id="chequeDateGroup" style="display: none;">
+                            <label class="form-label">Cheque Date</label>
+                            <input asp-for="ChequeDate" type="date" class="form-control" />
+                        </div>
+                        <div class="col-12">
+                            <label class="form-label">Remarks</label>
+                            <textarea asp-for="Remarks" class="form-control" rows="2" placeholder="e.g. Refund for returned goods"></textarea>
+                        </div>
+                    </div>
+
+                    <hr class="my-4" />
+
+                    <div class="text-end">
+                        <a asp-action="RefundsIndex" class="btn btn-outline-secondary me-2">Cancel</a>
+                        <button type="submit" class="btn btn-danger">
+                            <i class="fas fa-undo me-2"></i>Process Refund
+                        </button>
+                    </div>
+                </form>
+            </div>
+        </div>
+    </div>
+
+    <!-- Info Card -->
+    <div class="col-md-4">
+        <div class="card">
+            <div class="card-header">
+                <h6 class="mb-0"><i class="fas fa-info-circle me-2"></i>About Refunds</h6>
+            </div>
+            <div class="card-body">
+                <div class="alert alert-warning mb-3">
+                    <i class="fas fa-exclamation-triangle me-2"></i>
+                    <strong>When to use:</strong><br />
+                    Issue a refund when a customer returns goods that were <strong>already paid for</strong>.
+                    The sale return reduces A/R, creating a credit balance. This refund gives the customer their money back.
+                </div>
+                <table class="table table-sm table-borderless mb-0">
+                    <tr>
+                        <td class="text-muted">Journal Entry:</td>
+                        <td></td>
+                    </tr>
+                    <tr>
+                        <td><i class="fas fa-arrow-up text-success me-1"></i> DR</td>
+                        <td>Customer A/R</td>
+                    </tr>
+                    <tr>
+                        <td><i class="fas fa-arrow-down text-danger me-1"></i> CR</td>
+                        <td>Cash / Bank</td>
+                    </tr>
+                </table>
+            </div>
+        </div>
+    </div>
+</div>
+
+@section Scripts {
+    <script>
+        document.getElementById('paymentMethod').addEventListener('change', function () {
+            const method = this.value;
+            const isCheque = method === 'Cheque';
+
+            document.getElementById('chequeNoGroup').style.display = isCheque ? 'block' : 'none';
+            document.getElementById('chequeDateGroup').style.display = isCheque ? 'block' : 'none';
+
+            const accountSelect = document.getElementById('Account_ID');
+            accountSelect.innerHTML = '<option value="">Loading...</option>';
+
+            let typeId = 0;
+            if (method === 'Cash') typeId = 1;
+            else if (method === 'Bank' || method === 'Cheque') typeId = 2;
+
+            if (typeId > 0) {
+                fetch(`@Url.Action("GetAccountsByType")?typeId=${typeId}`)
+                    .then(r => r.json())
+                    .then(data => {
+                        accountSelect.innerHTML = '<option value="">-- Select Account --</option>';
+                        data.forEach(a => {
+                            accountSelect.innerHTML += `<option value="${a.id}">${a.name}</option>`;
+                        });
+                    });
+            }
+        });
+
+        if (document.getElementById('paymentMethod').value) {
+            document.getElementById('paymentMethod').dispatchEvent(new Event('change'));
+        }
+    </script>
+}
