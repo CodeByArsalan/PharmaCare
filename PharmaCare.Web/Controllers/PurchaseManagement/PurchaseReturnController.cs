@@ -7,9 +7,6 @@ using PharmaCare.Domain.Entities.Transactions;
 
 namespace PharmaCare.Web.Controllers.PurchaseManagement;
 
-/// <summary>
-/// Controller for managing Purchase Returns.
-/// </summary>
 [Authorize]
 public class PurchaseReturnController : BaseController
 {
@@ -26,19 +23,11 @@ public class PurchaseReturnController : BaseController
         _partyService = partyService;
         _productService = productService;
     }
-
-    /// <summary>
-    /// Displays list of all purchase returns.
-    /// </summary>
     public async Task<IActionResult> PurchaseReturnsIndex()
     {
         var returns = await _purchaseReturnService.GetAllAsync();
         return View(returns);
     }
-
-    /// <summary>
-    /// Shows form to create a new purchase return.
-    /// </summary>
     public async Task<IActionResult> AddPurchaseReturn()
     {
         await LoadDropdownsAsync();
@@ -48,10 +37,6 @@ public class PurchaseReturnController : BaseController
             StockDetails = new List<StockDetail> { new StockDetail() }
         });
     }
-
-    /// <summary>
-    /// Creates a new purchase return.
-    /// </summary>
     [HttpPost]
     [ValidateAntiForgeryToken]
     public async Task<IActionResult> AddPurchaseReturn(StockMain purchaseReturn)
@@ -93,10 +78,6 @@ public class PurchaseReturnController : BaseController
         await LoadDropdownsAsync();
         return View(purchaseReturn);
     }
-
-    /// <summary>
-    /// Shows details of a purchase return.
-    /// </summary>
     public async Task<IActionResult> ViewPurchaseReturn(int id)
     {
         var purchaseReturn = await _purchaseReturnService.GetByIdAsync(id);
@@ -108,10 +89,6 @@ public class PurchaseReturnController : BaseController
 
         return View(purchaseReturn);
     }
-
-    /// <summary>
-    /// Voids a purchase return.
-    /// </summary>
     [HttpPost]
     [ValidateAntiForgeryToken]
     public async Task<IActionResult> Void(int id, string voidReason)
@@ -134,10 +111,6 @@ public class PurchaseReturnController : BaseController
 
         return RedirectToAction(nameof(PurchaseReturnsIndex));
     }
-
-    /// <summary>
-    /// Gets GRNs available for return for a supplier.
-    /// </summary>
     [HttpGet]
     public async Task<IActionResult> GetGrns(int? supplierId)
     {
@@ -162,10 +135,6 @@ public class PurchaseReturnController : BaseController
 
         return Json(result);
     }
-
-    /// <summary>
-    /// Gets products as JSON for AJAX dropdown.
-    /// </summary>
     [HttpGet]
     public async Task<IActionResult> GetProducts()
     {

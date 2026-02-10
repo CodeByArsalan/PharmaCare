@@ -1,0 +1,164 @@
+@model PharmaCare.Domain.Entities.Finance.Payment
+@{
+    ViewData["Title"] = "Advance Payment";
+}
+
+<!-- Page Header -->
+<div class="page-header">
+    <h4 class="page-title">
+        <i class="fas fa-hand-holding-usd"></i>
+        Advance Payment to Supplier
+    </h4>
+    <a asp-action="AdvancePaymentsIndex" class="btn btn-outline-secondary">
+        <i class="fas fa-arrow-left me-2"></i>Back to Advance Payments
+    </a>
+</div>
+
+<div asp-validation-summary="All" class="text-danger mb-3"></div>
+
+<div class="row g-4">
+    <!-- Payment Form -->
+    <div class="col-md-8">
+        <div class="card">
+            <div class="card-header">
+                <h6 class="mb-0"><i class="fas fa-credit-card me-2"></i>Payment Details</h6>
+            </div>
+            <div class="card-body">
+                <form asp-action="AdvancePayment" method="post">
+                    <div class="row g-3">
+                        <div class="col-md-6">
+                            <label class="form-label">Supplier <span class="text-danger">*</span></label>
+                            <select asp-for="Party_ID" asp-items="ViewBag.Suppliers" class="form-select" required>
+                                <option value="">-- Select Supplier --</option>
+                            </select>
+                            <span asp-validation-for="Party_ID" class="text-danger small"></span>
+                        </div>
+                        <div class="col-md-6">
+                            <label class="form-label">Payment Amount <span class="text-danger">*</span></label>
+                            <div class="input-group">
+                                <span class="input-group-text">PKR</span>
+                                <input asp-for="Amount" type="number" step="0.01" min="0.01" 
+                                       class="form-control fs-5" id="paymentAmount" 
+                                       placeholder="Enter amount" required />
+                            </div>
+                            <span asp-validation-for="Amount" class="text-danger small"></span>
+                        </div>
+                        <div class="col-md-6">
+                            <label class="form-label">Payment Date <span class="text-danger">*</span></label>
+                            <input asp-for="PaymentDate" type="date" class="form-control" required />
+                            <span asp-validation-for="PaymentDate" class="text-danger small"></span>
+                        </div>
+                        <div class="col-md-6">
+                            <label class="form-label">Payment Method <span class="text-danger">*</span></label>
+                            <select asp-for="PaymentMethod" asp-items="ViewBag.PaymentMethods" class="form-select" id="paymentMethod" required>
+                            </select>
+                        </div>
+                        <div class="col-md-6">
+                            <label class="form-label">Account <span class="text-danger">*</span></label>
+                            <select asp-for="Account_ID" asp-items="ViewBag.Accounts" class="form-select" required>
+                                <option value="">-- Select Account --</option>
+                            </select>
+                            <span asp-validation-for="Account_ID" class="text-danger small"></span>
+                        </div>
+                        <div class="col-md-6" id="chequeNoGroup" style="display: none;">
+                            <label class="form-label">Cheque No</label>
+                            <input asp-for="ChequeNo" class="form-control" placeholder="Enter cheque number" />
+                        </div>
+                        <div class="col-md-6" id="chequeDateGroup" style="display: none;">
+                            <label class="form-label">Cheque Date</label>
+                            <input asp-for="ChequeDate" type="date" class="form-control" />
+                        </div>
+                        <div class="col-12">
+                            <label class="form-label">Remarks</label>
+                            <textarea asp-for="Remarks" class="form-control" rows="2" placeholder="e.g. Advance for upcoming order"></textarea>
+                        </div>
+                    </div>
+
+                    <hr class="my-4" />
+
+                    <div class="text-end">
+                        <a asp-action="AdvancePaymentsIndex" class="btn btn-outline-secondary me-2">Cancel</a>
+                        <button type="submit" class="btn btn-success">
+                            <i class="fas fa-check me-2"></i>Record Advance Payment
+                        </button>
+                    </div>
+                </form>
+            </div>
+        </div>
+    </div>
+
+    <!-- Info Card -->
+    <div class="col-md-4">
+        <div class="card">
+            <div class="card-header">
+                <h6 class="mb-0"><i class="fas fa-info-circle me-2"></i>About Advance Payments</h6>
+            </div>
+            <div class="card-body">
+                <div class="alert alert-info mb-3">
+                    <i class="fas fa-lightbulb me-2"></i>
+                    <strong>How it works:</strong><br/>
+                    An advance payment creates a <strong>debit balance</strong> on the supplier's account. 
+                    This amount will <strong>automatically offset</strong> against future purchases from this supplier.
+                </div>
+                <table class="table table-sm table-borderless mb-0">
+                    <tr>
+                        <td class="text-muted">Journal Entry:</td>
+                        <td></td>
+                    </tr>
+                    <tr>
+                        <td><i class="fas fa-arrow-up text-success me-1"></i> DR</td>
+                        <td>Supplier Account</td>
+                    </tr>
+                    <tr>
+                        <td><i class="fas fa-arrow-down text-danger me-1"></i> CR</td>
+                        <td>Cash / Bank</td>
+                    </tr>
+                </table>
+            </div>
+        </div>
+    </div>
+</div>
+
+@section Scripts {
+    <script>
+        document.getElementById('paymentMethod').addEventListener('change', function() {
+            const method = this.value;
+            const isCheque = method === 'Cheque';
+            
+            // Toggle cheque fields
+            document.getElementById('chequeNoGroup').style.display = isCheque ? 'block' : 'none';
+            document.getElementById('chequeDateGroup').style.display = isCheque ? 'block' : 'none';
+
+            // Load accounts based on method
+            const accountSelect = document.getElementById('Account_ID');
+            accountSelect.innerHTML = '<option value="">Loading...</option>';
+
+            let typeId = 0;
+            if (method === 'Cash') typeId = 1;
+            else if (method === 'Bank') typeId = 2;
+            else if (method === 'Cheque') typeId = 2;
+
+            if (typeId > 0) {
+                fetch(`@Url.Action("GetAccountsByType")?typeId=${typeId}`)
+                    .then(response => response.json())
+                    .then(data => {
+                        accountSelect.innerHTML = '<option value="">-- Select Account --</option>';
+                        data.forEach(account => {
+                            accountSelect.innerHTML += `<option value="${account.id}">${account.name}</option>`;
+                        });
+                    })
+                    .catch(error => {
+                        console.error('Error loading accounts:', error);
+                        accountSelect.innerHTML = '<option value="">Error loading accounts</option>';
+                    });
+            } else {
+                accountSelect.innerHTML = '<option value="">-- Select Method First --</option>';
+            }
+        });
+
+        // Trigger change to load initial accounts
+        if(document.getElementById('paymentMethod').value) {
+            document.getElementById('paymentMethod').dispatchEvent(new Event('change'));
+        }
+    </script>
+}

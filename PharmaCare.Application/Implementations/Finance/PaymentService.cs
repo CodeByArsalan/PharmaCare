@@ -264,4 +264,75 @@ public class PaymentService : IPaymentService
 
         return $"{datePrefix}{nextNum:D4}";
     }
+
+    /// <summary>
+    /// Creates an advance payment to a supplier (not linked to any GRN).
+    /// DR: Supplier Account (creates debit balance / reduces payable)
+    /// CR: Cash/Bank Account
+    /// The debit balance will automatically offset against future purchases.
+    /// </summary>
+    public async Task<Payment> CreateAdvancePaymentAsync(Payment payment, int userId)
+    {
+        if (payment.Amount <= 0)
+            throw new InvalidOperationException("Payment amount must be greater than zero.");
+
+        // Get the supplier with their linked account
+        var supplier = await _partyRepository.Query()
+            .Include(p => p.Account)
+            .FirstOrDefaultAsync(p => p.PartyID == payment.Party_ID);
+
+        if (supplier == null)
+            throw new InvalidOperationException("Supplier not found.");
+
+        if (supplier.Account_ID == null)
+            throw new InvalidOperationException($"Supplier '{supplier.Name}' does not have a linked account. Please update the party record.");
+
+        var supplierAccount = supplier.Account!;
+
+        // Get the payment account (Cash/Bank)
+        var paymentAccount = await _accountRepository.Query()
+            .FirstOrDefaultAsync(a => a.AccountID == payment.Account_ID);
+
+        if (paymentAccount == null)
+            throw new InvalidOperationException("Payment account not found.");
+
+        // Generate reference number
+        payment.Reference = await GenerateReferenceNoAsync();
+        payment.PaymentType = "PAYMENT"; // Supplier payment
+        payment.StockMain_ID = null; // No GRN link — this is an advance
+        payment.Remarks = string.IsNullOrWhiteSpace(payment.Remarks)
+            ? $"Advance payment to {supplier.Name}"
+            : payment.Remarks;
+        payment.CreatedAt = DateTime.Now;
+        payment.CreatedBy = userId;
+
+        // Create accounting voucher (same as regular payment: DR Supplier, CR Cash/Bank)
+        var voucher = await CreatePaymentVoucherAsync(
+            payment,
+            supplierAccount,
+            paymentAccount,
+            supplier.Name,
+            userId);
+
+        payment.Voucher_ID = voucher.VoucherID;
+
+        await _paymentRepository.AddAsync(payment);
+        await _unitOfWork.SaveChangesAsync();
+
+        return payment;
+    }
+
+    /// <summary>
+    /// Gets all advance payments (payments without a linked transaction).
+    /// </summary>
+    public async Task<IEnumerable<Payment>> GetAdvancePaymentsAsync()
+    {
+        return await _paymentRepository.Query()
+            .Include(p => p.Party)
+            .Include(p => p.Account)
+            .Where(p => p.PaymentType == "PAYMENT" && p.StockMain_ID == null)
+            .OrderByDescending(p => p.PaymentDate)
+            .ThenByDescending(p => p.PaymentID)
+            .ToListAsync();
+    }
 }

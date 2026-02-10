@@ -32,4 +32,16 @@ public interface IPaymentService
     /// Creates a new payment and updates transaction balance.
     /// </summary>
     Task<Payment> CreatePaymentAsync(Payment payment, int userId);
+
+    /// <summary>
+    /// Creates an advance payment to a supplier (not linked to any GRN).
+    /// DR: Supplier Account (creates debit balance / reduces payable)
+    /// CR: Cash/Bank Account
+    /// </summary>
+    Task<Payment> CreateAdvancePaymentAsync(Payment payment, int userId);
+
+    /// <summary>
+    /// Gets all advance payments (payments without a linked transaction).
+    /// </summary>
+    Task<IEnumerable<Payment>> GetAdvancePaymentsAsync();
 }

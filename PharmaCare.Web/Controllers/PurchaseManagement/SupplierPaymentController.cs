@@ -182,6 +182,72 @@ public class SupplierPaymentController : BaseController
         return Json(filteredAccounts);
     }
 
+    /// Displays list of advance payments.
+    public async Task<IActionResult> AdvancePaymentsIndex()
+    {
+        var advancePayments = await _paymentService.GetAdvancePaymentsAsync();
+        return View(advancePayments);
+    }
+
+    /// Shows form to make an advance payment to a supplier.
+    public async Task<IActionResult> AdvancePayment()
+    {
+        await LoadDropdownsAsync();
+
+        // Load suppliers for dropdown
+        var parties = await _partyService.GetAllAsync();
+        ViewBag.Suppliers = new Microsoft.AspNetCore.Mvc.Rendering.SelectList(
+            parties.Where(p => p.IsActive && p.PartyType == "Supplier"),
+            "PartyID",
+            "Name"
+        );
+
+        return View(new Payment
+        {
+            PaymentDate = DateTime.Now,
+            PaymentMethod = "Cash"
+        });
+    }
+
+    /// Processes an advance payment.
+    [HttpPost]
+    [ValidateAntiForgeryToken]
+    public async Task<IActionResult> AdvancePayment(Payment payment)
+    {
+        // Remove validation for navigation properties
+        ModelState.Remove("Party");
+        ModelState.Remove("StockMain");
+        ModelState.Remove("Account");
+        ModelState.Remove("Voucher");
+        ModelState.Remove("PaymentType");
+        ModelState.Remove("Reference");
+
+        if (ModelState.IsValid)
+        {
+            try
+            {
+                await _paymentService.CreateAdvancePaymentAsync(payment, CurrentUserId);
+                ShowMessage(MessageType.Success, "Advance payment recorded successfully!");
+                return RedirectToAction(nameof(AdvancePaymentsIndex));
+            }
+            catch (Exception ex)
+            {
+                ModelState.AddModelError("", ex.Message);
+            }
+        }
+
+        await LoadDropdownsAsync();
+
+        var parties = await _partyService.GetAllAsync();
+        ViewBag.Suppliers = new Microsoft.AspNetCore.Mvc.Rendering.SelectList(
+            parties.Where(p => p.IsActive && p.PartyType == "Supplier"),
+            "PartyID",
+            "Name"
+        );
+
+        return View(payment);
+    }
+
     private async Task LoadDropdownsAsync()
     {
         // Load cash/bank accounts for payment (filter by AccountType Code)
