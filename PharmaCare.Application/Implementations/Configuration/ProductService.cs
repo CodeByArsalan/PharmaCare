@@ -3,6 +3,7 @@ using PharmaCare.Application.DTOs.Configuration;
 using PharmaCare.Application.Interfaces;
 using PharmaCare.Application.Interfaces.Configuration;
 using PharmaCare.Domain.Entities.Configuration;
+using PharmaCare.Domain.Entities.Transactions;
 
 namespace PharmaCare.Application.Implementations.Configuration;
 
@@ -16,6 +17,7 @@ public class ProductService : IProductService
     private readonly IRepository<Category> _categoryRepository;
     private readonly IRepository<PriceType> _priceTypeRepository;
     private readonly IRepository<ProductPrice> _productPriceRepository;
+    private readonly IRepository<StockDetail> _stockDetailRepository;
     private readonly IUnitOfWork _unitOfWork;
 
     public ProductService(
@@ -24,6 +26,7 @@ public class ProductService : IProductService
         IRepository<Category> categoryRepository,
         IRepository<PriceType> priceTypeRepository,
         IRepository<ProductPrice> productPriceRepository,
+        IRepository<StockDetail> stockDetailRepository,
         IUnitOfWork unitOfWork)
     {
         _repository = repository;
@@ -31,6 +34,7 @@ public class ProductService : IProductService
         _categoryRepository = categoryRepository;
         _priceTypeRepository = priceTypeRepository;
         _productPriceRepository = productPriceRepository;
+        _stockDetailRepository = stockDetailRepository;
         _unitOfWork = unitOfWork;
     }
 
@@ -238,5 +242,37 @@ public class ProductService : IProductService
         }
 
         await _unitOfWork.SaveChangesAsync();
+    }
+
+    /// <summary>
+    /// Gets all active products with calculated current stock.
+    /// CurrentStock = OpeningQuantity + SUM(StockDetail.Quantity * TransactionType.StockDirection)
+    /// Only considers "Approved" transactions.
+    /// </summary>
+    public async Task<IEnumerable<(Product Product, decimal CurrentStock)>> GetProductsWithStockAsync()
+    {
+        var products = await _repository.Query()
+            .Where(p => p.IsActive)
+            .ToListAsync();
+
+        // Get all stock movements for approved transactions
+        var stockMovements = await _stockDetailRepository.Query()
+            .Include(sd => sd.StockMain)
+                .ThenInclude(sm => sm!.TransactionType)
+            .Where(sd => sd.StockMain!.Status == "Approved" && sd.StockMain.TransactionType!.AffectsStock)
+            .GroupBy(sd => sd.Product_ID)
+            .Select(g => new
+            {
+                ProductId = g.Key,
+                StockChange = g.Sum(sd => sd.Quantity * sd.StockMain!.TransactionType!.StockDirection)
+            })
+            .ToListAsync();
+
+        var stockDict = stockMovements.ToDictionary(x => x.ProductId, x => x.StockChange);
+
+        return products.Select(p => (
+            Product: p,
+            CurrentStock: p.OpeningQuantity + (stockDict.TryGetValue(p.ProductID, out var change) ? change : 0)
+        ));
     }
 }

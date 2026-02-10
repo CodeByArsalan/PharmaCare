@@ -25,7 +25,7 @@ public class CustomerPaymentService : ICustomerPaymentService
     private readonly IUnitOfWork _unitOfWork;
     private readonly SystemAccountSettings _systemAccountSettings;
 
-    private const string SALE_TRANSACTION_TYPE_CODE = "SAL";
+    private const string SALE_TRANSACTION_TYPE_CODE = "SALE";
     private const string PREFIX = "REC";
     private const string VOUCHER_TYPE_CODE = "RV"; // Receipt Voucher
 

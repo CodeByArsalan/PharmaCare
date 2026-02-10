@@ -18,9 +18,12 @@ public interface ISaleService
     Task<StockMain?> GetByIdAsync(int id);
 
     /// <summary>
-    /// Creates a new sale.
+    /// Creates a new sale with optional payment.
     /// </summary>
-    Task<StockMain> CreateAsync(StockMain sale, int userId);
+    /// <param name="sale">The sale entity.</param>
+    /// <param name="userId">The user creating the sale.</param>
+    /// <param name="paymentAccountId">Optional payment account ID for immediate payment.</param>
+    Task<StockMain> CreateAsync(StockMain sale, int userId, int? paymentAccountId = null);
 
     /// <summary>
     /// Voids a sale.

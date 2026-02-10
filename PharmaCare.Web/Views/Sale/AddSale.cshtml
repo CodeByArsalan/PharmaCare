@@ -150,17 +150,17 @@
                                     <input type="hidden" asp-for="BalanceAmount" id="balanceAmount" />
                                 </div>
 
-                                <!-- Payment Account Dropdown -->
-                                <div class="col-12" id="paymentAccountContainer" style="display: none;">
+                                <!-- Payment Account Selection (shown when payment is made) -->
+                                <div class="col-12 mt-2" id="paymentAccountSection" style="display: none;">
                                     <label class="form-label">Payment Account <span class="text-danger">*</span></label>
                                     <select name="PaymentAccountId" id="paymentAccountId" class="form-select">
-                                        <option value="">-- Select Account --</option>
-                                        @foreach (var account in (SelectList)ViewBag.PaymentAccounts)
+                                        <option value="">-- Select Payment Account --</option>
+                                        @foreach (var account in ViewBag.PaymentAccounts as IEnumerable<SelectListItem> ?? Enumerable.Empty<SelectListItem>())
                                         {
                                             <option value="@account.Value">@account.Text</option>
                                         }
                                     </select>
-                                    <div class="invalid-feedback">Please select a payment account.</div>
+                                    <small class="text-muted">Select Cash or Bank account to receive payment</small>
                                 </div>
                             </div>
                         </div>
@@ -320,7 +320,7 @@
             products.forEach(p => {
                 const selected = detail && detail.productId === p.id ? 'selected' : '';
                 const stockText = p.stockQuantity !== undefined ? ` (Stock: ${p.stockQuantity})` : '';
-                productOptions += `<option value="${p.id}" data-price="${p.unitPrice}" data-stock="${p.stockQuantity || 0}" ${selected}>${p.name}${stockText}</option>`;
+                productOptions += `<option value="${p.id}" data-price="${p.unitPrice}" data-cost="${p.costPrice || p.unitPrice}" data-stock="${p.stockQuantity || 0}" ${selected}>${p.name}${stockText}</option>`;
             });
 
             const quantity = detail ? detail.quantity : 1;
@@ -380,8 +380,10 @@
             const row = e.target.closest('tr');
             const selectedOption = e.target.options[e.target.selectedIndex];
             const unitPrice = parseFloat(selectedOption.dataset.price) || 0;
+            const costPrice = parseFloat(selectedOption.dataset.cost) || 0;
             
             row.querySelector('.price-input').value = unitPrice.toFixed(2);
+            row.querySelector('.cost-price-input').value = costPrice.toFixed(2);
             calculateLineTotal({ target: row.querySelector('.quantity-input') });
         }
 
@@ -389,9 +391,12 @@
             const row = e.target.closest('tr');
             const quantity = parseFloat(row.querySelector('.quantity-input').value) || 0;
             const unitPrice = parseFloat(row.querySelector('.price-input').value) || 0;
+            const costPrice = parseFloat(row.querySelector('.cost-price-input').value) || 0;
             const lineTotal = quantity * unitPrice;
+            const lineCost = quantity * costPrice;
             
             row.querySelector('.line-total').value = lineTotal.toFixed(2);
+            row.querySelector('.line-cost').value = lineCost.toFixed(2);
             calculateTotals();
         }
 
@@ -438,7 +443,6 @@
             // For counter parties, auto-set Paid = Total
             if (isCurrentCustomerCounter()) {
                 document.getElementById('paidAmount').value = totalAmount.toFixed(2);
-                togglePaymentAccount(); // Show payment account dropdown
             }
 
             // Calculate balance
@@ -464,7 +468,6 @@
             // For counter parties, auto-set Paid = Total
             if (isCurrentCustomerCounter()) {
                 document.getElementById('paidAmount').value = totalAmount.toFixed(2);
-                togglePaymentAccount();
             }
             
             calculatePayment();
@@ -477,6 +480,15 @@
 
             document.getElementById('balanceDisplay').value = balance.toFixed(2);
             document.getElementById('balanceAmount').value = balance.toFixed(2);
+
+            // Show/Hide Payment Account dropdown based on payment
+            const paymentSection = document.getElementById('paymentAccountSection');
+            if (paidAmount > 0) {
+                paymentSection.style.display = 'block';
+            } else {
+                paymentSection.style.display = 'none';
+                document.getElementById('paymentAccountId').value = ''; // Clear selection
+            }
 
             // Update payment status
             const alertDiv = document.getElementById('paymentStatusAlert');
@@ -500,7 +512,6 @@
         document.getElementById('discountPercent').addEventListener('input', calculateTotals);
         document.getElementById('paidAmount').addEventListener('input', function() {
             calculatePayment();
-            togglePaymentAccount();
         });
 
         // Pay Full button click handler
@@ -508,30 +519,12 @@
             const totalAmount = parseFloat(document.getElementById('totalAmount').value) || 0;
             document.getElementById('paidAmount').value = totalAmount.toFixed(2);
             calculatePayment();
-            togglePaymentAccount();
         });
-
-        // Toggle Payment Account dropdown visibility
-        function togglePaymentAccount() {
-            const paidAmount = parseFloat(document.getElementById('paidAmount').value) || 0;
-            const container = document.getElementById('paymentAccountContainer');
-            const select = document.getElementById('paymentAccountId');
-            
-            if (paidAmount > 0) {
-                container.style.display = 'block';
-                select.setAttribute('required', 'required');
-            } else {
-                container.style.display = 'none';
-                select.removeAttribute('required');
-                select.value = ''; // Clear selection when hidden
-            }
-        }
 
         // Initialize payment status on page load
         document.addEventListener('DOMContentLoaded', function() {
             setTimeout(function() {
                 calculatePayment();
-                togglePaymentAccount();
             }, 100);
         });
 

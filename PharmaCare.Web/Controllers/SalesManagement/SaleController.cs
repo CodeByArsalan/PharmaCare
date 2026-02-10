@@ -46,7 +46,7 @@ public class SaleController : BaseController
 
     [HttpPost]
     [ValidateAntiForgeryToken]
-    public async Task<IActionResult> AddSale(StockMain sale)
+    public async Task<IActionResult> AddSale(StockMain sale, int? PaymentAccountId)
     {
         // Remove validation for navigation properties
         ModelState.Remove("TransactionType");
@@ -79,7 +79,7 @@ public class SaleController : BaseController
                     sale.Party = party;
                 }
 
-                await _saleService.CreateAsync(sale, CurrentUserId);
+                await _saleService.CreateAsync(sale, CurrentUserId, PaymentAccountId);
                 ShowMessage(MessageType.Success, "Sale created successfully!");
                 return RedirectToAction(nameof(SalesIndex));
             }
@@ -132,20 +132,20 @@ public class SaleController : BaseController
     }
 
     /// <summary>
-    /// Gets products as JSON for AJAX dropdown.
+    /// Gets products as JSON for AJAX dropdown with calculated current stock.
     /// </summary>
     [HttpGet]
     public async Task<IActionResult> GetProducts()
     {
-        var products = await _productService.GetAllAsync();
-        var result = products
-            .Where(p => p.IsActive)
-            .Select(p => new
+        var productsWithStock = await _productService.GetProductsWithStockAsync();
+        var result = productsWithStock
+            .Select(ps => new
             {
-                id = p.ProductID,
-                name = p.Name,
-                unitPrice = p.OpeningPrice,
-                stockQuantity = p.OpeningQuantity
+                id = ps.Product.ProductID,
+                name = ps.Product.Name,
+                unitPrice = ps.Product.OpeningPrice,
+                costPrice = ps.Product.OpeningPrice, // Use OpeningPrice as cost (can be enhanced later)
+                stockQuantity = ps.CurrentStock
             })
             .ToList();
 

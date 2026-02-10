@@ -25,4 +25,9 @@ public interface IProductService
     Task<IEnumerable<PriceType>> GetPriceTypesAsync();
     Task<IEnumerable<ProductPrice>> GetProductPricesAsync(int productId);
     Task SaveProductPricesAsync(int productId, List<ProductPriceDto> prices, int userId);
+    
+    /// <summary>
+    /// Gets products with calculated current stock based on transactions.
+    /// </summary>
+    Task<IEnumerable<(Product Product, decimal CurrentStock)>> GetProductsWithStockAsync();
 }
