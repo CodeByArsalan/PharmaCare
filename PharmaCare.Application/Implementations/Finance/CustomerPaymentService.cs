@@ -230,14 +230,25 @@ public class CustomerPaymentService : ICustomerPaymentService
         string customerName,
         int userId)
     {
-        // Get Receipt Voucher type
+        // Get Receipt Voucher type (fallback to JV if RV not found)
         var voucherType = await _voucherTypeRepository.Query()
-            .FirstOrDefaultAsync(vt => vt.Code == VOUCHER_TYPE_CODE);
+            .FirstOrDefaultAsync(vt => vt.Code == VOUCHER_TYPE_CODE || vt.Code == "JV");
 
         if (voucherType == null)
-            throw new InvalidOperationException($"Voucher type '{VOUCHER_TYPE_CODE}' not found. Please ensure it exists in the database.");
+            throw new InvalidOperationException($"Voucher type '{VOUCHER_TYPE_CODE}' or 'JV' not found. Please ensure it exists in the database.");
 
-        var voucherNo = await GenerateVoucherNoAsync();
+        // Determine voucher prefix based on account type (CR for Cash, BR for Bank)
+        string voucherPrefix = "RV";
+        if (cashBankAccount.AccountType_ID == 1) // Cash
+        {
+            voucherPrefix = "CR";
+        }
+        else if (cashBankAccount.AccountType_ID == 2) // Bank
+        {
+            voucherPrefix = "BR";
+        }
+
+        var voucherNo = await GenerateVoucherNoAsync(voucherPrefix);
 
         var voucher = new Voucher
         {
@@ -302,9 +313,9 @@ public class CustomerPaymentService : ICustomerPaymentService
         return $"{datePrefix}{nextNum:D4}";
     }
 
-    private async Task<string> GenerateVoucherNoAsync()
+    private async Task<string> GenerateVoucherNoAsync(string prefix = "RV")
     {
-        var datePrefix = $"RV-{DateTime.Now:yyyyMMdd}-";
+        var datePrefix = $"{prefix}-{DateTime.Now:yyyyMMdd}-";
 
         var lastVoucher = await _voucherRepository.Query()
             .Where(v => v.VoucherNo.StartsWith(datePrefix))
