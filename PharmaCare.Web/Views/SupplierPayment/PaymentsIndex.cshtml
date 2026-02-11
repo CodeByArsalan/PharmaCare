@@ -1,8 +1,7 @@
 @model IEnumerable<PharmaCare.Domain.Entities.Transactions.StockMain>
+@inject PharmaCare.Infrastructure.Interfaces.IComboboxRepository _combobox
 @{
     ViewData["Title"] = "Supplier Payments";
-    var suppliers = (IEnumerable<PharmaCare.Domain.Entities.Configuration.Party>)ViewBag.Suppliers;
-    var statuses = (string[])ViewBag.PaymentStatuses;
 }
 
 <!-- Page Header -->
@@ -25,23 +24,13 @@
             <div class="row g-3 align-items-end">
                 <div class="col-md-3">
                     <label class="form-label">Supplier</label>
-                    <select name="supplierId" id="supplierFilter" class="form-select">
+                    <select name="supplierId" id="supplierFilter" class="form-select" asp-items='_combobox.GetActivePartiesByType("Supplier", (int?)ViewBag.SelectedSupplier)'>
                         <option value="">All Suppliers</option>
-                        @foreach (var supplier in suppliers)
-                        {
-                            <option value="@supplier.PartyID" selected="@(ViewBag.SelectedSupplier != null && (int)ViewBag.SelectedSupplier == supplier.PartyID)">
-                                @supplier.Name
-                            </option>
-                        }
                     </select>
                 </div>
                 <div class="col-md-2">
                     <label class="form-label">Payment Status</label>
-                    <select name="paymentStatus" id="statusFilter" class="form-select">
-                        @foreach (var status in statuses)
-                        {
-                            <option value="@status" selected="@((string)ViewBag.SelectedStatus == status)">@status</option>
-                        }
+                    <select name="paymentStatus" id="statusFilter" class="form-select" asp-items='_combobox.GetPaymentStatuses((string)ViewBag.SelectedStatus)'>
                     </select>
                 </div>
                 <div class="col-md-2">

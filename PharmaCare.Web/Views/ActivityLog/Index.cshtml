@@ -1,71 +1,56 @@
-@model PharmaCare.Application.DTOs.Logging.ActivityLogPagedResult
+@using PharmaCare.Application.DTOs.Logging
+@model ActivityLogPagedResult
+@inject PharmaCare.Infrastructure.Interfaces.IComboboxRepository _combobox
+
 @{
-    ViewData["Title"] = "Activity Logs";
-    var filter = ViewBag.Filter as PharmaCare.Application.DTOs.Logging.ActivityLogFilterDto;
+    ViewData["Title"] = "Activity Log";
+    var filter = ViewBag.Filter as ActivityLogFilterDto ?? new ActivityLogFilterDto();
 }
 
-<!-- Page Header -->
-<div class="page-header">
-    <h4 class="page-title">
-        <i class="fas fa-history"></i>Activity Logs
-    </h4>
-    <a asp-action="Dashboard" class="btn btn-outline-primary">
-        <i class="fas fa-chart-pie me-2"></i>Dashboard
-    </a>
-</div>
-
-<!-- Filters -->
-<div class="card">
-    <div class="card-body">
-        <form asp-action="Index" method="get">
-            <div class="row g-3">
-                <div class="col-lg-6 col-md-6">
-                    <label class="form-label">From Date</label>
-                    <input type="date" name="FromDate" class="form-control"
-                           value="@filter?.FromDate?.ToString("yyyy-MM-dd")" />
-                </div>
-                <div class="col-lg-6 col-md-6">
-                    <label class="form-label">To Date</label>
-                    <input type="date" name="ToDate" class="form-control"
-                           value="@filter?.ToDate?.ToString("yyyy-MM-dd")" />
-                </div>
-                <div class="col-lg-4 col-md-4">
-                    <label class="form-label">Activity Type</label>
-                    <select name="ActivityType" class="form-select">
-                        <option value="">All Types</option>
-                        @foreach (var type in (List<SelectListItem>)ViewBag.ActivityTypes)
-                        {
-                            <option value="@type.Value"
-                                    selected="@(filter?.ActivityType?.ToString() == type.Value)">
-                                @type.Text
-                            </option>
-                        }
-                    </select>
-                </div>
-                <div class="col-lg-4 col-md-4">
-                    <label class="form-label">Entity</label>
-                    <select name="EntityName" class="form-select">
-                        <option value="">All Entities</option>
-                        @foreach (var entity in (List<string>)ViewBag.EntityNames)
-                        {
-                            <option value="@entity"
-                                    selected="@(filter?.EntityName == entity)">
-                                @entity
-                            </option>
-                        }
-                    </select>
-                </div>
-                <div class="col-lg-4 col-md-4">
-                    <label class="form-label">User</label>
-                    <input type="text" name="UserName" class="form-control"
-                           placeholder="Username" value="@filter?.UserName" />
-                </div>
+<div class="row mb-4">
+    <div class="col-12">
+        <h2 class="mb-3"><i class="fas fa-history me-2"></i>Activity Log</h2>
+        
+        <div class="card">
+            <div class="card-body">
+                <form asp-action="Index" method="get">
+                    <div class="row g-3">
+                        <div class="col-md-3">
+                            <label class="form-label">From Date</label>
+                            <input type="date" name="FromDate" class="form-control" value="@(filter.FromDate?.ToString("yyyy-MM-dd"))" />
+                        </div>
+                        <div class="col-md-3">
+                            <label class="form-label">To Date</label>
+                            <input type="date" name="ToDate" class="form-control" value="@(filter.ToDate?.ToString("yyyy-MM-dd"))" />
+                        </div>
+                        <div class="col-md-3">
+                            <label class="form-label">Activity Type</label>
+                            <select name="ActivityType" class="form-select" asp-items="@_combobox.GetActivityTypes((int?)filter.ActivityType)">
+                                <option value="">All Types</option>
+                            </select>
+                        </div>
+                        <div class="col-md-3">
+                            <label class="form-label">User</label>
+                             <input type="text" name="UserName" class="form-control" placeholder="Search by name" value="@filter.UserName" />
+                        </div>
+                        <div class="col-md-3">
+                            <label class="form-label">Entity Name</label>
+                            <select name="EntityName" class="form-select" asp-items="_combobox.GetEntityNamesForLog(filter.EntityName)">
+                                <option value="">All Entities</option>
+                            </select>
+                        </div>
+                        <div class="col-md-3">
+                            <label class="form-label">Entity ID</label>
+                            <input type="text" name="EntityId" class="form-control" placeholder="ID" value="@filter.EntityId" />
+                        </div>
+                        <div class="col-md-3 d-flex align-items-end">
+                            <button type="submit" class="btn btn-primary me-2"><i class="fas fa-search me-1"></i>Search</button>
+                            <a asp-action="Index" class="btn btn-outline-secondary">Reset</a>
+                        </div>
+                    </div>
+                </form>
             </div>
-            <div class="text-end mt-4">
-                <a asp-action="Index" class="btn btn-outline-secondary"><i class="fas fa-undo"></i> </a>
-                <button type="submit" class="btn btn-primary"><i class="fas fa-search"></i> Search</button>
-            </div>
-        </form>
+        </div>
     </div>
 </div>
 

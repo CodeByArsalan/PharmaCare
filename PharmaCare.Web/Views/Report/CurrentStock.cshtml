@@ -1,4 +1,5 @@
 @model PharmaCare.Application.ViewModels.Report.CurrentStockReportVM
+@inject PharmaCare.Infrastructure.Interfaces.IComboboxRepository _combobox
 @{
     ViewData["Title"] = "Current Stock Report";
 }
@@ -13,15 +14,8 @@
         <form method="get" class="row g-3 align-items-end">
             <div class="col-md-3">
                 <label class="form-label">Category</label>
-                <select name="filter.CategoryId" class="form-select">
+                <select name="filter.CategoryId" class="form-select" asp-items="@_combobox.GetActiveCategories(Model.Filter.CategoryId)">
                     <option value="">-- All Categories --</option>
-                    @if (ViewBag.Categories != null)
-                    {
-                        @foreach (SelectListItem item in ViewBag.Categories)
-                        {
-                            <option value="@item.Value" selected="@(item.Value == Model.Filter.CategoryId?.ToString())">@item.Text</option>
-                        }
-                    }
                 </select>
             </div>
             <div class="col-auto">

@@ -19,9 +19,9 @@ public class SubCategoryController : BaseController
         var subCategories = await _subCategoryService.GetAllAsync();
         return View("SubCategoriesIndex", subCategories);
     }
-    public async Task<IActionResult> AddSubCategory()
+    public IActionResult AddSubCategory()
     {
-        await LoadCategoriesDropdown();
+        // await LoadCategoriesDropdown(); // Removed
         return View(new SubCategory());
     }
     [HttpPost]
@@ -34,7 +34,7 @@ public class SubCategoryController : BaseController
             ShowMessage(MessageType.Success, "SubCategory created successfully!");
             return RedirectToAction("SubCategoriesIndex");
         }
-        await LoadCategoriesDropdown();
+        // await LoadCategoriesDropdown(); // Removed
         return View(subCategory);
     }
     public async Task<IActionResult> EditSubCategory(int id)
@@ -44,7 +44,7 @@ public class SubCategoryController : BaseController
         {
             return NotFound();
         }
-        await LoadCategoriesDropdown();
+        // await LoadCategoriesDropdown(); // Removed
         return View(subCategory);
     }
     [HttpPost]
@@ -66,7 +66,7 @@ public class SubCategoryController : BaseController
             ShowMessage(MessageType.Success, "SubCategory updated successfully!");
             return RedirectToAction("SubCategoriesIndex");
         }
-        await LoadCategoriesDropdown();
+        // await LoadCategoriesDropdown(); // Removed
         return View(subCategory);
     }
     [HttpPost]
@@ -77,9 +77,5 @@ public class SubCategoryController : BaseController
         ShowMessage(MessageType.Success, "SubCategory status updated successfully!");
         return RedirectToAction("SubCategoriesIndex");
     }
-    private async Task LoadCategoriesDropdown()
-    {
-        var categories = await _subCategoryService.GetCategoriesForDropdownAsync();
-        ViewBag.Categories = new SelectList(categories, "CategoryID", "Name");
-    }
+    // Helper removed
 }

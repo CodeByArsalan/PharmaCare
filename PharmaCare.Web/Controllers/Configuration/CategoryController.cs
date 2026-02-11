@@ -20,9 +20,9 @@ public class CategoryController : BaseController
         var categories = await _categoryService.GetAllAsync();
         return View("CategoriesIndex", categories);
     }
-    public async Task<IActionResult> AddCategory()
+    public IActionResult AddCategory()
     {
-        await LoadAccountsDropdowns();
+        // await LoadAccountsDropdowns(); // Removed
         return View(new Category());
     }
     [HttpPost]
@@ -35,9 +35,10 @@ public class CategoryController : BaseController
             ShowMessage(MessageType.Success, "Category created successfully!");
             return RedirectToAction("CategoriesIndex");
         }
-        await LoadAccountsDropdowns();
+        // await LoadAccountsDropdowns(); // Removed
         return View(category);
     }
+
     public async Task<IActionResult> EditCategory(int id)
     {
         var category = await _categoryService.GetByIdAsync(id);
@@ -45,9 +46,10 @@ public class CategoryController : BaseController
         {
             return NotFound();
         }
-        await LoadAccountsDropdowns();
+        // await LoadAccountsDropdowns(); // Removed
         return View(category);
     }
+
     [HttpPost]
     [ValidateAntiForgeryToken]
     public async Task<IActionResult> EditCategory(int id, Category category)
@@ -67,7 +69,7 @@ public class CategoryController : BaseController
             ShowMessage(MessageType.Success, "Category updated successfully!");
             return RedirectToAction("CategoriesIndex");
         }
-        await LoadAccountsDropdowns();
+        // await LoadAccountsDropdowns(); // Removed
         return View(category);
     }
     [HttpPost]
@@ -78,26 +80,5 @@ public class CategoryController : BaseController
         ShowMessage(MessageType.Success, "Category status updated successfully!");
         return RedirectToAction("CategoriesIndex");
     }
-    private async Task LoadAccountsDropdowns()
-    {
-        var saleAccounts = await _categoryService.GetAccountsByTypeAsync(8);
-        ViewBag.SaleAccounts = new SelectList(
-            saleAccounts.Select(a => new { a.AccountID, Display = a.Name }),
-            "AccountID", "Display");
-
-        var stockAccounts = await _categoryService.GetAccountsByTypeAsync(6);
-        ViewBag.StockAccounts = new SelectList(
-            stockAccounts.Select(a => new { a.AccountID, Display = a.Name }),
-            "AccountID", "Display");
-
-        var cogsAccounts = await _categoryService.GetAccountsByTypeAsync(7);
-        ViewBag.COGSAccounts = new SelectList(
-            cogsAccounts.Select(a => new { a.AccountID, Display = a.Name }),
-            "AccountID", "Display");
-
-        var damageAccounts = await _categoryService.GetAccountsByTypeAsync(9);
-        ViewBag.DamageAccounts = new SelectList(
-            damageAccounts.Select(a => new { a.AccountID, Display = a.Name }),
-            "AccountID", "Display");
-    }
+    // private async Task LoadAccountsDropdowns() { ... } // Removed
 }

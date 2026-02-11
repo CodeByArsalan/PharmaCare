@@ -1,4 +1,5 @@
 @model PharmaCare.Application.ViewModels.Report.GeneralLedgerVM
+@inject PharmaCare.Infrastructure.Interfaces.IComboboxRepository _combobox
 @{
     ViewData["Title"] = "General Ledger";
 }
@@ -13,15 +14,8 @@
         <form method="get" class="row g-3 align-items-end">
             <div class="col-md-3">
                 <label class="form-label">Account <span class="text-danger">*</span></label>
-                <select name="filter.AccountId" class="form-select" required>
+                <select name="filter.AccountId" class="form-select" asp-items="@_combobox.GetActiveAccounts(Model.Filter.AccountId)" required>
                     <option value="">-- Select Account --</option>
-                    @if (ViewBag.Accounts != null)
-                    {
-                        @foreach (SelectListItem item in ViewBag.Accounts)
-                        {
-                            <option value="@item.Value" selected="@(item.Value == Model.Filter.AccountId?.ToString())">@item.Text</option>
-                        }
-                    }
                 </select>
             </div>
             <div class="col-md-2">

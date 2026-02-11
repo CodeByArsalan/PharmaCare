@@ -1,4 +1,5 @@
 @model PharmaCare.Application.ViewModels.Report.PartyLedgerVM
+@inject PharmaCare.Infrastructure.Interfaces.IComboboxRepository _combobox
 @{
     ViewData["Title"] = "Supplier Ledger";
 }
@@ -13,15 +14,8 @@
         <form method="get" class="row g-3 align-items-end">
             <div class="col-md-3">
                 <label class="form-label">Supplier <span class="text-danger">*</span></label>
-                <select name="filter.PartyId" class="form-select" required>
+                <select name="filter.PartyId" class="form-select" asp-items="@_combobox.GetActivePartiesByType("Supplier", Model.Filter.PartyId)" required>
                     <option value="">-- Select Supplier --</option>
-                    @if (ViewBag.Suppliers != null)
-                    {
-                        @foreach (SelectListItem item in ViewBag.Suppliers)
-                        {
-                            <option value="@item.Value" selected="@(item.Value == Model.Filter.PartyId?.ToString())">@item.Text</option>
-                        }
-                    }
                 </select>
             </div>
             <div class="col-md-2">

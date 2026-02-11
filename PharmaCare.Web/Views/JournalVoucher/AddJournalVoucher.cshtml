@@ -1,8 +1,7 @@
 @model PharmaCare.Web.ViewModels.Accounting.JournalVoucherViewModel
+@inject PharmaCare.Infrastructure.Interfaces.IComboboxRepository _combobox
 @{
     ViewData["Title"] = "New Journal Voucher";
-    var accounts = ViewBag.Accounts as List<PharmaCare.Domain.Entities.Accounting.Account>;
-    var voucherTypes = ViewBag.VoucherTypes as List<PharmaCare.Domain.Entities.Transactions.VoucherType>;
 }
 
 <div class="page-header">
@@ -28,15 +27,8 @@
             <div class="row g-3">
                 <div class="col-md-4">
                     <label asp-for="VoucherType_ID" class="form-label"></label>
-                    <select asp-for="VoucherType_ID" class="form-select" required>
+                    <select asp-for="VoucherType_ID" class="form-select" asp-items="@_combobox.GetManualVoucherTypes()" required>
                         <option value="">Select Type</option>
-                        @if (voucherTypes != null)
-                        {
-                            foreach (var type in voucherTypes)
-                            {
-                                <option value="@type.VoucherTypeID">@type.Name</option>
-                            }
-                        }
                     </select>
                     <span asp-validation-for="VoucherType_ID" class="text-danger"></span>
                 </div>
@@ -77,17 +69,8 @@
                         {
                             <tr class="detail-row">
                                 <td>
-                                    <select name="VoucherDetails[@i].Account_ID" class="form-select account-select" required>
+                                    <select name="VoucherDetails[@i].Account_ID" class="form-select account-select" asp-items="@_combobox.GetActiveAccounts(Model.VoucherDetails[i].Account_ID)" required>
                                         <option value="">Select Account</option>
-                                        @if (accounts != null)
-                                        {
-                                            foreach (var acc in accounts)
-                                            {
-                                                <!option value="@acc.AccountID" @(acc.AccountID == Model.VoucherDetails[i].Account_ID ? "selected" : "")>
-                                                    @acc.Name
-                                                </!option>
-                                            }
-                                        }
                                     </select>
                                 </td>
                                 <td>
@@ -145,12 +128,9 @@
                         <td>
                             <select name="VoucherDetails[${index}].Account_ID" class="form-select account-select" required>
                                 <option value="">Select Account</option>
-                                @if (accounts != null)
+                                @foreach (var acc in _combobox.GetActiveAccounts())
                                 {
-                                    foreach (var acc in accounts)
-                                    {
-                                        <option value="@acc.AccountID">@acc.Name</option>
-                                    }
+                                    <option value="@acc.Value">@acc.Text</option>
                                 }
                             </select>
                         </td>

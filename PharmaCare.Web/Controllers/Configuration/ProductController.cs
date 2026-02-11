@@ -17,19 +17,7 @@ public class ProductController : BaseController
 
     public async Task<IActionResult> ProductsIndex(int? categoryId, int? subCategoryId, int? status, string? searchTerm, string? activeTab)
     {
-        // Populate Dropdowns for filter
-        var categories = await _productService.GetCategoriesForDropdownAsync();
-        ViewBag.Categories = new SelectList(categories, "CategoryID", "Name", categoryId);
-
-        if (categoryId.HasValue)
-        {
-            var subCategories = await _productService.GetSubCategoriesByCategoryIdAsync(categoryId.Value);
-            ViewBag.SubCategories = new SelectList(subCategories, "SubCategoryID", "Name", subCategoryId);
-        }
-        else
-        {
-            ViewBag.SubCategories = new SelectList(Enumerable.Empty<SelectListItem>());
-        }
+        // ViewBag.Categories and ViewBag.SubCategories logic removed - moved to View using IComboboxRepository
 
         // Status Logic: 1 = Active, 0 = Inactive, null = All
         bool? isActive = status.HasValue ? (status.Value == 1) : null;

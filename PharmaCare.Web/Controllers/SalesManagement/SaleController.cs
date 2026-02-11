@@ -34,9 +34,9 @@ public class SaleController : BaseController
         return View(sales);
     }
 
-    public async Task<IActionResult> AddSale()
+    public IActionResult AddSale()
     {
-        await LoadDropdownsAsync();
+        // await LoadDropdownsAsync(); // Removed
         return View(new StockMain
         {
             TransactionDate = DateTime.Now,
@@ -89,7 +89,7 @@ public class SaleController : BaseController
             }
         }
 
-        await LoadDropdownsAsync();
+        // await LoadDropdownsAsync(); // Removed
         return View(sale);
     }
 
@@ -152,38 +152,5 @@ public class SaleController : BaseController
         return Json(result);
     }
 
-    private async Task LoadDropdownsAsync()
-    {
-        // Load customers
-        var parties = await _partyService.GetAllAsync();
-        ViewBag.Customers = new SelectList(
-            parties.Where(p => p.IsActive && p.PartyType == "Customer"),
-            "PartyID",
-            "Name"
-        );
-
-        // Load products
-        var products = await _productService.GetAllAsync();
-        ViewBag.Products = new SelectList(
-            products.Where(p => p.IsActive),
-            "ProductID",
-            "Name"
-        );
-
-        // Load Cash/Bank accounts for payment
-        var accounts = await _accountService.GetCashBankAccountsAsync();
-        ViewBag.PaymentAccounts = new SelectList(
-            accounts,
-            "AccountID",
-            "Name"
-        );
-
-        // Load Price Types
-        var priceTypes = await _productService.GetPriceTypesAsync();
-        ViewBag.PriceTypes = new SelectList(
-            priceTypes,
-            "PriceTypeID",
-            "PriceTypeName"
-        );
-    }
+    // private async Task LoadDropdownsAsync() { ... } // Removed
 }

@@ -1,4 +1,5 @@
 @model PharmaCare.Domain.Entities.Transactions.StockMain
+@inject PharmaCare.Infrastructure.Interfaces.IComboboxRepository _combobox
 @{
     ViewData["Title"] = "Add Sale";
 }
@@ -53,7 +54,7 @@
             <div class="row g-3 mb-4">
                 <div class="col-md-3">
                     <label class="form-label">Customer <span class="text-danger">*</span></label>
-                    <select asp-for="Party_ID" asp-items="ViewBag.Customers" class="form-select" id="customerSelect" required>
+                    <select asp-for="Party_ID" asp-items="@_combobox.GetActivePartiesByType("Customer")" class="form-select" id="customerSelect" required>
                         <option value="">-- Select Customer --</option>
                     </select>
                     <span asp-validation-for="Party_ID" class="text-danger small"></span>
@@ -65,7 +66,7 @@
                 <div class="col-md-3">
                     <label class="form-label">Price Type</label>
                     <select id="priceTypeSelect" class="form-select">
-                        @foreach (var type in ViewBag.PriceTypes as SelectList)
+                        @foreach (var type in _combobox.GetPriceTypes())
                         {
                             <option value="@type.Value">@type.Text</option>
                         }
@@ -164,7 +165,7 @@
                                     <label class="form-label">Payment Account <span class="text-danger">*</span></label>
                                     <select name="PaymentAccountId" id="paymentAccountId" class="form-select">
                                         <option value="">-- Select Payment Account --</option>
-                                        @foreach (var account in ViewBag.PaymentAccounts as IEnumerable<SelectListItem> ?? Enumerable.Empty<SelectListItem>())
+                                        @foreach (var account in _combobox.GetCashBankAccounts())
                                         {
                                             <option value="@account.Value">@account.Text</option>
                                         }

@@ -50,7 +50,7 @@ public class CustomerPaymentController : BaseController
             return RedirectToAction(nameof(PendingSales));
         }
 
-        await LoadDropdownsAsync();
+        // await LoadDropdownsAsync(); // Removed
         ViewBag.Sale = sale;
         ViewBag.IsWalkingCustomer = sale.Party_ID == null;
 
@@ -104,7 +104,7 @@ public class CustomerPaymentController : BaseController
         var sale = pendingSales.FirstOrDefault(s => s.StockMainID == payment.StockMain_ID);
         ViewBag.Sale = sale;
         ViewBag.IsWalkingCustomer = isWalkingCustomer;
-        await LoadDropdownsAsync();
+        // await LoadDropdownsAsync(); // Removed
         return View(payment);
     }
 
@@ -159,17 +159,11 @@ public class CustomerPaymentController : BaseController
     }
 
     /// Shows form to create a customer refund.
-    public async Task<IActionResult> Refund()
+    public IActionResult Refund()
     {
-        await LoadDropdownsAsync();
+        // await LoadDropdownsAsync(); // Removed
 
-        var parties = await _partyService.GetAllAsync();
-        ViewBag.Customers = new SelectList(
-            parties.Where(p => p.IsActive && p.PartyType == "Customer"),
-            "PartyID",
-            "Name"
-        );
-
+        // Custom dropdown loading removed - use IComboboxRepository in View
         return View(new Payment
         {
             PaymentDate = DateTime.Now,
@@ -203,29 +197,11 @@ public class CustomerPaymentController : BaseController
             }
         }
 
-        await LoadDropdownsAsync();
+        // await LoadDropdownsAsync(); // Removed
 
-        var parties = await _partyService.GetAllAsync();
-        ViewBag.Customers = new SelectList(
-            parties.Where(p => p.IsActive && p.PartyType == "Customer"),
-            "PartyID",
-            "Name"
-        );
-
+        // Custom dropdown loading removed
         return View(payment);
     }
 
-    private async Task LoadDropdownsAsync()
-    {
-        // Load cash/bank accounts for receipt (filter by AccountType Code)
-        var accounts = await _accountService.GetAllAsync();
-        ViewBag.Accounts = new SelectList(
-            accounts.Where(a => a.IsActive && (a.AccountType?.Code == "CASH" || a.AccountType?.Code == "BANK")),
-            "AccountID",
-            "Name"
-        );
-
-        // Payment methods
-        ViewBag.PaymentMethods = new SelectList(new[] { "Cash", "Bank", "Cheque" });
-    }
+    // private async Task LoadDropdownsAsync() { ... } // Removed
 }

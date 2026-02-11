@@ -49,13 +49,13 @@
                     <div class="row g-3">
                         <div class="col-md-3">
                             <label class="form-label">Category</label>
-                            <select name="categoryId" id="categoryId" class="form-select" asp-items="ViewBag.Categories">
+                            <select name="categoryId" id="categoryId" class="form-select" asp-items="_combobox.GetActiveCategories((int?)ViewBag.CurrentCategory)">
                                 <option value="">-- All Categories --</option>
                             </select>
                         </div>
                         <div class="col-md-3">
                             <label class="form-label">SubCategory</label>
-                            <select name="subCategoryId" id="subCategoryId" class="form-select" asp-items="ViewBag.SubCategories">
+                            <select name="subCategoryId" id="subCategoryId" class="form-select" asp-items="_combobox.GetActiveSubCategories((int?)ViewBag.CurrentCategory, (int?)ViewBag.CurrentSubCategory)">
                                 <option value="">-- All SubCategories --</option>
                             </select>
                         </div>

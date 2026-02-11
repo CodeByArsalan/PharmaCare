@@ -1,4 +1,5 @@
 @model PharmaCare.Domain.Entities.Finance.Payment
+@inject PharmaCare.Infrastructure.Interfaces.IComboboxRepository _combobox
 @{
     ViewData["Title"] = "Make Payment";
     var grn = ViewBag.GRN as PharmaCare.Domain.Entities.Transactions.StockMain;
@@ -96,12 +97,12 @@
                         </div>
                         <div class="col-md-6">
                             <label class="form-label">Payment Method <span class="text-danger">*</span></label>
-                            <select asp-for="PaymentMethod" asp-items="ViewBag.PaymentMethods" class="form-select" id="paymentMethod" required>
+                            <select asp-for="PaymentMethod" asp-items="_combobox.GetPaymentMethods()" class="form-select" id="paymentMethod" required>
                             </select>
                         </div>
                         <div class="col-md-6">
                             <label class="form-label">Account <span class="text-danger">*</span></label>
-                            <select asp-for="Account_ID" asp-items="ViewBag.Accounts" class="form-select" required>
+                            <select asp-for="Account_ID" asp-items="_combobox.GetCashBankAccounts()" class="form-select" required>
                                 <option value="">-- Select Account --</option>
                             </select>
                             <span asp-validation-for="Account_ID" class="text-danger small"></span>

@@ -51,9 +51,12 @@ public class ActivityLogController : BaseController
             };
         }
         
+        // ViewBag.Filter = filter; // Pass filter via model or separate mechanism if needed? 
+        // Actually, the View uses Model.Items. The Filter is passed back to view usually via Model/ViewBag.
+        // Let's keep ViewBag.Filter as it's not a dropdown, but remove dropdowns.
         ViewBag.Filter = filter;
-        ViewBag.ActivityTypes = GetActivityTypeOptions();
-        ViewBag.EntityNames = await GetEntityNamesAsync();
+        // ViewBag.ActivityTypes = GetActivityTypeOptions(); // REMOVED
+        // ViewBag.EntityNames = await GetEntityNamesAsync(); // REMOVED
         
         return View(result);
     }
@@ -92,25 +95,5 @@ public class ActivityLogController : BaseController
         return View(summary);
     }
 
-    private List<SelectListItem> GetActivityTypeOptions()
-    {
-        return Enum.GetValues<ActivityType>()
-            .Select(t => new SelectListItem
-            {
-                Value = ((int)t).ToString(),
-                Text = t.ToString()
-            })
-            .ToList();
-    }
-
-    private async Task<List<string>> GetEntityNamesAsync()
-    {
-        var filter = new ActivityLogFilterDto { PageSize = 1000 };
-        var logs = await _activityLogService.GetLogsAsync(filter);
-        return logs.Items
-            .Select(l => l.EntityName)
-            .Distinct()
-            .OrderBy(n => n)
-            .ToList();
-    }
+    // Removed private helper methods for dropdowns
 }

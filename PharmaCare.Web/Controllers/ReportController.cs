@@ -53,7 +53,7 @@ public class ReportController : BaseController
     public async Task<IActionResult> SalesReport(DateRangeFilter? filter)
     {
         filter ??= new DateRangeFilter();
-        await LoadCustomerDropdownAsync();
+        // await LoadCustomerDropdownAsync(); // REMOVED
         var vm = await _reportService.GetSalesReportAsync(filter);
         return View(vm);
     }
@@ -61,7 +61,7 @@ public class ReportController : BaseController
     public async Task<IActionResult> SalesByProduct(DateRangeFilter? filter)
     {
         filter ??= new DateRangeFilter();
-        await LoadCategoryDropdownAsync();
+        // await LoadCategoryDropdownAsync(); // REMOVED
         var vm = await _reportService.GetSalesByProductAsync(filter);
         return View(vm);
     }
@@ -80,7 +80,7 @@ public class ReportController : BaseController
     public async Task<IActionResult> PurchaseReport(DateRangeFilter? filter)
     {
         filter ??= new DateRangeFilter();
-        await LoadSupplierDropdownAsync();
+        // await LoadSupplierDropdownAsync(); // REMOVED
         var vm = await _reportService.GetPurchaseReportAsync(filter);
         return View(vm);
     }
@@ -99,7 +99,7 @@ public class ReportController : BaseController
     public async Task<IActionResult> CurrentStock(DateRangeFilter? filter)
     {
         filter ??= new DateRangeFilter();
-        await LoadCategoryDropdownAsync();
+        // await LoadCategoryDropdownAsync(); // REMOVED
         var vm = await _reportService.GetCurrentStockReportAsync(filter);
         return View(vm);
     }
@@ -107,7 +107,7 @@ public class ReportController : BaseController
     public async Task<IActionResult> LowStock(DateRangeFilter? filter)
     {
         filter ??= new DateRangeFilter();
-        await LoadCategoryDropdownAsync();
+        // await LoadCategoryDropdownAsync(); // REMOVED
         var vm = await _reportService.GetLowStockReportAsync(filter);
         return View(vm);
     }
@@ -115,7 +115,7 @@ public class ReportController : BaseController
     public async Task<IActionResult> ProductMovement(DateRangeFilter? filter)
     {
         filter ??= new DateRangeFilter();
-        await LoadProductDropdownAsync();
+        // await LoadProductDropdownAsync(); // REMOVED
         var vm = await _reportService.GetProductMovementReportAsync(filter);
         return View(vm);
     }
@@ -123,7 +123,7 @@ public class ReportController : BaseController
     public async Task<IActionResult> DeadStock(DateRangeFilter? filter)
     {
         filter ??= new DateRangeFilter { ThresholdDays = 30 };
-        await LoadCategoryDropdownAsync();
+        // await LoadCategoryDropdownAsync(); // REMOVED
         var vm = await _reportService.GetDeadStockReportAsync(filter);
         return View(vm);
     }
@@ -177,7 +177,7 @@ public class ReportController : BaseController
     public async Task<IActionResult> GeneralLedger(DateRangeFilter? filter)
     {
         filter ??= new DateRangeFilter();
-        await LoadAccountDropdownAsync();
+        // await LoadAccountDropdownAsync(); // REMOVED
         var vm = await _reportService.GetGeneralLedgerAsync(filter);
         return View(vm);
     }
@@ -189,7 +189,7 @@ public class ReportController : BaseController
     public async Task<IActionResult> CustomerLedger(DateRangeFilter? filter)
     {
         filter ??= new DateRangeFilter();
-        await LoadCustomerDropdownAsync();
+        // await LoadCustomerDropdownAsync(); // REMOVED
         var vm = await _reportService.GetPartyLedgerAsync(filter, "Customer");
         return View(vm);
     }
@@ -197,7 +197,7 @@ public class ReportController : BaseController
     public async Task<IActionResult> SupplierLedger(DateRangeFilter? filter)
     {
         filter ??= new DateRangeFilter();
-        await LoadSupplierDropdownAsync();
+        // await LoadSupplierDropdownAsync(); // REMOVED
         var vm = await _reportService.GetPartyLedgerAsync(filter, "Supplier");
         return View(vm);
     }
@@ -213,43 +213,5 @@ public class ReportController : BaseController
     //  DROPDOWN HELPERS
     // ===================================================================
 
-    private async Task LoadCustomerDropdownAsync()
-    {
-        var parties = await _partyService.GetAllAsync();
-        ViewBag.Customers = new SelectList(
-            parties.Where(p => p.IsActive && p.PartyType == "Customer"),
-            "PartyID", "Name");
-    }
-
-    private async Task LoadSupplierDropdownAsync()
-    {
-        var parties = await _partyService.GetAllAsync();
-        ViewBag.Suppliers = new SelectList(
-            parties.Where(p => p.IsActive && p.PartyType == "Supplier"),
-            "PartyID", "Name");
-    }
-
-    private async Task LoadProductDropdownAsync()
-    {
-        var products = await _productService.GetAllAsync();
-        ViewBag.Products = new SelectList(
-            products.Where(p => p.IsActive),
-            "ProductID", "Name");
-    }
-
-    private async Task LoadCategoryDropdownAsync()
-    {
-        var categories = await _categoryService.GetAllAsync();
-        ViewBag.Categories = new SelectList(
-            categories.Where(c => c.IsActive),
-            "CategoryID", "Name");
-    }
-
-    private async Task LoadAccountDropdownAsync()
-    {
-        var accounts = await _accountService.GetAllAsync();
-        ViewBag.Accounts = new SelectList(
-            accounts.Where(a => a.IsActive),
-            "AccountID", "Name");
-    }
+    // DROPDOWN HELPERS REMOVED
 }

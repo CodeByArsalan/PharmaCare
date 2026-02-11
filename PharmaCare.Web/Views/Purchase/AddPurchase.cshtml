@@ -1,4 +1,5 @@
 @model PharmaCare.Domain.Entities.Transactions.StockMain
+@inject PharmaCare.Infrastructure.Interfaces.IComboboxRepository _combobox
 @{
     ViewData["Title"] = "Add Purchase (GRN)";
 }
@@ -21,7 +22,7 @@
             <div class="row g-3 mb-4">
                 <div class="col-md-3">
                     <label class="form-label">Supplier <span class="text-danger">*</span></label>
-                    <select asp-for="Party_ID" asp-items="ViewBag.Suppliers" class="form-select" id="supplierSelect" required>
+                    <select asp-for="Party_ID" asp-items="@_combobox.GetActivePartiesByType("Supplier")" class="form-select" id="supplierSelect" required>
                         <option value="">-- Select Supplier --</option>
                     </select>
                     <span asp-validation-for="Party_ID" class="text-danger small"></span>
@@ -101,12 +102,8 @@
                                 <!-- Payment Account Dropdown -->
                                 <div class="col-12" id="paymentAccountContainer" style="display: none;">
                                     <label class="form-label">Payment Account <span class="text-danger">*</span></label>
-                                    <select name="PaymentAccountId" id="paymentAccountId" class="form-select">
+                                    <select name="PaymentAccountId" id="paymentAccountId" class="form-select" asp-items="@_combobox.GetCashBankAccounts()">
                                         <option value="">-- Select Account --</option>
-                                        @foreach (var account in (SelectList)ViewBag.PaymentAccounts)
-                                        {
-                                            <option value="@account.Value">@account.Text</option>
-                                        }
                                     </select>
                                     <div class="invalid-feedback">Please select a payment account.</div>
                                 </div>

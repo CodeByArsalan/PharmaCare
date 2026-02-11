@@ -57,12 +57,10 @@ public class SupplierPaymentController : BaseController
             grnList = grnList.Where(g => g.TransactionDate <= toDate.Value).ToList();
         }
 
-        // Load suppliers for dropdown
-        var parties = await _partyService.GetAllAsync();
-        ViewBag.Suppliers = parties.Where(p => p.IsActive && p.PartyType == "Supplier").ToList();
-        ViewBag.PaymentStatuses = new[] { "All", "Paid", "Partial", "Unpaid" };
+        // ViewBag.Suppliers removed - use IComboboxRepository in View
+        // ViewBag.PaymentStatuses removed - use IComboboxRepository in View
 
-        // Preserve filter values
+        // Preserve filter values (keep these as they are simple values)
         ViewBag.SelectedSupplier = supplierId;
         ViewBag.SelectedStatus = paymentStatus ?? "All";
         ViewBag.FromDate = fromDate;
@@ -87,7 +85,7 @@ public class SupplierPaymentController : BaseController
             return RedirectToAction("ViewPurchase", "Purchase", new { id = stockMainId });
         }
 
-        await LoadDropdownsAsync();
+        // await LoadDropdownsAsync(); // Removed
         ViewBag.GRN = grn;
 
         return View(new Payment
@@ -130,7 +128,7 @@ public class SupplierPaymentController : BaseController
         // Reload GRN for display
         var grn = await _purchaseService.GetByIdAsync(payment.StockMain_ID ?? 0);
         ViewBag.GRN = grn;
-        await LoadDropdownsAsync();
+        // await LoadDropdownsAsync(); // Removed
         return View(payment);
     }
 
@@ -190,17 +188,11 @@ public class SupplierPaymentController : BaseController
     }
 
     /// Shows form to make an advance payment to a supplier.
-    public async Task<IActionResult> AdvancePayment()
+    public IActionResult AdvancePayment()
     {
-        await LoadDropdownsAsync();
+        // await LoadDropdownsAsync(); // Removed
 
-        // Load suppliers for dropdown
-        var parties = await _partyService.GetAllAsync();
-        ViewBag.Suppliers = new Microsoft.AspNetCore.Mvc.Rendering.SelectList(
-            parties.Where(p => p.IsActive && p.PartyType == "Supplier"),
-            "PartyID",
-            "Name"
-        );
+        // Supplier dropdown removed - use IComboboxRepository
 
         return View(new Payment
         {
@@ -236,29 +228,12 @@ public class SupplierPaymentController : BaseController
             }
         }
 
-        await LoadDropdownsAsync();
+        // await LoadDropdownsAsync(); // Removed
 
-        var parties = await _partyService.GetAllAsync();
-        ViewBag.Suppliers = new Microsoft.AspNetCore.Mvc.Rendering.SelectList(
-            parties.Where(p => p.IsActive && p.PartyType == "Supplier"),
-            "PartyID",
-            "Name"
-        );
+        // Supplier dropdown removed - use IComboboxRepository
 
         return View(payment);
     }
 
-    private async Task LoadDropdownsAsync()
-    {
-        // Load cash/bank accounts for payment (filter by AccountType Code)
-        var accounts = await _accountService.GetAllAsync();
-        ViewBag.Accounts = new SelectList(
-            accounts.Where(a => a.IsActive && (a.AccountType?.Code == "CASH" || a.AccountType?.Code == "BANK")),
-            "AccountID",
-            "Name"
-        );
-
-        // Payment methods
-        ViewBag.PaymentMethods = new SelectList(new[] { "Cash", "Bank", "Cheque" });
-    }
+    // private async Task LoadDropdownsAsync() { ... } // Removed
 }
