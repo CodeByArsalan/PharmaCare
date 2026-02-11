@@ -28,6 +28,7 @@ public interface IProductService
     
     /// <summary>
     /// Gets products with calculated current stock based on transactions.
+    /// Optionally filters prices by priceTypeId.
     /// </summary>
-    Task<IEnumerable<(Product Product, decimal CurrentStock)>> GetProductsWithStockAsync();
+    Task<IEnumerable<(Product Product, decimal CurrentStock, decimal? SpecificPrice)>> GetProductsWithStockAsync(int? priceTypeId = null);
 }

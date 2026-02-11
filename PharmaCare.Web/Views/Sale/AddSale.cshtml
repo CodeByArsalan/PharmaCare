@@ -51,18 +51,27 @@
         <form asp-action="AddSale" method="post" id="saleForm">
             <!-- Header Section -->
             <div class="row g-3 mb-4">
-                <div class="col-md-4">
+                <div class="col-md-3">
                     <label class="form-label">Customer <span class="text-danger">*</span></label>
                     <select asp-for="Party_ID" asp-items="ViewBag.Customers" class="form-select" id="customerSelect" required>
                         <option value="">-- Select Customer --</option>
                     </select>
                     <span asp-validation-for="Party_ID" class="text-danger small"></span>
                 </div>
-                <div class="col-md-4">
+                <div class="col-md-3">
                     <label class="form-label">Date <span class="text-danger">*</span></label>
                     <input asp-for="TransactionDate" type="date" class="form-control" required />
                 </div>
-                <div class="col-md-4">
+                <div class="col-md-3">
+                    <label class="form-label">Price Type</label>
+                    <select id="priceTypeSelect" class="form-select">
+                        @foreach (var type in ViewBag.PriceTypes as SelectList)
+                        {
+                            <option value="@type.Value">@type.Text</option>
+                        }
+                    </select>
+                </div>
+                <div class="col-md-3">
                     <label class="form-label">Remarks</label>
                     <input asp-for="Remarks" class="form-control" placeholder="Optional remarks" />
                 </div>
@@ -82,11 +91,11 @@
                             <thead>
                                 <tr>
                                     <th style="width: 50px;">#</th>
-                                    <th style="min-width: 220px;">Product <span class="text-danger">*</span></th>
-                                    <th style="width: 100px;">Quantity <span class="text-danger">*</span></th>
-                                    <th style="width: 120px;">Unit Price <span class="text-danger">*</span></th>
-                                    <th style="width: 120px;">Line Total</th>
-                                    <th style="width: 80px;">Margin %</th>
+                                    <th style="min-width: 150px;">Product <span class="text-danger">*</span></th>
+                                    <th style="width: 125px;">Quantity <span class="text-danger">*</span></th>
+                                    <th style="width: 140px;">Unit Price <span class="text-danger">*</span></th>
+                                    <th style="width: 140px;">Line Total</th>
+                                    <th style="width: 100px;">Margin %</th>
                                     <th style="width: 50px;"></th>
                                 </tr>
                             </thead>
@@ -117,7 +126,7 @@
                                 </div>
                                 <div class="col-6">
                                     <label class="form-label">Discount Amount</label>
-                                    <input asp-for="DiscountAmount" type="number" step="0.01" min="0" 
+                                    <input asp-for="DiscountAmount" type="number" step="1" min="0" 
                                            class="form-control" id="discountAmount" value="0" />
                                 </div>
                                 <div class="col-12">
@@ -135,7 +144,7 @@
                                 </div>
                                 <div class="col-5">
                                     <label class="form-label">Amount Received</label>
-                                    <input asp-for="PaidAmount" type="number" step="0.01" min="0" 
+                                    <input asp-for="PaidAmount" type="number" step="1" min="0" 
                                            class="form-control" id="paidAmount" value="0" />
                                 </div>
                                 <div class="col-1 d-flex align-items-end">
@@ -146,7 +155,7 @@
                                 <div class="col-6">
                                     <label class="form-label">Balance</label>
                                     <input type="number" class="form-control" id="balanceDisplay" 
-                                           readonly value="0.00" />
+                                           readonly value="0.00" step="1" />
                                     <input type="hidden" asp-for="BalanceAmount" id="balanceAmount" />
                                 </div>
 
@@ -263,11 +272,74 @@
         let products = [];
         let rowIndex = 0;
 
-        document.addEventListener('DOMContentLoaded', async function() {
-            const response = await fetch('@Url.Action("GetProducts")');
-            products = await response.json();
-            addLineItem();
+        document.addEventListener('DOMContentLoaded', function() {
+            fetchProducts();
+            
+            // Event listener for Price Type change
+            document.getElementById('priceTypeSelect').addEventListener('change', function() {
+                fetchProducts();
+            });
+            
+            // Initialize payment status
+            setTimeout(function() {
+                calculatePayment();
+            }, 100);
         });
+
+        async function fetchProducts() {
+            const priceTypeId = document.getElementById('priceTypeSelect').value;
+            const url = '@Url.Action("GetProducts")' + (priceTypeId ? `?priceTypeId=${priceTypeId}` : '');
+            
+            try {
+                const response = await fetch(url);
+                products = await response.json();
+                
+                // Update prices in existing rows
+                updateExistingRowsPrices();
+
+                // Ensure at least one row exists on load
+                if (rowIndex === 0) {
+                    addLineItem();
+                }
+            } catch (error) {
+                console.error('Error fetching products:', error);
+            }
+        }
+        
+        function updateExistingRowsPrices() {
+            const rows = document.querySelectorAll('#lineItemsBody tr');
+            rows.forEach(row => {
+                const select = row.querySelector('.product-select');
+                const selectedProductId = select.value;
+                
+                // Update dataset on option (optional, as we use global list now, but good for consistency)
+                // Note: Re-populating options might be overkill, we just update the current value
+                
+                if (selectedProductId) {
+                    const product = products.find(p => p.id == selectedProductId);
+                    if (product) {
+                        // Update price input
+                        row.querySelector('.price-input').value = product.unitPrice.toFixed(2);
+                    }
+                }
+                
+                // Re-populate options for all dropdowns to reflect new prices in data attributes
+                // This ensures if user changes product, they get new price
+                const currentVal = select.value;
+                let productOptions = '<option value="">-- Select Product --</option>';
+                products.forEach(p => {
+                    const selected = currentVal == p.id ? 'selected' : '';
+                    const stockText = p.stockQuantity !== undefined ? ` (Stock: ${p.stockQuantity})` : '';
+                    productOptions += `<option value="${p.id}" data-price="${p.unitPrice}" data-cost="${p.costPrice || p.unitPrice}" data-stock="${p.stockQuantity || 0}" ${selected}>${p.name}${stockText}</option>`;
+                });
+                
+                // Save current selection, update HTML, restore selection (Select2 needs re-init or update)
+                select.innerHTML = productOptions;
+                
+                // Re-trigger calculation
+                calculateLineTotal({ target: row.querySelector('.quantity-input') });
+            });
+        }
 
         document.getElementById('addLineBtn').addEventListener('click', function() { addLineItem(); });
 
@@ -336,11 +408,11 @@
                 </td>
                 <td>
                     <input type="number" name="StockDetails[${rowIndex}].Quantity" class="form-control quantity-input" 
-                           step="0.0001" min="0.0001" value="${quantity}" required />
+                           step="1" min="1" value="${quantity}" required />
                 </td>
                 <td>
                     <input type="number" name="StockDetails[${rowIndex}].UnitPrice" class="form-control price-input" 
-                           step="0.01" min="0" value="${unitPrice}" required />
+                           step="1" min="0" value="${unitPrice}" required />
                     <input type="hidden" name="StockDetails[${rowIndex}].CostPrice" class="cost-price-input" value="0" />
                 </td>
                 <td>
@@ -397,6 +469,7 @@
             
             row.querySelector('.line-total').value = lineTotal.toFixed(2);
             row.querySelector('.line-cost').value = lineCost.toFixed(2);
+            updateMarginDisplay(row);
             calculateTotals();
         }
 
@@ -521,13 +594,6 @@
             calculatePayment();
         });
 
-        // Initialize payment status on page load
-        document.addEventListener('DOMContentLoaded', function() {
-            setTimeout(function() {
-                calculatePayment();
-            }, 100);
-        });
-
         // Discount amount change handler (bi-directional)
         document.getElementById('discountAmount').addEventListener('input', calculateDiscountFromAmount);
 
@@ -549,10 +615,33 @@
         document.getElementById('confirmSaveBtn').addEventListener('click', showConfirmationModal);
 
         function showConfirmationModal() {
-            // Validate form first
+            // 1. Custom Validation: Payment Account Required if Paid Amount > 0
+            const paidAmount = parseFloat(document.getElementById('paidAmount').value) || 0;
+            const paymentAccountId = document.getElementById('paymentAccountId');
+            
+            if (paidAmount > 0 && !paymentAccountId.value) {
+                paymentAccountId.setCustomValidity('Please select a payment account.');
+                paymentAccountId.reportValidity();
+                
+                // Also ensure the section is visible
+                document.getElementById('paymentAccountSection').style.display = 'block';
+                return;
+            } else {
+                paymentAccountId.setCustomValidity('');
+            }
+
+            // 2. Validate form
             const form = document.getElementById('saleForm');
             if (!form.checkValidity()) {
                 form.reportValidity();
+                return;
+            }
+            
+            // 3. Ensure at least one row
+            const rows = document.querySelectorAll('#lineItemsBody tr');
+            if (rows.length === 0) {
+                alert('Please add at least one product.');
+                addLineItem();
                 return;
             }
 
@@ -568,8 +657,8 @@
             // Populate line items
             const confirmItemsBody = document.getElementById('confirmItemsBody');
             confirmItemsBody.innerHTML = '';
-            const rows = document.querySelectorAll('#lineItemsBody tr');
-            rows.forEach((row, idx) => {
+            const confirmRows = document.querySelectorAll('#lineItemsBody tr');
+            confirmRows.forEach((row, idx) => {
                 const productName = row.querySelector('.product-select').options[row.querySelector('.product-select').selectedIndex]?.text || '-';
                 const qty = row.querySelector('.quantity-input').value || '0';
                 const price = row.querySelector('.price-input').value || '0';

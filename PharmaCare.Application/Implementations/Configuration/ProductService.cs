@@ -183,7 +183,7 @@ public class ProductService : IProductService
     {
         return await _priceTypeRepository.Query()
             .Where(pt => pt.IsActive)
-            .OrderBy(pt => pt.PriceTypeName)
+            .OrderBy(pt => pt.PriceTypeID)
             .ToListAsync();
     }
 
@@ -248,8 +248,9 @@ public class ProductService : IProductService
     /// Gets all active products with calculated current stock.
     /// CurrentStock = OpeningQuantity + SUM(StockDetail.Quantity * TransactionType.StockDirection)
     /// Only considers "Approved" transactions.
+    /// If priceTypeId is provided, fetches the specific price for that type.
     /// </summary>
-    public async Task<IEnumerable<(Product Product, decimal CurrentStock)>> GetProductsWithStockAsync()
+    public async Task<IEnumerable<(Product Product, decimal CurrentStock, decimal? SpecificPrice)>> GetProductsWithStockAsync(int? priceTypeId = null)
     {
         var products = await _repository.Query()
             .Where(p => p.IsActive)
@@ -270,9 +271,20 @@ public class ProductService : IProductService
 
         var stockDict = stockMovements.ToDictionary(x => x.ProductId, x => x.StockChange);
 
+        // Get specific prices if priceTypeId is provided
+        Dictionary<int, decimal> priceDict = new Dictionary<int, decimal>();
+        if (priceTypeId.HasValue)
+        {
+            var prices = await _productPriceRepository.Query()
+                .Where(pp => pp.PriceType_ID == priceTypeId.Value && pp.IsActive)
+                .ToListAsync();
+            priceDict = prices.ToDictionary(pp => pp.Product_ID, pp => pp.SalePrice);
+        }
+
         return products.Select(p => (
             Product: p,
-            CurrentStock: p.OpeningQuantity + (stockDict.TryGetValue(p.ProductID, out var change) ? change : 0)
+            CurrentStock: p.OpeningQuantity + (stockDict.TryGetValue(p.ProductID, out var change) ? change : 0),
+            SpecificPrice: priceTypeId.HasValue && priceDict.TryGetValue(p.ProductID, out var price) ? price : (decimal?)null
         ));
     }
 }

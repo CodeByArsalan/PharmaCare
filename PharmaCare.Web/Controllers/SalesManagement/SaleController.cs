@@ -85,7 +85,7 @@ public class SaleController : BaseController
             }
             catch (Exception ex)
             {
-                ModelState.AddModelError("", "Error creating sale: " + ex.Message);
+                ShowMessage(MessageType.Error, "Error creating sale: " + ex.Message);
             }
         }
 
@@ -135,15 +135,15 @@ public class SaleController : BaseController
     /// Gets products as JSON for AJAX dropdown with calculated current stock.
     /// </summary>
     [HttpGet]
-    public async Task<IActionResult> GetProducts()
+    public async Task<IActionResult> GetProducts(int? priceTypeId)
     {
-        var productsWithStock = await _productService.GetProductsWithStockAsync();
+        var productsWithStock = await _productService.GetProductsWithStockAsync(priceTypeId);
         var result = productsWithStock
             .Select(ps => new
             {
                 id = ps.Product.ProductID,
                 name = ps.Product.Name,
-                unitPrice = ps.Product.OpeningPrice,
+                unitPrice = ps.SpecificPrice ?? ps.Product.OpeningPrice,
                 costPrice = ps.Product.OpeningPrice, // Use OpeningPrice as cost (can be enhanced later)
                 stockQuantity = ps.CurrentStock
             })
@@ -176,6 +176,14 @@ public class SaleController : BaseController
             accounts,
             "AccountID",
             "Name"
+        );
+
+        // Load Price Types
+        var priceTypes = await _productService.GetPriceTypesAsync();
+        ViewBag.PriceTypes = new SelectList(
+            priceTypes,
+            "PriceTypeID",
+            "PriceTypeName"
         );
     }
 }
