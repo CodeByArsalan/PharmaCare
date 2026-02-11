@@ -1,5 +1,6 @@
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.Mvc.Rendering;
+using PharmaCare.Web.Utilities;
 using PharmaCare.Application.Interfaces.Configuration;
 using PharmaCare.Domain.Entities.Configuration;
 
@@ -37,9 +38,11 @@ public class SubCategoryController : BaseController
         // await LoadCategoriesDropdown(); // Removed
         return View(subCategory);
     }
-    public async Task<IActionResult> EditSubCategory(int id)
+    public async Task<IActionResult> EditSubCategory(string id)
     {
-        var subCategory = await _subCategoryService.GetByIdAsync(id);
+        int subCategoryId = Utility.DecryptId(id);
+        if (subCategoryId == 0) return NotFound();
+        var subCategory = await _subCategoryService.GetByIdAsync(subCategoryId);
         if (subCategory == null)
         {
             return NotFound();
@@ -49,12 +52,10 @@ public class SubCategoryController : BaseController
     }
     [HttpPost]
     [ValidateAntiForgeryToken]
-    public async Task<IActionResult> EditSubCategory(int id, SubCategory subCategory)
+    public async Task<IActionResult> EditSubCategory(string id, SubCategory subCategory)
     {
-        if (id != subCategory.SubCategoryID)
-        {
-            return NotFound();
-        }
+        int subCategoryId = Utility.DecryptId(id);
+        if (subCategoryId != subCategory.SubCategoryID) return NotFound();
 
         if (ModelState.IsValid)
         {
@@ -71,9 +72,12 @@ public class SubCategoryController : BaseController
     }
     [HttpPost]
     [ValidateAntiForgeryToken]
-    public async Task<IActionResult> Delete(int id)
+    public async Task<IActionResult> Delete(string id)
     {
-        await _subCategoryService.ToggleStatusAsync(id, CurrentUserId);
+        int subCategoryId = Utility.DecryptId(id);
+        if (subCategoryId == 0) return NotFound();
+
+        await _subCategoryService.ToggleStatusAsync(subCategoryId, CurrentUserId);
         ShowMessage(MessageType.Success, "SubCategory status updated successfully!");
         return RedirectToAction("SubCategoriesIndex");
     }

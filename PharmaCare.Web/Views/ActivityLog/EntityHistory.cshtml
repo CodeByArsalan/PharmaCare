@@ -1,3 +1,4 @@
+@using PharmaCare.Web.Utilities
 @model IEnumerable<PharmaCare.Application.DTOs.Logging.ActivityLogDto>
 @{
     ViewData["Title"] = $"Entity History: {ViewBag.EntityName} #{ViewBag.EntityId}";
@@ -58,7 +59,7 @@
                             </td>
                             <td><small>@log.Description</small></td>
                             <td class="text-end">
-                                <a asp-action="Details" asp-route-id="@log.ActivityLogID" 
+                                <a asp-action="Details" asp-route-id="@log.ActivityLogID.EncryptId()" 
                                    class="btn btn-sm btn-outline-primary">
                                     <i class="fas fa-eye"></i>
                                 </a>

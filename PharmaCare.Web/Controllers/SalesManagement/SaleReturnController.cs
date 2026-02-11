@@ -4,6 +4,7 @@ using Microsoft.AspNetCore.Mvc.Rendering;
 using PharmaCare.Application.Interfaces.Configuration;
 using PharmaCare.Application.Interfaces.Transactions;
 using PharmaCare.Domain.Entities.Transactions;
+using PharmaCare.Web.Utilities;
 
 namespace PharmaCare.Web.Controllers.SalesManagement;
 
@@ -97,9 +98,16 @@ public class SaleReturnController : BaseController
     /// <summary>
     /// Shows details of a sale return.
     /// </summary>
-    public async Task<IActionResult> ViewSaleReturn(int id)
+    public async Task<IActionResult> ViewSaleReturn(string id)
     {
-        var saleReturn = await _saleReturnService.GetByIdAsync(id);
+        int saleReturnId = Utility.DecryptId(id);
+        if (saleReturnId == 0)
+        {
+            ShowMessage(MessageType.Error, "Invalid Sale Return ID.");
+            return RedirectToAction(nameof(SaleReturnsIndex));
+        }
+
+        var saleReturn = await _saleReturnService.GetByIdAsync(saleReturnId);
         if (saleReturn == null)
         {
             ShowMessage(MessageType.Error, "Sale Return not found.");
@@ -114,15 +122,21 @@ public class SaleReturnController : BaseController
     /// </summary>
     [HttpPost]
     [ValidateAntiForgeryToken]
-    public async Task<IActionResult> Void(int id, string voidReason)
+    public async Task<IActionResult> Void(string id, string voidReason)
     {
+        int saleReturnId = Utility.DecryptId(id);
+        if (saleReturnId == 0)
+        {
+             ShowMessage(MessageType.Error, "Invalid Sale Return ID.");
+             return RedirectToAction(nameof(SaleReturnsIndex));
+        }
         if (string.IsNullOrWhiteSpace(voidReason))
         {
             ShowMessage(MessageType.Error, "Void reason is required.");
             return RedirectToAction(nameof(SaleReturnsIndex));
         }
 
-        var result = await _saleReturnService.VoidAsync(id, voidReason, CurrentUserId);
+        var result = await _saleReturnService.VoidAsync(saleReturnId, voidReason, CurrentUserId);
         if (result)
         {
             ShowMessage(MessageType.Success, "Sale Return voided successfully!");

@@ -4,6 +4,7 @@ using Microsoft.AspNetCore.Mvc.Rendering;
 using PharmaCare.Application.Interfaces.Configuration;
 using PharmaCare.Application.Interfaces.Transactions;
 using PharmaCare.Domain.Entities.Transactions;
+using PharmaCare.Web.Utilities;
 
 namespace PharmaCare.Web.Controllers.PurchaseManagement;
 
@@ -78,9 +79,16 @@ public class PurchaseReturnController : BaseController
         await LoadDropdownsAsync();
         return View(purchaseReturn);
     }
-    public async Task<IActionResult> ViewPurchaseReturn(int id)
+    public async Task<IActionResult> ViewPurchaseReturn(string id)
     {
-        var purchaseReturn = await _purchaseReturnService.GetByIdAsync(id);
+        int purchaseReturnId = Utility.DecryptId(id);
+        if (purchaseReturnId == 0)
+        {
+            ShowMessage(MessageType.Error, "Invalid Purchase Return ID.");
+            return RedirectToAction(nameof(PurchaseReturnsIndex));
+        }
+
+        var purchaseReturn = await _purchaseReturnService.GetByIdAsync(purchaseReturnId);
         if (purchaseReturn == null)
         {
             ShowMessage(MessageType.Error, "Purchase Return not found.");
@@ -91,15 +99,21 @@ public class PurchaseReturnController : BaseController
     }
     [HttpPost]
     [ValidateAntiForgeryToken]
-    public async Task<IActionResult> Void(int id, string voidReason)
+    public async Task<IActionResult> Void(string id, string voidReason)
     {
+        int purchaseReturnId = Utility.DecryptId(id);
+        if (purchaseReturnId == 0)
+        {
+             ShowMessage(MessageType.Error, "Invalid Purchase Return ID.");
+             return RedirectToAction(nameof(PurchaseReturnsIndex));
+        }
         if (string.IsNullOrWhiteSpace(voidReason))
         {
             ShowMessage(MessageType.Error, "Void reason is required.");
             return RedirectToAction(nameof(PurchaseReturnsIndex));
         }
 
-        var result = await _purchaseReturnService.VoidAsync(id, voidReason, CurrentUserId);
+        var result = await _purchaseReturnService.VoidAsync(purchaseReturnId, voidReason, CurrentUserId);
         if (result)
         {
             ShowMessage(MessageType.Success, "Purchase Return voided successfully!");

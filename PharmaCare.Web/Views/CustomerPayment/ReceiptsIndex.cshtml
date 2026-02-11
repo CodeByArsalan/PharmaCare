@@ -1,3 +1,4 @@
+@using PharmaCare.Web.Utilities
 @model IEnumerable<PharmaCare.Domain.Entities.Finance.Payment>
 @{
     ViewData["Title"] = "Customer Receipts";
@@ -57,7 +58,7 @@
                             </td>
                             <td class="text-end"><strong>@receipt.Amount.ToString("N2")</strong></td>
                             <td class="text-end">
-                                <a asp-action="ViewReceipt" asp-route-id="@receipt.PaymentID" class="btn btn-sm btn-outline-primary" title="View">
+                                <a asp-action="ViewReceipt" asp-route-id="@receipt.PaymentID.EncryptId()" class="btn btn-sm btn-outline-primary" title="View">
                                     <i class="fas fa-eye"></i>
                                 </a>
                             </td>

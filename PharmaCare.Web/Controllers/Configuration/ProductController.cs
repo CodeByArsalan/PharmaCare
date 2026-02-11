@@ -3,6 +3,7 @@ using Microsoft.AspNetCore.Mvc.Rendering;
 using PharmaCare.Application.Interfaces.Configuration;
 using PharmaCare.Domain.Entities.Configuration;
 using PharmaCare.ViewModels;
+using PharmaCare.Web.Utilities;
 
 namespace PharmaCare.Web.Controllers.Configuration;
 
@@ -95,9 +96,11 @@ public class ProductController : BaseController
         return RedirectToAction("ProductsIndex", new { activeTab = "add" });
     }
 
-    public async Task<IActionResult> EditProduct(int id)
+    public async Task<IActionResult> EditProduct(string id)
     {
-        var product = await _productService.GetByIdAsync(id);
+        int productId = Utility.DecryptId(id);
+        if (productId == 0) return NotFound();
+        var product = await _productService.GetByIdAsync(productId);
         if (product == null)
         {
             return NotFound();
@@ -136,7 +139,7 @@ public class ProductController : BaseController
 
         // Load Prices
         var priceTypes = await _productService.GetPriceTypesAsync();
-        var existingPrices = await _productService.GetProductPricesAsync(id);
+        var existingPrices = await _productService.GetProductPricesAsync(productId);
 
         foreach (var pt in priceTypes)
         {
@@ -155,9 +158,10 @@ public class ProductController : BaseController
 
     [HttpPost]
     [ValidateAntiForgeryToken]
-    public async Task<IActionResult> EditProduct(int id, ProductViewModel vm)
+    public async Task<IActionResult> EditProduct(string id, ProductViewModel vm)
     {
-        if (id != vm.ProductID)
+        int productId = Utility.DecryptId(id);
+        if (productId != vm.ProductID)
         {
             return NotFound();
         }
@@ -176,7 +180,7 @@ public class ProductController : BaseController
             }
             
             // Save Prices
-            await _productService.SaveProductPricesAsync(id, vm.ProductPrices, CurrentUserId);
+            await _productService.SaveProductPricesAsync(productId, vm.ProductPrices, CurrentUserId);
             
             ShowMessage(MessageType.Success, "Product updated successfully!");
             return RedirectToAction("ProductsIndex");
@@ -187,9 +191,12 @@ public class ProductController : BaseController
 
     [HttpPost]
     [ValidateAntiForgeryToken]
-    public async Task<IActionResult> Delete(int id)
+    public async Task<IActionResult> Delete(string id)
     {
-        await _productService.ToggleStatusAsync(id, CurrentUserId);
+        int productId = Utility.DecryptId(id);
+        if (productId == 0) return NotFound();
+
+        await _productService.ToggleStatusAsync(productId, CurrentUserId);
         ShowMessage(MessageType.Success, "Product status updated successfully!");
         return RedirectToAction("ProductsIndex");
     }

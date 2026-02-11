@@ -5,6 +5,7 @@ using PharmaCare.Application.Interfaces.Accounting;
 using PharmaCare.Application.Interfaces.Configuration;
 using PharmaCare.Application.Interfaces.Finance;
 using PharmaCare.Domain.Entities.Finance;
+using PharmaCare.Web.Utilities;
 
 namespace PharmaCare.Web.Controllers.SalesManagement;
 
@@ -39,10 +40,17 @@ public class CustomerPaymentController : BaseController
     }
 
     /// Shows form to receive payment for a sale.
-    public async Task<IActionResult> ReceivePayment(int stockMainId)
+    public async Task<IActionResult> ReceivePayment(string stockMainId)
     {
+        int id = Utility.DecryptId(stockMainId);
+        if (id == 0)
+        {
+             ShowMessage(MessageType.Error, "Invalid Sale ID.");
+             return RedirectToAction(nameof(PendingSales));
+        }
+
         var pendingSales = await _customerPaymentService.GetPendingSalesAsync();
-        var sale = pendingSales.FirstOrDefault(s => s.StockMainID == stockMainId);
+        var sale = pendingSales.FirstOrDefault(s => s.StockMainID == id);
         
         if (sale == null)
         {
@@ -56,7 +64,7 @@ public class CustomerPaymentController : BaseController
 
         return View(new Payment
         {
-            StockMain_ID = stockMainId,
+            StockMain_ID = id,
             Party_ID = sale.Party_ID ?? 0,
             Amount = sale.BalanceAmount,
             PaymentDate = DateTime.Now,
@@ -109,9 +117,16 @@ public class CustomerPaymentController : BaseController
     }
 
     /// Shows receipt details.
-    public async Task<IActionResult> ViewReceipt(int id)
+    public async Task<IActionResult> ViewReceipt(string id)
     {
-        var receipt = await _customerPaymentService.GetByIdAsync(id);
+        int receiptId = Utility.DecryptId(id);
+        if (receiptId == 0)
+        {
+            ShowMessage(MessageType.Error, "Invalid Receipt ID.");
+            return RedirectToAction(nameof(ReceiptsIndex));
+        }
+
+        var receipt = await _customerPaymentService.GetByIdAsync(receiptId);
         if (receipt == null)
         {
             ShowMessage(MessageType.Error, "Receipt not found.");

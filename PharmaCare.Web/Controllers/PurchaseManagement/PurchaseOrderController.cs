@@ -4,6 +4,7 @@ using Microsoft.AspNetCore.Mvc.Rendering;
 using PharmaCare.Application.Interfaces.Configuration;
 using PharmaCare.Application.Interfaces.Transactions;
 using PharmaCare.Domain.Entities.Transactions;
+using PharmaCare.Web.Utilities;
 
 namespace PharmaCare.Web.Controllers.PurchaseManagement;
 
@@ -98,9 +99,16 @@ public class PurchaseOrderController : BaseController
     /// <summary>
     /// Shows form to edit an existing purchase order.
     /// </summary>
-    public async Task<IActionResult> EditPurchaseOrder(int id)
+    public async Task<IActionResult> EditPurchaseOrder(string id)
     {
-        var purchaseOrder = await _purchaseOrderService.GetByIdAsync(id);
+        int poId = Utility.DecryptId(id);
+        if (poId == 0)
+        {
+             ShowMessage(MessageType.Error, "Invalid Purchase Order ID.");
+             return RedirectToAction(nameof(PurchaseOrdersIndex));
+        }
+
+        var purchaseOrder = await _purchaseOrderService.GetByIdAsync(poId);
         if (purchaseOrder == null)
         {
             ShowMessage(MessageType.Error, "Purchase Order not found.");
@@ -166,9 +174,16 @@ public class PurchaseOrderController : BaseController
     /// </summary>
     [HttpPost]
     [ValidateAntiForgeryToken]
-    public async Task<IActionResult> Approve(int id)
+    public async Task<IActionResult> Approve(string id)
     {
-        var result = await _purchaseOrderService.ApproveAsync(id, CurrentUserId);
+        int poId = Utility.DecryptId(id);
+        if (poId == 0)
+        {
+             ShowMessage(MessageType.Error, "Invalid Purchase Order ID.");
+             return RedirectToAction(nameof(PurchaseOrdersIndex));
+        }
+
+        var result = await _purchaseOrderService.ApproveAsync(poId, CurrentUserId);
         if (result)
         {
             ShowMessage(MessageType.Success, "Purchase Order approved successfully!");
@@ -186,9 +201,16 @@ public class PurchaseOrderController : BaseController
     /// </summary>
     [HttpPost]
     [ValidateAntiForgeryToken]
-    public async Task<IActionResult> Delete(int id)
+    public async Task<IActionResult> Delete(string id)
     {
-        var result = await _purchaseOrderService.ToggleStatusAsync(id, CurrentUserId);
+        int poId = Utility.DecryptId(id);
+        if (poId == 0)
+        {
+             ShowMessage(MessageType.Error, "Invalid Purchase Order ID.");
+             return RedirectToAction(nameof(PurchaseOrdersIndex));
+        }
+
+        var result = await _purchaseOrderService.ToggleStatusAsync(poId, CurrentUserId);
         if (result)
         {
             ShowMessage(MessageType.Success, "Purchase Order cancelled successfully!");

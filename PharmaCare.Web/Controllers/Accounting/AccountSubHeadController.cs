@@ -1,5 +1,6 @@
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.Mvc.Rendering;
+using PharmaCare.Web.Utilities;
 using PharmaCare.Application.Interfaces.Accounting;
 using PharmaCare.Domain.Entities.Accounting;
 
@@ -40,9 +41,11 @@ public class AccountSubHeadController : BaseController
         return View(accountSubHead);
     }
 
-    public async Task<IActionResult> EditAccountSubHead(int id)
+    public async Task<IActionResult> EditAccountSubHead(string id)
     {
-        var accountSubHead = await _accountSubHeadService.GetByIdAsync(id);
+        int accountSubHeadId = Utility.DecryptId(id);
+        if (accountSubHeadId == 0) return NotFound();
+        var accountSubHead = await _accountSubHeadService.GetByIdAsync(accountSubHeadId);
         if (accountSubHead == null)
         {
             return NotFound();
@@ -53,12 +56,10 @@ public class AccountSubHeadController : BaseController
 
     [HttpPost]
     [ValidateAntiForgeryToken]
-    public async Task<IActionResult> EditAccountSubHead(int id, AccountSubhead accountSubHead)
+    public async Task<IActionResult> EditAccountSubHead(string id, AccountSubhead accountSubHead)
     {
-        if (id != accountSubHead.AccountSubheadID)
-        {
-            return NotFound();
-        }
+        int accountSubHeadId = Utility.DecryptId(id);
+        if (accountSubHeadId != accountSubHead.AccountSubheadID) return NotFound();
 
         if (ModelState.IsValid)
         {
@@ -76,9 +77,12 @@ public class AccountSubHeadController : BaseController
 
     [HttpPost]
     [ValidateAntiForgeryToken]
-    public async Task<IActionResult> Delete(int id)
+    public async Task<IActionResult> Delete(string id)
     {
-        await _accountSubHeadService.DeleteAsync(id);
+        int accountSubHeadId = Utility.DecryptId(id);
+        if (accountSubHeadId == 0) return NotFound();
+
+        await _accountSubHeadService.DeleteAsync(accountSubHeadId);
         ShowMessage(MessageType.Success, "Account Sub-Head deleted successfully!");
         return RedirectToAction("AccountSubHeadsIndex");
     }

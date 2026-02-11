@@ -46,6 +46,25 @@ public static class Utility
         return 0;
     }
 
+    /// <summary>
+    /// Extension method to encrypt a long ID for use in URLs
+    /// </summary>
+    public static string EncryptId(this long id)
+    {
+        return EncryptURL(id.ToString());
+    }
+
+    /// <summary>
+    /// Decrypt an encrypted ID string back to long
+    /// </summary>
+    public static long DecryptIdLong(string encryptedId)
+    {
+        var decrypted = DecryptURL(encryptedId);
+        if (long.TryParse(decrypted, out long id))
+            return id;
+        return 0;
+    }
+
     public static string DecryptURL(string strData)
     {
         try

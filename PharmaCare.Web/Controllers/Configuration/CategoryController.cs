@@ -1,5 +1,6 @@
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.Mvc.Rendering;
+using PharmaCare.Web.Utilities;
 using PharmaCare.Application.Interfaces.Configuration;
 using PharmaCare.Domain.Entities.Configuration;
 
@@ -39,9 +40,11 @@ public class CategoryController : BaseController
         return View(category);
     }
 
-    public async Task<IActionResult> EditCategory(int id)
+    public async Task<IActionResult> EditCategory(string id)
     {
-        var category = await _categoryService.GetByIdAsync(id);
+        int categoryId = Utility.DecryptId(id);
+        if (categoryId == 0) return NotFound();
+        var category = await _categoryService.GetByIdAsync(categoryId);
         if (category == null)
         {
             return NotFound();
@@ -52,12 +55,10 @@ public class CategoryController : BaseController
 
     [HttpPost]
     [ValidateAntiForgeryToken]
-    public async Task<IActionResult> EditCategory(int id, Category category)
+    public async Task<IActionResult> EditCategory(string id, Category category)
     {
-        if (id != category.CategoryID)
-        {
-            return NotFound();
-        }
+        int categoryId = Utility.DecryptId(id);
+        if (categoryId != category.CategoryID) return NotFound();
 
         if (ModelState.IsValid)
         {
@@ -74,9 +75,12 @@ public class CategoryController : BaseController
     }
     [HttpPost]
     [ValidateAntiForgeryToken]
-    public async Task<IActionResult> Delete(int id)
+    public async Task<IActionResult> Delete(string id)
     {
-        await _categoryService.ToggleStatusAsync(id, CurrentUserId);
+        int categoryId = Utility.DecryptId(id);
+        if (categoryId == 0) return NotFound();
+
+        await _categoryService.ToggleStatusAsync(categoryId, CurrentUserId);
         ShowMessage(MessageType.Success, "Category status updated successfully!");
         return RedirectToAction("CategoriesIndex");
     }

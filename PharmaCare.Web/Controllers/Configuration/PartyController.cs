@@ -1,4 +1,5 @@
 using Microsoft.AspNetCore.Mvc;
+using PharmaCare.Web.Utilities;
 using PharmaCare.Application.Interfaces.Configuration;
 using PharmaCare.Domain.Entities.Configuration;
 
@@ -34,9 +35,11 @@ public class PartyController : BaseController
         }
         return View(party);
     }
-    public async Task<IActionResult> EditParty(int id)
+    public async Task<IActionResult> EditParty(string id)
     {
-        var party = await _partyService.GetByIdAsync(id);
+        int partyId = Utility.DecryptId(id);
+        if (partyId == 0) return NotFound();
+        var party = await _partyService.GetByIdAsync(partyId);
         if (party == null)
         {
             return NotFound();
@@ -45,12 +48,10 @@ public class PartyController : BaseController
     }
     [HttpPost]
     [ValidateAntiForgeryToken]
-    public async Task<IActionResult> EditParty(int id, Party party)
+    public async Task<IActionResult> EditParty(string id, Party party)
     {
-        if (id != party.PartyID)
-        {
-            return NotFound();
-        }
+        int partyId = Utility.DecryptId(id);
+        if (partyId != party.PartyID) return NotFound();
 
         if (ModelState.IsValid)
         {
@@ -66,9 +67,12 @@ public class PartyController : BaseController
     }
     [HttpPost]
     [ValidateAntiForgeryToken]
-    public async Task<IActionResult> Delete(int id)
+    public async Task<IActionResult> Delete(string id)
     {
-        await _partyService.ToggleStatusAsync(id, CurrentUserId);
+        int partyId = Utility.DecryptId(id);
+        if (partyId == 0) return NotFound();
+
+        await _partyService.ToggleStatusAsync(partyId, CurrentUserId);
         ShowMessage(MessageType.Success, "Party status updated successfully!");
         return RedirectToAction("PartiesIndex");
     }

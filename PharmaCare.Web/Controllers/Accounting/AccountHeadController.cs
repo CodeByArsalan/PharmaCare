@@ -1,5 +1,6 @@
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.Mvc.Rendering;
+using PharmaCare.Web.Utilities;
 using PharmaCare.Application.Interfaces.Accounting;
 using PharmaCare.Domain.Entities.Accounting;
 
@@ -40,9 +41,11 @@ public class AccountHeadController : BaseController
         return View(accountHead);
     }
 
-    public async Task<IActionResult> EditAccountHead(int id)
+    public async Task<IActionResult> EditAccountHead(string id)
     {
-        var accountHead = await _accountHeadService.GetByIdAsync(id);
+        int accountHeadId = Utility.DecryptId(id);
+        if (accountHeadId == 0) return NotFound();
+        var accountHead = await _accountHeadService.GetByIdAsync(accountHeadId);
         if (accountHead == null)
         {
             return NotFound();
@@ -53,12 +56,10 @@ public class AccountHeadController : BaseController
 
     [HttpPost]
     [ValidateAntiForgeryToken]
-    public async Task<IActionResult> EditAccountHead(int id, AccountHead accountHead)
+    public async Task<IActionResult> EditAccountHead(string id, AccountHead accountHead)
     {
-        if (id != accountHead.AccountHeadID)
-        {
-            return NotFound();
-        }
+        int accountHeadId = Utility.DecryptId(id);
+        if (accountHeadId != accountHead.AccountHeadID) return NotFound();
 
         if (ModelState.IsValid)
         {
@@ -76,9 +77,12 @@ public class AccountHeadController : BaseController
 
     [HttpPost]
     [ValidateAntiForgeryToken]
-    public async Task<IActionResult> Delete(int id)
+    public async Task<IActionResult> Delete(string id)
     {
-        await _accountHeadService.DeleteAsync(id);
+        int accountHeadId = Utility.DecryptId(id);
+        if (accountHeadId == 0) return NotFound();
+
+        await _accountHeadService.DeleteAsync(accountHeadId);
         ShowMessage(MessageType.Success, "Account Head deleted successfully!");
         return RedirectToAction("AccountHeadsIndex");
     }

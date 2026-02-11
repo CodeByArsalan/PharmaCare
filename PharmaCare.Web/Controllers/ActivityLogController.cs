@@ -4,6 +4,7 @@ using Microsoft.AspNetCore.Mvc.Rendering;
 using PharmaCare.Application.DTOs.Logging;
 using PharmaCare.Application.Interfaces.Logging;
 using PharmaCare.Domain.Enums;
+using PharmaCare.Web.Utilities;
 
 namespace PharmaCare.Web.Controllers;
 
@@ -61,9 +62,13 @@ public class ActivityLogController : BaseController
         return View(result);
     }
 
-    public async Task<IActionResult> Details(long id)
+    public async Task<IActionResult> Details(string id)
     {
-        var log = await _activityLogService.GetByIdAsync(id);
+        long logId = Utility.DecryptIdLong(id);
+        if (logId == 0)
+            return NotFound();
+
+        var log = await _activityLogService.GetByIdAsync(logId);
         if (log == null)
             return NotFound();
         
@@ -80,11 +85,15 @@ public class ActivityLogController : BaseController
         return View(logs);
     }
 
-    public async Task<IActionResult> UserHistory(int userId)
+    public async Task<IActionResult> UserHistory(string userId)
     {
-        var logs = await _activityLogService.GetLogsByUserAsync(userId, DateTime.Today.AddDays(-30));
+        int uid = Utility.DecryptId(userId);
+        if (uid == 0)
+            return RedirectToAction(nameof(Index));
+
+        var logs = await _activityLogService.GetLogsByUserAsync(uid, DateTime.Today.AddDays(-30));
         
-        ViewBag.UserId = userId;
+        ViewBag.UserId = uid;
         
         return View(logs);
     }

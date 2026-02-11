@@ -3,6 +3,7 @@ using Microsoft.AspNetCore.Mvc.Rendering;
 using PharmaCare.Application.DTOs.Security;
 using PharmaCare.Application.Interfaces.Security;
 using PharmaCare.Domain.Entities.Security;
+using PharmaCare.Web.Utilities;
 
 namespace PharmaCare.Web.Controllers.Security;
 
@@ -66,15 +67,17 @@ public class UserController : BaseController
         return RedirectToAction("UsersIndex");
     }
 
-    public async Task<IActionResult> EditUser(int id)
+    public async Task<IActionResult> EditUser(string id)
     {
-        var user = await _userService.GetUserByIdAsync(id);
+        int userId = Utility.DecryptId(id);
+        if (userId == 0) return NotFound();
+        var user = await _userService.GetUserByIdAsync(userId);
         if (user == null)
         {
             return NotFound();
         }
 
-        var roleIds = await _userService.GetUserRoleIdsAsync(id);
+        var roleIds = await _userService.GetUserRoleIdsAsync(userId);
 
         var model = new UserViewModel
         {
@@ -92,12 +95,10 @@ public class UserController : BaseController
 
     [HttpPost]
     [ValidateAntiForgeryToken]
-    public async Task<IActionResult> EditUser(int id, UserViewModel model)
+    public async Task<IActionResult> EditUser(string id, UserViewModel model)
     {
-        if (id != model.Id)
-        {
-            return NotFound();
-        }
+        int userId = Utility.DecryptId(id);
+        if (userId != model.Id) return NotFound();
 
         // Remove password validation for edit if not provided
         if (string.IsNullOrEmpty(model.Password))
@@ -138,6 +139,18 @@ public class UserController : BaseController
     public async Task<IActionResult> ToggleStatus(int id)
     {
         await _userService.ToggleUserStatusAsync(id, CurrentUserId);
+        ShowMessage(MessageType.Success, "User status updated successfully!");
+        return RedirectToAction("UsersIndex");
+    }
+
+    [HttpPost]
+    [ValidateAntiForgeryToken]
+    public async Task<IActionResult> Delete(string id)
+    {
+        int userId = Utility.DecryptId(id);
+        if (userId == 0) return NotFound();
+
+        await _userService.ToggleUserStatusAsync(userId, CurrentUserId);
         ShowMessage(MessageType.Success, "User status updated successfully!");
         return RedirectToAction("UsersIndex");
     }

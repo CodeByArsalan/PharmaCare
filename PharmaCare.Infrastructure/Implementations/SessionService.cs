@@ -166,17 +166,10 @@ public class SessionService : ISessionService
     {
         var pages = GetAccessiblePages();
 
-        // First try: exact match on controller + action (checks both main Pages and flattened PageUrls)
+        // Exact match on controller + action (checks both main Pages and flattened PageUrls)
         var page = pages.FirstOrDefault(p =>
             string.Equals(p.Controller, controller, StringComparison.OrdinalIgnoreCase) &&
             string.Equals(p.Action, action, StringComparison.OrdinalIgnoreCase));
-
-        // Second try: match on controller only (for strict hierarchy or missing PageUrl entries)
-        if (page == null)
-        {
-            page = pages.FirstOrDefault(p =>
-                string.Equals(p.Controller, controller, StringComparison.OrdinalIgnoreCase));
-        }
 
         if (page == null) return false;
 

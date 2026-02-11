@@ -6,6 +6,7 @@ using PharmaCare.Application.Interfaces.Configuration;
 using PharmaCare.Application.Interfaces.Finance;
 using PharmaCare.Application.Interfaces.Transactions;
 using PharmaCare.Domain.Entities.Finance;
+using PharmaCare.Web.Utilities;
 
 namespace PharmaCare.Web.Controllers.PurchaseManagement;
 
@@ -70,9 +71,16 @@ public class SupplierPaymentController : BaseController
     }
 
     /// Shows form to make a payment for a GRN.
-    public async Task<IActionResult> MakePayment(int stockMainId)
+    public async Task<IActionResult> MakePayment(string stockMainId)
     {
-        var grn = await _purchaseService.GetByIdAsync(stockMainId);
+        int id = Utility.DecryptId(stockMainId);
+        if (id == 0)
+        {
+             ShowMessage(MessageType.Error, "Invalid Purchase ID.");
+             return RedirectToAction("PurchasesIndex", "Purchase");
+        }
+
+        var grn = await _purchaseService.GetByIdAsync(id);
         if (grn == null)
         {
             ShowMessage(MessageType.Error, "Purchase not found.");
@@ -90,7 +98,7 @@ public class SupplierPaymentController : BaseController
 
         return View(new Payment
         {
-            StockMain_ID = stockMainId,
+            StockMain_ID = id,
             Party_ID = grn.Party_ID ?? 0,
             Amount = grn.BalanceAmount,
             PaymentDate = DateTime.Now,
@@ -133,9 +141,16 @@ public class SupplierPaymentController : BaseController
     }
 
     /// Shows payment details.
-    public async Task<IActionResult> ViewPayment(int id)
+    public async Task<IActionResult> ViewPayment(string id)
     {
-        var payment = await _paymentService.GetByIdAsync(id);
+        int paymentId = Utility.DecryptId(id);
+        if (paymentId == 0)
+        {
+            ShowMessage(MessageType.Error, "Invalid Payment ID.");
+            return RedirectToAction(nameof(PaymentsIndex));
+        }
+
+        var payment = await _paymentService.GetByIdAsync(paymentId);
         if (payment == null)
         {
             ShowMessage(MessageType.Error, "Payment not found.");
@@ -147,9 +162,10 @@ public class SupplierPaymentController : BaseController
 
     /// Gets payment history for a transaction (AJAX).
     [HttpGet]
-    public async Task<IActionResult> GetPaymentHistory(int stockMainId)
+    public async Task<IActionResult> GetPaymentHistory(string stockMainId)
     {
-        var payments = await _paymentService.GetPaymentsByTransactionAsync(stockMainId);
+        int id = Utility.DecryptId(stockMainId);
+        var payments = await _paymentService.GetPaymentsByTransactionAsync(id);
         
         // Order by PaymentID descending (newest first) and add serial number
         var orderedPayments = payments.OrderByDescending(p => p.PaymentID).ToList();

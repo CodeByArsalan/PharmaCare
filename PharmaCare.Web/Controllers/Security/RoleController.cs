@@ -2,6 +2,7 @@ using Microsoft.AspNetCore.Mvc;
 using PharmaCare.Application.DTOs.Security;
 using PharmaCare.Application.Interfaces.Security;
 using PharmaCare.Domain.Entities.Security;
+using PharmaCare.Web.Utilities;
 
 namespace PharmaCare.Web.Controllers.Security;
 
@@ -42,9 +43,11 @@ public class RoleController : BaseController
         return RedirectToAction("RolesIndex");
     }
 
-    public async Task<IActionResult> EditRole(int id)
+    public async Task<IActionResult> EditRole(string id)
     {
-        var role = await _roleService.GetRoleByIdAsync(id);
+        int roleId = Utility.DecryptId(id);
+        if (roleId == 0) return NotFound();
+        var role = await _roleService.GetRoleByIdAsync(roleId);
         if (role == null)
         {
             return NotFound();
@@ -54,12 +57,10 @@ public class RoleController : BaseController
 
     [HttpPost]
     [ValidateAntiForgeryToken]
-    public async Task<IActionResult> EditRole(int id, Role role)
+    public async Task<IActionResult> EditRole(string id, Role role)
     {
-        if (id != role.RoleID)
-        {
-            return NotFound();
-        }
+        int roleId = Utility.DecryptId(id);
+        if (roleId != role.RoleID) return NotFound();
 
         if (!ModelState.IsValid)
         {
@@ -78,9 +79,12 @@ public class RoleController : BaseController
 
     [HttpPost]
     [ValidateAntiForgeryToken]
-    public async Task<IActionResult> ToggleStatus(int id)
+    public async Task<IActionResult> ToggleStatus(string id)
     {
-        var result = await _roleService.ToggleRoleStatusAsync(id, CurrentUserId);
+        int roleId = Utility.DecryptId(id);
+        if (roleId == 0) return NotFound();
+
+        var result = await _roleService.ToggleRoleStatusAsync(roleId, CurrentUserId);
         if (!result)
         {
             ShowMessage(MessageType.Error, "Cannot modify system roles.");
@@ -95,15 +99,17 @@ public class RoleController : BaseController
     /// <summary>
     /// Display permissions grid for a role.
     /// </summary>
-    public async Task<IActionResult> Permissions(int id)
+    public async Task<IActionResult> Permissions(string id)
     {
-        var role = await _roleService.GetRoleByIdAsync(id);
+        int roleId = Utility.DecryptId(id);
+        if (roleId == 0) return NotFound();
+        var role = await _roleService.GetRoleByIdAsync(roleId);
         if (role == null)
         {
             return NotFound();
         }
 
-        var permissions = await _roleService.GetPermissionsForRoleAsync(id);
+        var permissions = await _roleService.GetPermissionsForRoleAsync(roleId);
 
         ViewBag.Role = role;
         return View(permissions);

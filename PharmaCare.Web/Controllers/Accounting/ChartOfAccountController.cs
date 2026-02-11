@@ -1,5 +1,6 @@
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.Mvc.Rendering;
+using PharmaCare.Web.Utilities;
 using PharmaCare.Application.Interfaces.Accounting;
 using PharmaCare.Domain.Entities.Accounting;
 
@@ -40,9 +41,11 @@ public class ChartOfAccountController : BaseController
         return View(account);
     }
 
-    public async Task<IActionResult> EditAccount(int id)
+    public async Task<IActionResult> EditAccount(string id)
     {
-        var account = await _accountService.GetByIdAsync(id);
+        int accountId = Utility.DecryptId(id);
+        if (accountId == 0) return NotFound();
+        var account = await _accountService.GetByIdAsync(accountId);
         if (account == null)
         {
             return NotFound();
@@ -53,12 +56,10 @@ public class ChartOfAccountController : BaseController
 
     [HttpPost]
     [ValidateAntiForgeryToken]
-    public async Task<IActionResult> EditAccount(int id, Account account)
+    public async Task<IActionResult> EditAccount(string id, Account account)
     {
-        if (id != account.AccountID)
-        {
-            return NotFound();
-        }
+        int accountId = Utility.DecryptId(id);
+        if (accountId != account.AccountID) return NotFound();
 
         if (ModelState.IsValid)
         {
@@ -76,9 +77,12 @@ public class ChartOfAccountController : BaseController
 
     [HttpPost]
     [ValidateAntiForgeryToken]
-    public async Task<IActionResult> Delete(int id)
+    public async Task<IActionResult> Delete(string id)
     {
-        await _accountService.ToggleStatusAsync(id, CurrentUserId);
+        int accountId = Utility.DecryptId(id);
+        if (accountId == 0) return NotFound();
+
+        await _accountService.ToggleStatusAsync(accountId, CurrentUserId);
         ShowMessage(MessageType.Success, "Account status updated successfully!");
         return RedirectToAction("AccountsIndex");
     }

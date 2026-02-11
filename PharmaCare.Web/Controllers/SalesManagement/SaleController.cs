@@ -5,6 +5,7 @@ using PharmaCare.Application.Interfaces.Accounting;
 using PharmaCare.Application.Interfaces.Configuration;
 using PharmaCare.Application.Interfaces.Transactions;
 using PharmaCare.Domain.Entities.Transactions;
+using PharmaCare.Web.Utilities;
 
 namespace PharmaCare.Web.Controllers.SalesManagement;
 
@@ -93,9 +94,16 @@ public class SaleController : BaseController
         return View(sale);
     }
 
-    public async Task<IActionResult> ViewSale(int id)
+    public async Task<IActionResult> ViewSale(string id)
     {
-        var sale = await _saleService.GetByIdAsync(id);
+        int saleId = Utility.DecryptId(id);
+        if (saleId == 0)
+        {
+            ShowMessage(MessageType.Error, "Invalid Sale ID.");
+            return RedirectToAction(nameof(SalesIndex));
+        }
+
+        var sale = await _saleService.GetByIdAsync(saleId);
         if (sale == null)
         {
             ShowMessage(MessageType.Error, "Sale not found.");
@@ -110,15 +118,21 @@ public class SaleController : BaseController
     /// </summary>
     [HttpPost]
     [ValidateAntiForgeryToken]
-    public async Task<IActionResult> Void(int id, string voidReason)
+    public async Task<IActionResult> Void(string id, string voidReason)
     {
+        int saleId = Utility.DecryptId(id);
+        if (saleId == 0)
+        {
+             ShowMessage(MessageType.Error, "Invalid Sale ID.");
+             return RedirectToAction(nameof(SalesIndex));
+        }
         if (string.IsNullOrWhiteSpace(voidReason))
         {
             ShowMessage(MessageType.Error, "Void reason is required.");
             return RedirectToAction(nameof(SalesIndex));
         }
 
-        var result = await _saleService.VoidAsync(id, voidReason, CurrentUserId);
+        var result = await _saleService.VoidAsync(saleId, voidReason, CurrentUserId);
         if (result)
         {
             ShowMessage(MessageType.Success, "Sale voided successfully!");

@@ -1,3 +1,4 @@
+@using PharmaCare.Web.Utilities
 @model PharmaCare.ViewModels.ProductIndexViewModel
 @{
     ViewData["Title"] = "Product Management";
@@ -129,11 +130,11 @@
                                     }
                                 </td>
                                 <td class="text-end">
-                                    <a asp-action="EditProduct" asp-route-id="@item.ProductID" class="btn btn-sm btn-outline-primary">
+                                    <a asp-action="EditProduct" asp-route-id="@item.ProductID.EncryptId()" class="btn btn-sm btn-outline-primary">
                                         <i class="fas fa-edit"></i>
                                     </a>
                                     <button type="button" class="btn btn-sm btn-outline-danger btn-delete" 
-                                            data-id="@item.ProductID" data-name="@item.Name">
+                                            data-id="@item.ProductID.EncryptId()" data-name="@item.Name">
                                         <i class="fas fa-trash"></i>
                                     </button>
                                 </td>

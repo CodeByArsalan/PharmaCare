@@ -1,3 +1,4 @@
+@using PharmaCare.Web.Utilities
 @model IEnumerable<PharmaCare.Domain.Entities.Transactions.StockMain>
 @{
     ViewData["Title"] = "Purchases (GRN)";
@@ -53,13 +54,13 @@
                                 }
                             </td>
                             <td class="text-end">
-                                <a asp-action="ViewPurchase" asp-route-id="@item.StockMainID" class="btn btn-sm btn-outline-info" title="View">
+                                <a asp-action="ViewPurchase" asp-route-id="@item.StockMainID.EncryptId()" class="btn btn-sm btn-outline-info" title="View">
                                     <i class="fas fa-eye"></i>
                                 </a>
                                 @if (item.Status == "Approved")
                                 {
                                     <button type="button" class="btn btn-sm btn-outline-danger btn-void" 
-                                            data-id="@item.StockMainID" data-no="@item.TransactionNo" title="Void">
+                                            data-id="@item.StockMainID.EncryptId()" data-no="@item.TransactionNo" title="Void">
                                         <i class="fas fa-ban"></i>
                                     </button>
                                 }

@@ -58,11 +58,32 @@ public class PageAuthorizationFilter : IAsyncAuthorizationFilter
             return Task.CompletedTask;
         }
 
-        // Determine permission type based on HTTP method and action name
-        var permissionType = DeterminePermissionType(context.HttpContext.Request.Method, action);
+        // Check for [LinkedToPage] attribute — overrides the controller/action/permission resolution
+        var linkedToPage = actionDescriptor.MethodInfo
+            .GetCustomAttributes(typeof(LinkedToPageAttribute), false)
+            .FirstOrDefault() as LinkedToPageAttribute;
+
+        string resolvedController;
+        string resolvedAction;
+        string permissionType;
+
+        if (linkedToPage != null)
+        {
+            // Use the linked page's controller/action and permission type
+            resolvedController = linkedToPage.Controller;
+            resolvedAction = linkedToPage.Action;
+            permissionType = linkedToPage.PermissionType;
+        }
+        else
+        {
+            // Standard resolution: use current controller/action
+            resolvedController = controller;
+            resolvedAction = action;
+            permissionType = DeterminePermissionType(context.HttpContext.Request.Method, action);
+        }
 
         // Check page access
-        if (!_sessionService.HasPageAccess(controller, action, permissionType))
+        if (!_sessionService.HasPageAccess(resolvedController, resolvedAction, permissionType))
         {
             context.Result = new RedirectToActionResult("AccessDenied", "Account", null);
             return Task.CompletedTask;

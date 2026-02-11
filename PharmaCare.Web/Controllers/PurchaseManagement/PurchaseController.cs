@@ -5,6 +5,7 @@ using PharmaCare.Application.Interfaces.Accounting;
 using PharmaCare.Application.Interfaces.Configuration;
 using PharmaCare.Application.Interfaces.Transactions;
 using PharmaCare.Domain.Entities.Transactions;
+using PharmaCare.Web.Utilities;
 
 namespace PharmaCare.Web.Controllers.PurchaseManagement;
 
@@ -101,9 +102,16 @@ public class PurchaseController : BaseController
     /// <summary>
     /// Shows details of a purchase/GRN.
     /// </summary>
-    public async Task<IActionResult> ViewPurchase(int id)
+    public async Task<IActionResult> ViewPurchase(string id)
     {
-        var purchase = await _purchaseService.GetByIdAsync(id);
+        int purchaseId = Utility.DecryptId(id);
+        if (purchaseId == 0)
+        {
+            ShowMessage(MessageType.Error, "Invalid Purchase ID.");
+            return RedirectToAction(nameof(PurchasesIndex));
+        }
+
+        var purchase = await _purchaseService.GetByIdAsync(purchaseId);
         if (purchase == null)
         {
             ShowMessage(MessageType.Error, "Purchase not found.");
@@ -113,7 +121,38 @@ public class PurchaseController : BaseController
         return View(purchase);
     }
 
-    // ... [Void and other methods unchanged] ...
+    /// <summary>
+    /// Voids a purchase/GRN.
+    /// </summary>
+    [HttpPost]
+    [ValidateAntiForgeryToken]
+    public async Task<IActionResult> Void(string id, string voidReason)
+    {
+        int purchaseId = Utility.DecryptId(id);
+        if (purchaseId == 0)
+        {
+            ShowMessage(MessageType.Error, "Invalid Purchase ID.");
+            return RedirectToAction(nameof(PurchasesIndex));
+        }
+
+        if (string.IsNullOrWhiteSpace(voidReason))
+        {
+            ShowMessage(MessageType.Error, "Void reason is required.");
+            return RedirectToAction(nameof(PurchasesIndex));
+        }
+
+        var result = await _purchaseService.VoidAsync(purchaseId, voidReason, CurrentUserId);
+        if (result)
+        {
+            ShowMessage(MessageType.Success, "Purchase voided successfully!");
+        }
+        else
+        {
+            ShowMessage(MessageType.Error, "Failed to void Purchase.");
+        }
+
+        return RedirectToAction(nameof(PurchasesIndex));
+    }
 
     // Dropdown helpers removed
 }

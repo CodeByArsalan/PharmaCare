@@ -1,3 +1,4 @@
+@using PharmaCare.Web.Utilities
 @model IEnumerable<PharmaCare.Domain.Entities.Accounting.AccountSubhead>
 @{
     ViewData["Title"] = "Account Sub-Head Management";
@@ -42,11 +43,11 @@
                         <td>@(item.AccountHead?.HeadName ?? "-")</td>
                         <td><strong>@item.SubheadName</strong></td>
                         <td class="text-end">
-                            <a asp-action="EditAccountSubHead" asp-route-id="@item.AccountSubheadID" class="btn btn-sm btn-outline-primary">
+                            <a asp-action="EditAccountSubHead" asp-route-id="@item.AccountSubheadID.EncryptId()" class="btn btn-sm btn-outline-primary">
                                 <i class="fas fa-edit"></i>
                             </a>
                             <button type="button" class="btn btn-sm btn-outline-danger btn-delete" 
-                                    data-id="@item.AccountSubheadID" data-name="@item.SubheadName">
+                                    data-id="@item.AccountSubheadID.EncryptId()" data-name="@item.SubheadName">
                                 <i class="fas fa-trash"></i>
                             </button>
                         </td>
