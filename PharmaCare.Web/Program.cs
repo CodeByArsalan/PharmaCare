@@ -109,6 +109,9 @@ builder.Services.AddScoped<ISaleReturnService, SaleReturnService>();
 builder.Services.AddScoped<IPaymentService, PaymentService>();
 builder.Services.AddScoped<ICustomerPaymentService, CustomerPaymentService>();
 
+// Reporting Services
+builder.Services.AddScoped<IReportService, PharmaCare.Infrastructure.Implementations.ReportService>();
+
 // Logging Services
 builder.Services.AddScoped<IActivityLogService, ActivityLogService>();
 

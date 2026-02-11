@@ -1,0 +1,90 @@
+@model PharmaCare.Application.ViewModels.Report.PartyLedgerVM
+@{
+    ViewData["Title"] = "Supplier Ledger";
+}
+
+<div class="page-header">
+    <h4 class="page-title"><i class="fas fa-truck-loading"></i> Supplier Ledger</h4>
+    <a asp-action="Index" class="btn btn-outline-secondary"><i class="fas fa-arrow-left me-2"></i>Back to Reports</a>
+</div>
+
+<div class="card mb-4">
+    <div class="card-body">
+        <form method="get" class="row g-3 align-items-end">
+            <div class="col-md-3">
+                <label class="form-label">Supplier <span class="text-danger">*</span></label>
+                <select name="filter.PartyId" class="form-select" required>
+                    <option value="">-- Select Supplier --</option>
+                    @if (ViewBag.Suppliers != null)
+                    {
+                        @foreach (SelectListItem item in ViewBag.Suppliers)
+                        {
+                            <option value="@item.Value" selected="@(item.Value == Model.Filter.PartyId?.ToString())">@item.Text</option>
+                        }
+                    }
+                </select>
+            </div>
+            <div class="col-md-2">
+                <label class="form-label">From Date</label>
+                <input type="date" name="filter.FromDate" class="form-control" value="@Model.Filter.FromDate.ToString("yyyy-MM-dd")" />
+            </div>
+            <div class="col-md-2">
+                <label class="form-label">To Date</label>
+                <input type="date" name="filter.ToDate" class="form-control" value="@Model.Filter.ToDate.ToString("yyyy-MM-dd")" />
+            </div>
+            <div class="col-auto">
+                <button type="submit" class="btn btn-primary"><i class="fas fa-search me-1"></i>View</button>
+            </div>
+        </form>
+    </div>
+</div>
+
+@if (!string.IsNullOrEmpty(Model.PartyName))
+{
+    <div class="row g-3 mb-4">
+        <div class="col-md-3"><div class="card text-center"><div class="card-body"><small class="text-muted">Supplier</small><h5 class="mb-0">@Model.PartyName</h5></div></div></div>
+        <div class="col-md-3"><div class="card text-center"><div class="card-body"><small class="text-muted">Opening Balance</small><h5 class="text-primary mb-0">@Model.OpeningBalance.ToString("N2")</h5></div></div></div>
+        <div class="col-md-3"><div class="card text-center"><div class="card-body"><small class="text-muted">Total Debit</small><h5 class="mb-0">@Model.TotalDebit.ToString("N2")</h5></div></div></div>
+        <div class="col-md-3"><div class="card text-center"><div class="card-body"><small class="text-muted">Closing Balance</small><h5 class="@(Model.ClosingBalance >= 0 ? "text-danger" : "text-success") mb-0">@Model.ClosingBalance.ToString("N2")</h5></div></div></div>
+    </div>
+
+    <div class="card">
+        <div class="card-body">
+            <div class="table-responsive">
+                <table id="reportTable" class="table table-striped table-hover">
+                    <thead>
+                        <tr><th>S.No</th><th>Date</th><th>Reference</th><th>Description</th><th>Debit</th><th>Credit</th><th>Balance</th></tr>
+                    </thead>
+                    <tbody>
+                        <tr class="table-info"><td></td><td colspan="4" class="fw-bold">Opening Balance</td><td></td><td class="text-end fw-bold">@Model.OpeningBalance.ToString("N2")</td></tr>
+                        @{ int sno = 1; }
+                        @foreach (var row in Model.Rows)
+                        {
+                            <tr>
+                                <td>@(sno++)</td>
+                                <td>@row.Date.ToString("dd/MM/yyyy")</td>
+                                <td>@row.Reference</td>
+                                <td>@row.Description</td>
+                                <td class="text-end">@(row.Debit != 0 ? row.Debit.ToString("N2") : "")</td>
+                                <td class="text-end">@(row.Credit != 0 ? row.Credit.ToString("N2") : "")</td>
+                                <td class="text-end fw-bold">@row.RunningBalance.ToString("N2")</td>
+                            </tr>
+                        }
+                    </tbody>
+                    <tfoot>
+                        <tr class="fw-bold table-dark">
+                            <td colspan="4" class="text-end">Totals:</td>
+                            <td class="text-end">@Model.TotalDebit.ToString("N2")</td>
+                            <td class="text-end">@Model.TotalCredit.ToString("N2")</td>
+                            <td class="text-end">@Model.ClosingBalance.ToString("N2")</td>
+                        </tr>
+                    </tfoot>
+                </table>
+            </div>
+        </div>
+    </div>
+}
+
+@section Scripts {
+    <script>document.addEventListener('DOMContentLoaded', function() { if (document.getElementById('reportTable')) new DataTable('#reportTable', { paging: false, ordering: false }); });</script>
+}

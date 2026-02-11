@@ -1,0 +1,93 @@
+@model PharmaCare.Application.ViewModels.Report.CashFlowReportVM
+@{
+    ViewData["Title"] = "Cash Flow";
+}
+
+<div class="page-header">
+    <h4 class="page-title"><i class="fas fa-money-bill-wave"></i> Cash Flow Report</h4>
+    <a asp-action="Index" class="btn btn-outline-secondary"><i class="fas fa-arrow-left me-2"></i>Back to Reports</a>
+</div>
+
+<div class="card mb-4">
+    <div class="card-body">
+        <form method="get" class="row g-3 align-items-end">
+            <div class="col-md-2">
+                <label class="form-label">From Date</label>
+                <input type="date" name="filter.FromDate" class="form-control" value="@Model.Filter.FromDate.ToString("yyyy-MM-dd")" />
+            </div>
+            <div class="col-md-2">
+                <label class="form-label">To Date</label>
+                <input type="date" name="filter.ToDate" class="form-control" value="@Model.Filter.ToDate.ToString("yyyy-MM-dd")" />
+            </div>
+            <div class="col-auto">
+                <button type="submit" class="btn btn-primary"><i class="fas fa-search me-1"></i>Generate</button>
+            </div>
+        </form>
+    </div>
+</div>
+
+<div class="row g-4 mb-4">
+    <!-- Cash In -->
+    <div class="col-lg-4">
+        <div class="card border-success">
+            <div class="card-header bg-success text-white"><h5 class="mb-0"><i class="fas fa-arrow-down me-2"></i>Cash In</h5></div>
+            <div class="card-body p-0">
+                <table class="table mb-0">
+                    <tr><td>Sales Receipts</td><td class="text-end">@Model.SalesReceipts.ToString("N2")</td></tr>
+                    <tr><td>Customer Payments</td><td class="text-end">@Model.CustomerPayments.ToString("N2")</td></tr>
+                    <tr class="fw-bold table-success"><td>Total Cash In</td><td class="text-end">@Model.TotalCashIn.ToString("N2")</td></tr>
+                </table>
+            </div>
+        </div>
+    </div>
+    <!-- Cash Out -->
+    <div class="col-lg-4">
+        <div class="card border-danger">
+            <div class="card-header bg-danger text-white"><h5 class="mb-0"><i class="fas fa-arrow-up me-2"></i>Cash Out</h5></div>
+            <div class="card-body p-0">
+                <table class="table mb-0">
+                    <tr><td>Purchase Payments</td><td class="text-end">@Model.PurchasePayments.ToString("N2")</td></tr>
+                    <tr><td>Supplier Payments</td><td class="text-end">@Model.SupplierPayments.ToString("N2")</td></tr>
+                    <tr><td>Expenses</td><td class="text-end">@Model.ExpensePayments.ToString("N2")</td></tr>
+                    <tr class="fw-bold table-danger"><td>Total Cash Out</td><td class="text-end">@Model.TotalCashOut.ToString("N2")</td></tr>
+                </table>
+            </div>
+        </div>
+    </div>
+    <!-- Net -->
+    <div class="col-lg-4">
+        <div class="card">
+            <div class="card-header"><h5 class="mb-0">Net Position</h5></div>
+            <div class="card-body text-center">
+                <h2 class="@(Model.ClosingBalance >= 0 ? "text-success" : "text-danger")">@Model.ClosingBalance.ToString("N2")</h2>
+                <small class="text-muted">Net Cash Flow</small>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Daily Chart -->
+<div class="card">
+    <div class="card-header"><h5 class="mb-0">Daily Cash Flow Trend</h5></div>
+    <div class="card-body">
+        <canvas id="cashFlowChart" height="80"></canvas>
+    </div>
+</div>
+
+@section Scripts {
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <script>
+        const dailyData = @Html.Raw(System.Text.Json.JsonSerializer.Serialize(Model.DailyData));
+        new Chart(document.getElementById('cashFlowChart'), {
+            type: 'bar',
+            data: {
+                labels: dailyData.map(d => d.date.substring(0, 10)),
+                datasets: [
+                    { label: 'Cash In', data: dailyData.map(d => d.cashIn), backgroundColor: 'rgba(25,135,84,0.6)' },
+                    { label: 'Cash Out', data: dailyData.map(d => d.cashOut), backgroundColor: 'rgba(220,53,69,0.6)' }
+                ]
+            },
+            options: { responsive: true, scales: { y: { beginAtZero: true } } }
+        });
+    </script>
+}

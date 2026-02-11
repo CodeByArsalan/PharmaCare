@@ -1,0 +1,89 @@
+@model PharmaCare.Application.ViewModels.Report.ProfitLossVM
+@{
+    ViewData["Title"] = "Profit & Loss";
+}
+
+<div class="page-header">
+    <h4 class="page-title"><i class="fas fa-chart-line"></i> Profit & Loss Statement</h4>
+    <a asp-action="Index" class="btn btn-outline-secondary"><i class="fas fa-arrow-left me-2"></i>Back to Reports</a>
+</div>
+
+<div class="card mb-4">
+    <div class="card-body">
+        <form method="get" class="row g-3 align-items-end">
+            <div class="col-md-2">
+                <label class="form-label">From Date</label>
+                <input type="date" name="filter.FromDate" class="form-control" value="@Model.Filter.FromDate.ToString("yyyy-MM-dd")" />
+            </div>
+            <div class="col-md-2">
+                <label class="form-label">To Date</label>
+                <input type="date" name="filter.ToDate" class="form-control" value="@Model.Filter.ToDate.ToString("yyyy-MM-dd")" />
+            </div>
+            <div class="col-auto">
+                <button type="submit" class="btn btn-primary"><i class="fas fa-search me-1"></i>Generate</button>
+            </div>
+        </form>
+    </div>
+</div>
+
+<!-- P&L Statement -->
+<div class="row">
+    <div class="col-lg-8">
+        <div class="card mb-4">
+            <div class="card-header"><h5 class="mb-0">Income Statement</h5></div>
+            <div class="card-body p-0">
+                <table class="table table-bordered mb-0">
+                    <tbody>
+                        <tr class="table-light fw-bold"><td colspan="2">Revenue</td></tr>
+                        <tr><td class="ps-4">Gross Sales</td><td class="text-end">@Model.TotalRevenue.ToString("N2")</td></tr>
+                        <tr><td class="ps-4">Less: Sales Returns</td><td class="text-end text-danger">(@Model.SalesReturns.ToString("N2"))</td></tr>
+                        <tr class="fw-bold"><td class="ps-4">Net Revenue</td><td class="text-end">@Model.NetRevenue.ToString("N2")</td></tr>
+                        <tr><td></td><td></td></tr>
+                        <tr class="table-light fw-bold"><td colspan="2">Cost of Goods Sold</td></tr>
+                        <tr><td class="ps-4">COGS</td><td class="text-end">@Model.COGS.ToString("N2")</td></tr>
+                        <tr class="fw-bold table-success"><td>Gross Profit</td><td class="text-end">@Model.GrossProfit.ToString("N2") <small class="text-muted">(@Model.GrossProfitMargin%)</small></td></tr>
+                        <tr><td></td><td></td></tr>
+                        <tr class="table-light fw-bold"><td colspan="2">Operating Expenses</td></tr>
+                        @foreach (var exp in Model.ExpensesByCategory)
+                        {
+                            <tr><td class="ps-4">@exp.CategoryName</td><td class="text-end">@exp.Amount.ToString("N2")</td></tr>
+                        }
+                        <tr class="fw-bold"><td class="ps-4">Total Expenses</td><td class="text-end">@Model.TotalExpenses.ToString("N2")</td></tr>
+                        <tr><td></td><td></td></tr>
+                        <tr class="fw-bold @(Model.NetProfit >= 0 ? "table-success" : "table-danger") fs-5">
+                            <td>Net Profit / (Loss)</td>
+                            <td class="text-end">@Model.NetProfit.ToString("N2") <small class="text-muted">(@Model.NetProfitMargin%)</small></td>
+                        </tr>
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    </div>
+
+    <!-- Chart -->
+    <div class="col-lg-4">
+        <div class="card">
+            <div class="card-header"><h5 class="mb-0">Breakdown</h5></div>
+            <div class="card-body">
+                <canvas id="plChart"></canvas>
+            </div>
+        </div>
+    </div>
+</div>
+
+@section Scripts {
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <script>
+        new Chart(document.getElementById('plChart'), {
+            type: 'doughnut',
+            data: {
+                labels: ['COGS', 'Expenses', 'Net Profit'],
+                datasets: [{
+                    data: [@Model.COGS, @Model.TotalExpenses, @Math.Max(0, Model.NetProfit)],
+                    backgroundColor: ['#ffc107', '#dc3545', '#198754']
+                }]
+            },
+            options: { responsive: true, plugins: { legend: { position: 'bottom' } } }
+        });
+    </script>
+}

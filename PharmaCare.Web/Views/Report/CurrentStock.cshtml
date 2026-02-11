@@ -1,0 +1,81 @@
+@model PharmaCare.Application.ViewModels.Report.CurrentStockReportVM
+@{
+    ViewData["Title"] = "Current Stock Report";
+}
+
+<div class="page-header">
+    <h4 class="page-title"><i class="fas fa-cubes"></i> Current Stock Report</h4>
+    <a asp-action="Index" class="btn btn-outline-secondary"><i class="fas fa-arrow-left me-2"></i>Back to Reports</a>
+</div>
+
+<div class="card mb-4">
+    <div class="card-body">
+        <form method="get" class="row g-3 align-items-end">
+            <div class="col-md-3">
+                <label class="form-label">Category</label>
+                <select name="filter.CategoryId" class="form-select">
+                    <option value="">-- All Categories --</option>
+                    @if (ViewBag.Categories != null)
+                    {
+                        @foreach (SelectListItem item in ViewBag.Categories)
+                        {
+                            <option value="@item.Value" selected="@(item.Value == Model.Filter.CategoryId?.ToString())">@item.Text</option>
+                        }
+                    }
+                </select>
+            </div>
+            <div class="col-auto">
+                <button type="submit" class="btn btn-primary"><i class="fas fa-search me-1"></i>Filter</button>
+            </div>
+        </form>
+    </div>
+</div>
+
+<div class="row g-3 mb-4">
+    <div class="col-md-3"><div class="card text-center"><div class="card-body"><small class="text-muted">Total Products</small><h5 class="mb-0">@Model.TotalProducts</h5></div></div></div>
+    <div class="col-md-3"><div class="card text-center"><div class="card-body"><small class="text-muted">Stock Value</small><h5 class="text-success mb-0">@Model.TotalStockValue.ToString("N2")</h5></div></div></div>
+    <div class="col-md-3"><div class="card text-center"><div class="card-body"><small class="text-muted">Low Stock</small><h5 class="text-warning mb-0">@Model.LowStockCount</h5></div></div></div>
+    <div class="col-md-3"><div class="card text-center"><div class="card-body"><small class="text-muted">Out of Stock</small><h5 class="text-danger mb-0">@Model.OutOfStockCount</h5></div></div></div>
+</div>
+
+<div class="card">
+    <div class="card-body">
+        <div class="table-responsive">
+            <table id="reportTable" class="table table-striped table-hover">
+                <thead>
+                    <tr>
+                        <th>S.No</th><th>Product</th><th>Category</th><th>Opening</th>
+                        <th>Purchased</th><th>Sold</th><th>Current Stock</th>
+                        <th>Cost Price</th><th>Stock Value</th><th>Status</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    @{ int sno = 1; }
+                    @foreach (var row in Model.Rows)
+                    {
+                        <tr class="@(row.CurrentStock <= 0 ? "table-danger" : row.IsLowStock ? "table-warning" : "")">
+                            <td>@(sno++)</td>
+                            <td>@row.ProductName</td>
+                            <td>@row.CategoryName</td>
+                            <td class="text-end">@row.OpeningQty.ToString("N0")</td>
+                            <td class="text-end">@row.PurchasedQty.ToString("N0")</td>
+                            <td class="text-end">@row.SoldQty.ToString("N0")</td>
+                            <td class="text-end fw-bold">@row.CurrentStock.ToString("N0")</td>
+                            <td class="text-end">@row.CostPrice.ToString("N2")</td>
+                            <td class="text-end">@row.StockValue.ToString("N2")</td>
+                            <td>
+                                @if (row.CurrentStock <= 0) { <span class="badge bg-danger">Out of Stock</span> }
+                                else if (row.IsLowStock) { <span class="badge bg-warning">Low Stock</span> }
+                                else { <span class="badge bg-success">In Stock</span> }
+                            </td>
+                        </tr>
+                    }
+                </tbody>
+            </table>
+        </div>
+    </div>
+</div>
+
+@section Scripts {
+    <script>document.addEventListener('DOMContentLoaded', function() { new DataTable('#reportTable', { order: [[0, 'asc']], pageLength: 25 }); });</script>
+}

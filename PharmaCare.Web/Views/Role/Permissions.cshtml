@@ -2,160 +2,334 @@
 @{
     ViewData["Title"] = "Manage Permissions";
     var role = ViewBag.Role as PharmaCare.Domain.Entities.Security.Role;
+    var parents = Model.Where(p => !p.ParentId.HasValue).OrderBy(p => p.DisplayOrder).ToList();
 }
 
+<style>
+    .permission-module-card {
+        border: 1px solid rgba(0,0,0,0.06);
+        box-shadow: 0 2px 4px rgba(0,0,0,0.02);
+        transition: all 0.2s;
+        margin-bottom: 1.5rem;
+    }
+    .permission-module-card:hover {
+        box-shadow: 0 4px 12px rgba(0,0,0,0.05);
+        border-color: rgba(0,0,0,0.1);
+    }
+    .module-header {
+        background-color: #fcfcfc;
+        border-bottom: 1px solid rgba(0,0,0,0.04);
+        padding: 1rem 1.25rem;
+    }
+    .table-permissions {
+        margin-bottom: 0;
+    }
+    .table-permissions th {
+        font-size: 0.75rem;
+        text-transform: uppercase;
+        letter-spacing: 0.5px;
+        font-weight: 600;
+        color: #adb5bd;
+        background-color: #fff;
+        border-bottom: 1px solid #f0f0f0;
+        padding-top: 1rem;
+        padding-bottom: 1rem;
+    }
+    .table-permissions td {
+        vertical-align: middle;
+        padding: 0.75rem 1rem;
+        border-bottom: 1px solid #f8f9fa;
+        color: #495057;
+    }
+    .table-permissions tr:last-child td {
+        border-bottom: none;
+    }
+    .table-permissions tr:hover td {
+        background-color: #fafafa;
+    }
+    
+    /* Toggle Switch Styling */
+    .form-switch .form-check-input {
+        width: 2.25em;
+        height: 1.25em;
+        cursor: pointer;
+        margin-top: 0;
+    }
+    .form-switch .form-check-input:checked {
+        background-color: #4361ee;
+        border-color: #4361ee;
+    }
+    .form-switch .form-check-input:focus {
+        box-shadow: 0 0 0 0.25rem rgba(67, 97, 238, 0.15);
+        border-color: #a4b1f5;
+    }
+    
+    /* Page Icon Placeholder */
+    .page-icon {
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        width: 28px;
+        height: 28px;
+        background-color: #e9ecef;
+        color: #6c757d;
+        border-radius: 6px;
+        font-size: 0.8rem;
+        margin-right: 0.75rem;
+    }
+    
+    .sticky-actions {
+        position: sticky;
+        bottom: 0;
+        z-index: 1020;
+        background: white;
+        border-top: 1px solid rgba(0,0,0,0.08);
+        box-shadow: 0 -4px 10px rgba(0,0,0,0.03);
+        padding: 1rem;
+    }
+</style>
+
 <!-- Page Header -->
-<div class="page-header">
-    <h4 class="page-title">
-        <i class="fas fa-key"></i>
-        Permissions for: @role?.Name
-    </h4>
-    <a asp-action="RolesIndex" class="btn btn-outline-secondary">
-        <i class="fas fa-arrow-left me-2"></i>Back to Roles
-    </a>
+<div class="d-flex justify-content-between align-items-center mb-4">
+    <div>
+        <h4 class="fw-bold text-dark mb-1">
+            <i class="fas fa-user-shield text-primary me-2"></i>Permissions
+        </h4>
+        <p class="text-muted mb-0">Manage access for role: <span class="fw-semibold text-dark">@role?.Name</span></p>
+    </div>
+    
+    <div class="d-flex gap-2">
+        <button type="button" class="btn btn-outline-secondary btn-sm" id="collapseAll">
+            <i class="fas fa-compress-alt me-1"></i>Collapse All
+        </button>
+        <button type="button" class="btn btn-outline-primary btn-sm" id="expandAll">
+            <i class="fas fa-expand-alt me-1"></i>Expand All
+        </button>
+        <a asp-action="RolesIndex" class="btn btn-secondary ms-2">
+            <i class="fas fa-arrow-left me-2"></i>Back
+        </a>
+    </div>
 </div>
 
 @if (TempData["Success"] != null)
 {
-    <div class="alert alert-success alert-dismissible fade show" role="alert">
-        <i class="fas fa-check-circle me-2"></i>@TempData["Success"]
+    <div class="alert alert-success alert-dismissible fade show shadow-sm border-0 border-start border-success border-3" role="alert">
+        <i class="fas fa-check-circle text-success me-2"></i>@TempData["Success"]
         <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
     </div>
 }
 
-<div class="card">
-    <div class="card-header">
-        <div class="d-flex justify-content-between align-items-center">
-            <span><i class="fas fa-shield-alt me-2"></i>Page Permissions</span>
-            <div>
-                <button type="button" class="btn btn-sm btn-outline-success" id="checkAll">
-                    <i class="fas fa-check-double me-1"></i>Check All View
-                </button>
-                <button type="button" class="btn btn-sm btn-outline-danger" id="uncheckAll">
-                    <i class="fas fa-times me-1"></i>Uncheck All
-                </button>
+<form asp-action="SavePermissions" method="post" id="permissionForm">
+    <input type="hidden" name="roleId" value="@role?.RoleID" />
+
+    <div class="row">
+        @foreach (var parent in parents)
+        {
+            var parentIndex = Model.IndexOf(parent);
+            var children = Model.Where(p => p.ParentId == parent.PageId).OrderBy(p => p.DisplayOrder).ToList();
+            var hasChildren = children.Any();
+
+            <div class="col-12">
+                <div class="card permission-module-card">
+                    <!-- Module Header -->
+                    <div class="module-header d-flex justify-content-between align-items-center cursor-pointer toggle-module" 
+                         data-bs-target="#module-@parent.PageId">
+                        <div class="d-flex align-items-center">
+                            <i class="fas fa-chevron-down text-muted me-3 transition-icon"></i>
+                            <div class="form-check form-switch mb-0">
+                                <input type="hidden" name="permissions[@parentIndex].PageId" value="@parent.PageId" />
+                                
+                                <!-- Parent "View" = Enable Module -->
+                                <input class="form-check-input parent-toggle stop-propagation" type="checkbox" 
+                                       name="permissions[@parentIndex].CanView" value="true"
+                                       id="parent-view-@parentIndex" @(parent.CanView ? "checked" : "")
+                                       data-module-id="@parent.PageId">
+                                <label class="form-check-label fw-bold text-dark ms-2 stop-propagation" for="parent-view-@parentIndex">
+                                    @parent.PageTitle
+                                </label>
+                            </div>
+                        </div>
+
+                        <!-- Hidden inputs for parent actions usually required by model binding/logic -->
+                        <div class="d-none">
+                            <input type="checkbox" name="permissions[@parentIndex].CanCreate" value="true" @(parent.CanCreate ? "checked" : "")>
+                            <input type="checkbox" name="permissions[@parentIndex].CanEdit" value="true" @(parent.CanEdit ? "checked" : "")>
+                            <input type="checkbox" name="permissions[@parentIndex].CanDelete" value="true" @(parent.CanDelete ? "checked" : "")>
+                        </div>
+
+                        @if (hasChildren)
+                        {
+                            <span class="badge bg-light text-secondary border">@children.Count pages</span>
+                        }
+                    </div>
+
+                    <!-- Module Content (Table) -->
+                    @if (hasChildren)
+                    {
+                        <div class="collapse show" id="module-@parent.PageId">
+                            <div class="table-responsive">
+                                <table class="table table-permissions">
+                                    <thead>
+                                        <tr>
+                                            <th style="width: 40%; padding-left: 3rem;">Page Name</th>
+                                            <th class="text-center" style="width: 15%;">View</th>
+                                            <th class="text-center" style="width: 15%;">Create</th>
+                                            <th class="text-center" style="width: 15%;">Edit</th>
+                                            <th class="text-center" style="width: 15%;">Delete</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody>
+                                        @foreach (var child in children)
+                                        {
+                                            var childIndex = Model.IndexOf(child);
+                                            <tr>
+                                                <td style="padding-left: 3rem;">
+                                                    <input type="hidden" name="permissions[@childIndex].PageId" value="@child.PageId" />
+                                                    <span class="fw-medium">@child.PageTitle</span>
+                                                </td>
+                                                
+                                                <!-- View -->
+                                                <td class="text-center">
+                                                    <div class="form-check form-switch d-inline-block">
+                                                        <input class="form-check-input perm-view" type="checkbox" 
+                                                               name="permissions[@childIndex].CanView" value="true"
+                                                               id="p-@childIndex-view" @(child.CanView ? "checked" : "")>
+                                                    </div>
+                                                </td>
+                                                
+                                                <!-- Create -->
+                                                <td class="text-center">
+                                                    <div class="form-check form-switch d-inline-block">
+                                                        <input class="form-check-input perm-action" type="checkbox" 
+                                                               name="permissions[@childIndex].CanCreate" value="true"
+                                                               id="p-@childIndex-create" @(child.CanCreate ? "checked" : "")>
+                                                    </div>
+                                                </td>
+                                                
+                                                <!-- Edit -->
+                                                <td class="text-center">
+                                                    <div class="form-check form-switch d-inline-block">
+                                                        <input class="form-check-input perm-action" type="checkbox" 
+                                                               name="permissions[@childIndex].CanEdit" value="true"
+                                                               id="p-@childIndex-edit" @(child.CanEdit ? "checked" : "")>
+                                                    </div>
+                                                </td>
+                                                
+                                                <!-- Delete -->
+                                                <td class="text-center">
+                                                    <div class="form-check form-switch d-inline-block">
+                                                        <input class="form-check-input perm-action" type="checkbox" 
+                                                               name="permissions[@childIndex].CanDelete" value="true"
+                                                               id="p-@childIndex-delete" @(child.CanDelete ? "checked" : "")>
+                                                    </div>
+                                                </td>
+                                            </tr>
+                                        }
+                                    </tbody>
+                                </table>
+                            </div>
+                        </div>
+                    }
+                </div>
             </div>
+        }
+    </div>
+    
+    <!-- Spacer -->
+    <div style="height: 60px;"></div>
+
+    <!-- Sticky Footer -->
+    <div class="sticky-actions">
+        <div class="container-fluid d-flex justify-content-end align-items-center">
+            <button type="button" class="btn btn-link text-muted text-decoration-none me-3" onclick="history.back()">Cancel</button>
+            <button type="submit" class="btn btn-primary px-4 btn-lg shadow-sm">
+                <i class="fas fa-save me-2"></i>Save Changes
+            </button>
         </div>
     </div>
-    <div class="card-body p-0">
-        <form asp-action="SavePermissions" method="post">
-            <input type="hidden" name="roleId" value="@role?.RoleID" />
-            
-            <table class="table mb-0">
-                <thead>
-                    <tr>
-                        <th style="width: 30%;">Page</th>
-                        <th style="width: 20%;">Controller/Action</th>
-                        <th class="text-center" style="width: 12.5%;">
-                            <i class="fas fa-eye me-1"></i>View
-                        </th>
-                        <th class="text-center" style="width: 12.5%;">
-                            <i class="fas fa-plus me-1"></i>Create
-                        </th>
-                        <th class="text-center" style="width: 12.5%;">
-                            <i class="fas fa-edit me-1"></i>Edit
-                        </th>
-                        <th class="text-center" style="width: 12.5%;">
-                            <i class="fas fa-trash me-1"></i>Delete
-                        </th>
-                    </tr>
-                </thead>
-                <tbody>
-                    @for (int i = 0; i < Model.Count; i++)
-                    {
-                        var item = Model[i];
-                        var isParent = !item.ParentId.HasValue;
-                        <tr class="@(isParent ? "table-secondary fw-bold" : "")">
-                            <td>
-                                <input type="hidden" name="permissions[@i].PageId" value="@item.PageId" />
-                                @if (!isParent)
-                                {
-                                    <span class="ms-4">└ </span>
-                                }
-                                @item.PageTitle
-                            </td>
-                            <td>
-                                @if (!string.IsNullOrEmpty(item.Controller))
-                                {
-                                    <code>@item.Controller/@item.Action</code>
-                                }
-                                else
-                                {
-                                    <span class="text-muted">-</span>
-                                }
-                            </td>
-                            <td class="text-center">
-                                <div class="form-check d-flex justify-content-center">
-                                    <input class="form-check-input perm-view" type="checkbox" 
-                                           name="permissions[@i].CanView" value="true"
-                                           @(item.CanView ? "checked" : "") />
-                                </div>
-                            </td>
-                            <td class="text-center">
-                                <div class="form-check d-flex justify-content-center">
-                                    <input class="form-check-input perm-create" type="checkbox" 
-                                           name="permissions[@i].CanCreate" value="true"
-                                           @(item.CanCreate ? "checked" : "") />
-                                </div>
-                            </td>
-                            <td class="text-center">
-                                <div class="form-check d-flex justify-content-center">
-                                    <input class="form-check-input perm-edit" type="checkbox" 
-                                           name="permissions[@i].CanEdit" value="true"
-                                           @(item.CanEdit ? "checked" : "") />
-                                </div>
-                            </td>
-                            <td class="text-center">
-                                <div class="form-check d-flex justify-content-center">
-                                    <input class="form-check-input perm-delete" type="checkbox" 
-                                           name="permissions[@i].CanDelete" value="true"
-                                           @(item.CanDelete ? "checked" : "") />
-                                </div>
-                            </td>
-                        </tr>
-                    }
-                </tbody>
-            </table>
-            
-            <div class="card-footer text-end">
-                <a asp-action="RolesIndex" class="btn btn-outline-secondary me-2">Cancel</a>
-                <button type="submit" class="btn btn-primary">
-                    <i class="fas fa-save me-2"></i>Save Permissions
-                </button>
-            </div>
-        </form>
-    </div>
-</div>
+</form>
 
 @section Scripts {
     <script>
-        // Check All View
-        document.getElementById('checkAll').addEventListener('click', function() {
-            document.querySelectorAll('.perm-view').forEach(cb => cb.checked = true);
-        });
-        
-        // Uncheck All
-        document.getElementById('uncheckAll').addEventListener('click', function() {
-            document.querySelectorAll('input[type="checkbox"]').forEach(cb => cb.checked = false);
-        });
-        
-        // When View is unchecked, uncheck all others in the row
-        document.querySelectorAll('.perm-view').forEach(function(viewCb) {
-            viewCb.addEventListener('change', function() {
-                if (!this.checked) {
-                    const row = this.closest('tr');
-                    row.querySelectorAll('.perm-create, .perm-edit, .perm-delete').forEach(cb => cb.checked = false);
-                }
+        document.addEventListener('DOMContentLoaded', function() {
+            
+            // 1. Dependency Logic: Unchecking 'View' unchecks actions
+            document.querySelectorAll('.perm-view').forEach(cb => {
+                cb.addEventListener('change', function() {
+                    if (!this.checked) {
+                        const row = this.closest('tr');
+                        row.querySelectorAll('.perm-action').forEach(a => a.checked = false);
+                    }
+                });
             });
-        });
-        
-        // When Create/Edit/Delete is checked, auto-check View
-        document.querySelectorAll('.perm-create, .perm-edit, .perm-delete').forEach(function(cb) {
-            cb.addEventListener('change', function() {
-                if (this.checked) {
-                    const row = this.closest('tr');
-                    row.querySelector('.perm-view').checked = true;
-                }
+
+            // 2. Dependency Logic: Checking any Action checks 'View'
+            document.querySelectorAll('.perm-action').forEach(cb => {
+                cb.addEventListener('change', function() {
+                    if (this.checked) {
+                        const row = this.closest('tr');
+                        const viewCb = row.querySelector('.perm-view');
+                        if(viewCb) viewCb.checked = true;
+                    }
+                });
+            });
+
+            // 3. Parent Toggle Logic (Enable/Disable Module)
+            document.querySelectorAll('.parent-toggle').forEach(parentCb => {
+                parentCb.addEventListener('change', function() {
+                    const moduleId = this.dataset.moduleId;
+                    const moduleContainer = document.getElementById('module-' + moduleId);
+                    
+                    if(moduleContainer) {
+                        // If Parent is unchecked, uncheck ALL children permissions?
+                        // Or just collapse? Typically disabling parent disables children access.
+                        // Let's implement: Uncheck Parent -> Uncheck All Children Views
+                        // Check Parent -> No auto-action (user selects what they want)
+                        
+                        if(!this.checked) {
+                            moduleContainer.querySelectorAll('input[type="checkbox"]').forEach(cb => cb.checked = false);
+                        }
+                    }
+                });
+            });
+
+            // 4. Expand/Collapse
+            document.querySelectorAll('.toggle-module').forEach(header => {
+                header.addEventListener('click', function(e) {
+                    // Prevent toggle when clicking the switch inside header
+                    if (e.target.closest('.stop-propagation')) return;
+
+                    const targetId = this.dataset.bsTarget;
+                    const target = document.querySelector(targetId);
+                    const bsCollapse = new bootstrap.Collapse(target, { toggle: true });
+                    
+                    // Rotate Icon
+                    const icon = this.querySelector('.transition-icon');
+                    if (target.classList.contains('show')) {
+                        icon.classList.remove('fa-chevron-down');
+                        icon.classList.add('fa-chevron-right');
+                    } else {
+                         // It's about to show
+                    }
+                    
+                    // Bootstrap collapse events handl icon rotation better, but simplistic approach:
+                    target.addEventListener('shown.bs.collapse', () => {
+                        icon.classList.remove('fa-chevron-right');
+                        icon.classList.add('fa-chevron-down');
+                    });
+                    target.addEventListener('hidden.bs.collapse', () => {
+                        icon.classList.remove('fa-chevron-down');
+                        icon.classList.add('fa-chevron-right');
+                    });
+                });
+            });
+
+            // Global Collapse/Expand
+             document.getElementById('expandAll').addEventListener('click', () => {
+                document.querySelectorAll('.collapse').forEach(el => new bootstrap.Collapse(el, { show: true }));
+            });
+            document.getElementById('collapseAll').addEventListener('click', () => {
+                document.querySelectorAll('.collapse').forEach(el => new bootstrap.Collapse(el, { hide: true }));
             });
         });
     </script>

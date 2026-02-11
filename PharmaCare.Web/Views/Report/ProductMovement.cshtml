@@ -1,0 +1,87 @@
+@model PharmaCare.Application.ViewModels.Report.ProductMovementReportVM
+@{
+    ViewData["Title"] = "Product Movement";
+}
+
+<div class="page-header">
+    <h4 class="page-title"><i class="fas fa-exchange-alt"></i> Product Movement</h4>
+    <a asp-action="Index" class="btn btn-outline-secondary"><i class="fas fa-arrow-left me-2"></i>Back to Reports</a>
+</div>
+
+<div class="card mb-4">
+    <div class="card-body">
+        <form method="get" class="row g-3 align-items-end">
+            <div class="col-md-3">
+                <label class="form-label">Product <span class="text-danger">*</span></label>
+                <select name="filter.ProductId" class="form-select" required>
+                    <option value="">-- Select Product --</option>
+                    @if (ViewBag.Products != null)
+                    {
+                        @foreach (SelectListItem item in ViewBag.Products)
+                        {
+                            <option value="@item.Value" selected="@(item.Value == Model.Filter.ProductId?.ToString())">@item.Text</option>
+                        }
+                    }
+                </select>
+            </div>
+            <div class="col-md-2">
+                <label class="form-label">From Date</label>
+                <input type="date" name="filter.FromDate" class="form-control" value="@Model.Filter.FromDate.ToString("yyyy-MM-dd")" />
+            </div>
+            <div class="col-md-2">
+                <label class="form-label">To Date</label>
+                <input type="date" name="filter.ToDate" class="form-control" value="@Model.Filter.ToDate.ToString("yyyy-MM-dd")" />
+            </div>
+            <div class="col-auto">
+                <button type="submit" class="btn btn-primary"><i class="fas fa-search me-1"></i>View</button>
+            </div>
+        </form>
+    </div>
+</div>
+
+@if (!string.IsNullOrEmpty(Model.ProductName))
+{
+    <div class="row g-3 mb-4">
+        <div class="col-md-4"><div class="card text-center"><div class="card-body"><small class="text-muted">Product</small><h5 class="mb-0">@Model.ProductName</h5></div></div></div>
+        <div class="col-md-4"><div class="card text-center"><div class="card-body"><small class="text-muted">Opening Balance</small><h5 class="text-primary mb-0">@Model.OpeningBalance.ToString("N0")</h5></div></div></div>
+        <div class="col-md-4"><div class="card text-center"><div class="card-body"><small class="text-muted">Closing Balance</small><h5 class="text-success mb-0">@Model.ClosingBalance.ToString("N0")</h5></div></div></div>
+    </div>
+
+    <div class="card">
+        <div class="card-body">
+            <div class="table-responsive">
+                <table id="reportTable" class="table table-striped table-hover">
+                    <thead>
+                        <tr><th>S.No</th><th>Date</th><th>Txn No</th><th>Type</th><th>Qty In</th><th>Qty Out</th><th>Balance</th></tr>
+                    </thead>
+                    <tbody>
+                        <tr class="table-info">
+                            <td></td><td colspan="5" class="fw-bold">Opening Balance</td><td class="text-end fw-bold">@Model.OpeningBalance.ToString("N0")</td>
+                        </tr>
+                        @{ int sno = 1; }
+                        @foreach (var row in Model.Rows)
+                        {
+                            <tr>
+                                <td>@(sno++)</td>
+                                <td>@row.TransactionDate.ToString("dd/MM/yyyy")</td>
+                                <td>@row.TransactionNo</td>
+                                <td>@row.TransactionType</td>
+                                <td class="text-end text-success">@(row.QtyIn > 0 ? row.QtyIn.ToString("N0") : "")</td>
+                                <td class="text-end text-danger">@(row.QtyOut > 0 ? row.QtyOut.ToString("N0") : "")</td>
+                                <td class="text-end fw-bold">@row.RunningBalance.ToString("N0")</td>
+                            </tr>
+                        }
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    </div>
+}
+else if (Model.Filter.ProductId.HasValue)
+{
+    <div class="alert alert-warning">Product not found.</div>
+}
+
+@section Scripts {
+    <script>document.addEventListener('DOMContentLoaded', function() { if (document.getElementById('reportTable')) new DataTable('#reportTable', { paging: false, ordering: false }); });</script>
+}

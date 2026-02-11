@@ -1,0 +1,218 @@
+@{
+    ViewData["Title"] = "Reports";
+}
+
+<!-- Page Header -->
+<div class="page-header">
+    <h4 class="page-title">
+        <i class="fas fa-chart-bar"></i>
+        Reports Dashboard
+    </h4>
+</div>
+
+<div class="row g-4">
+    <!-- Sales Reports -->
+    <div class="col-md-6 col-lg-4">
+        <div class="card h-100">
+            <div class="card-header">
+                <h5 class="mb-0"><i class="fas fa-shopping-cart me-2 text-success"></i>Sales Reports</h5>
+            </div>
+            <div class="card-body">
+                <div class="list-group list-group-flush">
+                    <a asp-action="DailySalesSummary" class="list-group-item list-group-item-action d-flex align-items-center">
+                        <i class="fas fa-calendar-day me-3 text-muted"></i>
+                        <div>
+                            <strong>Daily Sales Summary</strong>
+                            <small class="d-block text-muted">Today's sales snapshot with charts</small>
+                        </div>
+                    </a>
+                    <a asp-action="SalesReport" class="list-group-item list-group-item-action d-flex align-items-center">
+                        <i class="fas fa-file-invoice-dollar me-3 text-muted"></i>
+                        <div>
+                            <strong>Sales Report</strong>
+                            <small class="d-block text-muted">Detailed sales by date range</small>
+                        </div>
+                    </a>
+                    <a asp-action="SalesByProduct" class="list-group-item list-group-item-action d-flex align-items-center">
+                        <i class="fas fa-boxes me-3 text-muted"></i>
+                        <div>
+                            <strong>Sales by Product</strong>
+                            <small class="d-block text-muted">Revenue & profit per product</small>
+                        </div>
+                    </a>
+                    <a asp-action="SalesByCustomer" class="list-group-item list-group-item-action d-flex align-items-center">
+                        <i class="fas fa-users me-3 text-muted"></i>
+                        <div>
+                            <strong>Sales by Customer</strong>
+                            <small class="d-block text-muted">Revenue contribution per customer</small>
+                        </div>
+                    </a>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Purchase Reports -->
+    <div class="col-md-6 col-lg-4">
+        <div class="card h-100">
+            <div class="card-header">
+                <h5 class="mb-0"><i class="fas fa-truck me-2 text-primary"></i>Purchase Reports</h5>
+            </div>
+            <div class="card-body">
+                <div class="list-group list-group-flush">
+                    <a asp-action="PurchaseReport" class="list-group-item list-group-item-action d-flex align-items-center">
+                        <i class="fas fa-file-invoice me-3 text-muted"></i>
+                        <div>
+                            <strong>Purchase Report</strong>
+                            <small class="d-block text-muted">Detailed purchases by date range</small>
+                        </div>
+                    </a>
+                    <a asp-action="PurchaseBySupplier" class="list-group-item list-group-item-action d-flex align-items-center">
+                        <i class="fas fa-industry me-3 text-muted"></i>
+                        <div>
+                            <strong>Purchase by Supplier</strong>
+                            <small class="d-block text-muted">Spending analysis per supplier</small>
+                        </div>
+                    </a>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Inventory Reports -->
+    <div class="col-md-6 col-lg-4">
+        <div class="card h-100">
+            <div class="card-header">
+                <h5 class="mb-0"><i class="fas fa-warehouse me-2 text-warning"></i>Inventory Reports</h5>
+            </div>
+            <div class="card-body">
+                <div class="list-group list-group-flush">
+                    <a asp-action="CurrentStock" class="list-group-item list-group-item-action d-flex align-items-center">
+                        <i class="fas fa-cubes me-3 text-muted"></i>
+                        <div>
+                            <strong>Current Stock</strong>
+                            <small class="d-block text-muted">Real-time inventory position</small>
+                        </div>
+                    </a>
+                    <a asp-action="LowStock" class="list-group-item list-group-item-action d-flex align-items-center">
+                        <i class="fas fa-exclamation-triangle me-3 text-muted"></i>
+                        <div>
+                            <strong>Low Stock Alert</strong>
+                            <small class="d-block text-muted">Products below reorder level</small>
+                        </div>
+                    </a>
+                    <a asp-action="ProductMovement" class="list-group-item list-group-item-action d-flex align-items-center">
+                        <i class="fas fa-exchange-alt me-3 text-muted"></i>
+                        <div>
+                            <strong>Product Movement</strong>
+                            <small class="d-block text-muted">Transaction history per product</small>
+                        </div>
+                    </a>
+                    <a asp-action="DeadStock" class="list-group-item list-group-item-action d-flex align-items-center">
+                        <i class="fas fa-archive me-3 text-muted"></i>
+                        <div>
+                            <strong>Dead / Slow-Moving Stock</strong>
+                            <small class="d-block text-muted">Products with no recent sales</small>
+                        </div>
+                    </a>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Financial Reports -->
+    <div class="col-md-6 col-lg-4">
+        <div class="card h-100">
+            <div class="card-header">
+                <h5 class="mb-0"><i class="fas fa-coins me-2 text-info"></i>Financial Reports</h5>
+            </div>
+            <div class="card-body">
+                <div class="list-group list-group-flush">
+                    <a asp-action="ProfitLoss" class="list-group-item list-group-item-action d-flex align-items-center">
+                        <i class="fas fa-chart-line me-3 text-muted"></i>
+                        <div>
+                            <strong>Profit & Loss</strong>
+                            <small class="d-block text-muted">Revenue, COGS & net profit</small>
+                        </div>
+                    </a>
+                    <a asp-action="CashFlow" class="list-group-item list-group-item-action d-flex align-items-center">
+                        <i class="fas fa-money-bill-wave me-3 text-muted"></i>
+                        <div>
+                            <strong>Cash Flow</strong>
+                            <small class="d-block text-muted">Money in vs money out</small>
+                        </div>
+                    </a>
+                    <a asp-action="ReceivablesAging" class="list-group-item list-group-item-action d-flex align-items-center">
+                        <i class="fas fa-hand-holding-usd me-3 text-muted"></i>
+                        <div>
+                            <strong>Receivables Aging</strong>
+                            <small class="d-block text-muted">Customer debts by age</small>
+                        </div>
+                    </a>
+                    <a asp-action="PayablesAging" class="list-group-item list-group-item-action d-flex align-items-center">
+                        <i class="fas fa-file-invoice-dollar me-3 text-muted"></i>
+                        <div>
+                            <strong>Payables Aging</strong>
+                            <small class="d-block text-muted">Supplier debts by age</small>
+                        </div>
+                    </a>
+                    <a asp-action="ExpenseReport" class="list-group-item list-group-item-action d-flex align-items-center">
+                        <i class="fas fa-receipt me-3 text-muted"></i>
+                        <div>
+                            <strong>Expense Report</strong>
+                            <small class="d-block text-muted">Expenses by category & date</small>
+                        </div>
+                    </a>
+                    <a asp-action="TrialBalance" class="list-group-item list-group-item-action d-flex align-items-center">
+                        <i class="fas fa-balance-scale me-3 text-muted"></i>
+                        <div>
+                            <strong>Trial Balance</strong>
+                            <small class="d-block text-muted">Debits vs credits verification</small>
+                        </div>
+                    </a>
+                    <a asp-action="GeneralLedger" class="list-group-item list-group-item-action d-flex align-items-center">
+                        <i class="fas fa-book me-3 text-muted"></i>
+                        <div>
+                            <strong>General Ledger</strong>
+                            <small class="d-block text-muted">Account transaction history</small>
+                        </div>
+                    </a>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Party Reports -->
+    <div class="col-md-6 col-lg-4">
+        <div class="card h-100">
+            <div class="card-header">
+                <h5 class="mb-0"><i class="fas fa-address-book me-2 text-danger"></i>Party Reports</h5>
+            </div>
+            <div class="card-body">
+                <div class="list-group list-group-flush">
+                    <a asp-action="CustomerLedger" class="list-group-item list-group-item-action d-flex align-items-center">
+                        <i class="fas fa-user me-3 text-muted"></i>
+                        <div>
+                            <strong>Customer Ledger</strong>
+                            <small class="d-block text-muted">Full customer transaction history</small>
+                        </div>
+                    </a>
+                    <a asp-action="SupplierLedger" class="list-group-item list-group-item-action d-flex align-items-center">
+                        <i class="fas fa-truck-loading me-3 text-muted"></i>
+                        <div>
+                            <strong>Supplier Ledger</strong>
+                            <small class="d-block text-muted">Full supplier transaction history</small>
+                        </div>
+                    </a>
+                    <a asp-action="CustomerBalanceSummary" class="list-group-item list-group-item-action d-flex align-items-center">
+                        <i class="fas fa-list-ol me-3 text-muted"></i>
+                        <div>
+                            <strong>Customer Balance Summary</strong>
+                            <small class="d-block text-muted">All customer balances at a glance</small>
+                        </div>
+                    </a>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>

@@ -1,0 +1,139 @@
+@model PharmaCare.Application.ViewModels.Report.DailySalesSummaryVM
+@{
+    ViewData["Title"] = "Daily Sales Summary";
+}
+
+<!-- Page Header -->
+<div class="page-header">
+    <h4 class="page-title">
+        <i class="fas fa-calendar-day"></i>
+        Daily Sales Summary
+    </h4>
+    <a asp-action="Index" class="btn btn-outline-secondary">
+        <i class="fas fa-arrow-left me-2"></i>Back to Reports
+    </a>
+</div>
+
+<!-- Date Picker -->
+<div class="card mb-4">
+    <div class="card-body">
+        <form method="get" class="row g-3 align-items-end">
+            <div class="col-auto">
+                <label class="form-label">Date</label>
+                <input type="date" name="date" class="form-control" value="@Model.Date.ToString("yyyy-MM-dd")" />
+            </div>
+            <div class="col-auto">
+                <button type="submit" class="btn btn-primary"><i class="fas fa-search me-1"></i>View</button>
+            </div>
+        </form>
+    </div>
+</div>
+
+<!-- KPI Cards -->
+<div class="row g-3 mb-4">
+    <div class="col-md-3">
+        <div class="card text-center">
+            <div class="card-body">
+                <div class="text-muted mb-1"><i class="fas fa-shopping-cart"></i> Total Sales</div>
+                <h4 class="mb-0 text-success">@Model.TotalSales.ToString("N2")</h4>
+            </div>
+        </div>
+    </div>
+    <div class="col-md-3">
+        <div class="card text-center">
+            <div class="card-body">
+                <div class="text-muted mb-1"><i class="fas fa-undo"></i> Returns</div>
+                <h4 class="mb-0 text-danger">@Model.TotalReturns.ToString("N2")</h4>
+            </div>
+        </div>
+    </div>
+    <div class="col-md-3">
+        <div class="card text-center">
+            <div class="card-body">
+                <div class="text-muted mb-1"><i class="fas fa-chart-line"></i> Net Sales</div>
+                <h4 class="mb-0 text-primary">@Model.NetSales.ToString("N2")</h4>
+            </div>
+        </div>
+    </div>
+    <div class="col-md-3">
+        <div class="card text-center">
+            <div class="card-body">
+                <div class="text-muted mb-1"><i class="fas fa-coins"></i> Gross Profit</div>
+                <h4 class="mb-0 text-info">@Model.GrossProfit.ToString("N2")</h4>
+            </div>
+        </div>
+    </div>
+</div>
+
+<div class="row g-3 mb-4">
+    <div class="col-md-3">
+        <div class="card text-center">
+            <div class="card-body">
+                <div class="text-muted mb-1"><i class="fas fa-tags"></i> Discounts</div>
+                <h4 class="mb-0">@Model.TotalDiscounts.ToString("N2")</h4>
+            </div>
+        </div>
+    </div>
+    <div class="col-md-3">
+        <div class="card text-center">
+            <div class="card-body">
+                <div class="text-muted mb-1"><i class="fas fa-money-bill"></i> Cash Collected</div>
+                <h4 class="mb-0 text-success">@Model.CashCollected.ToString("N2")</h4>
+            </div>
+        </div>
+    </div>
+    <div class="col-md-3">
+        <div class="card text-center">
+            <div class="card-body">
+                <div class="text-muted mb-1"><i class="fas fa-clock"></i> Outstanding</div>
+                <h4 class="mb-0 text-warning">@Model.OutstandingBalance.ToString("N2")</h4>
+            </div>
+        </div>
+    </div>
+    <div class="col-md-3">
+        <div class="card text-center">
+            <div class="card-body">
+                <div class="text-muted mb-1"><i class="fas fa-receipt"></i> Transactions</div>
+                <h4 class="mb-0">@Model.TransactionCount</h4>
+                <small class="text-muted">@Model.ItemsSold items sold</small>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Hourly Sales Chart -->
+<div class="card">
+    <div class="card-header"><h5 class="mb-0">Hourly Sales Trend</h5></div>
+    <div class="card-body">
+        <canvas id="hourlySalesChart" height="80"></canvas>
+    </div>
+</div>
+
+@section Scripts {
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <script>
+        const hourlyData = @Html.Raw(System.Text.Json.JsonSerializer.Serialize(Model.HourlySales));
+        const labels = hourlyData.map(h => h.hour + ':00');
+        const amounts = hourlyData.map(h => h.amount);
+
+        new Chart(document.getElementById('hourlySalesChart'), {
+            type: 'bar',
+            data: {
+                labels: labels,
+                datasets: [{
+                    label: 'Sales Amount',
+                    data: amounts,
+                    backgroundColor: 'rgba(54, 162, 235, 0.6)',
+                    borderColor: 'rgba(54, 162, 235, 1)',
+                    borderWidth: 1
+                }]
+            },
+            options: {
+                responsive: true,
+                scales: {
+                    y: { beginAtZero: true }
+                }
+            }
+        });
+    </script>
+}
