@@ -5,6 +5,7 @@ using PharmaCare.Application.Interfaces.Configuration;
 using PharmaCare.Application.Interfaces.Transactions;
 using PharmaCare.Application.Interfaces.Finance;
 using PharmaCare.Domain.Entities.Transactions;
+using PharmaCare.Web.Filters;
 using PharmaCare.Web.Utilities;
 
 namespace PharmaCare.Web.Controllers.PurchaseManagement;
@@ -250,6 +251,7 @@ public class PurchaseOrderController : BaseController
     /// <summary>
     /// Shows form to make an advance payment against a Purchase Order.
     /// </summary>
+    [LinkedToPage("PurchaseOrder", "PurchaseOrdersIndex")]
     public async Task<IActionResult> MakePayment(string id)
     {
         int poId = Utility.DecryptId(id);
@@ -296,6 +298,7 @@ public class PurchaseOrderController : BaseController
     /// </summary>
     [HttpPost]
     [ValidateAntiForgeryToken]
+    [LinkedToPage("PurchaseOrder", "PurchaseOrdersIndex", PermissionType = "create")]
     public async Task<IActionResult> MakePayment(Domain.Entities.Finance.Payment payment)
     {
         // Remove validation for navigation properties
