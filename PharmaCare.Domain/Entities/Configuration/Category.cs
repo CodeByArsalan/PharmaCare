@@ -18,18 +18,22 @@ public class Category : BaseEntityWithStatus
     public string Name { get; set; } = string.Empty;
 
     // Accounting Links
+    [Required(ErrorMessage = "Sale Account is required.")]
     [ForeignKey("SaleAccount")]
     public int? SaleAccount_ID { get; set; }
     public Account? SaleAccount { get; set; }
 
+    [Required(ErrorMessage = "Stock Account is required.")]
     [ForeignKey("StockAccount")]
     public int? StockAccount_ID { get; set; }
     public Account? StockAccount { get; set; }
 
+    [Required(ErrorMessage = "Consumption Account is required.")]
     [ForeignKey("COGSAccount")]
     public int? COGSAccount_ID { get; set; }
     public Account? COGSAccount { get; set; }
 
+    [Required(ErrorMessage = "Damage Account is required.")]
     [ForeignKey("DamageAccount")]
     public int? DamageAccount_ID { get; set; }
     public Account? DamageAccount { get; set; }

@@ -26,31 +26,35 @@
                 </div>
                 
                 <div class="col-md-6">
-                    <label class="form-label">Sale Account</label>
-                    <select asp-for="SaleAccount_ID" asp-items="_combobox.GetAccountsByType(8)" class="form-select">
+                    <label class="form-label">Sale Account <span class="text-danger">*</span></label>
+                    <select asp-for="SaleAccount_ID" asp-items="_combobox.GetAccountsByType(8)" class="form-select" required>
                         <option value="">-- Select Account --</option>
                     </select>
+                    <span asp-validation-for="SaleAccount_ID" class="text-danger small"></span>
                 </div>
                 
                 <div class="col-md-6">
-                    <label class="form-label">Stock Account</label>
-                    <select asp-for="StockAccount_ID" asp-items="_combobox.GetAccountsByType(6)" class="form-select">
+                    <label class="form-label">Stock Account <span class="text-danger">*</span></label>
+                    <select asp-for="StockAccount_ID" asp-items="_combobox.GetAccountsByType(6)" class="form-select" required>
                         <option value="">-- Select Account --</option>
                     </select>
+                    <span asp-validation-for="StockAccount_ID" class="text-danger small"></span>
                 </div>
                 
                 <div class="col-md-6">
-                    <label class="form-label">Consumption Account</label>
-                    <select asp-for="COGSAccount_ID" asp-items="_combobox.GetAccountsByType(7)" class="form-select">
+                    <label class="form-label">Consumption Account <span class="text-danger">*</span></label>
+                    <select asp-for="COGSAccount_ID" asp-items="_combobox.GetAccountsByType(7)" class="form-select" required>
                         <option value="">-- Select Account --</option>
                     </select>
+                    <span asp-validation-for="COGSAccount_ID" class="text-danger small"></span>
                 </div>
 
                 <div class="col-md-6">
-                    <label class="form-label">Damage Account</label>
-                    <select asp-for="DamageAccount_ID" asp-items="_combobox.GetAccountsByType(9)" class="form-select">
+                    <label class="form-label">Damage Account <span class="text-danger">*</span></label>
+                    <select asp-for="DamageAccount_ID" asp-items="_combobox.GetAccountsByType(9)" class="form-select" required>
                         <option value="">-- Select Account --</option>
                     </select>
+                    <span asp-validation-for="DamageAccount_ID" class="text-danger small"></span>
                 </div>
             </div>
             
