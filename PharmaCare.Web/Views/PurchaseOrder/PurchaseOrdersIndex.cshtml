@@ -20,13 +20,13 @@
         <table class="table table-hover mb-0" id="purchaseOrdersTable">
             <thead>
                 <tr>
-                    <th style="width: 50px;">S.No</th>
+                    <th class="w-50px">S.No</th>
                     <th>PO Number</th>
                     <th>Date</th>
                     <th>Supplier</th>
                     <th class="text-end">Amount</th>
                     <th>Status</th>
-                    <th class="text-end" style="width: 200px;">Actions</th>
+                    <th class="text-end w-200px">Actions</th>
                 </tr>
             </thead>
             <tbody>
@@ -95,12 +95,12 @@
 </div>
 
 <!-- Hidden forms for approve and delete -->
-<form id="approveForm" method="post" asp-action="Approve" style="display: none;">
+<form id="approveForm" method="post" asp-action="Approve" class="d-none">
     @Html.AntiForgeryToken()
     <input type="hidden" name="id" id="approveId" />
 </form>
 
-<form id="deleteForm" method="post" asp-action="Delete" style="display: none;">
+<form id="deleteForm" method="post" asp-action="Delete" class="d-none">
     @Html.AntiForgeryToken()
     <input type="hidden" name="id" id="deleteId" />
 </form>

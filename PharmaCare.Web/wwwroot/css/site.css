@@ -797,7 +797,158 @@ pre {
     color: var(--warning-400) !important;
 }
 
-.badge.bg-info,
+
+/* ========================================
+   UTILITY CLASSES (Replaces Inline Styles)
+   ======================================== */
+
+/* Width Utilities */
+.w-40px {
+    width: 40px !important;
+}
+
+.w-50px {
+    width: 50px !important;
+}
+
+.w-60px {
+    width: 60px !important;
+}
+
+.w-80px {
+    width: 80px !important;
+}
+
+.w-100px {
+    width: 100px !important;
+}
+
+.w-120px {
+    width: 120px !important;
+}
+
+.w-140px {
+    width: 140px !important;
+}
+
+.w-150px {
+    width: 150px !important;
+}
+
+.w-200px {
+    width: 200px !important;
+}
+
+.w-250px {
+    width: 250px !important;
+}
+
+.w-5pct {
+    width: 5% !important;
+}
+
+.w-10pct {
+    width: 10% !important;
+}
+
+.w-15pct {
+    width: 15% !important;
+}
+
+.w-20pct {
+    width: 20% !important;
+}
+
+.w-25pct {
+    width: 25% !important;
+}
+
+.w-30pct {
+    width: 30% !important;
+}
+
+.w-40pct {
+    width: 40% !important;
+}
+
+.w-50pct {
+    width: 50% !important;
+}
+
+/* Display Utilities */
+.d-none-soft {
+    display: none;
+}
+
+.cursor-pointer {
+    cursor: pointer;
+}
+
+/* Sidebar Utilities */
+.nav-section {
+    margin-top: auto;
+    border-top: 1px solid var(--glass-border);
+    padding-top: 1rem;
+}
+
+
+.nav-link-child {
+    padding-left: 2rem !important;
+}
+
+/* Select2 Dark Theme Overrides */
+.select2-container--bootstrap-5 .select2-selection {
+    background-color: var(--bg-card) !important;
+    border-color: var(--glass-border) !important;
+    color: var(--text-primary) !important;
+}
+
+.select2-container--bootstrap-5 .select2-selection--single .select2-selection__rendered {
+    color: var(--text-primary) !important;
+}
+
+.select2-container--bootstrap-5 .select2-dropdown {
+    background-color: var(--bg-card) !important;
+    border-color: var(--glass-border) !important;
+    color: var(--text-primary) !important;
+}
+
+.select2-container--bootstrap-5 .select2-results__option {
+    color: var(--text-primary);
+}
+
+.select2-container--bootstrap-5 .select2-results__option--highlighted {
+    background-color: var(--primary-500) !important;
+    color: white !important;
+}
+
+.select2-container--bootstrap-5 .select2-search__field {
+    background-color: var(--bg-darker) !important;
+    color: var(--text-primary) !important;
+    border-color: var(--glass-border) !important;
+}
+
+/* Additional Width Utilities */
+.w-min-150px {
+    min-width: 150px !important;
+}
+
+.w-min-250px {
+    min-width: 250px !important;
+}
+
+.w-125px {
+    width: 125px !important;
+}
+
+.w-40pct {
+    width: 40% !important;
+}
+
+.w-15pct {
+    width: 15% !important;
+}
+
 .badge-info {
     background: rgba(6, 182, 212, 0.15) !important;
     color: var(--accent-400) !important;
@@ -1352,6 +1503,7 @@ textarea {
     background: var(--glass-bg-hover) !important;
     border-color: var(--glass-border-hover) !important;
 }
+
 /* ========================================
    MODALS (DARK THEME FIX)
    ======================================== */
@@ -1376,4 +1528,185 @@ textarea {
 
 [data-theme="light"] .btn-close {
     filter: none;
+}
+
+/* ========================================
+   DARK MODE OVERRIDES & FIXES
+   ======================================== */
+
+/* List Group Items (e.g., Reports Dashboard) */
+.list-group-item {
+    background-color: var(--bg-card);
+    border-color: var(--glass-border);
+    color: var(--text-primary);
+}
+
+.list-group-item:hover,
+.list-group-item-action:hover,
+.list-group-item-action:focus {
+    background-color: var(--bg-hover);
+    color: var(--text-primary);
+}
+
+.list-group-item .text-muted {
+    color: var(--text-secondary) !important;
+}
+
+/* Card & Modal Consistency */
+.card {
+    background-color: var(--bg-card);
+    border-color: var(--glass-border);
+    color: var(--text-primary);
+}
+
+.card-header,
+.card-footer {
+    border-color: var(--glass-border);
+    background-color: transparent;
+}
+
+/* Form Controls in Input Groups */
+.input-group-text {
+    background-color: var(--bg-darker);
+    border-color: var(--glass-border);
+    color: var(--text-primary);
+}
+
+/* Dropdown Menus */
+.dropdown-menu {
+    background-color: var(--bg-card);
+    border-color: var(--glass-border);
+    color: var(--text-primary);
+}
+
+.dropdown-item {
+    color: var(--text-primary);
+}
+
+.dropdown-item:hover,
+.dropdown-item:focus {
+    background-color: var(--bg-hover);
+    color: var(--text-primary);
+}
+
+.dropdown-divider {
+    border-top-color: var(--glass-border);
+}
+
+/* ========================================
+   PERMISSIONS PAGE STYLES
+   ======================================== */
+.permission-module-card {
+    border: 1px solid var(--glass-border);
+    box-shadow: 0 2px 4px rgba(0, 0, 0, 0.02);
+    transition: all 0.2s;
+    margin-bottom: 1.5rem;
+    background-color: var(--bg-card);
+}
+
+.permission-module-card:hover {
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.05);
+    border-color: var(--glass-border-hover);
+}
+
+.module-header {
+    background-color: var(--bg-darker);
+    border-bottom: 1px solid var(--glass-border);
+    padding: 1rem 1.25rem;
+}
+
+.table-permissions {
+    margin-bottom: 0;
+}
+
+.table-permissions th {
+    font-size: 0.75rem;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+    font-weight: 600;
+    color: var(--text-secondary);
+    background-color: var(--bg-card);
+    border-bottom: 1px solid var(--glass-border);
+    padding-top: 1rem;
+    padding-bottom: 1rem;
+}
+
+.table-permissions td {
+    vertical-align: middle;
+    padding: 0.75rem 1rem;
+    border-bottom: 1px solid var(--glass-border);
+    color: var(--text-primary);
+}
+
+.table-permissions tr:last-child td {
+    border-bottom: none;
+}
+
+.table-permissions tr:hover td {
+    background-color: var(--bg-hover);
+}
+
+/* Toggle Switch Styling */
+.form-switch .form-check-input {
+    width: 2.25em;
+    height: 1.25em;
+    cursor: pointer;
+    margin-top: 0;
+    background-color: var(--bg-input);
+    /* Fallback/Default */
+    border-color: var(--glass-border);
+}
+
+.form-switch .form-check-input:checked {
+    background-color: var(--primary-600);
+    border-color: var(--primary-600);
+}
+
+.form-switch .form-check-input:focus {
+    box-shadow: 0 0 0 0.25rem rgba(67, 97, 238, 0.15);
+    border-color: var(--primary-400);
+}
+
+.sticky-actions {
+    position: sticky;
+    bottom: 0;
+    z-index: 1020;
+    background: var(--bg-card);
+    border-top: 1px solid var(--glass-border);
+    box-shadow: 0 -4px 10px rgba(0, 0, 0, 0.03);
+    padding: 1rem;
+}
+
+/* ========================================
+   GLOBAL UTILITY OVERRIDES (SAFEGUARDS)
+   ======================================== */
+.bg-light {
+    background-color: var(--bg-darker) !important;
+    color: var(--text-primary) !important;
+}
+
+.text-dark {
+    color: var(--text-primary) !important;
+}
+
+.text-body {
+    color: var(--text-primary) !important;
+}
+
+.text-muted {
+    color: var(--text-secondary) !important;
+}
+
+.table-light {
+    --bs-table-bg: var(--bg-darker);
+    --bs-table-color: var(--text-primary);
+    color: var(--text-primary) !important;
+}
+
+.table-light th,
+.table-light td,
+.table-light thead th {
+    background-color: var(--bg-darker) !important;
+    color: var(--text-primary) !important;
+    border-color: var(--glass-border) !important;
 }

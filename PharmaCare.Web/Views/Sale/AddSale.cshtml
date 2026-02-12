@@ -7,34 +7,7 @@
 <!-- Select2 CSS for searchable dropdowns -->
 <link href="https://cdn.jsdelivr.net/npm/select2@4.1.0-rc.0/dist/css/select2.min.css" rel="stylesheet" />
 <link href="https://cdn.jsdelivr.net/npm/select2-bootstrap-5-theme@1.3.0/dist/select2-bootstrap-5-theme.min.css" rel="stylesheet" />
-<style>
-    /* Select2 Dark Theme Overrides */
-    .select2-container--bootstrap-5 .select2-selection {
-        background-color: var(--bg-card) !important;
-        border-color: var(--glass-border) !important;
-        color: var(--text-primary) !important;
-    }
-    .select2-container--bootstrap-5 .select2-selection--single .select2-selection__rendered {
-        color: var(--text-primary) !important;
-    }
-    .select2-container--bootstrap-5 .select2-dropdown {
-        background-color: var(--bg-card) !important;
-        border-color: var(--glass-border) !important;
-        color: var(--text-primary) !important;
-    }
-    .select2-container--bootstrap-5 .select2-results__option {
-        color: var(--text-primary);
-    }
-    .select2-container--bootstrap-5 .select2-results__option--highlighted {
-        background-color: var(--primary-500) !important;
-        color: white !important;
-    }
-    .select2-container--bootstrap-5 .select2-search__field {
-        background-color: var(--bg-darker) !important;
-        color: var(--text-primary) !important;
-        border-color: var(--glass-border) !important;
-    }
-</style>
+
 
 <!-- Page Header -->
 <div class="page-header">
@@ -91,13 +64,13 @@
                         <table class="table table-bordered mb-0">
                             <thead>
                                 <tr>
-                                    <th style="width: 50px;">#</th>
-                                    <th style="min-width: 150px;">Product <span class="text-danger">*</span></th>
-                                    <th style="width: 125px;">Quantity <span class="text-danger">*</span></th>
-                                    <th style="width: 140px;">Unit Price <span class="text-danger">*</span></th>
-                                    <th style="width: 140px;">Line Total</th>
-                                    <th style="width: 100px;">Margin %</th>
-                                    <th style="width: 50px;"></th>
+                                    <th class="w-50px">#</th>
+                                    <th class="w-min-150px">Product <span class="text-danger">*</span></th>
+                                    <th class="w-125px">Quantity <span class="text-danger">*</span></th>
+                                    <th class="w-140px">Unit Price <span class="text-danger">*</span></th>
+                                    <th class="w-140px">Line Total</th>
+                                    <th class="w-100px">Margin %</th>
+                                    <th class="w-50px"></th>
                                 </tr>
                             </thead>
                             <tbody id="lineItemsBody">
@@ -161,7 +134,7 @@
                                 </div>
 
                                 <!-- Payment Account Selection (shown when payment is made) -->
-                                <div class="col-12 mt-2" id="paymentAccountSection" style="display: none;">
+                                <div class="col-12 mt-2 d-none-soft" id="paymentAccountSection">
                                     <label class="form-label">Payment Account <span class="text-danger">*</span></label>
                                     <select name="PaymentAccountId" id="paymentAccountId" class="form-select">
                                         <option value="">-- Select Payment Account --</option>

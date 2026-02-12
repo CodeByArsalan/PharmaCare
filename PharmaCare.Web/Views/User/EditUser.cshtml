@@ -18,7 +18,7 @@
 <div class="card">
     <div class="card-body">
         <form asp-action="EditUser" method="post">
-            <input type="hidden" asp-for="Id" />
+            <input type="hidden" asp-for="Id" value="@Model.Id" />
             <div asp-validation-summary="All" class="alert alert-danger" style="display: @(ViewData.ModelState.ErrorCount > 0 ? "block" : "none")"></div>
             
             <div class="row g-3">

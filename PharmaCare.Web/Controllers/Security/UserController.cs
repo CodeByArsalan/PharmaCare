@@ -97,8 +97,8 @@ public class UserController : BaseController
     [ValidateAntiForgeryToken]
     public async Task<IActionResult> EditUser(string id, UserViewModel model)
     {
-        int userId = Utility.DecryptId(id);
-        if (userId != model.Id) return NotFound();
+        //int userId = Utility.DecryptId(id);
+        //if (id != model.Id) return NotFound();
 
         // Remove password validation for edit if not provided
         if (string.IsNullOrEmpty(model.Password))
