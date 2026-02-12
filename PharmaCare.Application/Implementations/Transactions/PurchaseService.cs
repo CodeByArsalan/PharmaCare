@@ -100,15 +100,49 @@ public class PurchaseService : IPurchaseService
         await _stockMainRepository.AddAsync(purchase);
         await _unitOfWork.SaveChangesAsync();
 
-        // Create accounting entries
+        // Capture the amount paid *during* this specific transaction (e.g. cash paid now)
+        // purchase.PaidAmount currently holds what the user entered in the form.
+        decimal newPaymentAmount = purchase.PaidAmount;
+
+        // Create accounting entries for the purchase
         await CreatePurchaseVoucherAsync(purchase, userId);
 
-        // If payment was made, create payment voucher
-        if (purchase.PaidAmount > 0)
+        // If this GRN is created from a PO (ReferenceStockMain_ID is present)
+        // We must transfer any advance payments from the PO to this GRN.
+        if (purchase.ReferenceStockMain_ID.HasValue)
         {
-            // Use provided account or default to Cash in Hand (ID: 1)
-            var accountId = paymentAccountId ?? DEFAULT_CASH_ACCOUNT_ID;
-            await CreatePaymentVoucherAsync(purchase, userId, accountId);
+            var poPayments = await _paymentRepository.Query()
+                .Where(p => p.StockMain_ID == purchase.ReferenceStockMain_ID.Value && p.PaymentType == "PAYMENT")
+                .ToListAsync();
+
+            if (poPayments.Any())
+            {
+                foreach (var payment in poPayments)
+                {
+                    // Relink payment to this new GRN
+                    payment.StockMain_ID = purchase.StockMainID;
+                    payment.Remarks += $" (Transferred from PO {purchase.ReferenceStockMain?.TransactionNo ?? ""})";
+                    _paymentRepository.Update(payment);
+                    
+                    // Add to total paid amount
+                    purchase.PaidAmount += payment.Amount;
+                }
+            }
+        }
+
+        // Update totals and status with the accumulated paid amount
+        purchase.BalanceAmount = purchase.TotalAmount - purchase.PaidAmount;
+        purchase.PaymentStatus = purchase.PaidAmount > 0 
+            ? (purchase.PaidAmount >= purchase.TotalAmount ? "Paid" : "Partial") 
+            : "Unpaid";
+
+        _stockMainRepository.Update(purchase);
+        await _unitOfWork.SaveChangesAsync();
+
+        // If a NEW payment was made directly during creation (as indicated by paymentAccountId)
+        if (newPaymentAmount > 0 && paymentAccountId.HasValue)
+        {
+            await CreatePaymentVoucherAsync(purchase, userId, paymentAccountId.Value, newPaymentAmount);
         }
 
         return purchase;
@@ -209,7 +243,7 @@ public class PurchaseService : IPurchaseService
     /// Debit: Supplier Account - reduces liability
     /// Credit: Cash/Bank Account - reduces asset
     /// </summary>
-    private async Task<Voucher> CreatePaymentVoucherAsync(StockMain purchase, int userId, int accountId)
+    private async Task<Voucher> CreatePaymentVoucherAsync(StockMain purchase, int userId, int accountId, decimal amount)
     {
         // Get Cash Payment Voucher type
         var voucherType = await _voucherTypeRepository.Query()
@@ -240,8 +274,8 @@ public class PurchaseService : IPurchaseService
             VoucherType_ID = voucherType.VoucherTypeID,
             VoucherNo = voucherNo,
             VoucherDate = purchase.TransactionDate,
-            TotalDebit = purchase.PaidAmount,
-            TotalCredit = purchase.PaidAmount,
+            TotalDebit = amount,
+            TotalCredit = amount,
             Status = "Posted",
             SourceTable = "StockMain",
             SourceID = purchase.StockMainID,
@@ -254,7 +288,7 @@ public class PurchaseService : IPurchaseService
                 new VoucherDetail
                 {
                     Account_ID = supplier.Account_ID.Value,
-                    DebitAmount = purchase.PaidAmount,
+                    DebitAmount = amount,
                     CreditAmount = 0,
                     Description = $"Payment to {supplier.Name}",
                     Party_ID = supplier.PartyID
@@ -264,7 +298,7 @@ public class PurchaseService : IPurchaseService
                 {
                     Account_ID = cashBankAccount.AccountID,
                     DebitAmount = 0,
-                    CreditAmount = purchase.PaidAmount,
+                    CreditAmount = amount,
                     Description = $"Payment via {cashBankAccount.Name} for {purchase.TransactionNo}"
                 }
             }
@@ -280,7 +314,7 @@ public class PurchaseService : IPurchaseService
             Party_ID = supplier.PartyID,
             StockMain_ID = purchase.StockMainID,
             Account_ID = cashBankAccount.AccountID,
-            Amount = purchase.PaidAmount,
+            Amount = amount,
             PaymentDate = purchase.TransactionDate,
             PaymentMethod = cashBankAccount.AccountType?.Code == "BANK" ? "Bank" : "Cash",
             Reference = paymentReference,

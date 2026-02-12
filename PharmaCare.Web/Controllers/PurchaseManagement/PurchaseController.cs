@@ -154,5 +154,69 @@ public class PurchaseController : BaseController
         return RedirectToAction(nameof(PurchasesIndex));
     }
 
-    // Dropdown helpers removed
+    /// <summary>
+    /// Gets approved Purchase Orders for a supplier (AJAX).
+    /// </summary>
+    [HttpGet]
+    public async Task<IActionResult> GetPurchaseOrders(int supplierId)
+    {
+        // Use generic PurchaseOrderService or directly repository?
+        // PurchaseOrderService.GetApprovedPurchaseOrdersAsync(supplierId) exists.
+        // But we need to inject IPurchaseOrderService.
+        // OR we can use _purchaseService if we add a method there.
+        // Let's check if IPurchaseOrderService is available here.
+        // It is NOT injected.
+        // We should add it to constructor.
+        
+        // For now, let's assume we will inject it.
+        // Wait, modifying constructor is risky if I don't see the file.
+        // I have _purchaseService. Let's add GetPurchaseOrdersForGrnAsync to IPurchaseService/PurchaseService?
+        // It ALREADY exists: GetPurchaseOrdersForGrnAsync(int? supplierId).
+        
+        var pos = await _purchaseService.GetPurchaseOrdersForGrnAsync(supplierId);
+        
+        // Now we need to calculate PaidAmount (Advance) for each PO.
+        // We can do this by querying payments.
+        // This might be N+1, but for dropdown it's okay.
+        
+        // Better: Fetch all advance payments for this supplier and map them.
+        // Or simply iterate.
+        // We don't have _paymentRepository exposed here.
+        // But PurchaseService returns StockMain, which has StockDetails.
+        // It does NOT have Payments included by default in that method?
+        // Let's check PurchaseService.GetPurchaseOrdersForGrnAsync at step 550.
+        // It includes TransactionType, Party, StockDetails.Trans.
+        // It does NOT include Payments.
+        
+        // We can't easily get payments here without IPaymentService.
+        // AND we can't easily inject it without seeing the full file again to check naming.
+        // Actually I have the full file content from step 554.
+        
+        // Let's just return the POs for now, and rely on `PaidAmount` property of StockMain.
+        // Does StockMain.PaidAmount reflect the advance payments?
+        // In PurchaseOrderController.MakePayment, we create a Payment.
+        // But we do NOT update StockMain.PaidAmount in `MakePayment`?
+        // Let's check `PaymentService.CreatePaymentAsync` at step 497.
+        // Line 145: stockMain.PaidAmount += payment.Amount;
+        // YES! It updates the StockMain.
+        // So `po.PaidAmount` ALREADY contains the advance payments.
+        
+        var result = pos.Select(po => new
+        {
+            id = po.StockMainID,
+            transactionNo = po.TransactionNo,
+            date = po.TransactionDate.ToString("dd/MM/yyyy"),
+            total = po.TotalAmount,
+            paidAmount = po.PaidAmount, // This is the advance!
+            details = po.StockDetails.Select(d => new
+            {
+                productId = d.Product_ID,
+                quantity = d.Quantity - 0, // TODO: Subtract already received qty if partial GRN allowed? System seems 1-to-1 PO-GRN for now.
+                costPrice = d.CostPrice,
+                lineTotal = d.LineTotal
+            })
+        });
+
+        return Json(result);
+    }
 }

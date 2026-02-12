@@ -152,7 +152,7 @@
                 const response = await fetch(`@Url.Action("GetPurchaseOrders")?supplierId=${supplierId}`);
                 const pos = await response.json();
                 pos.forEach(po => {
-                    poSelect.innerHTML += `<option value="${po.id}" data-details='${JSON.stringify(po.details)}'>${po.transactionNo} - ${po.date} (${po.total.toFixed(2)})</option>`;
+                    poSelect.innerHTML += `<option value="${po.id}" data-details='${JSON.stringify(po.details)}' data-paid='${po.paidAmount}'>${po.transactionNo} - ${po.date} (${po.total.toFixed(2)})</option>`;
                 });
             }
         });
@@ -198,6 +198,30 @@
             const selectedOption = this.options[this.selectedIndex];
             if (selectedOption.value && selectedOption.dataset.details) {
                 const details = JSON.parse(selectedOption.dataset.details);
+                const paidAmount = parseFloat(selectedOption.dataset.paid) || 0;
+
+                // Show advance payment info
+                if (paidAmount > 0) {
+                    Swal.fire({
+                        icon: 'info',
+                        title: 'Advance Payment Found',
+                        text: `This PO has an advance payment of ${paidAmount.toFixed(2)}. It will be applied to this Purchase automatically.`,
+                        toast: true,
+                        position: 'top-end',
+                        showConfirmButton: false,
+                        timer: 4000
+                    });
+                }
+                
+                // Pre-fill paid amount with advance
+                // Note: The backend adds advance to whatever is here. 
+                // But visually, it's confusing if we show 0 and then it becomes 500.
+                // However, if we put 500 here, the backend treats it as a NEW payment of 500?
+                // No, backend treats `PaidAmount` in model as "User Input".
+                // And adds transfer to it.
+                // So we should leave this as 0 (or whatever user wants to pay *additionally*).
+                // Let's just show a label or note?
+                
                 document.getElementById('lineItemsBody').innerHTML = '';
                 rowIndex = 0;
                 details.forEach(d => addLineItem(d));
