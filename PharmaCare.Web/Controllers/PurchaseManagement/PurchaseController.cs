@@ -33,18 +33,12 @@ public class PurchaseController : BaseController
         _accountService = accountService;
     }
 
-    /// <summary>
-    /// Displays list of all purchases/GRNs.
-    /// </summary>
     public async Task<IActionResult> PurchasesIndex()
     {
         var purchases = await _purchaseService.GetAllAsync();
         return View(purchases);
     }
 
-    /// <summary>
-    /// Shows form to create a new purchase/GRN.
-    /// </summary>
     public IActionResult AddPurchase()
     {
         // await LoadDropdownsAsync(); // REMOVED
@@ -55,12 +49,9 @@ public class PurchaseController : BaseController
         });
     }
 
-    /// <summary>
-    /// Creates a new purchase/GRN.
-    /// </summary>
     [HttpPost]
     [ValidateAntiForgeryToken]
-    public async Task<IActionResult> AddPurchase(StockMain purchase, int? PaymentAccountId)
+    public async Task<IActionResult> AddPurchase(StockMain purchase, int? PaymentAccountId, decimal transferredAdvanceAmount = 0)
     {
         // Remove validation for navigation properties
         ModelState.Remove("TransactionType");
@@ -86,7 +77,7 @@ public class PurchaseController : BaseController
         {
             try
             {
-                await _purchaseService.CreateAsync(purchase, CurrentUserId, PaymentAccountId);
+                await _purchaseService.CreateAsync(purchase, CurrentUserId, PaymentAccountId, transferredAdvanceAmount);
                 ShowMessage(MessageType.Success, "Purchase created successfully!");
                 return RedirectToAction(nameof(PurchasesIndex));
             }
@@ -100,9 +91,6 @@ public class PurchaseController : BaseController
         return View(purchase);
     }
 
-    /// <summary>
-    /// Shows details of a purchase/GRN.
-    /// </summary>
     public async Task<IActionResult> ViewPurchase(string id)
     {
         int purchaseId = Utility.DecryptId(id);
@@ -122,9 +110,6 @@ public class PurchaseController : BaseController
         return View(purchase);
     }
 
-    /// <summary>
-    /// Voids a purchase/GRN.
-    /// </summary>
     [HttpPost]
     [ValidateAntiForgeryToken]
     public async Task<IActionResult> Void(string id, string voidReason)
@@ -155,9 +140,6 @@ public class PurchaseController : BaseController
         return RedirectToAction(nameof(PurchasesIndex));
     }
 
-    /// <summary>
-    /// Gets approved Purchase Orders for a supplier (AJAX).
-    /// </summary>
     [HttpGet]
     [LinkedToPage("Purchase", "PurchasesIndex")]
     public async Task<IActionResult> GetPurchaseOrders(int supplierId)
@@ -183,9 +165,6 @@ public class PurchaseController : BaseController
         return Json(result);
     }
 
-    /// <summary>
-    /// Gets active products as JSON for AJAX dropdown.
-    /// </summary>
     [HttpGet]
     [LinkedToPage("Purchase", "PurchasesIndex")]
     public async Task<IActionResult> GetProducts()

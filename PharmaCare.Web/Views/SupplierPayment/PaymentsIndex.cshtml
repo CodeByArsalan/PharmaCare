@@ -3,6 +3,12 @@
 @inject PharmaCare.Infrastructure.Interfaces.IComboboxRepository _combobox
 @{
     ViewData["Title"] = "Supplier Payments";
+    var selectedStatus = (string?)ViewBag.SelectedStatus ?? "All";
+    var paymentStatuses = _combobox
+        .GetPaymentStatuses(selectedStatus)
+        .Where(s => !string.Equals(s.Value, "Paid", StringComparison.OrdinalIgnoreCase)
+                 && !string.Equals(s.Text, "Paid", StringComparison.OrdinalIgnoreCase))
+        .ToList();
 }
 
 <!-- Page Header -->
@@ -31,7 +37,7 @@
                 </div>
                 <div class="col-md-2">
                     <label class="form-label">Payment Status</label>
-                    <select name="paymentStatus" id="statusFilter" class="form-select" asp-items='_combobox.GetPaymentStatuses((string)ViewBag.SelectedStatus)'>
+                    <select name="paymentStatus" id="statusFilter" class="form-select" asp-items="paymentStatuses">
                     </select>
                 </div>
                 <div class="col-md-2">

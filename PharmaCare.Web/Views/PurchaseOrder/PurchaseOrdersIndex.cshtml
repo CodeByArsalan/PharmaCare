@@ -76,7 +76,7 @@
                                 }
                                 @if (item.Status == "Approved" && item.BalanceAmount > 0)
                                 {
-                                    <a asp-action="MakePayment" asp-route-id="@item.StockMainID.EncryptId()" class="btn btn-sm btn-outline-success ms-1" title="Pay Advance">
+                                    <a asp-action="MakePayment" asp-route-id="@item.StockMainID.EncryptId()" class="btn btn-sm btn-success ms-1" title="Pay Advance">
                                         <i class="fas fa-money-bill-wave"></i>
                                     </a>
                                 }

@@ -33,18 +33,12 @@ public class PurchaseOrderController : BaseController
         _paymentService = paymentService;
     }
 
-    /// <summary>
-    /// Displays list of all purchase orders.
-    /// </summary>
     public async Task<IActionResult> PurchaseOrdersIndex()
     {
         var purchaseOrders = await _purchaseOrderService.GetAllAsync();
         return View(purchaseOrders);
     }
 
-    /// <summary>
-    /// Shows form to create a new purchase order.
-    /// </summary>
     public async Task<IActionResult> AddPurchaseOrder()
     {
         await LoadDropdownsAsync();
@@ -55,9 +49,6 @@ public class PurchaseOrderController : BaseController
         });
     }
 
-    /// <summary>
-    /// Creates a new purchase order.
-    /// </summary>
     [HttpPost]
     [ValidateAntiForgeryToken]
     public async Task<IActionResult> AddPurchaseOrder(StockMain purchaseOrder)
@@ -101,9 +92,6 @@ public class PurchaseOrderController : BaseController
         return View(purchaseOrder);
     }
 
-    /// <summary>
-    /// Shows form to edit an existing purchase order.
-    /// </summary>
     public async Task<IActionResult> EditPurchaseOrder(string id)
     {
         int poId = Utility.DecryptId(id);
@@ -130,9 +118,6 @@ public class PurchaseOrderController : BaseController
         return View(purchaseOrder);
     }
 
-    /// <summary>
-    /// Updates an existing purchase order.
-    /// </summary>
     [HttpPost]
     [ValidateAntiForgeryToken]
     public async Task<IActionResult> EditPurchaseOrder(StockMain purchaseOrder)
@@ -174,9 +159,6 @@ public class PurchaseOrderController : BaseController
         return View(purchaseOrder);
     }
 
-    /// <summary>
-    /// Approves a purchase order.
-    /// </summary>
     [HttpPost]
     [ValidateAntiForgeryToken]
     public async Task<IActionResult> Approve(string id)
@@ -201,9 +183,6 @@ public class PurchaseOrderController : BaseController
         return RedirectToAction(nameof(PurchaseOrdersIndex));
     }
 
-    /// <summary>
-    /// Deletes (voids) a purchase order.
-    /// </summary>
     [HttpPost]
     [ValidateAntiForgeryToken]
     public async Task<IActionResult> Delete(string id)
@@ -228,9 +207,6 @@ public class PurchaseOrderController : BaseController
         return RedirectToAction(nameof(PurchaseOrdersIndex));
     }
 
-    /// <summary>
-    /// Gets products as JSON for AJAX dropdown.
-    /// </summary>
     [HttpGet]
     public async Task<IActionResult> GetProducts()
     {
@@ -293,9 +269,6 @@ public class PurchaseOrderController : BaseController
         });
     }
 
-    /// <summary>
-    /// Processes an advance payment against a Purchase Order.
-    /// </summary>
     [HttpPost]
     [ValidateAntiForgeryToken]
     [LinkedToPage("PurchaseOrder", "PurchaseOrdersIndex", PermissionType = "create")]

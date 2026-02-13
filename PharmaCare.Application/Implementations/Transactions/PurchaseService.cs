@@ -76,7 +76,11 @@ public class PurchaseService : IPurchaseService
             .FirstOrDefaultAsync(s => s.StockMainID == id && s.TransactionType!.Code == TRANSACTION_TYPE_CODE);
     }
 
-    public async Task<StockMain> CreateAsync(StockMain purchase, int userId, int? paymentAccountId = null)
+    public async Task<StockMain> CreateAsync(
+        StockMain purchase,
+        int userId,
+        int? paymentAccountId = null,
+        decimal transferredAdvanceAmount = 0)
     {
         // Get the GRN transaction type
         var transactionType = await _transactionTypeRepository.Query()
@@ -85,30 +89,40 @@ public class PurchaseService : IPurchaseService
         if (transactionType == null)
             throw new InvalidOperationException($"Transaction type '{TRANSACTION_TYPE_CODE}' not found.");
 
+        if (!purchase.ReferenceStockMain_ID.HasValue)
+        {
+            transferredAdvanceAmount = 0;
+        }
+
+        var additionalPaymentAmount = Math.Max(0, purchase.PaidAmount - transferredAdvanceAmount);
+        purchase.PaidAmount = additionalPaymentAmount;
+
+        if (additionalPaymentAmount > 0 && !paymentAccountId.HasValue)
+        {
+            throw new InvalidOperationException("Payment account is required when additional payment is entered.");
+        }
+
         purchase.TransactionType_ID = transactionType.TransactionTypeID;
         purchase.TransactionNo = await GenerateTransactionNoAsync();
         purchase.Status = "Approved"; // GRN is immediately approved (stock impact)
-        purchase.PaymentStatus = purchase.PaidAmount > 0 
-            ? (purchase.PaidAmount >= purchase.TotalAmount ? "Paid" : "Partial") 
-            : "Unpaid";
         purchase.CreatedAt = DateTime.Now;
         purchase.CreatedBy = userId;
 
         // Calculate totals
         CalculateTotals(purchase);
+        purchase.PaymentStatus = purchase.PaidAmount > 0
+            ? (purchase.PaidAmount >= purchase.TotalAmount ? "Paid" : "Partial")
+            : "Unpaid";
 
         await _stockMainRepository.AddAsync(purchase);
         await _unitOfWork.SaveChangesAsync();
-
-        // Capture the amount paid *during* this specific transaction (e.g. cash paid now)
-        // purchase.PaidAmount currently holds what the user entered in the form.
-        decimal newPaymentAmount = purchase.PaidAmount;
 
         // Create accounting entries for the purchase
         await CreatePurchaseVoucherAsync(purchase, userId);
 
         // If this GRN is created from a PO (ReferenceStockMain_ID is present)
         // We must transfer any advance payments from the PO to this GRN.
+        decimal transferredFromPo = 0;
         if (purchase.ReferenceStockMain_ID.HasValue)
         {
             var poPayments = await _paymentRepository.Query()
@@ -123,26 +137,27 @@ public class PurchaseService : IPurchaseService
                     payment.StockMain_ID = purchase.StockMainID;
                     payment.Remarks += $" (Transferred from PO {purchase.ReferenceStockMain?.TransactionNo ?? ""})";
                     _paymentRepository.Update(payment);
-                    
-                    // Add to total paid amount
-                    purchase.PaidAmount += payment.Amount;
+
+                    transferredFromPo += payment.Amount;
                 }
             }
         }
 
+        purchase.PaidAmount = additionalPaymentAmount + transferredFromPo;
+
         // Update totals and status with the accumulated paid amount
         purchase.BalanceAmount = purchase.TotalAmount - purchase.PaidAmount;
-        purchase.PaymentStatus = purchase.PaidAmount > 0 
-            ? (purchase.PaidAmount >= purchase.TotalAmount ? "Paid" : "Partial") 
+        purchase.PaymentStatus = purchase.PaidAmount > 0
+            ? (purchase.PaidAmount >= purchase.TotalAmount ? "Paid" : "Partial")
             : "Unpaid";
 
         _stockMainRepository.Update(purchase);
         await _unitOfWork.SaveChangesAsync();
 
         // If a NEW payment was made directly during creation (as indicated by paymentAccountId)
-        if (newPaymentAmount > 0 && paymentAccountId.HasValue)
+        if (additionalPaymentAmount > 0)
         {
-            await CreatePaymentVoucherAsync(purchase, userId, paymentAccountId.Value, newPaymentAmount);
+            await CreatePaymentVoucherAsync(purchase, userId, paymentAccountId!.Value, additionalPaymentAmount);
         }
 
         return purchase;
@@ -354,12 +369,27 @@ public class PurchaseService : IPurchaseService
 
     public async Task<IEnumerable<StockMain>> GetPurchaseOrdersForGrnAsync(int? supplierId = null)
     {
+        var grnTypeId = await _transactionTypeRepository.Query()
+            .Where(t => t.Code == TRANSACTION_TYPE_CODE)
+            .Select(t => t.TransactionTypeID)
+            .FirstOrDefaultAsync();
+
+        if (grnTypeId == 0)
+        {
+            throw new InvalidOperationException($"Transaction type '{TRANSACTION_TYPE_CODE}' not found.");
+        }
+
         var query = _stockMainRepository.Query()
             .Include(s => s.TransactionType)
             .Include(s => s.Party)
             .Include(s => s.StockDetails)
                 .ThenInclude(d => d.Product)
-            .Where(s => s.TransactionType!.Code == PO_TRANSACTION_TYPE_CODE && s.Status == "Approved");
+            .Where(s => s.TransactionType!.Code == PO_TRANSACTION_TYPE_CODE && s.Status == "Approved")
+            .Where(po => !_stockMainRepository.Query()
+                .Any(grn =>
+                    grn.TransactionType_ID == grnTypeId &&
+                    grn.ReferenceStockMain_ID == po.StockMainID &&
+                    grn.Status != "Void"));
 
         if (supplierId.HasValue)
         {

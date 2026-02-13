@@ -199,19 +199,17 @@ public class ComboboxRepository : IComboboxRepository
 
     public IEnumerable<SelectListItem> GetCashBankAccounts(int? selectedValue = null)
     {
-        // Assuming Cash (ID 1) and Bank (ID 2) types, or specific logic?
-        // Let's replicate AccountService logic: usually AccountType 1 and 2 or strictly defined
-        // "Cash" and "Bank" account types.
-        // Based on PurchaseController logic: _accountService.GetCashBankAccountsAsync()
-        // We'll trust account service names or types. Let's assume Type 1 & 2 for now or fetch by name.
-        // Actually, let's look at AccountService... for now, strict replacement:
-        // Cash = 10, Bank = 11 (Common IDs). 
-        // Let's use a broader query or just fetch all active accounts for now if unsure, 
-        // BUT strict is better. I'll rely on AccountType names "Cash" and "Bank".
-        
+        // Keep this aligned with AccountService/GetCashBankAccountsAsync:
+        // primary filter is AccountType_ID 1 (Cash) and 2 (Bank),
+        // with Code/Name fallbacks for legacy or customized datasets.
         var typeIds = _context.AccountTypes
-            .Where(t => t.Name == "Cash" || t.Name == "Bank")
+            .Where(t =>
+                t.AccountTypeID == 1 ||
+                t.AccountTypeID == 2 ||
+                (t.Code != null && (t.Code.ToUpper() == "CASH" || t.Code.ToUpper() == "BANK")) ||
+                (t.Name != null && (t.Name.Contains("Cash") || t.Name.Contains("Bank"))))
             .Select(t => t.AccountTypeID)
+            .Distinct()
             .ToList();
 
         return _context.Accounts

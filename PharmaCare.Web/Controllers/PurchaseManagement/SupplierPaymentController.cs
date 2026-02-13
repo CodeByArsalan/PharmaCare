@@ -33,16 +33,17 @@ public class SupplierPaymentController : BaseController
     /// Displays list of GRNs with payment information.
     public async Task<IActionResult> PaymentsIndex(int? supplierId, string? paymentStatus, DateTime? fromDate, DateTime? toDate)
     {
-        // Get all GRNs (purchases)
-        var grns = await _purchaseService.GetAllAsync();
+        // Get only pending GRNs (full payment not done yet)
+        var grns = await _paymentService.GetPendingGrnsAsync(supplierId);
         var grnList = grns.ToList();
 
-        // Apply filters
-        if (supplierId.HasValue)
+        // "Paid" is not applicable on pending GRNs screen.
+        if (string.Equals(paymentStatus, "Paid", StringComparison.OrdinalIgnoreCase))
         {
-            grnList = grnList.Where(g => g.Party_ID == supplierId.Value).ToList();
+            paymentStatus = "All";
         }
 
+        // Apply filters
         if (!string.IsNullOrEmpty(paymentStatus) && paymentStatus != "All")
         {
             grnList = grnList.Where(g => g.PaymentStatus == paymentStatus).ToList();

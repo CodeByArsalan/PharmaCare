@@ -111,6 +111,7 @@
                                     <input type="hidden" asp-for="SubTotal" id="subTotal" />
                                     <input type="hidden" asp-for="DiscountPercent" value="0" />
                                     <input type="hidden" asp-for="DiscountAmount" value="0" />
+                                    <input type="hidden" id="transferredAdvanceAmount" name="transferredAdvanceAmount" value="0" />
                                 </div>
                             </div>
                         </div>
@@ -144,9 +145,15 @@
             const supplierId = this.value;
             const poSelect = document.getElementById('poSelect');
             poSelect.innerHTML = '<option value="">-- No PO (Direct Purchase) --</option>';
+            document.getElementById('transferredAdvanceAmount').value = '0';
             
             // Check if this is a counter party
             checkCounterParty();
+            if (!isCurrentSupplierCounter()) {
+                document.getElementById('paidAmount').value = '0.00';
+            }
+            calculateBalance();
+            togglePaymentAccount();
             
             if (supplierId) {
                 const response = await fetch(`@Url.Action("GetPurchaseOrders")?supplierId=${supplierId}`);
@@ -196,9 +203,22 @@
         // PO change - load details
         document.getElementById('poSelect').addEventListener('change', function() {
             const selectedOption = this.options[this.selectedIndex];
+            const transferredAdvanceInput = document.getElementById('transferredAdvanceAmount');
+
+            if (!selectedOption.value) {
+                transferredAdvanceInput.value = '0';
+                if (!isCurrentSupplierCounter()) {
+                    document.getElementById('paidAmount').value = '0.00';
+                }
+                calculateBalance();
+                togglePaymentAccount();
+                return;
+            }
+
             if (selectedOption.value && selectedOption.dataset.details) {
                 const details = JSON.parse(selectedOption.dataset.details);
                 const paidAmount = parseFloat(selectedOption.dataset.paid) || 0;
+                transferredAdvanceInput.value = paidAmount.toFixed(2);
 
                 // Show advance payment info
                 if (paidAmount > 0) {
@@ -212,20 +232,17 @@
                         timer: 4000
                     });
                 }
-                
-                // Pre-fill paid amount with advance
-                // Note: The backend adds advance to whatever is here. 
-                // But visually, it's confusing if we show 0 and then it becomes 500.
-                // However, if we put 500 here, the backend treats it as a NEW payment of 500?
-                // No, backend treats `PaidAmount` in model as "User Input".
-                // And adds transfer to it.
-                // So we should leave this as 0 (or whatever user wants to pay *additionally*).
-                // Let's just show a label or note?
-                
+
                 document.getElementById('lineItemsBody').innerHTML = '';
                 rowIndex = 0;
                 details.forEach(d => addLineItem(d));
+
+                if (!isCurrentSupplierCounter()) {
+                    document.getElementById('paidAmount').value = paidAmount.toFixed(2);
+                }
+
                 calculateTotals();
+                togglePaymentAccount();
             }
         });
 
@@ -359,6 +376,12 @@
             document.getElementById('balanceAmount').value = balanceAmount.toFixed(2);
         }
 
+        function getAdditionalPaymentAmount() {
+            const paidAmount = parseFloat(document.getElementById('paidAmount').value) || 0;
+            const transferredAdvanceAmount = parseFloat(document.getElementById('transferredAdvanceAmount').value) || 0;
+            return Math.max(0, paidAmount - transferredAdvanceAmount);
+        }
+
         // Event listener for paid amount
         document.getElementById('paidAmount').addEventListener('input', function() {
             calculateBalance();
@@ -366,11 +389,11 @@
         });
 
         function togglePaymentAccount() {
-            const paidAmount = parseFloat(document.getElementById('paidAmount').value) || 0;
+            const additionalPaymentAmount = getAdditionalPaymentAmount();
             const container = document.getElementById('paymentAccountContainer');
             const select = document.getElementById('paymentAccountId');
             
-            if (paidAmount > 0) {
+            if (additionalPaymentAmount > 0) {
                 container.style.display = 'block';
                 select.setAttribute('required', 'required');
             } else {
