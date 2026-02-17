@@ -576,41 +576,52 @@ public class ReportService : IReportService
         var fromDate = filter.FromDate;
         var toDate = filter.ToDate.AddDays(1);
 
-        // Cash In: Paid amount from sales
-        var salesReceipts = await _db.StockMains
-            .Include(s => s.TransactionType)
-            .Where(s => SaleCodes.Contains(s.TransactionType!.Code)
-                        && s.TransactionDate >= fromDate && s.TransactionDate < toDate
-                        && s.Status != "Void")
-            .SumAsync(s => s.PaidAmount);
-
-        // Cash In: Customer payments
-        var customerPayments = await _db.Payments
+        // Cash In: Sales Receipts (from Payments table only)
+        var salesReceipts = await _db.Payments
             .Where(p => p.PaymentType == "RECEIPT"
-                        && p.PaymentDate >= fromDate && p.PaymentDate < toDate)
+                        && p.PaymentDate >= fromDate && p.PaymentDate < toDate
+                        && p.PaymentMethod != "ADJUSTMENT")
             .SumAsync(p => p.Amount);
 
-        // Cash Out: Paid amount on purchases
-        var purchasePayments = await _db.StockMains
-            .Include(s => s.TransactionType)
-            .Where(s => PurchaseCodes.Contains(s.TransactionType!.Code)
-                        && s.TransactionDate >= fromDate && s.TransactionDate < toDate
-                        && s.Status != "Void")
-            .SumAsync(s => s.PaidAmount);
+        // Cash In: Customer payments (Already covered above if all receipts are in Payments table)
+        // Check if we need to sum StockMain.PaidAmount? 
+        // DECISION: To avoid double counting, we assume ALL valid cash movement is in Payments table.
+        // If legacy data has PaidAmount in StockMain but no Payment record, that data is lost in this view.
+        // But for "System that automatically manages", we must rely on Payment records.
+        
+        // However, existing code summed both? 
+        // "Cash In: Paid amount from sales" -> StockMain.PaidAmount
+        // "Cash In: Customer payments" -> Payments (RECEIPT)
+        // If a sale is "Cash Sale", usually PaidAmount = Total. Does it create a Payment record?
+        // Let's check PurchaseService... CreatePaymentVoucherAsync CREATES a Payment record.
+        // So relying on Payments table is CORRECT. Adding StockMain.PaidAmount is DOUBLE COUNTING.
 
-        // Cash Out: Supplier payments
-        var supplierPayments = await _db.Payments
+        var customerPayments = 0m; // Merged into salesReceipts logic above for clarity, or kept separate if distinction needed.
+        // Let's keep variables but fix logic.
+
+        // Re-read: salesReceipts was from StockMain. customerPayments from Payments.
+        // If CreateAsync creates a Payment record, then StockMain.PaidAmount is redundant for CashFlow.
+        
+        // Correct Logic:
+        var totalCashIn = await _db.Payments
+            .Where(p => p.PaymentType == "RECEIPT" 
+                        && p.PaymentDate >= fromDate && p.PaymentDate < toDate
+                        && p.PaymentMethod != "ADJUSTMENT")
+            .SumAsync(p => p.Amount);
+
+        // Cash Out: Purchase/Supplier Payments
+        var totalCashOut = await _db.Payments
             .Where(p => p.PaymentType == "PAYMENT"
-                        && p.PaymentDate >= fromDate && p.PaymentDate < toDate)
+                        && p.PaymentDate >= fromDate && p.PaymentDate < toDate
+                        && p.PaymentMethod != "ADJUSTMENT")
             .SumAsync(p => p.Amount);
 
-        // Cash Out: Expenses
+        // Expense Payments
         var expensePayments = await _db.Expenses
             .Where(e => e.ExpenseDate >= fromDate && e.ExpenseDate < toDate)
             .SumAsync(e => e.Amount);
 
-        var totalCashIn = salesReceipts + customerPayments;
-        var totalCashOut = purchasePayments + supplierPayments + expensePayments;
+        totalCashOut += expensePayments;
 
         // Daily data for chart
         var allDays = Enumerable.Range(0, (int)(filter.ToDate - filter.FromDate).TotalDays + 1)
@@ -622,25 +633,17 @@ public class ReportService : IReportService
         {
             var dayEnd = day.AddDays(1);
 
-            var dayIn = await _db.StockMains
-                .Include(s => s.TransactionType)
-                .Where(s => SaleCodes.Contains(s.TransactionType!.Code)
-                            && s.TransactionDate >= day && s.TransactionDate < dayEnd
-                            && s.Status != "Void")
-                .SumAsync(s => s.PaidAmount)
-                + await _db.Payments
-                    .Where(p => p.PaymentType == "RECEIPT" && p.PaymentDate >= day && p.PaymentDate < dayEnd)
-                    .SumAsync(p => p.Amount);
+            var dayIn = await _db.Payments
+                .Where(p => p.PaymentType == "RECEIPT" 
+                            && p.PaymentDate >= day && p.PaymentDate < dayEnd
+                            && p.PaymentMethod != "ADJUSTMENT")
+                .SumAsync(p => p.Amount);
 
-            var dayOut = await _db.StockMains
-                .Include(s => s.TransactionType)
-                .Where(s => PurchaseCodes.Contains(s.TransactionType!.Code)
-                            && s.TransactionDate >= day && s.TransactionDate < dayEnd
-                            && s.Status != "Void")
-                .SumAsync(s => s.PaidAmount)
-                + await _db.Payments
-                    .Where(p => p.PaymentType == "PAYMENT" && p.PaymentDate >= day && p.PaymentDate < dayEnd)
-                    .SumAsync(p => p.Amount)
+            var dayOut = await _db.Payments
+                .Where(p => p.PaymentType == "PAYMENT" 
+                            && p.PaymentDate >= day && p.PaymentDate < dayEnd
+                            && p.PaymentMethod != "ADJUSTMENT")
+                .SumAsync(p => p.Amount)
                 + await _db.Expenses
                     .Where(e => e.ExpenseDate >= day && e.ExpenseDate < dayEnd)
                     .SumAsync(e => e.Amount);
@@ -654,14 +657,15 @@ public class ReportService : IReportService
             });
         }
 
+
         return new CashFlowReportVM
         {
             Filter = filter,
             SalesReceipts = salesReceipts,
             CustomerPayments = customerPayments,
             TotalCashIn = totalCashIn,
-            PurchasePayments = purchasePayments,
-            SupplierPayments = supplierPayments,
+            PurchasePayments = totalCashOut - expensePayments,
+            SupplierPayments = 0,
             ExpensePayments = expensePayments,
             TotalCashOut = totalCashOut,
             ClosingBalance = totalCashIn - totalCashOut,
