@@ -50,14 +50,16 @@
             <div class="col-12">
                 <div class="card permission-module-card">
                     <!-- Module Header -->
-                    <div class="module-header d-flex justify-content-between align-items-center cursor-pointer toggle-module" 
+                    <div class="module-header d-flex justify-content-between align-items-center cursor-pointer toggle-module py-3 px-4" 
                          data-bs-target="#module-@parent.PageId">
+                        
+                        <!-- Left: Parent Toggle -->
                         <div class="d-flex align-items-center">
                             <i class="fas fa-chevron-down text-muted me-3 transition-icon"></i>
-                            <div class="form-check form-switch mb-0">
+                            <!-- Parent Toggle -->
+                            <div class="form-check mb-0">
                                 <input type="hidden" name="permissions[@parentIndex].PageId" value="@parent.PageId" />
                                 
-                                <!-- Parent "View" = Enable Module -->
                                 <input class="form-check-input parent-toggle stop-propagation" type="checkbox" 
                                        name="permissions[@parentIndex].CanView" value="true"
                                        id="parent-view-@parentIndex" @(parent.CanView ? "checked" : "")
@@ -68,17 +70,29 @@
                             </div>
                         </div>
 
-                        <!-- Hidden inputs for parent actions usually required by model binding/logic -->
-                        <div class="d-none">
-                            <input type="checkbox" name="permissions[@parentIndex].CanCreate" value="true" @(parent.CanCreate ? "checked" : "")>
-                            <input type="checkbox" name="permissions[@parentIndex].CanEdit" value="true" @(parent.CanEdit ? "checked" : "")>
-                            <input type="checkbox" name="permissions[@parentIndex].CanDelete" value="true" @(parent.CanDelete ? "checked" : "")>
-                        </div>
+                        <!-- Right: Actions -->
+                        <div class="d-flex align-items-center">
+                            <!-- Select All Switch -->
+                            <div class="form-check me-4 mb-0">
+                                <input class="form-check-input select-all-module stop-propagation" type="checkbox" 
+                                       id="select-all-@parentIndex" data-module-id="@parent.PageId">
+                                <label class="form-check-label text-muted small stop-propagation" for="select-all-@parentIndex">
+                                    Select All
+                                </label>
+                            </div>
 
-                        @if (hasChildren)
-                        {
-                            <span class="badge bg-secondary border">@children.Count pages</span>
-                        }
+                            <!-- Hidden inputs -->
+                            <div class="d-none">
+                                <input type="checkbox" name="permissions[@parentIndex].CanCreate" value="true" @(parent.CanCreate ? "checked" : "")>
+                                <input type="checkbox" name="permissions[@parentIndex].CanEdit" value="true" @(parent.CanEdit ? "checked" : "")>
+                                <input type="checkbox" name="permissions[@parentIndex].CanDelete" value="true" @(parent.CanDelete ? "checked" : "")>
+                            </div>
+
+                            @if (hasChildren)
+                            {
+                                <span class="badge bg-light text-dark border">@children.Count pages</span>
+                            }
+                        </div>
                     </div>
 
                     <!-- Module Content (Table) -->
@@ -108,7 +122,7 @@
                                                 
                                                 <!-- View -->
                                                 <td class="text-center">
-                                                    <div class="form-check form-switch d-inline-block">
+                                                    <div class="form-check d-inline-block">
                                                         <input class="form-check-input perm-view" type="checkbox" 
                                                                name="permissions[@childIndex].CanView" value="true"
                                                                id="p-@childIndex-view" @(child.CanView ? "checked" : "")>
@@ -117,7 +131,7 @@
                                                 
                                                 <!-- Create -->
                                                 <td class="text-center">
-                                                    <div class="form-check form-switch d-inline-block">
+                                                    <div class="form-check d-inline-block">
                                                         <input class="form-check-input perm-action" type="checkbox" 
                                                                name="permissions[@childIndex].CanCreate" value="true"
                                                                id="p-@childIndex-create" @(child.CanCreate ? "checked" : "")>
@@ -126,7 +140,7 @@
                                                 
                                                 <!-- Edit -->
                                                 <td class="text-center">
-                                                    <div class="form-check form-switch d-inline-block">
+                                                    <div class="form-check d-inline-block">
                                                         <input class="form-check-input perm-action" type="checkbox" 
                                                                name="permissions[@childIndex].CanEdit" value="true"
                                                                id="p-@childIndex-edit" @(child.CanEdit ? "checked" : "")>
@@ -135,7 +149,7 @@
                                                 
                                                 <!-- Delete -->
                                                 <td class="text-center">
-                                                    <div class="form-check form-switch d-inline-block">
+                                                    <div class="form-check d-inline-block">
                                                         <input class="form-check-input perm-action" type="checkbox" 
                                                                name="permissions[@childIndex].CanDelete" value="true"
                                                                id="p-@childIndex-delete" @(child.CanDelete ? "checked" : "")>
@@ -170,7 +184,21 @@
 @section Scripts {
     <script>
         document.addEventListener('DOMContentLoaded', function() {
-            
+            // 0. Initialize Select All State on Load
+            document.querySelectorAll('.select-all-module').forEach(selectAllCb => {
+                const moduleId = selectAllCb.dataset.moduleId;
+                const moduleContainer = document.getElementById('module-' + moduleId);
+                if (moduleContainer) {
+                    const allChildCheckboxes = moduleContainer.querySelectorAll('input[type="checkbox"]');
+                    if (allChildCheckboxes.length > 0) {
+                        const allChecked = Array.from(allChildCheckboxes).every(cb => cb.checked);
+                        selectAllCb.checked = allChecked;
+                    }
+                }
+            });
+        });
+
+        document.addEventListener('DOMContentLoaded', function() {
             // 1. Dependency Logic: Unchecking 'View' unchecks actions
             document.querySelectorAll('.perm-view').forEach(cb => {
                 cb.addEventListener('change', function() {
@@ -178,6 +206,7 @@
                         const row = this.closest('tr');
                         row.querySelectorAll('.perm-action').forEach(a => a.checked = false);
                     }
+                    updateSelectAllState(this);
                 });
             });
 
@@ -189,6 +218,7 @@
                         const viewCb = row.querySelector('.perm-view');
                         if(viewCb) viewCb.checked = true;
                     }
+                    updateSelectAllState(this);
                 });
             });
 
@@ -199,19 +229,56 @@
                     const moduleContainer = document.getElementById('module-' + moduleId);
                     
                     if(moduleContainer) {
-                        // If Parent is unchecked, uncheck ALL children permissions?
-                        // Or just collapse? Typically disabling parent disables children access.
-                        // Let's implement: Uncheck Parent -> Uncheck All Children Views
-                        // Check Parent -> No auto-action (user selects what they want)
-                        
                         if(!this.checked) {
                             moduleContainer.querySelectorAll('input[type="checkbox"]').forEach(cb => cb.checked = false);
+                            
+                            // Also uncheck Select All
+                            const selectAllCb = document.querySelector(`.select-all-module[data-module-id="${moduleId}"]`);
+                            if(selectAllCb) selectAllCb.checked = false;
                         }
                     }
                 });
             });
 
-            // 4. Expand/Collapse
+            // 4. Select All Logic
+            document.querySelectorAll('.select-all-module').forEach(selectAllCb => {
+                selectAllCb.addEventListener('change', function() {
+                    const moduleId = this.dataset.moduleId;
+                    const moduleContainer = document.getElementById('module-' + moduleId);
+                    
+                    if (moduleContainer) {
+                        const allChildCheckboxes = moduleContainer.querySelectorAll('input[type="checkbox"]');
+                        allChildCheckboxes.forEach(cb => cb.checked = this.checked);
+
+                        // If checking Select All, ensure Parent View is also checked
+                        if (this.checked) {
+                            const parentViewCb = document.querySelector(`.parent-toggle[data-module-id="${moduleId}"]`);
+                            if (parentViewCb && !parentViewCb.checked) {
+                                parentViewCb.checked = true;
+                                // We might need to manually trigger change if we had logic attached to it, 
+                                // but here we just need visually checked.
+                            }
+                        }
+                    }
+                });
+            });
+
+            // Helper to update "Select All" state based on children
+            function updateSelectAllState(childCheckbox) {
+                const moduleContainer = childCheckbox.closest('.collapse');
+                if (!moduleContainer) return;
+                
+                const moduleId = moduleContainer.id.replace('module-', '');
+                const selectAllCb = document.querySelector(`.select-all-module[data-module-id="${moduleId}"]`);
+                
+                if (selectAllCb) {
+                    const allChildCheckboxes = moduleContainer.querySelectorAll('input[type="checkbox"]');
+                    const allChecked = Array.from(allChildCheckboxes).every(cb => cb.checked);
+                    selectAllCb.checked = allChecked;
+                }
+            }
+
+            // 5. Expand/Collapse
             document.querySelectorAll('.toggle-module').forEach(header => {
                 header.addEventListener('click', function(e) {
                     // Prevent toggle when clicking the switch inside header

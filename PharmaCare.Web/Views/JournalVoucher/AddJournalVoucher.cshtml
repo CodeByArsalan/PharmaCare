@@ -28,7 +28,7 @@
                 <div class="col-md-4">
                     <label asp-for="VoucherType_ID" class="form-label"></label>
                     <select asp-for="VoucherType_ID" class="form-select" asp-items="@_combobox.GetManualVoucherTypes()" required>
-                        <option value="">Select Type</option>
+                        <option value="">-- Select Type --</option>
                     </select>
                     <span asp-validation-for="VoucherType_ID" class="text-danger"></span>
                 </div>
@@ -70,7 +70,7 @@
                             <tr class="detail-row">
                                 <td>
                                     <select name="VoucherDetails[@i].Account_ID" class="form-select account-select" asp-items="@_combobox.GetActiveAccounts(Model.VoucherDetails[i].Account_ID)" required>
-                                        <option value="">Select Account</option>
+                                        <option value="">-- Select Account --</option>
                                     </select>
                                 </td>
                                 <td>

@@ -1,3 +1,4 @@
+using Microsoft.EntityFrameworkCore;
 using PharmaCare.Application.Interfaces;
 using PharmaCare.Application.Interfaces.Security;
 using PharmaCare.Domain.Entities.Security;
@@ -29,6 +30,8 @@ public class UserService : IUserService
     public async Task<List<User>> GetAllUsersAsync()
     {
         var users = await _userRepository.Query()
+            .Include(u => u.UserRoles)
+            .ThenInclude(ur => ur.Role)
             .ToListAsync();
         return users.OrderBy(u => u.FullName).ToList();
     }
@@ -126,15 +129,6 @@ public class UserService : IUserService
     public async Task<List<Role>> GetRolesForDropdownAsync()
     {
         return await _roleRepository.GetActiveRolesAsync();
-    }
-}
-
-// Extension to add ToListAsync for IQueryable without EF Core dependency in Application layer
-internal static class QueryableExtensions
-{
-    public static async Task<List<T>> ToListAsync<T>(this System.Linq.IQueryable<T> query)
-    {
-        return await Task.Run(() => query.ToList());
     }
 }
 

@@ -55,6 +55,11 @@ public class JournalVoucherController : BaseController
             ModelState.AddModelError("", $"Total Debit ({vm.TotalDebit}) must equal Total Credit ({vm.TotalCredit}).");
         }
 
+        if (vm.VoucherDetails == null || !vm.VoucherDetails.Any())
+        {
+             ModelState.AddModelError("", "At least one voucher detail row is required.");
+        }
+
         if (ModelState.IsValid)
         {
             try
@@ -76,11 +81,17 @@ public class JournalVoucherController : BaseController
                     }).ToList()
                 };
 
+                await _jvService.CreateJournalVoucherAsync(dto, CurrentUserId); // Pass DTO, not ViewModel
+                ShowMessage(MessageType.Success, "Journal Voucher created successfully!");
                 return RedirectToAction(nameof(JournalVoucherIndex));
             }
             catch (Exception ex)
             {
                 ModelState.AddModelError("", "Error creating voucher: " + ex.Message);
+                if (ex.InnerException != null)
+                {
+                    ModelState.AddModelError("", "Details: " + ex.InnerException.Message);
+                }
             }
         }
 

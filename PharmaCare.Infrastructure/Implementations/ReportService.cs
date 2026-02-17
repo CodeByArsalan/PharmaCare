@@ -996,9 +996,9 @@ public class ReportService : IReportService
             else
             {
                 if (PurchaseCodes.Contains(s.TransactionType!.Code))
-                    ledgerEntries.Add((s.TransactionDate, s.TransactionNo, "Purchase", s.TotalAmount, 0));
+                    ledgerEntries.Add((s.TransactionDate, s.TransactionNo, "Purchase", 0, s.TotalAmount));
                 else
-                    ledgerEntries.Add((s.TransactionDate, s.TransactionNo, "Purchase Return", 0, s.TotalAmount));
+                    ledgerEntries.Add((s.TransactionDate, s.TransactionNo, "Purchase Return", s.TotalAmount, 0));
             }
         }
 

@@ -1044,3 +1044,40 @@ body {
 [data-theme="dark"] .card strong {
     color: #e2e8f0 !important;
 }
+/* Generic Form Control Dark Theme Override */
+[data-bs-theme="dark"] .form-control,
+[data-bs-theme="dark"] .form-select,
+[data-theme="dark"] .form-control,
+[data-theme="dark"] .form-select {
+    background-color: #1e293b !important;
+    color: #f1f5f9 !important;
+    border-color: #334155 !important;
+}
+
+[data-bs-theme="dark"] .form-control:focus,
+[data-bs-theme="dark"] .form-select:focus,
+[data-theme="dark"] .form-control:focus,
+[data-theme="dark"] .form-select:focus {
+    background-color: #1e293b !important;
+    border-color: #0ea5e9 !important;
+    color: #f1f5f9 !important;
+}
+
+[data-bs-theme="dark"] .form-control::placeholder,
+[data-theme="dark"] .form-control::placeholder {
+    color: #64748b !important;
+}
+
+/* Fix for Chrome/Edge Autofill White Background in Dark Mode */
+[data-bs-theme="dark"] input:-webkit-autofill,
+[data-bs-theme="dark"] input:-webkit-autofill:hover,
+[data-bs-theme="dark"] input:-webkit-autofill:focus,
+[data-bs-theme="dark"] input:-webkit-autofill:active,
+[data-theme="dark"] input:-webkit-autofill,
+[data-theme="dark"] input:-webkit-autofill:hover,
+[data-theme="dark"] input:-webkit-autofill:focus,
+[data-theme="dark"] input:-webkit-autofill:active {
+    -webkit-box-shadow: 0 0 0 30px #1e293b inset !important;
+    -webkit-text-fill-color: #f1f5f9 !important;
+    transition: background-color 5000s ease-in-out 0s;
+}
