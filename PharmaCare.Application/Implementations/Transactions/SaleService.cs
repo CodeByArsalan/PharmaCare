@@ -6,6 +6,7 @@ using PharmaCare.Application.Settings;
 using PharmaCare.Domain.Entities.Accounting;
 using PharmaCare.Domain.Entities.Configuration;
 using PharmaCare.Domain.Entities.Transactions;
+using PharmaCare.Application.Interfaces.Configuration;
 
 namespace PharmaCare.Application.Implementations.Transactions;
 
@@ -22,6 +23,8 @@ public class SaleService : ISaleService
     private readonly IRepository<Product> _productRepository;
     private readonly IUnitOfWork _unitOfWork;
     private readonly SystemAccountSettings _systemAccounts;
+    private readonly IProductService _productService;
+    private readonly IPartyService _partyService;
 
     private const string TRANSACTION_TYPE_CODE = "SALE";
     private const string PREFIX = "SALE";
@@ -36,7 +39,9 @@ public class SaleService : ISaleService
         IRepository<Account> accountRepository,
         IRepository<Product> productRepository,
         IUnitOfWork unitOfWork,
-        IOptions<SystemAccountSettings> systemAccountSettings)
+        IOptions<SystemAccountSettings> systemAccountSettings,
+        IProductService productService,
+        IPartyService partyService)
     {
         _stockMainRepository = stockMainRepository;
         _transactionTypeRepository = transactionTypeRepository;
@@ -46,6 +51,8 @@ public class SaleService : ISaleService
         _productRepository = productRepository;
         _unitOfWork = unitOfWork;
         _systemAccounts = systemAccountSettings.Value;
+        _productService = productService;
+        _partyService = partyService;
     }
 
     public async Task<IEnumerable<StockMain>> GetAllAsync()
@@ -87,6 +94,9 @@ public class SaleService : ISaleService
 
         // Calculate totals
         CalculateTotals(sale);
+
+        // Validate Sale (Stock & Walking Customer)
+        await ValidateSaleAsync(sale);
 
         // Set payment status based on paid amount
         if (sale.PaidAmount >= sale.TotalAmount)
@@ -586,5 +596,73 @@ public class SaleService : ISaleService
 
         sale.TotalAmount = sale.SubTotal - sale.DiscountAmount;
         sale.BalanceAmount = sale.TotalAmount - sale.PaidAmount;
+    }
+
+    private async Task ValidateSaleAsync(StockMain sale)
+    {
+        // 1. Stock Validation
+        var productIds = sale.StockDetails.Select(d => d.Product_ID).Distinct().ToList();
+        var stockStatus = await _productService.GetStockStatusAsync(productIds);
+
+        foreach (var detail in sale.StockDetails)
+        {
+            if (stockStatus.TryGetValue(detail.Product_ID, out var currentStock))
+            {
+                if (detail.Quantity > currentStock)
+                {
+                    var product = await _productRepository.GetByIdAsync(detail.Product_ID);
+                    throw new InvalidOperationException(
+                        $"Insufficient stock for product '{product?.Name ?? "ID " + detail.Product_ID}'. " +
+                        $"Requested: {detail.Quantity}, Available: {currentStock}");
+                }
+            }
+        }
+
+        // 2. Walking Customer Validation
+        bool isWalkingCustomer = false;
+        
+        // Check 1: Explicit System Account ID Match (Reliable)
+        if (sale.Party_ID.HasValue)
+        {
+            var party = await _partyService.GetByIdWithAccountAsync(sale.Party_ID.Value);
+            
+            // Log for debugging
+            // Console.WriteLine($"Validating Sale - PartyID: {party?.PartyID}, Name: {party?.Name}, AccountID: {party?.Account?.AccountID}");
+
+            if (party != null)
+            {
+                if (party.Account != null && party.Account.AccountID == _systemAccounts.WalkingCustomerAccountId)
+                {
+                    isWalkingCustomer = true;
+                }
+                
+                // Check 2: Name Fallback
+                if (!isWalkingCustomer)
+                {
+                    var name = party.Name.ToLower();
+                    if (name.Contains("walkin") || name.Contains("walk-in") || name.Contains("walk in") || name.Contains("counter"))
+                    {
+                        isWalkingCustomer = true;
+                    }
+                }
+            }
+        }
+        else
+        {
+            // If logic allows null Party_ID to mean Walking Customer
+            isWalkingCustomer = true; 
+        }
+
+        if (isWalkingCustomer)
+        {
+            // Paid Amount must equal Total Amount
+            // Allow small buffer for floating point
+            if (sale.PaidAmount < (sale.TotalAmount - 0.01m))
+            {
+                 throw new InvalidOperationException(
+                    "Walking/Counter Customers must pay the full amount immediately. " +
+                    $"Total: {sale.TotalAmount}, Paid: {sale.PaidAmount}");
+            }
+        }
     }
 }

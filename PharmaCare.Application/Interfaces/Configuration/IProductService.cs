@@ -31,4 +31,9 @@ public interface IProductService
     /// Optionally filters prices by priceTypeId.
     /// </summary>
     Task<IEnumerable<(Product Product, decimal CurrentStock, decimal? SpecificPrice)>> GetProductsWithStockAsync(int? priceTypeId = null);
+
+    /// <summary>
+    /// efficient stock retrieval for validation
+    /// </summary>
+    Task<Dictionary<int, decimal>> GetStockStatusAsync(List<int> productIds);
 }

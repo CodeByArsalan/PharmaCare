@@ -34,6 +34,11 @@ public interface IPaymentService
     Task<Payment> CreatePaymentAsync(Payment payment, int userId);
 
     /// <summary>
+    /// Gets amount currently receivable from supplier (supplier owes company).
+    /// </summary>
+    Task<decimal> GetSupplierPayableToMeAsync(int supplierId);
+
+    /// <summary>
     /// Creates an advance payment to a supplier (not linked to any GRN).
     /// DR: Supplier Account (creates debit balance / reduces payable)
     /// CR: Cash/Bank Account

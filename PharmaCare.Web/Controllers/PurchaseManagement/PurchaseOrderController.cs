@@ -78,9 +78,17 @@ public class PurchaseOrderController : BaseController
         {
             try
             {
-                await _purchaseOrderService.CreateAsync(purchaseOrder, CurrentUserId);
-                ShowMessage(MessageType.Success, "Purchase Order created successfully!");
-                return RedirectToAction(nameof(PurchaseOrdersIndex));
+                var createdPurchaseOrder = await _purchaseOrderService.CreateAsync(purchaseOrder, CurrentUserId);
+                var isApproved = await _purchaseOrderService.ApproveAsync(createdPurchaseOrder.StockMainID, CurrentUserId);
+
+                if (!isApproved)
+                {
+                    ShowMessage(MessageType.Warning, "Purchase Order created, but automatic approval failed.");
+                    return RedirectToAction(nameof(PurchaseOrdersIndex));
+                }
+
+                ShowMessage(MessageType.Success, "Purchase Order created and approved successfully. Proceed with payment.");
+                return RedirectToAction(nameof(MakePayment), new { id = createdPurchaseOrder.StockMainID.EncryptId() });
             }
             catch (Exception ex)
             {
@@ -173,14 +181,14 @@ public class PurchaseOrderController : BaseController
         var result = await _purchaseOrderService.ApproveAsync(poId, CurrentUserId);
         if (result)
         {
-            ShowMessage(MessageType.Success, "Purchase Order approved successfully!");
+            ShowMessage(MessageType.Success, "Purchase Order approved successfully! You can now record an advance payment.");
+            return RedirectToAction(nameof(MakePayment), new { id = id });
         }
         else
         {
             ShowMessage(MessageType.Error, "Failed to approve Purchase Order.");
+            return RedirectToAction(nameof(PurchaseOrdersIndex));
         }
-
-        return RedirectToAction(nameof(PurchaseOrdersIndex));
     }
 
     [HttpPost]
@@ -256,14 +264,19 @@ public class PurchaseOrderController : BaseController
             return RedirectToAction(nameof(PurchaseOrdersIndex));
         }
 
+        var supplierPayableToMe = await _paymentService.GetSupplierPayableToMeAsync(po.Party_ID ?? 0);
+        var autoDeduction = Math.Min(supplierPayableToMe, po.BalanceAmount);
+        var finalPayableAmount = po.BalanceAmount - autoDeduction;
+
         // Use IComboboxRepository in View for accounts
         ViewBag.PO = po;
+        SetPaymentContextViewData(supplierPayableToMe, autoDeduction, finalPayableAmount);
 
         return View(new Domain.Entities.Finance.Payment
         {
             StockMain_ID = po.StockMainID,
             Party_ID = po.Party_ID ?? 0,
-            Amount = po.BalanceAmount,
+            Amount = finalPayableAmount,
             PaymentDate = DateTime.Now,
             PaymentMethod = "Cash"
         });
@@ -274,6 +287,36 @@ public class PurchaseOrderController : BaseController
     [LinkedToPage("PurchaseOrder", "PurchaseOrdersIndex", PermissionType = "create")]
     public async Task<IActionResult> MakePayment(Domain.Entities.Finance.Payment payment)
     {
+        var po = await _purchaseOrderService.GetByIdAsync(payment.StockMain_ID ?? 0);
+        if (po == null)
+        {
+            ShowMessage(MessageType.Error, "Purchase Order not found.");
+            return RedirectToAction(nameof(PurchaseOrdersIndex));
+        }
+
+        if (po.Status != "Approved")
+        {
+            ShowMessage(MessageType.Warning, "Payments can only be made against Approved Purchase Orders.");
+            return RedirectToAction(nameof(PurchaseOrdersIndex));
+        }
+
+        var supplierPayableToMe = await _paymentService.GetSupplierPayableToMeAsync(po.Party_ID ?? 0);
+        var autoDeduction = Math.Min(supplierPayableToMe, po.BalanceAmount);
+        var finalPayableAmount = po.BalanceAmount - autoDeduction;
+
+        if (finalPayableAmount <= 0)
+        {
+            ModelState.AddModelError("Amount", "No cash payment is required. Supplier payable-to-me fully offsets this Purchase Order.");
+        }
+        else if (payment.Amount > finalPayableAmount)
+        {
+            ModelState.AddModelError("Amount", $"Payment amount cannot exceed net payable amount ({finalPayableAmount:N2}) after supplier deduction.");
+        }
+
+        // Prevent tampering with hidden fields.
+        payment.Party_ID = po.Party_ID ?? 0;
+        payment.StockMain_ID = po.StockMainID;
+
         // Remove validation for navigation properties
         ModelState.Remove("Party");
         ModelState.Remove("StockMain");
@@ -299,9 +342,8 @@ public class PurchaseOrderController : BaseController
             }
         }
 
-        // Reload PO for display if error
-        var po = await _purchaseOrderService.GetByIdAsync(payment.StockMain_ID ?? 0);
         ViewBag.PO = po;
+        SetPaymentContextViewData(supplierPayableToMe, autoDeduction, finalPayableAmount);
         return View(payment);
     }
 
@@ -322,5 +364,12 @@ public class PurchaseOrderController : BaseController
             "ProductID",
             "Name"
         );
+    }
+
+    private void SetPaymentContextViewData(decimal supplierPayableToMe, decimal autoDeduction, decimal finalPayableAmount)
+    {
+        ViewBag.SupplierPayableToMe = supplierPayableToMe;
+        ViewBag.AutoDeduction = autoDeduction;
+        ViewBag.FinalPayableAmount = Math.Max(0, finalPayableAmount);
     }
 }

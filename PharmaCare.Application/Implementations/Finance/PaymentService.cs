@@ -23,9 +23,11 @@ public class PaymentService : IPaymentService
     private readonly IUnitOfWork _unitOfWork;
 
     private const string GRN_TRANSACTION_TYPE_CODE = "GRN";
+    private const string PURCHASE_RETURN_TRANSACTION_TYPE_CODE = "PRTN";
     private const string PREFIX = "PAY";
     private const string CASH_PAYMENT_VOUCHER_CODE = "CP"; // Cash Payment Voucher
     private const string BANK_PAYMENT_VOUCHER_CODE = "BP"; // Bank Payment Voucher
+    private const string SUPPLIER_PAYMENT_TYPE = "PAYMENT";
 
     public PaymentService(
         IRepository<Payment> paymentRepository,
@@ -96,6 +98,41 @@ public class PaymentService : IPaymentService
             .ToListAsync();
     }
 
+    public async Task<decimal> GetSupplierPayableToMeAsync(int supplierId)
+    {
+        if (supplierId <= 0)
+            return 0;
+
+        var supplier = await _partyRepository.Query()
+            .AsNoTracking()
+            .FirstOrDefaultAsync(p => p.PartyID == supplierId && p.PartyType == "Supplier");
+
+        if (supplier == null)
+            return 0;
+
+        var totalPurchases = await _stockMainRepository.Query()
+            .Include(s => s.TransactionType)
+            .Where(s => s.Party_ID == supplierId
+                        && s.TransactionType!.Code == GRN_TRANSACTION_TYPE_CODE
+                        && s.Status != "Void")
+            .SumAsync(s => (decimal?)s.TotalAmount) ?? 0;
+
+        var totalPurchaseReturns = await _stockMainRepository.Query()
+            .Include(s => s.TransactionType)
+            .Where(s => s.Party_ID == supplierId
+                        && s.TransactionType!.Code == PURCHASE_RETURN_TRANSACTION_TYPE_CODE
+                        && s.Status != "Void")
+            .SumAsync(s => (decimal?)s.TotalAmount) ?? 0;
+
+        var totalPayments = await _paymentRepository.Query()
+            .Where(p => p.Party_ID == supplierId && p.PaymentType == SUPPLIER_PAYMENT_TYPE)
+            .SumAsync(p => (decimal?)p.Amount) ?? 0;
+
+        // Positive = payable to supplier; Negative = supplier owes company.
+        var supplierNetPayable = supplier.OpeningBalance + totalPurchases - totalPurchaseReturns - totalPayments;
+        return supplierNetPayable < 0 ? Math.Abs(supplierNetPayable) : 0;
+    }
+
     public async Task<Payment> CreatePaymentAsync(Payment payment, int userId)
     {
         // Validate the transaction exists (include Party and their Account)
@@ -127,7 +164,7 @@ public class PaymentService : IPaymentService
 
         // Generate reference number
         payment.Reference = await GenerateReferenceNoAsync();
-        payment.PaymentType = "PAYMENT"; // Supplier payment
+        payment.PaymentType = SUPPLIER_PAYMENT_TYPE; // Supplier payment
         payment.CreatedAt = DateTime.Now;
         payment.CreatedBy = userId;
 
@@ -298,7 +335,7 @@ public class PaymentService : IPaymentService
 
         // Generate reference number
         payment.Reference = await GenerateReferenceNoAsync();
-        payment.PaymentType = "PAYMENT"; // Supplier payment
+        payment.PaymentType = SUPPLIER_PAYMENT_TYPE; // Supplier payment
         payment.StockMain_ID = null; // No GRN link — this is an advance
         payment.Remarks = string.IsNullOrWhiteSpace(payment.Remarks)
             ? $"Advance payment to {supplier.Name}"
@@ -330,7 +367,7 @@ public class PaymentService : IPaymentService
         return await _paymentRepository.Query()
             .Include(p => p.Party)
             .Include(p => p.Account)
-            .Where(p => p.PaymentType == "PAYMENT" && p.StockMain_ID == null)
+            .Where(p => p.PaymentType == SUPPLIER_PAYMENT_TYPE && p.StockMain_ID == null)
             .OrderByDescending(p => p.PaymentDate)
             .ThenByDescending(p => p.PaymentID)
             .ToListAsync();

@@ -952,8 +952,8 @@ public class ReportService : IReportService
                         && p.PaymentType == paymentType)
             .ToListAsync();
 
-        // For customer: Sale = Debit (adds to balance), Receipt = Credit (reduces balance)
-        // For supplier: Purchase = Credit (adds to payable), Payment = Debit (reduces payable)
+        // For customer: Sale = Debit (adds to receivable), Receipt = Credit (reduces receivable)
+        // For supplier: Purchase = Credit (adds to payable), Payment/Return = Debit (reduces payable)
         decimal openingBalance = party.OpeningBalance;
         if (isCustomer)
         {
@@ -1019,7 +1019,8 @@ public class ReportService : IReportService
         var runningBalance = openingBalance;
         var rows = ledgerEntries.Select(e =>
         {
-            runningBalance += e.Debit - e.Credit;
+            // Customer balance follows Dr-Cr; supplier payable balance follows Cr-Dr.
+            runningBalance += isCustomer ? (e.Debit - e.Credit) : (e.Credit - e.Debit);
             return new PartyLedgerRow
             {
                 Date = e.Date,

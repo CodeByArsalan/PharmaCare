@@ -38,7 +38,7 @@
     <div class="row g-3 mb-4">
         <div class="col-md-3"><div class="card text-center"><div class="card-body"><small class="text-muted">Supplier</small><h5 class="mb-0">@Model.PartyName</h5></div></div></div>
         <div class="col-md-3"><div class="card text-center"><div class="card-body"><small class="text-muted">Opening Balance</small><h5 class="text-primary mb-0">@Model.OpeningBalance.ToString("N2")</h5></div></div></div>
-        <div class="col-md-3"><div class="card text-center"><div class="card-body"><small class="text-muted">Total Debit</small><h5 class="mb-0">@Model.TotalDebit.ToString("N2")</h5></div></div></div>
+        <div class="col-md-3"><div class="card text-center"><div class="card-body"><small class="text-muted">Total Credit</small><h5 class="mb-0">@Model.TotalCredit.ToString("N2")</h5></div></div></div>
         <div class="col-md-3"><div class="card text-center"><div class="card-body"><small class="text-muted">Closing Balance</small><h5 class="@(Model.ClosingBalance >= 0 ? "text-danger" : "text-success") mb-0">@Model.ClosingBalance.ToString("N2")</h5></div></div></div>
     </div>
 

@@ -322,22 +322,17 @@
             checkCounterParty();
         });
 
-        // Check if selected customer is a counter party (name contains 'Counter')
+        // Check if selected customer is a counter/walking party
         function checkCounterParty() {
-            const customerSelect = document.getElementById('customerSelect');
-            const selectedOption = customerSelect.options[customerSelect.selectedIndex];
-            const customerName = selectedOption ? selectedOption.text : '';
             const paidAmountInput = document.getElementById('paidAmount');
             
-            // Check if customer name contains 'Counter' (case-insensitive)
-            const isCounterParty = customerName.toLowerCase().includes('counter');
-            
-            if (isCounterParty) {
-                // Counter party: Paid = Total, readonly, payment account required
+            // Use the shared detection function
+            if (isCurrentCustomerCounter()) {
+                // Counter/Walking party: Paid = Total, readonly, payment account required
                 paidAmountInput.readOnly = true;
                 paidAmountInput.style.backgroundColor = 'var(--bg-elevated)';
                 paidAmountInput.style.color = 'var(--text-primary)';
-                paidAmountInput.title = 'Counter customer - full payment required';
+                paidAmountInput.title = 'Walking/Counter customer - full payment required';
             } else {
                 // Regular party: Paid is editable
                 paidAmountInput.readOnly = false;
@@ -350,12 +345,12 @@
             calculateTotals();
         }
         
-        // Helper to check if current customer is counter party
+        // Helper to check if current customer is counter party or walking customer
         function isCurrentCustomerCounter() {
             const customerSelect = document.getElementById('customerSelect');
             const selectedOption = customerSelect.options[customerSelect.selectedIndex];
-            const customerName = selectedOption ? selectedOption.text : '';
-            return customerName.toLowerCase().includes('counter');
+            const customerName = selectedOption ? selectedOption.text.toLowerCase() : '';
+            return customerName.includes('counter') || customerName.includes('walkin') || customerName.includes('walk-in') || customerName.includes('walk in');
         }
 
         function addLineItem(detail = null) {
@@ -435,9 +430,28 @@
 
         function calculateLineTotal(e) {
             const row = e.target.closest('tr');
-            const quantity = parseFloat(row.querySelector('.quantity-input').value) || 0;
+            const quantityInput = row.querySelector('.quantity-input');
+            const quantity = parseFloat(quantityInput.value) || 0;
             const unitPrice = parseFloat(row.querySelector('.price-input').value) || 0;
             const costPrice = parseFloat(row.querySelector('.cost-price-input').value) || 0;
+            
+            // Stock Validation
+            const select = row.querySelector('.product-select');
+            const selectedOption = select.options[select.selectedIndex];
+            const stock = parseFloat(selectedOption.dataset.stock) || 0;
+
+            if (quantity > stock) {
+                // Show visual indicator (bootstrap invalid class)
+                quantityInput.classList.add('is-invalid');
+                
+                // Optional: Tooltip or message?
+                // For now, adding a title
+                quantityInput.title = `Insufficient Stock! Available: ${stock}`;
+            } else {
+                quantityInput.classList.remove('is-invalid');
+                quantityInput.title = '';
+            }
+
             const lineTotal = quantity * unitPrice;
             const lineCost = quantity * costPrice;
             
@@ -589,29 +603,60 @@
         document.getElementById('confirmSaveBtn').addEventListener('click', showConfirmationModal);
 
         function showConfirmationModal() {
-            // 1. Custom Validation: Payment Account Required if Paid Amount > 0
+            // 1. Stock Validation Check
+            const quantityInputs = document.querySelectorAll('.quantity-input');
+            let stockError = false;
+            quantityInputs.forEach(input => {
+                if (input.classList.contains('is-invalid')) {
+                    stockError = true;
+                }
+            });
+
+            if (stockError) {
+                alert('Please correct stock quantity errors before saving.');
+                return;
+            }
+
+            // 2. Custom Validation: Payment Account Required if Paid Amount > 0
             const paidAmount = parseFloat(document.getElementById('paidAmount').value) || 0;
+            const totalAmount = parseFloat(document.getElementById('totalAmount').value) || 0;
             const paymentAccountId = document.getElementById('paymentAccountId');
             
+            // Walking Customer Check
+            if (isCurrentCustomerCounter()) {
+                // For walking/counter customers, paid amount must equal total amount
+                // Allow small floating point difference
+                if (paidAmount < (totalAmount - 0.01)) {
+                    alert('Walking/Counter customers must pay the full amount immediately.');
+                    
+                    // Auto-fix the amount to help the user
+                    document.getElementById('paidAmount').value = totalAmount.toFixed(2);
+                    calculatePayment(); // Update balance and payment account visibility
+                    
+                    document.getElementById('paidAmount').focus();
+                    return;
+                }
+            }
+
             if (paidAmount > 0 && !paymentAccountId.value) {
+                // Ensure payment account is visible so user can select it
+                document.getElementById('paymentAccountSection').style.display = 'block';
+                
                 paymentAccountId.setCustomValidity('Please select a payment account.');
                 paymentAccountId.reportValidity();
-                
-                // Also ensure the section is visible
-                document.getElementById('paymentAccountSection').style.display = 'block';
                 return;
             } else {
                 paymentAccountId.setCustomValidity('');
             }
 
-            // 2. Validate form
+            // 3. Validate form
             const form = document.getElementById('saleForm');
             if (!form.checkValidity()) {
                 form.reportValidity();
                 return;
             }
             
-            // 3. Ensure at least one row
+            // 4. Ensure at least one row
             const rows = document.querySelectorAll('#lineItemsBody tr');
             if (rows.length === 0) {
                 alert('Please add at least one product.');

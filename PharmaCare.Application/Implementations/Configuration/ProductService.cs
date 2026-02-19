@@ -287,4 +287,40 @@ public class ProductService : IProductService
             SpecificPrice: priceTypeId.HasValue && priceDict.TryGetValue(p.ProductID, out var price) ? price : (decimal?)null
         ));
     }
+
+    public async Task<Dictionary<int, decimal>> GetStockStatusAsync(List<int> productIds)
+    {
+        if (productIds == null || !productIds.Any())
+            return new Dictionary<int, decimal>();
+
+        var products = await _repository.Query()
+            .Where(p => productIds.Contains(p.ProductID))
+            .Select(p => new { p.ProductID, p.OpeningQuantity })
+            .ToListAsync();
+
+        var stockMovements = await _stockDetailRepository.Query()
+            .Include(sd => sd.StockMain)
+                .ThenInclude(sm => sm!.TransactionType)
+            .Where(sd => productIds.Contains(sd.Product_ID) && 
+                         sd.StockMain!.Status == "Approved" && 
+                         sd.StockMain.TransactionType!.AffectsStock)
+            .GroupBy(sd => sd.Product_ID)
+            .Select(g => new
+            {
+                ProductId = g.Key,
+                StockChange = g.Sum(sd => sd.Quantity * sd.StockMain!.TransactionType!.StockDirection)
+            })
+            .ToListAsync();
+
+        var stockDict = stockMovements.ToDictionary(x => x.ProductId, x => x.StockChange);
+
+        var result = new Dictionary<int, decimal>();
+        foreach (var p in products)
+        {
+            var movement = stockDict.TryGetValue(p.ProductID, out var change) ? change : 0;
+            result[p.ProductID] = p.OpeningQuantity + movement;
+        }
+
+        return result;
+    }
 }
