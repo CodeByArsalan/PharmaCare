@@ -5,6 +5,7 @@ using PharmaCare.Application.Interfaces.Accounting;
 using PharmaCare.Application.Interfaces.Configuration;
 using PharmaCare.Application.Interfaces.Transactions;
 using PharmaCare.Domain.Entities.Transactions;
+using PharmaCare.Web.Filters;
 using PharmaCare.Web.Utilities;
 
 namespace PharmaCare.Web.Controllers.SalesManagement;
@@ -82,7 +83,7 @@ public class SaleController : BaseController
 
                 await _saleService.CreateAsync(sale, CurrentUserId, PaymentAccountId);
                 ShowMessage(MessageType.Success, "Sale created successfully!");
-                return RedirectToAction(nameof(SalesIndex));
+                return RedirectToAction(nameof(Receipt), new { id = Utility.EncryptId(sale.StockMainID) });
             }
             catch (Exception ex)
             {
@@ -113,9 +114,6 @@ public class SaleController : BaseController
         return View(sale);
     }
 
-    /// <summary>
-    /// Voids a sale.
-    /// </summary>
     [HttpPost]
     [ValidateAntiForgeryToken]
     public async Task<IActionResult> Void(string id, string voidReason)
@@ -145,9 +143,6 @@ public class SaleController : BaseController
         return RedirectToAction(nameof(SalesIndex));
     }
 
-    /// <summary>
-    /// Gets products as JSON for AJAX dropdown with calculated current stock.
-    /// </summary>
     [HttpGet]
     public async Task<IActionResult> GetProducts(int? priceTypeId)
     {
@@ -165,6 +160,24 @@ public class SaleController : BaseController
 
         return Json(result);
     }
+    [LinkedToPage("Sale", "SalesIndex")]
+    public async Task<IActionResult> Receipt(string id)
+    {
+        int saleId = Utility.DecryptId(id);
+        if (saleId == 0)
+        {
+            ShowMessage(MessageType.Error, "Invalid Sale ID.");
+            return RedirectToAction(nameof(SalesIndex));
+        }
 
-    // private async Task LoadDropdownsAsync() { ... } // Removed
+        var sale = await _saleService.GetByIdAsync(saleId);
+        if (sale == null)
+        {
+            ShowMessage(MessageType.Error, "Sale not found.");
+            return RedirectToAction(nameof(SalesIndex));
+        }
+
+        return View(sale);
+    }
+
 }

@@ -14,17 +14,20 @@ public class UserService : IUserService
     private readonly IUserRoleRepository _userRoleRepository;
     private readonly IRoleRepository _roleRepository;
     private readonly IRepository<User> _userRepository;
+    private readonly IUnitOfWork _unitOfWork;
 
     public UserService(
         IUserManager userManager,
         IUserRoleRepository userRoleRepository,
         IRoleRepository roleRepository,
-        IRepository<User> userRepository)
+        IRepository<User> userRepository,
+        IUnitOfWork unitOfWork)
     {
         _userManager = userManager;
         _userRoleRepository = userRoleRepository;
         _roleRepository = roleRepository;
         _userRepository = userRepository;
+        _unitOfWork = unitOfWork;
     }
 
     public async Task<List<User>> GetAllUsersAsync()
@@ -69,7 +72,7 @@ public class UserService : IUserService
             });
         }
 
-        await _userRoleRepository.SaveChangesAsync();
+        await _unitOfWork.SaveChangesAsync();
         return (true, null);
     }
 
@@ -109,7 +112,7 @@ public class UserService : IUserService
             });
         }
 
-        await _userRoleRepository.SaveChangesAsync();
+        await _unitOfWork.SaveChangesAsync();
         return (true, null);
     }
 
@@ -122,7 +125,7 @@ public class UserService : IUserService
         user.UpdatedAt = DateTime.Now;
         user.UpdatedBy = updatedBy;
 
-        await _userRepository.SaveChangesAsync();
+        await _unitOfWork.SaveChangesAsync();
         return true;
     }
 

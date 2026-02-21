@@ -12,42 +12,37 @@ namespace PharmaCare.Application.Implementations.Transactions;
 /// <summary>
 /// Service for managing Sale Returns.
 /// </summary>
-public class SaleReturnService : ISaleReturnService
+public class SaleReturnService : TransactionServiceBase, ISaleReturnService
 {
-    private readonly IRepository<StockMain> _stockMainRepository;
     private readonly IRepository<TransactionType> _transactionTypeRepository;
-    private readonly IRepository<Voucher> _voucherRepository;
     private readonly IRepository<VoucherType> _voucherTypeRepository;
-    private readonly IRepository<Account> _accountRepository;
     private readonly IRepository<Product> _productRepository;
+    private readonly IRepository<Account> _accountRepository;
     private readonly IRepository<Party> _partyRepository;
-    private readonly IUnitOfWork _unitOfWork;
     private readonly SystemAccountSettings _systemAccounts;
 
     private const string TRANSACTION_TYPE_CODE = "SRTN";
     private const string SALE_TRANSACTION_TYPE_CODE = "SALE";
     private const string PREFIX = "SRTN";
-    private const string SALE_RETURN_VOUCHER_CODE = "SRT";
+    private const string SALE_RETURN_VOUCHER_CODE = "SV"; // We typically use Sales Voucher type but effectively reverse it, OR a specific SRV type. 
 
     public SaleReturnService(
         IRepository<StockMain> stockMainRepository,
         IRepository<TransactionType> transactionTypeRepository,
         IRepository<Voucher> voucherRepository,
         IRepository<VoucherType> voucherTypeRepository,
-        IRepository<Account> accountRepository,
         IRepository<Product> productRepository,
+        IRepository<Account> accountRepository,
         IRepository<Party> partyRepository,
         IUnitOfWork unitOfWork,
         IOptions<SystemAccountSettings> systemAccountSettings)
+        : base(stockMainRepository, voucherRepository, unitOfWork)
     {
-        _stockMainRepository = stockMainRepository;
         _transactionTypeRepository = transactionTypeRepository;
-        _voucherRepository = voucherRepository;
         _voucherTypeRepository = voucherTypeRepository;
-        _accountRepository = accountRepository;
         _productRepository = productRepository;
+        _accountRepository = accountRepository;
         _partyRepository = partyRepository;
-        _unitOfWork = unitOfWork;
         _systemAccounts = systemAccountSettings.Value;
     }
 
@@ -56,8 +51,6 @@ public class SaleReturnService : ISaleReturnService
         return await _stockMainRepository.Query()
             .Include(s => s.TransactionType)
             .Include(s => s.Party)
-            .Include(s => s.ReferenceStockMain)
-            .Include(s => s.Voucher)
             .Where(s => s.TransactionType!.Code == TRANSACTION_TYPE_CODE)
             .OrderByDescending(s => s.TransactionDate)
             .ThenByDescending(s => s.StockMainID)
@@ -69,17 +62,34 @@ public class SaleReturnService : ISaleReturnService
         return await _stockMainRepository.Query()
             .Include(s => s.TransactionType)
             .Include(s => s.Party)
-            .Include(s => s.ReferenceStockMain)
-            .Include(s => s.Voucher)
-                .ThenInclude(v => v!.VoucherDetails)
             .Include(s => s.StockDetails)
                 .ThenInclude(d => d.Product)
+            .Include(s => s.Voucher)
             .FirstOrDefaultAsync(s => s.StockMainID == id && s.TransactionType!.Code == TRANSACTION_TYPE_CODE);
     }
 
     public async Task<StockMain> CreateAsync(StockMain saleReturn, int userId)
     {
-        // Get the SRTN transaction type
+        // 1. Validate Return against Original Sale
+        if (!saleReturn.ReferenceStockMain_ID.HasValue)
+        {
+            throw new InvalidOperationException("Sale Return must reference an original Sale.");
+        }
+
+        var originalSale = await _stockMainRepository.Query()
+            .Include(s => s.StockDetails)
+            .FirstOrDefaultAsync(s => s.StockMainID == saleReturn.ReferenceStockMain_ID.Value);
+
+        if (originalSale == null)
+        {
+            throw new InvalidOperationException("Original Sale not found.");
+        }
+
+        // Server-side quantity validation against the reference sale
+        await ValidateReturnQuantitiesAsync(saleReturn);
+        await PopulateMissingLineCostsFromReferenceSaleAsync(saleReturn);
+
+        // 2. Prepare StockMain
         var transactionType = await _transactionTypeRepository.Query()
             .FirstOrDefaultAsync(t => t.Code == TRANSACTION_TYPE_CODE);
 
@@ -87,30 +97,26 @@ public class SaleReturnService : ISaleReturnService
             throw new InvalidOperationException($"Transaction type '{TRANSACTION_TYPE_CODE}' not found.");
 
         saleReturn.TransactionType_ID = transactionType.TransactionTypeID;
-        saleReturn.TransactionNo = await GenerateTransactionNoAsync();
-        saleReturn.Status = "Approved"; // Returns are immediately approved (stock impact)
-        saleReturn.PaymentStatus = "Unpaid";
+        saleReturn.TransactionNo = await GenerateTransactionNoAsync(PREFIX);
+        saleReturn.Status = "Approved";
         saleReturn.CreatedAt = DateTime.Now;
         saleReturn.CreatedBy = userId;
+        saleReturn.Party_ID = originalSale.Party_ID; // Same party as original sale
 
         // Calculate totals
         CalculateTotals(saleReturn);
 
-        // Server-side quantity validation against the reference sale
-        if (saleReturn.ReferenceStockMain_ID.HasValue)
-        {
-            await ValidateReturnQuantitiesAsync(saleReturn);
-            await PopulateMissingLineCostsFromReferenceSaleAsync(saleReturn);
-        }
-
+        // 3. Save StockMain
         await _stockMainRepository.AddAsync(saleReturn);
         await _unitOfWork.SaveChangesAsync();
 
-        // Create accounting voucher for the sale return
+        // 4. Create Accounting Voucher
         var voucher = await CreateSaleReturnVoucherAsync(saleReturn, userId);
         saleReturn.Voucher_ID = voucher.VoucherID;
-        _stockMainRepository.Update(saleReturn);
 
+        // 5. Update Sale Return with Voucher ID
+        _stockMainRepository.Update(saleReturn);
+        
         // Update the reference Sale's balance if linked
         if (saleReturn.ReferenceStockMain_ID.HasValue)
         {
@@ -131,261 +137,212 @@ public class SaleReturnService : ISaleReturnService
         return saleReturn;
     }
 
-    public async Task<IEnumerable<StockMain>> GetSalesForReturnAsync(int? customerId = null)
-    {
-        var query = _stockMainRepository.Query()
-            .Include(s => s.TransactionType)
-            .Include(s => s.Party)
-            .Include(s => s.StockDetails)
-                .ThenInclude(d => d.Product)
-            .Where(s => s.TransactionType!.Code == SALE_TRANSACTION_TYPE_CODE 
-                     && s.Status == "Approved");
-
-        if (customerId.HasValue)
-        {
-            query = query.Where(s => s.Party_ID == customerId.Value);
-        }
-
-        return await query
-            .OrderByDescending(s => s.TransactionDate)
-            .ToListAsync();
-    }
-
-    public async Task<bool> VoidAsync(int id, string reason, int userId)
-    {
-        var saleReturn = await _stockMainRepository.Query()
-            .Include(s => s.TransactionType)
-            .Include(s => s.Voucher)
-                .ThenInclude(v => v!.VoucherDetails)
-            .FirstOrDefaultAsync(s => s.StockMainID == id && s.TransactionType!.Code == TRANSACTION_TYPE_CODE);
-
-        if (saleReturn == null)
-            return false;
-
-        if (saleReturn.Status == "Void")
-            return false;
-
-        saleReturn.Status = "Void";
-        saleReturn.VoidReason = reason;
-        saleReturn.VoidedAt = DateTime.Now;
-        saleReturn.VoidedBy = userId;
-
-        // Create reversal voucher if original voucher exists
-        if (saleReturn.Voucher_ID.HasValue)
-        {
-            await CreateReversalVoucherAsync(saleReturn, userId);
-        }
-
-        // Restore the reference Sale's balance if linked
-        if (saleReturn.ReferenceStockMain_ID.HasValue)
-        {
-            var sale = await _stockMainRepository.Query()
-                .Include(s => s.TransactionType)
-                .FirstOrDefaultAsync(s => s.StockMainID == saleReturn.ReferenceStockMain_ID.Value
-                                       && s.TransactionType!.Code == SALE_TRANSACTION_TYPE_CODE);
-
-            if (sale != null)
-            {
-                await RecalculateSaleBalanceIncludingReturnsAsync(sale, userId, saleReturn.StockMainID);
-                _stockMainRepository.Update(sale);
-            }
-        }
-
-        _stockMainRepository.Update(saleReturn);
-        await _unitOfWork.SaveChangesAsync();
-
-        return true;
-    }
-
-    private async Task<string> GenerateTransactionNoAsync()
-    {
-        var datePrefix = $"{PREFIX}-{DateTime.Now:yyyyMMdd}-";
-
-        var lastTransaction = await _stockMainRepository.Query()
-            .Where(s => s.TransactionNo.StartsWith(datePrefix))
-            .OrderByDescending(s => s.TransactionNo)
-            .FirstOrDefaultAsync();
-
-        int nextNum = 1;
-        if (lastTransaction != null)
-        {
-            var parts = lastTransaction.TransactionNo.Split('-');
-            if (parts.Length > 2 && int.TryParse(parts.Last(), out int lastNum))
-            {
-                nextNum = lastNum + 1;
-            }
-        }
-
-        return $"{datePrefix}{nextNum:D4}";
-    }
-
-    private async Task<string> GenerateVoucherNoAsync(string prefix)
-    {
-        var datePrefix = $"{prefix}-{DateTime.Now:yyyyMMdd}-";
-
-        var lastVoucher = await _voucherRepository.Query()
-            .Where(v => v.VoucherNo.StartsWith(datePrefix))
-            .OrderByDescending(v => v.VoucherNo)
-            .FirstOrDefaultAsync();
-
-        int nextNum = 1;
-        if (lastVoucher != null)
-        {
-            var parts = lastVoucher.VoucherNo.Split('-');
-            if (parts.Length > 2 && int.TryParse(parts.Last(), out int lastNum))
-            {
-                nextNum = lastNum + 1;
-            }
-        }
-
-        return $"{datePrefix}{nextNum:D4}";
-    }
-
-    /// <summary>
-    /// Creates a Sale Return Voucher (SRT) with double-entry accounting.
-    /// Debit: Sales Account(s) - reverses revenue
-    /// Credit: Customer Account (AR) - reduces receivable
-    /// Debit: Stock Account(s) - restores inventory asset
-    /// Credit: COGS Account(s) - reverses cost of goods sold
-    /// </summary>
     private async Task<Voucher> CreateSaleReturnVoucherAsync(StockMain saleReturn, int userId)
     {
+        // Sale Return Voucher typically reverses the Sale logic
+        // Debit: Sales Return Account (or Sales Account directly)
+        // Debit: Stock Account (Inventory comes back)
+        // Credit: COGS Account (Cost is reversed)
+        // Credit: Customer Account (Receivable decreases)
+
         var voucherType = await _voucherTypeRepository.Query()
             .FirstOrDefaultAsync(vt => vt.Code == SALE_RETURN_VOUCHER_CODE || vt.Code == "JV");
 
         if (voucherType == null)
-            throw new InvalidOperationException($"Voucher type '{SALE_RETURN_VOUCHER_CODE}' or 'JV' not found.");
+             throw new InvalidOperationException($"Voucher type '{SALE_RETURN_VOUCHER_CODE}' or 'JV' not found.");
 
+        // Get customer account
         Account customerAccount;
         string customerName;
 
-        if (saleReturn.Party_ID.HasValue && saleReturn.Party_ID > 0)
+        if (saleReturn.Party_ID.HasValue)
         {
-            var customer = await _partyRepository.Query()
-                .Include(p => p.Account)
-                .FirstOrDefaultAsync(p => p.PartyID == saleReturn.Party_ID.Value);
+            var party = saleReturn.Party;
+            // Need to load party if not loaded, but usually it is attached or we need to query
+            // Since we set Party_ID from Original Sale, let's look it up or trust navigation if present
+            if (party == null)
+            {
+                 // Use _partyRepository instead of _accountRepository
+                 var loadedParty = await _partyRepository.Query()
+                     .Include(p => p.Account)
+                     .FirstOrDefaultAsync(p => p.PartyID == saleReturn.Party_ID);
 
-            if (customer?.Account_ID == null || customer.Account == null)
-                throw new InvalidOperationException("Customer does not have an associated account for accounting entries.");
-
-            customerAccount = customer.Account;
-            customerName = customer.Name;
+                 if (loadedParty != null)
+                 {
+                     if (loadedParty.Account != null)
+                     {
+                         customerAccount = loadedParty.Account;
+                         customerName = loadedParty.Name;
+                     }
+                     else
+                     {
+                         throw new InvalidOperationException($"Party '{loadedParty.Name}' does not have an account.");
+                     }
+                 }
+                 else
+                 {
+                     if (saleReturn.Party_ID == null)
+                     {
+                         var walkingCustomerAccount = await _accountRepository.Query()
+                            .FirstOrDefaultAsync(a => a.AccountID == _systemAccounts.WalkingCustomerAccountId);
+                         
+                         customerAccount = walkingCustomerAccount!;
+                         customerName = "Walk-in Customer";
+                     }
+                     else
+                     {
+                         throw new InvalidOperationException("Party not found and no account linked for Sale Return.");
+                     }
+                 }
+            }
+            else
+            {
+                 if (party.Account != null)
+                 {
+                     customerAccount = party.Account;
+                     customerName = party.Name;
+                 }
+                 else 
+                 {
+                      throw new InvalidOperationException("Party does not have an account.");
+                 }
+            }
         }
         else
         {
+            // Walk-in
             var walkingCustomerAccount = await _accountRepository.Query()
                 .FirstOrDefaultAsync(a => a.AccountID == _systemAccounts.WalkingCustomerAccountId);
-
-            if (walkingCustomerAccount == null)
-                throw new InvalidOperationException($"Walking Customer account (ID: {_systemAccounts.WalkingCustomerAccountId}) not found.");
-
-            customerAccount = walkingCustomerAccount;
+            
+            customerAccount = walkingCustomerAccount!;
             customerName = "Walk-in Customer";
         }
 
+        // Generate Voucher No
+        // Use SRV- instead of SV? Or just SV?
+        // Let's use SRV- for Returns to distinguish
+        var voucherNo = await GenerateVoucherNoAsync("SRV");
+
+        var voucherDetails = new List<VoucherDetail>();
+
+        // Load products
         var productIds = saleReturn.StockDetails.Select(d => d.Product_ID).Distinct().ToList();
         var products = await _productRepository.Query()
             .Include(p => p.Category)
             .Where(p => productIds.Contains(p.ProductID))
             .ToListAsync();
 
-        var salesByAccount = new Dictionary<int, decimal>(); // Debit
-        var stockByAccount = new Dictionary<int, decimal>(); // Debit
-        var cogsByAccount = new Dictionary<int, decimal>();  // Credit
-        decimal totalCost = 0;
+        // 1. Credit: Customer Account (Reduces Receivable) - Total Amount
+        voucherDetails.Add(new VoucherDetail
+        {
+            Account_ID = customerAccount.AccountID,
+            DebitAmount = 0,
+            CreditAmount = saleReturn.TotalAmount,
+            Description = $"Sale Return from {customerName}",
+            Party_ID = saleReturn.Party_ID
+        });
+
+        // Loop details to aggregate Sales Return, Stock, COGS
+        var salesReturnByAccount = new Dictionary<int, decimal>(); // Debit
+        var stockByAccount = new Dictionary<int, decimal>();       // Debit (Asset Increase)
+        var cogsByAccount = new Dictionary<int, decimal>();        // Credit (Expense Decrease)
 
         foreach (var detail in saleReturn.StockDetails)
         {
             var product = products.FirstOrDefault(p => p.ProductID == detail.Product_ID);
             var category = product?.Category;
 
-            if (category == null)
-                throw new InvalidOperationException($"Product '{product?.Name ?? $"ID:{detail.Product_ID}"}' does not have a category assigned.");
+            if (category == null) continue;
 
-            if (!category.SaleAccount_ID.HasValue)
-                throw new InvalidOperationException($"Category '{category.Name}' does not have a Sales Account configured.");
-
-            AddAggregate(salesByAccount, category.SaleAccount_ID.Value, detail.LineTotal);
-
-            var lineCost = detail.LineCost;
-            if (lineCost <= 0 && detail.CostPrice > 0)
+            // Sales Account (for Return)
+            // Use SaleReturnAccount_ID if exists, otherwise SaleAccount_ID
+            // Actually usually we Debit Sales Account directly to reduce Revenue
+            int salesAccountId = category.SaleAccount_ID ?? 0;
+            if (salesAccountId != 0)
             {
-                lineCost = Math.Round(detail.Quantity * detail.CostPrice, 2);
+                if (salesReturnByAccount.ContainsKey(salesAccountId))
+                    salesReturnByAccount[salesAccountId] += detail.LineTotal;
+                else
+                    salesReturnByAccount[salesAccountId] = detail.LineTotal;
             }
 
-            if (lineCost <= 0)
-                continue;
+            // Stock & COGS
+            if (detail.LineCost > 0)
+            {
+                int stockAccountId = category.StockAccount_ID ?? 0;
+                int cogsAccountId = category.COGSAccount_ID ?? 0;
 
-            if (!category.StockAccount_ID.HasValue)
-                throw new InvalidOperationException($"Category '{category.Name}' does not have a Stock Account configured.");
-            if (!category.COGSAccount_ID.HasValue)
-                throw new InvalidOperationException($"Category '{category.Name}' does not have a COGS Account configured.");
+                if (stockAccountId != 0)
+                {
+                    if (stockByAccount.ContainsKey(stockAccountId))
+                        stockByAccount[stockAccountId] += detail.LineCost;
+                    else
+                        stockByAccount[stockAccountId] = detail.LineCost;
+                }
 
-            AddAggregate(stockByAccount, category.StockAccount_ID.Value, lineCost);
-            AddAggregate(cogsByAccount, category.COGSAccount_ID.Value, lineCost);
-            totalCost += lineCost;
+                if (cogsAccountId != 0)
+                {
+                    if (cogsByAccount.ContainsKey(cogsAccountId))
+                        cogsByAccount[cogsAccountId] += detail.LineCost;
+                    else
+                        cogsByAccount[cogsAccountId] = detail.LineCost;
+                }
+            }
         }
 
-        var voucherNo = await GenerateVoucherNoAsync(SALE_RETURN_VOUCHER_CODE);
-        var voucherDetails = new List<VoucherDetail>();
-
-        // 1) Debit Sales Account(s) to reverse revenue
-        foreach (var (accountId, amount) in salesByAccount)
+        // 2. Debit: Sales Accounts
+        foreach (var (accId, amt) in salesReturnByAccount)
         {
             voucherDetails.Add(new VoucherDetail
             {
-                Account_ID = accountId,
-                DebitAmount = amount,
+                Account_ID = accId,
+                DebitAmount = amt,
                 CreditAmount = 0,
                 Description = "Sales Return"
             });
         }
 
-        // 2) Credit Customer Account (AR) to reduce receivable
-        voucherDetails.Add(new VoucherDetail
-        {
-            Account_ID = customerAccount.AccountID,
-            DebitAmount = 0,
-            CreditAmount = saleReturn.TotalAmount,
-            Description = $"Sale return from {customerName}",
-            Party_ID = saleReturn.Party_ID
-        });
-
-        // 3) Debit Stock Account(s) to restore inventory value
-        foreach (var (accountId, amount) in stockByAccount)
+        // 3. Debit: Stock Accounts
+        foreach (var (accId, amt) in stockByAccount)
         {
             voucherDetails.Add(new VoucherDetail
             {
-                Account_ID = accountId,
-                DebitAmount = amount,
+                Account_ID = accId,
+                DebitAmount = amt,
                 CreditAmount = 0,
-                Description = "Inventory restored (sale return)"
+                Description = "Inventory Restock (Return)"
             });
         }
 
-        // 4) Credit COGS Account(s) to reverse expense
-        foreach (var (accountId, amount) in cogsByAccount)
+        // 4. Credit: COGS Accounts
+        foreach (var (accId, amt) in cogsByAccount)
         {
             voucherDetails.Add(new VoucherDetail
             {
-                Account_ID = accountId,
+                Account_ID = accId,
                 DebitAmount = 0,
-                CreditAmount = amount,
-                Description = "COGS reversal (sale return)"
+                CreditAmount = amt,
+                Description = "COGS Reversal (Return)"
             });
         }
+        
+        // Totals
+        // Dr: SalesReturn + Stock
+        // Cr: Customer + COGS
+        var totalLinesDebit = salesReturnByAccount.Values.Sum() + stockByAccount.Values.Sum();
+        var totalLinesCredit = saleReturn.TotalAmount + cogsByAccount.Values.Sum();
 
         var voucher = new Voucher
         {
             VoucherType_ID = voucherType.VoucherTypeID,
             VoucherNo = voucherNo,
             VoucherDate = saleReturn.TransactionDate,
-            TotalDebit = saleReturn.TotalAmount + totalCost,
-            TotalCredit = saleReturn.TotalAmount + totalCost,
+            TotalDebit = totalLinesDebit,
+            TotalCredit = totalLinesCredit,
             Status = "Posted",
             SourceTable = "StockMain",
             SourceID = saleReturn.StockMainID,
-            Narration = $"Sale return from {customerName}. Return: {saleReturn.TransactionNo}",
+            Narration = $"Sale Return from {customerName}. Ref: {saleReturn.TransactionNo}",
             CreatedAt = DateTime.Now,
             CreatedBy = userId,
             VoucherDetails = voucherDetails
@@ -395,58 +352,6 @@ public class SaleReturnService : ISaleReturnService
         await _unitOfWork.SaveChangesAsync();
 
         return voucher;
-    }
-
-    /// <summary>
-    /// Creates a reversal voucher for a voided sale return by swapping debit/credit amounts.
-    /// </summary>
-    private async Task CreateReversalVoucherAsync(StockMain saleReturn, int userId)
-    {
-        var originalVoucher = await _voucherRepository.Query()
-            .Include(v => v.VoucherDetails)
-            .FirstOrDefaultAsync(v => v.VoucherID == saleReturn.Voucher_ID);
-
-        if (originalVoucher == null || originalVoucher.IsReversed)
-            return;
-
-        var voucherNo = await GenerateVoucherNoAsync(SALE_RETURN_VOUCHER_CODE);
-
-        var reversalVoucher = new Voucher
-        {
-            VoucherType_ID = originalVoucher.VoucherType_ID,
-            VoucherNo = voucherNo,
-            VoucherDate = DateTime.Now,
-            TotalDebit = originalVoucher.TotalDebit,
-            TotalCredit = originalVoucher.TotalCredit,
-            Status = "Posted",
-            SourceTable = "StockMain",
-            SourceID = saleReturn.StockMainID,
-            Narration = $"Reversal of {originalVoucher.VoucherNo} - Void: {saleReturn.VoidReason}",
-            ReversesVoucher_ID = originalVoucher.VoucherID,
-            CreatedAt = DateTime.Now,
-            CreatedBy = userId
-        };
-
-        foreach (var detail in originalVoucher.VoucherDetails)
-        {
-            reversalVoucher.VoucherDetails.Add(new VoucherDetail
-            {
-                Account_ID = detail.Account_ID,
-                DebitAmount = detail.CreditAmount,
-                CreditAmount = detail.DebitAmount,
-                Description = $"Reversal - {detail.Description}",
-                Party_ID = detail.Party_ID,
-                Product_ID = detail.Product_ID
-            });
-        }
-
-        await _voucherRepository.AddAsync(reversalVoucher);
-        await _unitOfWork.SaveChangesAsync();
-
-        originalVoucher.IsReversed = true;
-        originalVoucher.ReversedByVoucher_ID = reversalVoucher.VoucherID;
-        _voucherRepository.Update(originalVoucher);
-        await _unitOfWork.SaveChangesAsync();
     }
 
     /// <summary>
@@ -572,27 +477,64 @@ public class SaleReturnService : ISaleReturnService
         sale.UpdatedBy = userId;
     }
 
-    private static void AddAggregate(IDictionary<int, decimal> bucket, int accountId, decimal amount)
+    public async Task<IEnumerable<StockMain>> GetSalesForReturnAsync(int? customerId = null)
     {
-        if (amount <= 0)
-            return;
+        var query = _stockMainRepository.Query()
+            .Include(s => s.TransactionType)
+            .Include(s => s.Party)
+            .Include(s => s.StockDetails)
+                .ThenInclude(d => d.Product)
+            .Where(s => s.TransactionType!.Code == SALE_TRANSACTION_TYPE_CODE 
+                     && s.Status == "Approved");
 
-        if (bucket.ContainsKey(accountId))
-            bucket[accountId] += amount;
-        else
-            bucket[accountId] = amount;
-    }
-
-    private void CalculateTotals(StockMain saleReturn)
-    {
-        saleReturn.SubTotal = saleReturn.StockDetails.Sum(d => d.LineTotal);
-
-        if (saleReturn.DiscountPercent > 0)
+        if (customerId.HasValue)
         {
-            saleReturn.DiscountAmount = Math.Round(saleReturn.SubTotal * saleReturn.DiscountPercent / 100, 2);
+            query = query.Where(s => s.Party_ID == customerId.Value);
         }
 
-        saleReturn.TotalAmount = saleReturn.SubTotal - saleReturn.DiscountAmount;
-        saleReturn.BalanceAmount = saleReturn.TotalAmount - saleReturn.PaidAmount;
+        return await query
+            .OrderByDescending(s => s.TransactionDate)
+            .ToListAsync();
+    }
+
+    public async Task<bool> VoidAsync(int id, string reason, int userId)
+    {
+        var saleReturn = await GetByIdAsync(id);
+        if (saleReturn == null)
+            return false;
+
+        if (saleReturn.Status == "Void")
+            return false;
+
+        saleReturn.Status = "Void";
+        saleReturn.VoidReason = reason;
+        saleReturn.VoidedAt = DateTime.Now;
+        saleReturn.VoidedBy = userId;
+
+        // Create reversal voucher if original voucher exists
+        if (saleReturn.Voucher_ID.HasValue)
+        {
+            await CreateReversalVoucherAsync(saleReturn.Voucher_ID.Value, userId, reason, "StockMain", saleReturn.StockMainID);
+        }
+        
+        // Restore the reference Sale's balance if linked
+        if (saleReturn.ReferenceStockMain_ID.HasValue)
+        {
+            var sale = await _stockMainRepository.Query()
+                .Include(s => s.TransactionType)
+                .FirstOrDefaultAsync(s => s.StockMainID == saleReturn.ReferenceStockMain_ID.Value
+                                       && s.TransactionType!.Code == SALE_TRANSACTION_TYPE_CODE);
+
+            if (sale != null)
+            {
+                await RecalculateSaleBalanceIncludingReturnsAsync(sale, userId);
+                _stockMainRepository.Update(sale);
+            }
+        }
+
+        _stockMainRepository.Update(saleReturn);
+        await _unitOfWork.SaveChangesAsync();
+
+        return true;
     }
 }

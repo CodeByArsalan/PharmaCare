@@ -13,15 +13,18 @@ public class RoleService : IRoleService
     private readonly IRoleRepository _roleRepository;
     private readonly IPageRepository _pageRepository;
     private readonly IRolePageRepository _rolePageRepository;
+    private readonly IUnitOfWork _unitOfWork;
 
     public RoleService(
         IRoleRepository roleRepository,
         IPageRepository pageRepository,
-        IRolePageRepository rolePageRepository)
+        IRolePageRepository rolePageRepository,
+        IUnitOfWork unitOfWork)
     {
         _roleRepository = roleRepository;
         _pageRepository = pageRepository;
         _rolePageRepository = rolePageRepository;
+        _unitOfWork = unitOfWork;
     }
 
     public async Task<List<Role>> GetAllRolesAsync()
@@ -41,7 +44,7 @@ public class RoleService : IRoleService
         role.IsActive = true;
 
         await _roleRepository.AddAsync(role);
-        await _roleRepository.SaveChangesAsync();
+        await _unitOfWork.SaveChangesAsync();
         return true;
     }
 
@@ -55,7 +58,7 @@ public class RoleService : IRoleService
         existingRole.UpdatedAt = DateTime.Now;
         existingRole.UpdatedBy = updatedBy;
 
-        await _roleRepository.SaveChangesAsync();
+        await _unitOfWork.SaveChangesAsync();
         return true;
     }
 
@@ -68,7 +71,7 @@ public class RoleService : IRoleService
         role.UpdatedAt = DateTime.Now;
         role.UpdatedBy = updatedBy;
 
-        await _roleRepository.SaveChangesAsync();
+        await _unitOfWork.SaveChangesAsync();
         return true;
     }
 
@@ -158,7 +161,7 @@ public class RoleService : IRoleService
             // Case 3: Permission doesn't exist and not requested -> Do nothing
         }
 
-        await _rolePageRepository.SaveChangesAsync();
+        await _unitOfWork.SaveChangesAsync();
         return true;
     }
 }

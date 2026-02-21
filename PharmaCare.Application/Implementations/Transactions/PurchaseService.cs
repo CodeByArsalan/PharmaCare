@@ -12,17 +12,14 @@ namespace PharmaCare.Application.Implementations.Transactions;
 /// Service for managing Purchases (GRN - Goods Received Notes).
 /// Creates accounting vouchers for double-entry bookkeeping.
 /// </summary>
-public class PurchaseService : IPurchaseService
+public class PurchaseService : TransactionServiceBase, IPurchaseService
 {
-    private readonly IRepository<StockMain> _stockMainRepository;
     private readonly IRepository<TransactionType> _transactionTypeRepository;
-    private readonly IRepository<Voucher> _voucherRepository;
     private readonly IRepository<VoucherType> _voucherTypeRepository;
     private readonly IRepository<Party> _partyRepository;
     private readonly IRepository<Product> _productRepository;
     private readonly IRepository<Account> _accountRepository;
     private readonly IRepository<Payment> _paymentRepository;
-    private readonly IUnitOfWork _unitOfWork;
 
     private const string TRANSACTION_TYPE_CODE = "GRN";
     private const string PO_TRANSACTION_TYPE_CODE = "PO";
@@ -41,16 +38,14 @@ public class PurchaseService : IPurchaseService
         IRepository<Account> accountRepository,
         IRepository<Payment> paymentRepository,
         IUnitOfWork unitOfWork)
+        : base(stockMainRepository, voucherRepository, unitOfWork)
     {
-        _stockMainRepository = stockMainRepository;
         _transactionTypeRepository = transactionTypeRepository;
-        _voucherRepository = voucherRepository;
         _voucherTypeRepository = voucherTypeRepository;
         _partyRepository = partyRepository;
         _productRepository = productRepository;
         _accountRepository = accountRepository;
         _paymentRepository = paymentRepository;
-        _unitOfWork = unitOfWork;
     }
 
     public async Task<IEnumerable<StockMain>> GetAllAsync()
@@ -103,7 +98,7 @@ public class PurchaseService : IPurchaseService
         }
 
         purchase.TransactionType_ID = transactionType.TransactionTypeID;
-        purchase.TransactionNo = await GenerateTransactionNoAsync();
+        purchase.TransactionNo = await GenerateTransactionNoAsync(PREFIX);
         purchase.Status = "Approved"; // GRN is immediately approved (stock impact)
         purchase.CreatedAt = DateTime.Now;
         purchase.CreatedBy = userId;
@@ -118,7 +113,8 @@ public class PurchaseService : IPurchaseService
         await _unitOfWork.SaveChangesAsync();
 
         // Create accounting entries for the purchase
-        await CreatePurchaseVoucherAsync(purchase, userId);
+        var purchaseVoucher = await CreatePurchaseVoucherAsync(purchase, userId);
+        purchase.Voucher_ID = purchaseVoucher.VoucherID;
 
         // If this GRN is created from a PO (ReferenceStockMain_ID is present)
         // We must transfer any advance payments from the PO to this GRN.
@@ -157,33 +153,6 @@ public class PurchaseService : IPurchaseService
         // ---------------------------------------------------------
         // AUTOMATIC SUPPLIER ADVANCE DEDUCTION
         // ---------------------------------------------------------
-        // Check if supplier has an advance (Negative Balance)
-        // We do this AFTER the initial save so the current purchase is already anticipated in balance,
-        // BUT GetSupplierBalanceAsync sums DB records. The current purchase is in DB now.
-        // If we want "Previous Balance", we should have checked before.
-        // However, we want to see if there is "Excess Payment" overall.
-        
-        // Strategy: 
-        // 1. Get current balance (including this new purchase).
-        // 2. If Balance is negative (Advance), it means we have paid more than we bought.
-        //    But wait, if we just bought 3000, and balance is still -2000, it means we had -5000 before.
-        //    So we can cover the FULL 3000 of this purchase?
-        //    Actually, if the balance is NEGATIVE, it means we DON'T owe anything.
-        //    The goal is to mark THIS purchase as PAID using that advance.
-        
-        // Let's look at "Available Advance" before this purchase.
-        // Balance = Opening + Purchases - Payments.
-        // Current Balance (with this purchase) = OldBalance + ThisPurchaseAmount.
-        // If OldBalance was -5000, and ThisPurchase is 3000. NewBalance is -2000.
-        // We want to mark ThisPurchase as "Paid by Advance".
-        
-        // So validation:
-        // Get Total Advance Available = (CurrentBalance - ThisPurchase.TotalAmount) * -1.
-        // If (CurrentBalance - ThisPurchase) is < 0, then we have advance.
-        
-        // So validation:
-        // Get Total Advance Available = (CurrentBalance - ThisPurchase.TotalAmount) * -1.
-        // If (CurrentBalance - ThisPurchase) is < 0, then we have advance.
         
         // REVISED STRATEGY: 
         // We now have a deterministic way to get "Balance Before this Purchase" 
@@ -236,36 +205,11 @@ public class PurchaseService : IPurchaseService
         // Debit: Supplier A/C (Decrease Liability logic? No, wait.)
         // When we made Advance, we did: Debit Supplier, Credit Cash.
         // Supplier Balance is Debit (Advance).
-        // Now we made Purchase: Debit Stock, Credit Supplier. (Supplier Balance increases towards 0).
+        // Now we made Purchase: Debit Stock, Credit Supplier. (Supplier Bal: -5000 + 3000 = -2000).
         // The Net Balance is already correct in the Ledger! 
-        // (-5000 Advance + 3000 Purchase = -2000 Advance).
-        
-        // So... do we need a Voucher?
-        // If we create a Payment Record for "ADJUSTMENT", does it affect Ledger?
-        // If we don't create a Voucher, the Ledger is fine.
-        // If we Create a Payment Record, ReportService (now modified) will verify it's not "ADJUSTMENT" before summing CashFlow.
-        // AND ReportService GetPartyLedgerAsync sums Payments.
-        // If we add an "ADJUSTMENT" Payment record, it will be summed as a Debit.
-        // That would double-dip the Debit! (Original Advance Payment was Debit. Verification: Adjustment Payment would be ANOTHER Debit).
-        // WRONG.
-        
-        // CONCLUSION:
-        // "Automatic Deduction" is purely a STATUS update on the Invoice (StockMain) and a VISUAL record (Payment).
-        // It must NOT affect the General Ledger or Party Ledger because the "Advance Payment" already did the accounting!
-        // The Purchase Voucher already did the counter-accounting.
-        // - Advance: Dr Supplier 5000, Cr Cash 5000. (Supplier Bal: -5000)
-        // - Purchase: Dr Stock 3000, Cr Supplier 3000. (Supplier Bal: -2000)
-        // The Ledger is ALREADY correct (-2000).
-        // We just need to mark the GRN as "Paid".
         
         // So, we create a Payment record for tracking "This invoice was paid by..." 
         // BUT we must ensure `ReportService` Party Ledger does NOT sum "ADJUSTMENT" type payments either!
-        
-        // CRITICAL CHECK: I need to check ReportService.GetPartyLedgerAsync again.
-        // It sums `periodPayments`. 
-        // I need to filter `ADJUSTMENT` out of Party Ledger too!
-        
-        // For now, let's create the Payment record but NOT a Voucher.
         
         var paymentReference = await GeneratePaymentReferenceAsync();
         var supplier = await _partyRepository.GetByIdAsync(purchase.Party_ID ?? 0);
@@ -536,7 +480,12 @@ public class PurchaseService : IPurchaseService
 
     public async Task<bool> VoidAsync(int id, string reason, int userId)
     {
-        var purchase = await GetByIdAsync(id);
+        var purchase = await _stockMainRepository.Query()
+              .Include(s => s.TransactionType)
+              .Include(s => s.Voucher)
+                  .ThenInclude(v => v!.VoucherDetails)
+              .FirstOrDefaultAsync(s => s.StockMainID == id && s.TransactionType!.Code == TRANSACTION_TYPE_CODE);
+
         if (purchase == null)
             return false;
 
@@ -548,54 +497,16 @@ public class PurchaseService : IPurchaseService
         purchase.VoidedAt = DateTime.Now;
         purchase.VoidedBy = userId;
 
+        // Create reversing voucher for the purchase voucher
+        if (purchase.Voucher != null && purchase.Voucher.VoucherDetails.Any())
+        {
+            await CreateReversalVoucherAsync(purchase.Voucher.VoucherID, userId, reason, "StockMain", purchase.StockMainID);
+        }
+
         _stockMainRepository.Update(purchase);
         await _unitOfWork.SaveChangesAsync();
 
         return true;
-    }
-
-    private async Task<string> GenerateTransactionNoAsync()
-    {
-        var datePrefix = $"{PREFIX}-{DateTime.Now:yyyyMMdd}-";
-
-        var lastTransaction = await _stockMainRepository.Query()
-            .Where(s => s.TransactionNo.StartsWith(datePrefix))
-            .OrderByDescending(s => s.TransactionNo)
-            .FirstOrDefaultAsync();
-
-        int nextNum = 1;
-        if (lastTransaction != null)
-        {
-            var parts = lastTransaction.TransactionNo.Split('-');
-            if (parts.Length > 2 && int.TryParse(parts.Last(), out int lastNum))
-            {
-                nextNum = lastNum + 1;
-            }
-        }
-
-        return $"{datePrefix}{nextNum:D4}";
-    }
-
-    private async Task<string> GenerateVoucherNoAsync(string prefix)
-    {
-        var datePrefix = $"{prefix}-{DateTime.Now:yyyyMMdd}-";
-
-        var lastVoucher = await _voucherRepository.Query()
-            .Where(v => v.VoucherNo.StartsWith(datePrefix))
-            .OrderByDescending(v => v.VoucherNo)
-            .FirstOrDefaultAsync();
-
-        int nextNum = 1;
-        if (lastVoucher != null)
-        {
-            var parts = lastVoucher.VoucherNo.Split('-');
-            if (parts.Length > 2 && int.TryParse(parts.Last(), out int lastNum))
-            {
-                nextNum = lastNum + 1;
-            }
-        }
-
-        return $"{datePrefix}{nextNum:D4}";
     }
 
     private async Task<decimal> GetSupplierBalanceAsync(int supplierId, int? excludeTransactionId = null)
@@ -633,18 +544,5 @@ public class PurchaseService : IPurchaseService
             .SumAsync(p => p.Amount);
 
         return balance + purchases - returns - payments;
-    }
-
-    private void CalculateTotals(StockMain purchase)
-    {
-        purchase.SubTotal = purchase.StockDetails.Sum(d => d.LineTotal);
-
-        if (purchase.DiscountPercent > 0)
-        {
-            purchase.DiscountAmount = Math.Round(purchase.SubTotal * purchase.DiscountPercent / 100, 2);
-        }
-
-        purchase.TotalAmount = purchase.SubTotal - purchase.DiscountAmount;
-        purchase.BalanceAmount = purchase.TotalAmount - purchase.PaidAmount;
     }
 }

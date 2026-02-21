@@ -1,34 +1,28 @@
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
-using Microsoft.AspNetCore.Mvc.Rendering;
-using PharmaCare.Application.Interfaces;
-using PharmaCare.Application.Interfaces.Accounting;
-using PharmaCare.Application.Interfaces.Configuration;
+using PharmaCare.Application.Interfaces.Reports;
 using PharmaCare.Application.ViewModels.Report;
 
-namespace PharmaCare.Web.Controllers;
+namespace PharmaCare.Web.Controllers.Report;
 
 [Authorize]
 public class ReportController : BaseController
 {
-    private readonly IReportService _reportService;
-    private readonly IPartyService _partyService;
-    private readonly IProductService _productService;
-    private readonly ICategoryService _categoryService;
-    private readonly IAccountService _accountService;
+    private readonly ISalesReportService _salesReportService;
+    private readonly IPurchaseReportService _purchaseReportService;
+    private readonly IInventoryReportService _inventoryReportService;
+    private readonly IFinancialReportService _financialReportService;
 
     public ReportController(
-        IReportService reportService,
-        IPartyService partyService,
-        IProductService productService,
-        ICategoryService categoryService,
-        IAccountService accountService)
+        ISalesReportService salesReportService,
+        IPurchaseReportService purchaseReportService,
+        IInventoryReportService inventoryReportService,
+        IFinancialReportService financialReportService)
     {
-        _reportService = reportService;
-        _partyService = partyService;
-        _productService = productService;
-        _categoryService = categoryService;
-        _accountService = accountService;
+        _salesReportService = salesReportService;
+        _purchaseReportService = purchaseReportService;
+        _inventoryReportService = inventoryReportService;
+        _financialReportService = financialReportService;
     }
 
     /// <summary>
@@ -46,30 +40,28 @@ public class ReportController : BaseController
     public async Task<IActionResult> DailySalesSummary(DateTime? date)
     {
         var reportDate = date ?? DateTime.Today;
-        var vm = await _reportService.GetDailySalesSummaryAsync(reportDate);
+        var vm = await _salesReportService.GetDailySalesSummaryAsync(reportDate);
         return View(vm);
     }
 
     public async Task<IActionResult> SalesReport(DateRangeFilter? filter)
     {
         filter ??= new DateRangeFilter();
-        // await LoadCustomerDropdownAsync(); // REMOVED
-        var vm = await _reportService.GetSalesReportAsync(filter);
+        var vm = await _salesReportService.GetSalesReportAsync(filter);
         return View(vm);
     }
 
     public async Task<IActionResult> SalesByProduct(DateRangeFilter? filter)
     {
         filter ??= new DateRangeFilter();
-        // await LoadCategoryDropdownAsync(); // REMOVED
-        var vm = await _reportService.GetSalesByProductAsync(filter);
+        var vm = await _salesReportService.GetSalesByProductAsync(filter);
         return View(vm);
     }
 
     public async Task<IActionResult> SalesByCustomer(DateRangeFilter? filter)
     {
         filter ??= new DateRangeFilter();
-        var vm = await _reportService.GetSalesByCustomerAsync(filter);
+        var vm = await _salesReportService.GetSalesByCustomerAsync(filter);
         return View(vm);
     }
 
@@ -80,15 +72,14 @@ public class ReportController : BaseController
     public async Task<IActionResult> PurchaseReport(DateRangeFilter? filter)
     {
         filter ??= new DateRangeFilter();
-        // await LoadSupplierDropdownAsync(); // REMOVED
-        var vm = await _reportService.GetPurchaseReportAsync(filter);
+        var vm = await _purchaseReportService.GetPurchaseReportAsync(filter);
         return View(vm);
     }
 
     public async Task<IActionResult> PurchaseBySupplier(DateRangeFilter? filter)
     {
         filter ??= new DateRangeFilter();
-        var vm = await _reportService.GetPurchaseBySupplierAsync(filter);
+        var vm = await _purchaseReportService.GetPurchaseBySupplierAsync(filter);
         return View(vm);
     }
 
@@ -99,32 +90,28 @@ public class ReportController : BaseController
     public async Task<IActionResult> CurrentStock(DateRangeFilter? filter)
     {
         filter ??= new DateRangeFilter();
-        // await LoadCategoryDropdownAsync(); // REMOVED
-        var vm = await _reportService.GetCurrentStockReportAsync(filter);
+        var vm = await _inventoryReportService.GetCurrentStockReportAsync(filter);
         return View(vm);
     }
 
     public async Task<IActionResult> LowStock(DateRangeFilter? filter)
     {
         filter ??= new DateRangeFilter();
-        // await LoadCategoryDropdownAsync(); // REMOVED
-        var vm = await _reportService.GetLowStockReportAsync(filter);
+        var vm = await _inventoryReportService.GetLowStockReportAsync(filter);
         return View(vm);
     }
 
     public async Task<IActionResult> ProductMovement(DateRangeFilter? filter)
     {
         filter ??= new DateRangeFilter();
-        // await LoadProductDropdownAsync(); // REMOVED
-        var vm = await _reportService.GetProductMovementReportAsync(filter);
+        var vm = await _inventoryReportService.GetProductMovementReportAsync(filter);
         return View(vm);
     }
 
     public async Task<IActionResult> DeadStock(DateRangeFilter? filter)
     {
         filter ??= new DateRangeFilter { ThresholdDays = 30 };
-        // await LoadCategoryDropdownAsync(); // REMOVED
-        var vm = await _reportService.GetDeadStockReportAsync(filter);
+        var vm = await _inventoryReportService.GetDeadStockReportAsync(filter);
         return View(vm);
     }
 
@@ -135,50 +122,49 @@ public class ReportController : BaseController
     public async Task<IActionResult> ProfitLoss(DateRangeFilter? filter)
     {
         filter ??= new DateRangeFilter();
-        var vm = await _reportService.GetProfitLossAsync(filter);
+        var vm = await _financialReportService.GetProfitLossAsync(filter);
         return View(vm);
     }
 
     public async Task<IActionResult> CashFlow(DateRangeFilter? filter)
     {
         filter ??= new DateRangeFilter();
-        var vm = await _reportService.GetCashFlowReportAsync(filter);
+        var vm = await _financialReportService.GetCashFlowReportAsync(filter);
         return View(vm);
     }
 
     public async Task<IActionResult> ReceivablesAging(DateTime? asOfDate)
     {
         var date = asOfDate ?? DateTime.Today;
-        var vm = await _reportService.GetReceivablesAgingAsync(date);
+        var vm = await _financialReportService.GetReceivablesAgingAsync(date);
         return View(vm);
     }
 
     public async Task<IActionResult> PayablesAging(DateTime? asOfDate)
     {
         var date = asOfDate ?? DateTime.Today;
-        var vm = await _reportService.GetPayablesAgingAsync(date);
+        var vm = await _financialReportService.GetPayablesAgingAsync(date);
         return View(vm);
     }
 
     public async Task<IActionResult> ExpenseReport(DateRangeFilter? filter)
     {
         filter ??= new DateRangeFilter();
-        var vm = await _reportService.GetExpenseReportAsync(filter);
+        var vm = await _financialReportService.GetExpenseReportAsync(filter);
         return View(vm);
     }
 
     public async Task<IActionResult> TrialBalance(DateTime? asOfDate)
     {
         var date = asOfDate ?? DateTime.Today;
-        var vm = await _reportService.GetTrialBalanceAsync(date);
+        var vm = await _financialReportService.GetTrialBalanceAsync(date);
         return View(vm);
     }
 
     public async Task<IActionResult> GeneralLedger(DateRangeFilter? filter)
     {
         filter ??= new DateRangeFilter();
-        // await LoadAccountDropdownAsync(); // REMOVED
-        var vm = await _reportService.GetGeneralLedgerAsync(filter);
+        var vm = await _financialReportService.GetGeneralLedgerAsync(filter);
         return View(vm);
     }
 
@@ -189,29 +175,21 @@ public class ReportController : BaseController
     public async Task<IActionResult> CustomerLedger(DateRangeFilter? filter)
     {
         filter ??= new DateRangeFilter();
-        // await LoadCustomerDropdownAsync(); // REMOVED
-        var vm = await _reportService.GetPartyLedgerAsync(filter, "Customer");
+        var vm = await _financialReportService.GetPartyLedgerAsync(filter, "Customer");
         return View(vm);
     }
 
     public async Task<IActionResult> SupplierLedger(DateRangeFilter? filter)
     {
         filter ??= new DateRangeFilter();
-        // await LoadSupplierDropdownAsync(); // REMOVED
-        var vm = await _reportService.GetPartyLedgerAsync(filter, "Supplier");
+        var vm = await _financialReportService.GetPartyLedgerAsync(filter, "Supplier");
         return View(vm);
     }
 
     public async Task<IActionResult> CustomerBalanceSummary(DateTime? asOfDate)
     {
         var date = asOfDate ?? DateTime.Today;
-        var vm = await _reportService.GetCustomerBalanceSummaryAsync(date);
+        var vm = await _salesReportService.GetCustomerBalanceSummaryAsync(date);
         return View(vm);
     }
-
-    // ===================================================================
-    //  DROPDOWN HELPERS
-    // ===================================================================
-
-    // DROPDOWN HELPERS REMOVED
 }

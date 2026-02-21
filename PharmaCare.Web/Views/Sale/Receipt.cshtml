@@ -1,0 +1,160 @@
+@model PharmaCare.Domain.Entities.Transactions.StockMain
+@{
+    Layout = null; // No layout for thermal print
+    var companyName = "PharmaCare Setup";
+    var companyAddress = "123 Health Street, Medical District";
+    var companyPhone = "(042) 1234-5678";
+}
+
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Receipt #@Model.TransactionNo</title>
+    <style>
+        body {
+            font-family: 'Courier New', Courier, monospace;
+            font-size: 12px;
+            width: 80mm; /* Standard thermal paper width */
+            margin: 0;
+            padding: 5px;
+            color: #000;
+        }
+        .text-center { text-align: center; }
+        .text-end { text-align: right; }
+        .fw-bold { font-weight: bold; }
+        .mb-1 { margin-bottom: 5px; }
+        .border-bottom { border-bottom: 1px dashed #000; margin: 5px 0; }
+        
+        table { width: 100%; border-collapse: collapse; }
+        th { text-align: left; border-bottom: 1px solid #000; }
+        td { vertical-align: top; }
+        
+        .no-print {
+            padding: 20px;
+            background: #eee;
+            margin-bottom: 20px;
+            text-align: center;
+            border-bottom: 1px solid #ccc;
+        }
+        .btn {
+            background: #000;
+            color: #fff;
+            padding: 8px 16px;
+            text-decoration: none;
+            cursor: pointer;
+            border-radius: 4px;
+            display: inline-block;
+            margin: 0 5px;
+        }
+        .btn-outline {
+            background: #fff;
+            color: #000;
+            border: 1px solid #000;
+        }
+        
+        @@media print {
+            .no-print { display: none; }
+            body { margin: 0; padding: 0; }
+        }
+    </style>
+</head>
+<body>
+    <!-- Controls -->
+    <div class="no-print">
+        <h3>Sale Successful!</h3>
+        <button onclick="window.print()" class="btn">Print Receipt</button>
+        <a href="/Sale/AddSale" class="btn btn-outline">New Sale</a>
+        <a href="/Sale/SalesIndex" class="btn btn-outline">Back to List</a>
+    </div>
+
+    <!-- Receipt Content -->
+    <div class="text-center">
+        <h3 class="mb-1" style="margin-top:0">@companyName</h3>
+        <div>@companyAddress</div>
+        <div>@companyPhone</div>
+    </div>
+    
+    <div class="border-bottom"></div>
+    
+    <div>
+        <div><strong>Inv:</strong> @Model.TransactionNo</div>
+        <div><strong>Date:</strong> @Model.TransactionDate.ToString("dd-MMM-yyyy hh:mm tt")</div>
+        <div><strong>Cust:</strong> @(Model.Party?.Name ?? "Walking Customer")</div>
+    </div>
+    
+    <div class="border-bottom"></div>
+    
+    <table>
+        <thead>
+            <tr>
+                <th style="width: 50%">Item</th>
+                <th style="width: 15%" class="text-end">Qty</th>
+                <th style="width: 35%" class="text-end">Total</th>
+            </tr>
+        </thead>
+        <tbody>
+            @foreach (var item in Model.StockDetails)
+            {
+                <tr>
+                    <td>@item.Product?.Name</td>
+                    <td class="text-end">@item.Quantity</td>
+                    <td class="text-end">@item.LineTotal.ToString("N2")</td>
+                </tr>
+            }
+        </tbody>
+    </table>
+    
+    <div class="border-bottom"></div>
+    
+    <table>
+        <tr>
+            <td>Sub Total:</td>
+            <td class="text-end">@Model.SubTotal.ToString("N2")</td>
+        </tr>
+        @if (Model.DiscountAmount > 0)
+        {
+            <tr>
+                <td>Discount:</td>
+                <td class="text-end">-@Model.DiscountAmount.ToString("N2")</td>
+            </tr>
+        }
+        <tr class="fw-bold" style="font-size: 14px">
+            <td>TOTAL:</td>
+            <td class="text-end">@Model.TotalAmount.ToString("N2")</td>
+        </tr>
+        <tr>
+            <td>Paid:</td>
+            <td class="text-end">@Model.PaidAmount.ToString("N2")</td>
+        </tr>
+        @if (Model.PaidAmount >= Model.TotalAmount)
+        {
+             <tr>
+                <td>Change:</td>
+                <td class="text-end">@((Model.PaidAmount - Model.TotalAmount).ToString("N2"))</td>
+            </tr>
+        }
+        else
+        {
+             <tr>
+                <td>Balance:</td>
+                <td class="text-end">@Model.BalanceAmount.ToString("N2")</td>
+            </tr>
+        }
+    </table>
+    
+    <div class="border-bottom"></div>
+    
+    <div class="text-center" style="margin-top: 10px">
+        <div>Thank you for your visit!</div>
+        <div style="font-size: 10px">Software by PharmaCare</div>
+    </div>
+
+    <script>
+        // Auto-print on load if needed
+        window.onload = function() {
+            // setTimeout(() => window.print(), 500); 
+            // Uncomment above to print automatically on load
+        };
+    </script>
+</body>
+</html>

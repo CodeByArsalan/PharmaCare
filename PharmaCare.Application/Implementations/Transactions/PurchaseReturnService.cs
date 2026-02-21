@@ -11,15 +11,12 @@ namespace PharmaCare.Application.Implementations.Transactions;
 /// Service for managing Purchase Returns with double-entry accounting.
 /// Creates PRV vouchers and reversal vouchers on void.
 /// </summary>
-public class PurchaseReturnService : IPurchaseReturnService
+public class PurchaseReturnService : TransactionServiceBase, IPurchaseReturnService
 {
-    private readonly IRepository<StockMain> _stockMainRepository;
     private readonly IRepository<TransactionType> _transactionTypeRepository;
-    private readonly IRepository<Voucher> _voucherRepository;
     private readonly IRepository<VoucherType> _voucherTypeRepository;
     private readonly IRepository<Party> _partyRepository;
     private readonly IRepository<Product> _productRepository;
-    private readonly IUnitOfWork _unitOfWork;
 
     private const string TRANSACTION_TYPE_CODE = "PRTN";
     private const string GRN_TRANSACTION_TYPE_CODE = "GRN";
@@ -34,14 +31,12 @@ public class PurchaseReturnService : IPurchaseReturnService
         IRepository<Party> partyRepository,
         IRepository<Product> productRepository,
         IUnitOfWork unitOfWork)
+        : base(stockMainRepository, voucherRepository, unitOfWork)
     {
-        _stockMainRepository = stockMainRepository;
         _transactionTypeRepository = transactionTypeRepository;
-        _voucherRepository = voucherRepository;
         _voucherTypeRepository = voucherTypeRepository;
         _partyRepository = partyRepository;
         _productRepository = productRepository;
-        _unitOfWork = unitOfWork;
     }
 
     public async Task<IEnumerable<StockMain>> GetAllAsync()
@@ -80,7 +75,7 @@ public class PurchaseReturnService : IPurchaseReturnService
             throw new InvalidOperationException($"Transaction type '{TRANSACTION_TYPE_CODE}' not found.");
 
         purchaseReturn.TransactionType_ID = transactionType.TransactionTypeID;
-        purchaseReturn.TransactionNo = await GenerateTransactionNoAsync();
+        purchaseReturn.TransactionNo = await GenerateTransactionNoAsync(PREFIX);
         purchaseReturn.Status = "Approved"; // Returns are immediately approved (stock impact)
         purchaseReturn.PaymentStatus = "Unpaid";
         purchaseReturn.CreatedAt = DateTime.Now;
@@ -253,7 +248,8 @@ public class PurchaseReturnService : IPurchaseReturnService
         // Create reversal voucher if original voucher exists
         if (purchaseReturn.Voucher_ID.HasValue)
         {
-            await CreateReversalVoucherAsync(purchaseReturn, userId);
+            // Use base method to create reversal voucher
+            await CreateReversalVoucherAsync(purchaseReturn.Voucher_ID.Value, userId, reason, "StockMain", purchaseReturn.StockMainID);
         }
 
         // Restore the reference GRN's balance if linked
@@ -273,68 +269,6 @@ public class PurchaseReturnService : IPurchaseReturnService
         await _unitOfWork.SaveChangesAsync();
 
         return true;
-    }
-
-    /// <summary>
-    /// Creates a reversal voucher for a voided purchase return.
-    /// This REVERSES the original PRV entry:
-    /// Debit: Stock Account(s) - restores inventory asset
-    /// Credit: Supplier Account - restores Accounts Payable liability
-    /// </summary>
-    private async Task CreateReversalVoucherAsync(StockMain purchaseReturn, int userId)
-    {
-        var originalVoucher = await _voucherRepository.Query()
-            .Include(v => v.VoucherDetails)
-            .FirstOrDefaultAsync(v => v.VoucherID == purchaseReturn.Voucher_ID);
-
-        if (originalVoucher == null || originalVoucher.IsReversed)
-            return;
-
-        var voucherNo = await GenerateVoucherNoAsync(PURCHASE_RETURN_VOUCHER_CODE);
-
-        // Create reversal voucher with swapped debits/credits
-        var reversalVoucher = new Voucher
-        {
-            VoucherType_ID = originalVoucher.VoucherType_ID,
-            VoucherNo = voucherNo,
-            VoucherDate = DateTime.Now,
-            TotalDebit = originalVoucher.TotalDebit,
-            TotalCredit = originalVoucher.TotalCredit,
-            Status = "Posted",
-            SourceTable = "StockMain",
-            SourceID = purchaseReturn.StockMainID,
-            Narration = $"Reversal of {originalVoucher.VoucherNo} - Void: {purchaseReturn.VoidReason}",
-            ReversesVoucher_ID = originalVoucher.VoucherID,
-            CreatedAt = DateTime.Now,
-            CreatedBy = userId
-        };
-
-        // Swap debit/credit for each detail line
-        foreach (var detail in originalVoucher.VoucherDetails)
-        {
-            reversalVoucher.VoucherDetails.Add(new VoucherDetail
-            {
-                Account_ID = detail.Account_ID,
-                DebitAmount = detail.CreditAmount,   // Swap: original credit becomes debit
-                CreditAmount = detail.DebitAmount,   // Swap: original debit becomes credit
-                Description = $"Reversal - {detail.Description}",
-                Party_ID = detail.Party_ID
-            });
-        }
-
-        await _voucherRepository.AddAsync(reversalVoucher);
-
-        // Mark original voucher as reversed
-        originalVoucher.IsReversed = true;
-        originalVoucher.ReversedByVoucher_ID = reversalVoucher.VoucherID;
-        _voucherRepository.Update(originalVoucher);
-
-        await _unitOfWork.SaveChangesAsync();
-
-        // Update the link on the reversal voucher (needs ID from save)
-        originalVoucher.ReversedByVoucher_ID = reversalVoucher.VoucherID;
-        _voucherRepository.Update(originalVoucher);
-        await _unitOfWork.SaveChangesAsync();
     }
 
     /// <summary>
@@ -392,62 +326,5 @@ public class PurchaseReturnService : IPurchaseReturnService
                     $"exceeds available quantity ({availableForReturn}). " +
                     $"GRN Qty: {grnDetail.Quantity}, Already Returned: {previouslyReturned}.");
         }
-    }
-
-    private async Task<string> GenerateTransactionNoAsync()
-    {
-        var datePrefix = $"{PREFIX}-{DateTime.Now:yyyyMMdd}-";
-
-        var lastTransaction = await _stockMainRepository.Query()
-            .Where(s => s.TransactionNo.StartsWith(datePrefix))
-            .OrderByDescending(s => s.TransactionNo)
-            .FirstOrDefaultAsync();
-
-        int nextNum = 1;
-        if (lastTransaction != null)
-        {
-            var parts = lastTransaction.TransactionNo.Split('-');
-            if (parts.Length > 2 && int.TryParse(parts.Last(), out int lastNum))
-            {
-                nextNum = lastNum + 1;
-            }
-        }
-
-        return $"{datePrefix}{nextNum:D4}";
-    }
-
-    private async Task<string> GenerateVoucherNoAsync(string prefix)
-    {
-        var datePrefix = $"{prefix}-{DateTime.Now:yyyyMMdd}-";
-
-        var lastVoucher = await _voucherRepository.Query()
-            .Where(v => v.VoucherNo.StartsWith(datePrefix))
-            .OrderByDescending(v => v.VoucherNo)
-            .FirstOrDefaultAsync();
-
-        int nextNum = 1;
-        if (lastVoucher != null)
-        {
-            var parts = lastVoucher.VoucherNo.Split('-');
-            if (parts.Length > 2 && int.TryParse(parts.Last(), out int lastNum))
-            {
-                nextNum = lastNum + 1;
-            }
-        }
-
-        return $"{datePrefix}{nextNum:D4}";
-    }
-
-    private void CalculateTotals(StockMain purchaseReturn)
-    {
-        purchaseReturn.SubTotal = purchaseReturn.StockDetails.Sum(d => d.LineTotal);
-
-        if (purchaseReturn.DiscountPercent > 0)
-        {
-            purchaseReturn.DiscountAmount = Math.Round(purchaseReturn.SubTotal * purchaseReturn.DiscountPercent / 100, 2);
-        }
-
-        purchaseReturn.TotalAmount = purchaseReturn.SubTotal - purchaseReturn.DiscountAmount;
-        purchaseReturn.BalanceAmount = purchaseReturn.TotalAmount - purchaseReturn.PaidAmount;
     }
 }

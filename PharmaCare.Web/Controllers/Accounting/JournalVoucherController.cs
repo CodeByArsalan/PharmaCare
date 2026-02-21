@@ -99,7 +99,4 @@ public class JournalVoucherController : BaseController
         return View(vm);
     }
     
-    // ... [Void method unchanged] ...
-
-    // Helper method LoadDropdowns removed
 }

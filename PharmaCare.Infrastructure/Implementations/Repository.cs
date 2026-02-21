@@ -81,8 +81,5 @@ public class Repository<T> : IRepository<T> where T : class
         return _dbSet.AsQueryable();
     }
 
-    public virtual async Task<int> SaveChangesAsync()
-    {
-        return await _context.SaveChangesAsync();
-    }
+
 }

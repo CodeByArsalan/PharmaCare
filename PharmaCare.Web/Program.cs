@@ -110,7 +110,10 @@ builder.Services.AddScoped<IPaymentService, PaymentService>();
 builder.Services.AddScoped<ICustomerPaymentService, CustomerPaymentService>();
 
 // Reporting Services
-builder.Services.AddScoped<IReportService, PharmaCare.Infrastructure.Implementations.ReportService>();
+builder.Services.AddScoped<PharmaCare.Application.Interfaces.Reports.ISalesReportService, PharmaCare.Infrastructure.Implementations.Reports.SalesReportService>();
+builder.Services.AddScoped<PharmaCare.Application.Interfaces.Reports.IPurchaseReportService, PharmaCare.Infrastructure.Implementations.Reports.PurchaseReportService>();
+builder.Services.AddScoped<PharmaCare.Application.Interfaces.Reports.IInventoryReportService, PharmaCare.Infrastructure.Implementations.Reports.InventoryReportService>();
+builder.Services.AddScoped<PharmaCare.Application.Interfaces.Reports.IFinancialReportService, PharmaCare.Infrastructure.Implementations.Reports.FinancialReportService>();
 
 // Logging Services
 builder.Services.AddScoped<IActivityLogService, ActivityLogService>();

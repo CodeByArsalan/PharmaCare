@@ -13,15 +13,12 @@ namespace PharmaCare.Application.Implementations.Transactions;
 /// <summary>
 /// Service for managing Sales with double-entry accounting.
 /// </summary>
-public class SaleService : ISaleService
+public class SaleService : TransactionServiceBase, ISaleService
 {
-    private readonly IRepository<StockMain> _stockMainRepository;
     private readonly IRepository<TransactionType> _transactionTypeRepository;
-    private readonly IRepository<Voucher> _voucherRepository;
     private readonly IRepository<VoucherType> _voucherTypeRepository;
     private readonly IRepository<Account> _accountRepository;
     private readonly IRepository<Product> _productRepository;
-    private readonly IUnitOfWork _unitOfWork;
     private readonly SystemAccountSettings _systemAccounts;
     private readonly IProductService _productService;
     private readonly IPartyService _partyService;
@@ -42,14 +39,12 @@ public class SaleService : ISaleService
         IOptions<SystemAccountSettings> systemAccountSettings,
         IProductService productService,
         IPartyService partyService)
+        : base(stockMainRepository, voucherRepository, unitOfWork)
     {
-        _stockMainRepository = stockMainRepository;
         _transactionTypeRepository = transactionTypeRepository;
-        _voucherRepository = voucherRepository;
         _voucherTypeRepository = voucherTypeRepository;
         _accountRepository = accountRepository;
         _productRepository = productRepository;
-        _unitOfWork = unitOfWork;
         _systemAccounts = systemAccountSettings.Value;
         _productService = productService;
         _partyService = partyService;
@@ -87,7 +82,7 @@ public class SaleService : ISaleService
             throw new InvalidOperationException($"Transaction type '{TRANSACTION_TYPE_CODE}' not found.");
 
         sale.TransactionType_ID = transactionType.TransactionTypeID;
-        sale.TransactionNo = await GenerateTransactionNoAsync();
+        sale.TransactionNo = await GenerateTransactionNoAsync(PREFIX);
         sale.Status = "Approved"; // Sales are immediately approved (stock impact)
         sale.CreatedAt = DateTime.Now;
         sale.CreatedBy = userId;
@@ -185,7 +180,7 @@ public class SaleService : ISaleService
             .Where(p => productIds.Contains(p.ProductID))
             .ToListAsync();
 
-        var voucherNo = await GenerateVoucherNoAsync();
+        var voucherNo = await GenerateVoucherNoAsync(VOUCHER_TYPE_CODE);
         var voucherDetails = new List<VoucherDetail>();
 
         // 1. Debit: Customer Account (total sale amount)
@@ -391,7 +386,8 @@ public class SaleService : ISaleService
             voucherPrefix = "BR";
         }
 
-        var voucherNo = await GeneratePaymentVoucherNoAsync(voucherPrefix);
+        // Use base class method but we need to pass custom prefix
+        var voucherNo = await GenerateVoucherNoAsync(voucherPrefix);
 
         var voucherDetails = new List<VoucherDetail>
         {
@@ -436,28 +432,6 @@ public class SaleService : ISaleService
         return voucher;
     }
 
-    private async Task<string> GeneratePaymentVoucherNoAsync(string prefix = "RV")
-    {
-        var datePrefix = $"{prefix}-{DateTime.Now:yyyyMMdd}-";
-
-        var lastVoucher = await _voucherRepository.Query()
-            .Where(v => v.VoucherNo.StartsWith(datePrefix))
-            .OrderByDescending(v => v.VoucherNo)
-            .FirstOrDefaultAsync();
-
-        int nextNum = 1;
-        if (lastVoucher != null)
-        {
-            var parts = lastVoucher.VoucherNo.Split('-');
-            if (parts.Length > 2 && int.TryParse(parts.Last(), out int lastNum))
-            {
-                nextNum = lastNum + 1;
-            }
-        }
-
-        return $"{datePrefix}{nextNum:D4}";
-    }
-
     public async Task<bool> VoidAsync(int id, string reason, int userId)
     {
         var sale = await _stockMainRepository.Query()
@@ -482,120 +456,13 @@ public class SaleService : ISaleService
         // Create reversing voucher for the sale voucher
         if (sale.Voucher != null && sale.Voucher.VoucherDetails.Any())
         {
-            await CreateReversingVoucherAsync(sale.Voucher, userId, $"Reversal of {sale.TransactionNo}: {reason}");
+            await CreateReversalVoucherAsync(sale.Voucher.VoucherID, userId, reason, "StockMain", sale.StockMainID);
         }
 
         _stockMainRepository.Update(sale);
         await _unitOfWork.SaveChangesAsync();
 
         return true;
-    }
-
-    /// <summary>
-    /// Creates a reversing voucher by swapping debits and credits of the original voucher.
-    /// </summary>
-    private async Task<Voucher> CreateReversingVoucherAsync(Voucher originalVoucher, int userId, string narration)
-    {
-        var voucherNo = $"REV-{originalVoucher.VoucherNo}";
-
-        var reversingDetails = originalVoucher.VoucherDetails.Select(d => new VoucherDetail
-        {
-            Account_ID = d.Account_ID,
-            DebitAmount = d.CreditAmount,   // Swap: original credit becomes debit
-            CreditAmount = d.DebitAmount,   // Swap: original debit becomes credit
-            Description = $"Reversal: {d.Description}",
-            Party_ID = d.Party_ID,
-            Product_ID = d.Product_ID
-        }).ToList();
-
-        var reversingVoucher = new Voucher
-        {
-            VoucherType_ID = originalVoucher.VoucherType_ID,
-            VoucherNo = voucherNo,
-            VoucherDate = DateTime.Now,
-            TotalDebit = originalVoucher.TotalCredit,
-            TotalCredit = originalVoucher.TotalDebit,
-            Status = "Posted",
-            SourceTable = originalVoucher.SourceTable,
-            SourceID = originalVoucher.SourceID,
-            Narration = narration,
-            ReversesVoucher_ID = originalVoucher.VoucherID,
-            CreatedAt = DateTime.Now,
-            CreatedBy = userId,
-            VoucherDetails = reversingDetails
-        };
-
-        // Mark original voucher as reversed
-        originalVoucher.IsReversed = true;
-        originalVoucher.ReversedByVoucher_ID = null; // Will be set after save
-        originalVoucher.VoidReason = narration;
-
-        await _voucherRepository.AddAsync(reversingVoucher);
-        await _unitOfWork.SaveChangesAsync();
-
-        // Update original voucher with reversing voucher ID
-        originalVoucher.ReversedByVoucher_ID = reversingVoucher.VoucherID;
-        _voucherRepository.Update(originalVoucher);
-        await _unitOfWork.SaveChangesAsync();
-
-        return reversingVoucher;
-    }
-
-    private async Task<string> GenerateTransactionNoAsync()
-    {
-        var datePrefix = $"{PREFIX}-{DateTime.Now:yyyyMMdd}-";
-
-        var lastTransaction = await _stockMainRepository.Query()
-            .Where(s => s.TransactionNo.StartsWith(datePrefix))
-            .OrderByDescending(s => s.TransactionNo)
-            .FirstOrDefaultAsync();
-
-        int nextNum = 1;
-        if (lastTransaction != null)
-        {
-            var parts = lastTransaction.TransactionNo.Split('-');
-            if (parts.Length > 2 && int.TryParse(parts.Last(), out int lastNum))
-            {
-                nextNum = lastNum + 1;
-            }
-        }
-
-        return $"{datePrefix}{nextNum:D4}";
-    }
-
-    private async Task<string> GenerateVoucherNoAsync()
-    {
-        var datePrefix = $"SV-{DateTime.Now:yyyyMMdd}-";
-
-        var lastVoucher = await _voucherRepository.Query()
-            .Where(v => v.VoucherNo.StartsWith(datePrefix))
-            .OrderByDescending(v => v.VoucherNo)
-            .FirstOrDefaultAsync();
-
-        int nextNum = 1;
-        if (lastVoucher != null)
-        {
-            var parts = lastVoucher.VoucherNo.Split('-');
-            if (parts.Length > 2 && int.TryParse(parts.Last(), out int lastNum))
-            {
-                nextNum = lastNum + 1;
-            }
-        }
-
-        return $"{datePrefix}{nextNum:D4}";
-    }
-
-    private void CalculateTotals(StockMain sale)
-    {
-        sale.SubTotal = sale.StockDetails.Sum(d => d.LineTotal);
-
-        if (sale.DiscountPercent > 0)
-        {
-            sale.DiscountAmount = Math.Round(sale.SubTotal * sale.DiscountPercent / 100, 2);
-        }
-
-        sale.TotalAmount = sale.SubTotal - sale.DiscountAmount;
-        sale.BalanceAmount = sale.TotalAmount - sale.PaidAmount;
     }
 
     private async Task ValidateSaleAsync(StockMain sale)
