@@ -5,6 +5,7 @@ using PharmaCare.Domain.Entities.Accounting;
 using PharmaCare.Domain.Entities.Configuration;
 using PharmaCare.Domain.Entities.Finance;
 using PharmaCare.Domain.Entities.Transactions;
+using PharmaCare.Domain.Enums;
 
 namespace PharmaCare.Application.Implementations.Finance;
 
@@ -27,7 +28,7 @@ public class PaymentService : IPaymentService
     private const string PREFIX = "PAY";
     private const string CASH_PAYMENT_VOUCHER_CODE = "CP"; // Cash Payment Voucher
     private const string BANK_PAYMENT_VOUCHER_CODE = "BP"; // Bank Payment Voucher
-    private const string SUPPLIER_PAYMENT_TYPE = "PAYMENT";
+    private static readonly string SupplierPaymentType = PaymentType.PAYMENT.ToString();
 
     public PaymentService(
         IRepository<Payment> paymentRepository,
@@ -55,7 +56,7 @@ public class PaymentService : IPaymentService
             .Include(p => p.Party)
             .Include(p => p.StockMain)
             .Include(p => p.Account)
-            .Where(p => p.PaymentType == "PAYMENT")
+            .Where(p => p.PaymentType == SupplierPaymentType)
             .OrderByDescending(p => p.PaymentDate)
             .ThenByDescending(p => p.PaymentID)
             .ToListAsync();
@@ -125,7 +126,7 @@ public class PaymentService : IPaymentService
             .SumAsync(s => (decimal?)s.TotalAmount) ?? 0;
 
         var totalPayments = await _paymentRepository.Query()
-            .Where(p => p.Party_ID == supplierId && p.PaymentType == SUPPLIER_PAYMENT_TYPE)
+            .Where(p => p.Party_ID == supplierId && p.PaymentType == SupplierPaymentType)
             .SumAsync(p => (decimal?)p.Amount) ?? 0;
 
         // Positive = payable to supplier; Negative = supplier owes company.
@@ -135,61 +136,66 @@ public class PaymentService : IPaymentService
 
     public async Task<Payment> CreatePaymentAsync(Payment payment, int userId)
     {
-        // Validate the transaction exists (include Party and their Account)
-        var stockMain = await _stockMainRepository.Query()
-            .Include(s => s.Party)
-                .ThenInclude(p => p!.Account)
-            .FirstOrDefaultAsync(s => s.StockMainID == payment.StockMain_ID);
+        return await ExecuteInTransactionAsync(async () =>
+        {
+            // Validate the transaction exists (include Party and their Account)
+            var stockMain = await _stockMainRepository.Query()
+                .Include(s => s.Party)
+                    .ThenInclude(p => p!.Account)
+                .FirstOrDefaultAsync(s => s.StockMainID == payment.StockMain_ID);
 
-        if (stockMain == null)
-            throw new InvalidOperationException("Transaction not found.");
+            if (stockMain == null)
+                throw new InvalidOperationException("Transaction not found.");
 
-        if (payment.Amount <= 0)
-            throw new InvalidOperationException("Payment amount must be greater than zero.");
+            if (payment.Amount <= 0)
+                throw new InvalidOperationException("Payment amount must be greater than zero.");
 
-        if (payment.Amount > stockMain.BalanceAmount)
-            throw new InvalidOperationException($"Payment amount ({payment.Amount:N2}) exceeds balance ({stockMain.BalanceAmount:N2}).");
+            if (payment.Amount > stockMain.BalanceAmount)
+                throw new InvalidOperationException($"Payment amount ({payment.Amount:N2}) exceeds balance ({stockMain.BalanceAmount:N2}).");
 
-        // Get the payment account (Cash/Bank)
-        var paymentAccount = await _accountRepository.Query()
-            .FirstOrDefaultAsync(a => a.AccountID == payment.Account_ID);
+            // Get the payment account (Cash/Bank)
+            var paymentAccount = await _accountRepository.Query()
+                .FirstOrDefaultAsync(a => a.AccountID == payment.Account_ID);
 
-        if (paymentAccount == null)
-            throw new InvalidOperationException("Payment account not found.");
+            if (paymentAccount == null)
+                throw new InvalidOperationException("Payment account not found.");
 
-        // Get supplier's linked account directly (no more name-matching)
-        var supplierAccount = stockMain.Party?.Account;
-        if (supplierAccount == null)
-            throw new InvalidOperationException($"Supplier '{stockMain.Party?.Name}' does not have a linked account. Please update the party record.");
+            // Get supplier's linked account directly (no more name-matching)
+            var supplierAccount = stockMain.Party?.Account;
+            if (supplierAccount == null)
+                throw new InvalidOperationException($"Supplier '{stockMain.Party?.Name}' does not have a linked account. Please update the party record.");
 
-        // Generate reference number
-        payment.Reference = await GenerateReferenceNoAsync();
-        payment.PaymentType = SUPPLIER_PAYMENT_TYPE; // Supplier payment
-        payment.CreatedAt = DateTime.Now;
-        payment.CreatedBy = userId;
+            // Generate reference number
+            payment.Reference = await GenerateReferenceNoAsync();
+            payment.PaymentType = SupplierPaymentType; // Supplier payment
+            payment.CreatedAt = DateTime.Now;
+            payment.CreatedBy = userId;
 
-        // Create accounting voucher
-        var voucher = await CreatePaymentVoucherAsync(
-            payment, 
-            supplierAccount, 
-            paymentAccount, 
-            stockMain.Party!.Name, 
-            userId);
+            // Create accounting voucher
+            var voucher = await CreatePaymentVoucherAsync(
+                payment,
+                supplierAccount,
+                paymentAccount,
+                stockMain.Party!.Name,
+                userId);
 
-        payment.Voucher_ID = voucher.VoucherID;
+            payment.Voucher = voucher;
 
-        // Update transaction balance
-        stockMain.PaidAmount += payment.Amount;
-        stockMain.BalanceAmount = stockMain.TotalAmount - stockMain.PaidAmount;
-        stockMain.PaymentStatus = stockMain.BalanceAmount <= 0 ? "Paid" : "Partial";
-        stockMain.UpdatedAt = DateTime.Now;
-        stockMain.UpdatedBy = userId;
+            // Update transaction balance
+            stockMain.PaidAmount += payment.Amount;
+            stockMain.BalanceAmount = stockMain.TotalAmount - stockMain.PaidAmount;
+            stockMain.PaymentStatus = stockMain.BalanceAmount <= 0
+                ? PharmaCare.Domain.Enums.PaymentStatus.Paid.ToString()
+                : PharmaCare.Domain.Enums.PaymentStatus.Partial.ToString();
+            stockMain.UpdatedAt = DateTime.Now;
+            stockMain.UpdatedBy = userId;
 
-        await _paymentRepository.AddAsync(payment);
-        _stockMainRepository.Update(stockMain);
-        await _unitOfWork.SaveChangesAsync();
+            await _paymentRepository.AddAsync(payment);
+            _stockMainRepository.Update(stockMain);
+            await _unitOfWork.SaveChangesAsync();
 
-        return payment;
+            return payment;
+        });
     }
 
     /// <summary>
@@ -205,7 +211,7 @@ public class PaymentService : IPaymentService
         int userId)
     {
         // Determine voucher type based on payment method (CP for Cash, BP for Bank)
-        var voucherTypeCode = payment.PaymentMethod == "Bank" 
+        var voucherTypeCode = string.Equals(payment.PaymentMethod, PaymentMethod.Bank.ToString(), StringComparison.OrdinalIgnoreCase)
             ? BANK_PAYMENT_VOUCHER_CODE 
             : CASH_PAYMENT_VOUCHER_CODE;
 
@@ -253,7 +259,6 @@ public class PaymentService : IPaymentService
         };
 
         await _voucherRepository.AddAsync(voucher);
-        await _unitOfWork.SaveChangesAsync();
 
         return voucher;
     }
@@ -310,53 +315,56 @@ public class PaymentService : IPaymentService
     /// </summary>
     public async Task<Payment> CreateAdvancePaymentAsync(Payment payment, int userId)
     {
-        if (payment.Amount <= 0)
-            throw new InvalidOperationException("Payment amount must be greater than zero.");
+        return await ExecuteInTransactionAsync(async () =>
+        {
+            if (payment.Amount <= 0)
+                throw new InvalidOperationException("Payment amount must be greater than zero.");
 
-        // Get the supplier with their linked account
-        var supplier = await _partyRepository.Query()
-            .Include(p => p.Account)
-            .FirstOrDefaultAsync(p => p.PartyID == payment.Party_ID);
+            // Get the supplier with their linked account
+            var supplier = await _partyRepository.Query()
+                .Include(p => p.Account)
+                .FirstOrDefaultAsync(p => p.PartyID == payment.Party_ID);
 
-        if (supplier == null)
-            throw new InvalidOperationException("Supplier not found.");
+            if (supplier == null)
+                throw new InvalidOperationException("Supplier not found.");
 
-        if (supplier.Account_ID == null)
-            throw new InvalidOperationException($"Supplier '{supplier.Name}' does not have a linked account. Please update the party record.");
+            if (supplier.Account_ID == null)
+                throw new InvalidOperationException($"Supplier '{supplier.Name}' does not have a linked account. Please update the party record.");
 
-        var supplierAccount = supplier.Account!;
+            var supplierAccount = supplier.Account!;
 
-        // Get the payment account (Cash/Bank)
-        var paymentAccount = await _accountRepository.Query()
-            .FirstOrDefaultAsync(a => a.AccountID == payment.Account_ID);
+            // Get the payment account (Cash/Bank)
+            var paymentAccount = await _accountRepository.Query()
+                .FirstOrDefaultAsync(a => a.AccountID == payment.Account_ID);
 
-        if (paymentAccount == null)
-            throw new InvalidOperationException("Payment account not found.");
+            if (paymentAccount == null)
+                throw new InvalidOperationException("Payment account not found.");
 
-        // Generate reference number
-        payment.Reference = await GenerateReferenceNoAsync();
-        payment.PaymentType = SUPPLIER_PAYMENT_TYPE; // Supplier payment
-        payment.StockMain_ID = null; // No GRN link — this is an advance
-        payment.Remarks = string.IsNullOrWhiteSpace(payment.Remarks)
-            ? $"Advance payment to {supplier.Name}"
-            : payment.Remarks;
-        payment.CreatedAt = DateTime.Now;
-        payment.CreatedBy = userId;
+            // Generate reference number
+            payment.Reference = await GenerateReferenceNoAsync();
+            payment.PaymentType = SupplierPaymentType; // Supplier payment
+            payment.StockMain_ID = null; // No GRN link - this is an advance
+            payment.Remarks = string.IsNullOrWhiteSpace(payment.Remarks)
+                ? $"Advance payment to {supplier.Name}"
+                : payment.Remarks;
+            payment.CreatedAt = DateTime.Now;
+            payment.CreatedBy = userId;
 
-        // Create accounting voucher (same as regular payment: DR Supplier, CR Cash/Bank)
-        var voucher = await CreatePaymentVoucherAsync(
-            payment,
-            supplierAccount,
-            paymentAccount,
-            supplier.Name,
-            userId);
+            // Create accounting voucher (same as regular payment: DR Supplier, CR Cash/Bank)
+            var voucher = await CreatePaymentVoucherAsync(
+                payment,
+                supplierAccount,
+                paymentAccount,
+                supplier.Name,
+                userId);
 
-        payment.Voucher_ID = voucher.VoucherID;
+            payment.Voucher = voucher;
 
-        await _paymentRepository.AddAsync(payment);
-        await _unitOfWork.SaveChangesAsync();
+            await _paymentRepository.AddAsync(payment);
+            await _unitOfWork.SaveChangesAsync();
 
-        return payment;
+            return payment;
+        });
     }
 
     /// <summary>
@@ -367,9 +375,26 @@ public class PaymentService : IPaymentService
         return await _paymentRepository.Query()
             .Include(p => p.Party)
             .Include(p => p.Account)
-            .Where(p => p.PaymentType == SUPPLIER_PAYMENT_TYPE && p.StockMain_ID == null)
+            .Where(p => p.PaymentType == SupplierPaymentType && p.StockMain_ID == null)
             .OrderByDescending(p => p.PaymentDate)
             .ThenByDescending(p => p.PaymentID)
             .ToListAsync();
     }
+
+    private async Task<T> ExecuteInTransactionAsync<T>(Func<Task<T>> operation)
+    {
+        await _unitOfWork.BeginTransactionAsync();
+        try
+        {
+            var result = await operation();
+            await _unitOfWork.CommitTransactionAsync();
+            return result;
+        }
+        catch
+        {
+            await _unitOfWork.RollbackTransactionAsync();
+            throw;
+        }
+    }
 }
+

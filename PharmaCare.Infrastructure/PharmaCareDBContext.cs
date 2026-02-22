@@ -6,6 +6,7 @@ using PharmaCare.Domain.Entities.Configuration;
 using PharmaCare.Domain.Entities.Accounting;
 using PharmaCare.Domain.Entities.Transactions;
 using PharmaCare.Domain.Entities.Finance;
+using PharmaCare.Domain.Enums;
 
 namespace PharmaCare.Infrastructure;
 
@@ -315,6 +316,11 @@ public class PharmaCareDBContext : IdentityUserContext<User, int>
             entity.HasKey(e => e.StockMainID);
             entity.Property(e => e.TransactionNo).IsRequired().HasMaxLength(50);
             entity.HasIndex(e => e.TransactionNo).IsUnique();
+            entity.ToTable(t =>
+            {
+                t.HasCheckConstraint("CK_StockMains_Status_Valid", "[Status] IN ('Draft','Approved','Void')");
+                t.HasCheckConstraint("CK_StockMains_PaymentStatus_Valid", "[PaymentStatus] IN ('Unpaid','Partial','Paid')");
+            });
 
             entity.HasOne(e => e.TransactionType)
                 .WithMany()
@@ -450,6 +456,12 @@ public class PharmaCareDBContext : IdentityUserContext<User, int>
             entity.ToTable("Payments");
             entity.HasKey(e => e.PaymentID);
             entity.Property(e => e.PaymentType).IsRequired().HasMaxLength(20);
+            entity.ToTable(t =>
+            {
+                t.HasCheckConstraint(
+                    "CK_Payments_PaymentType_Valid",
+                    $"[PaymentType] IN ('{PaymentType.RECEIPT}','{PaymentType.PAYMENT}','{PaymentType.REFUND}','{PaymentType.ADJUSTMENT}')");
+            });
             entity.HasOne(e => e.Party)
                 .WithMany()
                 .HasForeignKey(e => e.Party_ID)

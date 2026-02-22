@@ -5,8 +5,11 @@ using PharmaCare.Application.Interfaces.Transactions;
 using PharmaCare.Application.Settings;
 using PharmaCare.Domain.Entities.Accounting;
 using PharmaCare.Domain.Entities.Configuration;
+using PharmaCare.Domain.Entities.Finance;
 using PharmaCare.Domain.Entities.Transactions;
+using PharmaCare.Domain.Enums;
 using PharmaCare.Application.Interfaces.Configuration;
+using PaymentStatusEnum = PharmaCare.Domain.Enums.PaymentStatus;
 
 namespace PharmaCare.Application.Implementations.Transactions;
 
@@ -19,6 +22,7 @@ public class SaleService : TransactionServiceBase, ISaleService
     private readonly IRepository<VoucherType> _voucherTypeRepository;
     private readonly IRepository<Account> _accountRepository;
     private readonly IRepository<Product> _productRepository;
+    private readonly IRepository<Payment> _paymentRepository;
     private readonly SystemAccountSettings _systemAccounts;
     private readonly IProductService _productService;
     private readonly IPartyService _partyService;
@@ -35,6 +39,7 @@ public class SaleService : TransactionServiceBase, ISaleService
         IRepository<VoucherType> voucherTypeRepository,
         IRepository<Account> accountRepository,
         IRepository<Product> productRepository,
+        IRepository<Payment> paymentRepository,
         IUnitOfWork unitOfWork,
         IOptions<SystemAccountSettings> systemAccountSettings,
         IProductService productService,
@@ -45,6 +50,7 @@ public class SaleService : TransactionServiceBase, ISaleService
         _voucherTypeRepository = voucherTypeRepository;
         _accountRepository = accountRepository;
         _productRepository = productRepository;
+        _paymentRepository = paymentRepository;
         _systemAccounts = systemAccountSettings.Value;
         _productService = productService;
         _partyService = partyService;
@@ -85,7 +91,7 @@ public class SaleService : TransactionServiceBase, ISaleService
 
             sale.TransactionType_ID = transactionType.TransactionTypeID;
             sale.TransactionNo = await GenerateTransactionNoAsync(PREFIX);
-            sale.Status = "Approved"; // Sales are immediately approved (stock impact)
+            sale.Status = TransactionStatus.Approved.ToString(); // Sales are immediately approved (stock impact)
             sale.CreatedAt = DateTime.Now;
             sale.CreatedBy = userId;
 
@@ -98,15 +104,15 @@ public class SaleService : TransactionServiceBase, ISaleService
             // Set payment status based on paid amount
             if (sale.PaidAmount >= sale.TotalAmount)
             {
-                sale.PaymentStatus = "Paid";
+                sale.PaymentStatus = PaymentStatusEnum.Paid.ToString();
             }
             else if (sale.PaidAmount > 0)
             {
-                sale.PaymentStatus = "Partial";
+                sale.PaymentStatus = PaymentStatusEnum.Partial.ToString();
             }
             else
             {
-                sale.PaymentStatus = "Unpaid";
+                sale.PaymentStatus = PaymentStatusEnum.Unpaid.ToString();
             }
 
             // Save StockMain and StockDetails first to generate StockMainID for SourceID links.
@@ -125,7 +131,8 @@ public class SaleService : TransactionServiceBase, ISaleService
                         "Please select a Cash or Bank account from the dropdown.");
                 }
 
-                await CreatePaymentVoucherAsync(sale, paymentAccountId.Value, userId);
+                var paymentVoucher = await CreatePaymentVoucherAsync(sale, paymentAccountId.Value, userId);
+                await CreateInitialPaymentRecordAsync(sale, paymentVoucher, paymentAccountId.Value, userId);
             }
 
             _stockMainRepository.Update(sale);
@@ -430,6 +437,59 @@ public class SaleService : TransactionServiceBase, ISaleService
         return voucher;
     }
 
+    private async Task CreateInitialPaymentRecordAsync(StockMain sale, Voucher paymentVoucher, int paymentAccountId, int userId)
+    {
+        int partyId;
+        if (sale.Party_ID.HasValue && sale.Party_ID.Value > 0)
+        {
+            partyId = sale.Party_ID.Value;
+        }
+        else
+        {
+            var walkingCustomer = (await _partyService.GetAllAsync())
+                .FirstOrDefault(p =>
+                    p.IsActive &&
+                    string.Equals(p.PartyType, "Customer", StringComparison.OrdinalIgnoreCase) &&
+                    p.Account_ID == _systemAccounts.WalkingCustomerAccountId);
+
+            if (walkingCustomer == null)
+            {
+                throw new InvalidOperationException(
+                    "Walking customer party is not configured. Please link a Customer party to the Walking Customer account.");
+            }
+
+            partyId = walkingCustomer.PartyID;
+        }
+
+        var paymentAccount = await _accountRepository.GetByIdAsync(paymentAccountId);
+        if (paymentAccount == null)
+        {
+            throw new InvalidOperationException($"Payment account ID {paymentAccountId} not found.");
+        }
+
+        var paymentMethod = paymentAccount.AccountType_ID == 2
+            ? PaymentMethod.Bank.ToString()
+            : PaymentMethod.Cash.ToString();
+
+        var payment = new Payment
+        {
+            PaymentType = PaymentType.RECEIPT.ToString(),
+            Party_ID = partyId,
+            StockMain_ID = sale.StockMainID,
+            Account_ID = paymentAccountId,
+            Amount = sale.PaidAmount,
+            PaymentDate = sale.TransactionDate,
+            PaymentMethod = paymentMethod,
+            Reference = $"REC-{sale.TransactionNo}",
+            Remarks = $"Initial payment captured during sale {sale.TransactionNo}",
+            Voucher = paymentVoucher,
+            CreatedAt = DateTime.Now,
+            CreatedBy = userId
+        };
+
+        await _paymentRepository.AddAsync(payment);
+    }
+
     public async Task<bool> VoidAsync(int id, string reason, int userId)
     {
         return await ExecuteInTransactionAsync(async () =>
@@ -438,10 +498,10 @@ public class SaleService : TransactionServiceBase, ISaleService
                 .Include(s => s.TransactionType)
                 .FirstOrDefaultAsync(s => s.StockMainID == id && s.TransactionType!.Code == TRANSACTION_TYPE_CODE);
 
-            if (sale == null || sale.Status == "Void")
+            if (sale == null || sale.Status == TransactionStatus.Void.ToString())
                 return false;
 
-            sale.Status = "Void";
+            sale.Status = TransactionStatus.Void.ToString();
             sale.VoidReason = reason;
             sale.VoidedAt = DateTime.Now;
             sale.VoidedBy = userId;

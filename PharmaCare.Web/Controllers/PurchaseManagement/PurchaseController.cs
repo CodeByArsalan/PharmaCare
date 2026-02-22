@@ -8,6 +8,7 @@ using PharmaCare.Application.Interfaces.Transactions;
 using PharmaCare.Domain.Entities.Transactions;
 using PharmaCare.Web.Filters;
 using PharmaCare.Web.Utilities;
+using PharmaCare.Web.ViewModels.Transactions;
 
 namespace PharmaCare.Web.Controllers.PurchaseManagement;
 
@@ -55,44 +56,31 @@ public class PurchaseController : BaseController
 
     [HttpPost]
     [ValidateAntiForgeryToken]
-    public async Task<IActionResult> AddPurchase(StockMain purchase, int? PaymentAccountId, decimal transferredAdvanceAmount = 0)
+    public async Task<IActionResult> AddPurchase(PurchaseCreateRequest request, int? PaymentAccountId, decimal transferredAdvanceAmount = 0)
     {
-        // Remove validation for navigation properties
-        ModelState.Remove("TransactionType");
-        ModelState.Remove("Party");
-        ModelState.Remove("Voucher");
-        ModelState.Remove("ReferenceStockMain");
-        
-        // Remove validation for auto-generated/computed fields
-        ModelState.Remove("TransactionNo");
-        ModelState.Remove("Status");
-        ModelState.Remove("PaymentStatus");
-        ModelState.Remove("StockMainID");
-
-        for (int i = 0; i < purchase.StockDetails.Count; i++)
+        if (request.StockDetails == null || request.StockDetails.Count == 0)
         {
-            ModelState.Remove($"StockDetails[{i}].StockMain");
-            ModelState.Remove($"StockDetails[{i}].Product");
-            ModelState.Remove($"StockDetails[{i}].StockDetailID");
-            ModelState.Remove($"StockDetails[{i}].StockMain_ID");
+            ModelState.AddModelError(nameof(request.StockDetails), "At least one item is required.");
         }
 
-        if (ModelState.IsValid)
+        var purchase = MapToStockMain(request);
+        if (!ModelState.IsValid)
         {
-            try
-            {
-                await _purchaseService.CreateAsync(purchase, CurrentUserId, PaymentAccountId, transferredAdvanceAmount);
-                ShowMessage(MessageType.Success, "Purchase created successfully!");
-                return RedirectToAction(nameof(PurchasesIndex));
-            }
-            catch (Exception ex)
-            {
-                _logger.LogError(ex, "Failed to create purchase for user {UserId}.", CurrentUserId);
-                ModelState.AddModelError("", "An unexpected error occurred while creating the purchase.");
-            }
+            return View(purchase);
         }
 
-        // await LoadDropdownsAsync(); // REMOVED
+        try
+        {
+            await _purchaseService.CreateAsync(purchase, CurrentUserId, PaymentAccountId, transferredAdvanceAmount);
+            ShowMessage(MessageType.Success, "Purchase created successfully!");
+            return RedirectToAction(nameof(PurchasesIndex));
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Failed to create purchase for user {UserId}.", CurrentUserId);
+            ModelState.AddModelError("", "An unexpected error occurred while creating the purchase.");
+        }
+
         return View(purchase);
     }
 
@@ -187,5 +175,30 @@ public class PurchaseController : BaseController
             .ToList();
 
         return Json(result);
+    }
+
+    private static StockMain MapToStockMain(PurchaseCreateRequest request)
+    {
+        return new StockMain
+        {
+            TransactionDate = request.TransactionDate,
+            Party_ID = request.Party_ID,
+            ReferenceStockMain_ID = request.ReferenceStockMain_ID,
+            DiscountPercent = request.DiscountPercent,
+            PaidAmount = request.PaidAmount,
+            Remarks = request.Remarks,
+            StockDetails = request.StockDetails.Select(d => new StockDetail
+            {
+                Product_ID = d.Product_ID,
+                Quantity = d.Quantity,
+                UnitPrice = d.UnitPrice,
+                CostPrice = d.CostPrice,
+                DiscountPercent = d.DiscountPercent,
+                DiscountAmount = d.DiscountAmount,
+                LineTotal = d.LineTotal,
+                LineCost = d.LineCost,
+                Remarks = d.Remarks
+            }).ToList()
+        };
     }
 }

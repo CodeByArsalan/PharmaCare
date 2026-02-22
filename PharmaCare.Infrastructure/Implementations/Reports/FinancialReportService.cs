@@ -1,6 +1,7 @@
 using Microsoft.EntityFrameworkCore;
 using PharmaCare.Application.Interfaces.Reports;
 using PharmaCare.Application.ViewModels.Report;
+using PharmaCare.Domain.Enums;
 using PharmaCare.Infrastructure;
 
 namespace PharmaCare.Infrastructure.Implementations.Reports;
@@ -25,34 +26,41 @@ public class FinancialReportService : IFinancialReportService
         var fromDate = filter.FromDate;
         var toDate = filter.ToDate.AddDays(1);
 
-        // Revenue
-        var salesData = await _db.StockMains
-            .Include(s => s.TransactionType)
-            .Include(s => s.StockDetails)
+        var revenueByType = await _db.StockMains
+            .AsNoTracking()
             .Where(s => s.TransactionDate >= fromDate && s.TransactionDate < toDate
                         && s.Status != "Void"
                         && (SaleCodes.Contains(s.TransactionType!.Code) || SaleReturnCodes.Contains(s.TransactionType!.Code)))
+            .GroupBy(s => s.TransactionType!.Code)
+            .Select(g => new
+            {
+                Code = g.Key,
+                Amount = g.Sum(s => s.TotalAmount)
+            })
             .ToListAsync();
 
-        var totalRevenue = salesData.Where(s => SaleCodes.Contains(s.TransactionType!.Code)).Sum(s => s.TotalAmount);
-        var salesReturns = salesData.Where(s => SaleReturnCodes.Contains(s.TransactionType!.Code)).Sum(s => s.TotalAmount);
+        var totalRevenue = revenueByType
+            .Where(x => SaleCodes.Contains(x.Code))
+            .Sum(x => x.Amount);
+        var salesReturns = revenueByType
+            .Where(x => SaleReturnCodes.Contains(x.Code))
+            .Sum(x => x.Amount);
         var netRevenue = totalRevenue - salesReturns;
 
-        var cogs = salesData
-            .Where(s => SaleCodes.Contains(s.TransactionType!.Code))
-            .SelectMany(s => s.StockDetails)
-            .Sum(d => d.LineCost);
+        var cogs = await _db.StockDetails
+            .AsNoTracking()
+            .Where(d => d.StockMain!.TransactionDate >= fromDate
+                        && d.StockMain.TransactionDate < toDate
+                        && d.StockMain.Status != "Void"
+                        && SaleCodes.Contains(d.StockMain.TransactionType!.Code))
+            .SumAsync(d => (decimal?)d.LineCost) ?? 0;
 
         var grossProfit = netRevenue - cogs;
 
-        // Expenses
-        var expenses = await _db.Expenses
-            .Include(e => e.ExpenseCategory)
+        var expensesByCategory = await _db.Expenses
+            .AsNoTracking()
             .Where(e => e.ExpenseDate >= fromDate && e.ExpenseDate < toDate)
-            .ToListAsync();
-
-        var expensesByCategory = expenses
-            .GroupBy(e => e.ExpenseCategory?.Name ?? "Uncategorized")
+            .GroupBy(e => e.ExpenseCategory != null ? e.ExpenseCategory.Name : "Uncategorized")
             .Select(g => new ExpenseCategoryTotal
             {
                 CategoryName = g.Key,
@@ -61,7 +69,7 @@ public class FinancialReportService : IFinancialReportService
             .OrderByDescending(e => e.Amount)
             .ToList();
 
-        var totalExpenses = expenses.Sum(e => e.Amount);
+        var totalExpenses = expensesByCategory.Sum(e => e.Amount);
 
         return new ProfitLossVM
         {
@@ -89,8 +97,8 @@ public class FinancialReportService : IFinancialReportService
             .AsNoTracking()
             .Where(p => p.PaymentDate >= fromDate
                         && p.PaymentDate < toDate
-                        && p.PaymentMethod != "ADJUSTMENT"
-                        && (p.PaymentType == "RECEIPT" || p.PaymentType == "PAYMENT"))
+                        && p.PaymentMethod.ToUpper() != PaymentMethod.Adjustment.ToString().ToUpper()
+                        && (p.PaymentType == PaymentType.RECEIPT.ToString() || p.PaymentType == PaymentType.PAYMENT.ToString()))
             .GroupBy(p => new { Date = p.PaymentDate.Date, p.PaymentType })
             .Select(g => new
             {
@@ -113,11 +121,11 @@ public class FinancialReportService : IFinancialReportService
             .ToListAsync();
 
         var receiptsByDate = dailyPaymentTotals
-            .Where(x => x.PaymentType == "RECEIPT")
+            .Where(x => x.PaymentType == PaymentType.RECEIPT.ToString())
             .ToDictionary(x => x.Date, x => x.Amount);
 
         var paymentsByDate = dailyPaymentTotals
-            .Where(x => x.PaymentType == "PAYMENT")
+            .Where(x => x.PaymentType == PaymentType.PAYMENT.ToString())
             .ToDictionary(x => x.Date, x => x.Amount);
 
         var expensesByDate = dailyExpenseTotals
@@ -168,41 +176,34 @@ public class FinancialReportService : IFinancialReportService
 
     public async Task<ReceivablesAgingVM> GetReceivablesAgingAsync(DateTime asOfDate)
     {
-        // Outstanding sale transactions
-        var sales = await _db.StockMains
-            .Include(s => s.TransactionType)
-            .Include(s => s.Party)
+        var rows = await _db.StockMains
+            .AsNoTracking()
             .Where(s => SaleCodes.Contains(s.TransactionType!.Code)
                         && s.TransactionDate <= asOfDate
                         && s.BalanceAmount > 0
                         && s.Status != "Void"
                         && s.Party_ID != null)
-            .ToListAsync();
-
-        var rows = sales
-            .GroupBy(s => s.Party_ID)
-            .Select(g =>
+            .GroupBy(s => new { PartyId = s.Party_ID!.Value, PartyName = s.Party != null ? s.Party.Name : "Unknown" })
+            .Select(g => new AgingRow
             {
-                var row = new AgingRow
-                {
-                    PartyId = g.Key ?? 0,
-                    PartyName = g.First().Party?.Name ?? "Unknown"
-                };
-
-                foreach (var s in g)
-                {
-                    var daysOld = (int)(asOfDate - s.TransactionDate).TotalDays;
-                    if (daysOld <= 30) row.Current += s.BalanceAmount;
-                    else if (daysOld <= 60) row.Days31_60 += s.BalanceAmount;
-                    else if (daysOld <= 90) row.Days61_90 += s.BalanceAmount;
-                    else row.Days90Plus += s.BalanceAmount;
-                }
-
-                row.Total = row.Current + row.Days31_60 + row.Days61_90 + row.Days90Plus;
-                return row;
+                PartyId = g.Key.PartyId,
+                PartyName = g.Key.PartyName,
+                Current = g.Sum(s => EF.Functions.DateDiffDay(s.TransactionDate, asOfDate) <= 30 ? s.BalanceAmount : 0),
+                Days31_60 = g.Sum(s =>
+                    EF.Functions.DateDiffDay(s.TransactionDate, asOfDate) > 30
+                    && EF.Functions.DateDiffDay(s.TransactionDate, asOfDate) <= 60
+                        ? s.BalanceAmount
+                        : 0),
+                Days61_90 = g.Sum(s =>
+                    EF.Functions.DateDiffDay(s.TransactionDate, asOfDate) > 60
+                    && EF.Functions.DateDiffDay(s.TransactionDate, asOfDate) <= 90
+                        ? s.BalanceAmount
+                        : 0),
+                Days90Plus = g.Sum(s => EF.Functions.DateDiffDay(s.TransactionDate, asOfDate) > 90 ? s.BalanceAmount : 0),
+                Total = g.Sum(s => s.BalanceAmount)
             })
             .OrderByDescending(r => r.Total)
-            .ToList();
+            .ToListAsync();
 
         return new ReceivablesAgingVM
         {
@@ -310,37 +311,45 @@ public class FinancialReportService : IFinancialReportService
 
     public async Task<TrialBalanceVM> GetTrialBalanceAsync(DateTime asOfDate)
     {
-        var voucherDetails = await _db.VoucherDetails
-            .Include(vd => vd.Voucher)
-            .Include(vd => vd.Account).ThenInclude(a => a!.AccountHead)
-            .Include(vd => vd.Account).ThenInclude(a => a!.AccountType)
+        var accountTotals = await _db.VoucherDetails
+            .AsNoTracking()
             .Where(vd => vd.Voucher!.VoucherDate <= asOfDate
                          && vd.Voucher.Status == "Posted")
+            .GroupBy(vd => new
+            {
+                vd.Account_ID,
+                AccountName = vd.Account != null ? vd.Account.Name : "",
+                AccountHeadName = vd.Account != null && vd.Account.AccountHead != null ? vd.Account.AccountHead.HeadName : "",
+                AccountTypeName = vd.Account != null && vd.Account.AccountType != null ? vd.Account.AccountType.Name : ""
+            })
+            .Select(g => new
+            {
+                g.Key.Account_ID,
+                g.Key.AccountName,
+                g.Key.AccountHeadName,
+                g.Key.AccountTypeName,
+                DebitTotal = g.Sum(vd => vd.DebitAmount),
+                CreditTotal = g.Sum(vd => vd.CreditAmount)
+            })
+            .Where(x => x.DebitTotal != 0 || x.CreditTotal != 0)
+            .OrderBy(x => x.AccountHeadName).ThenBy(x => x.AccountName)
             .ToListAsync();
 
-        var rows = voucherDetails
-            .GroupBy(vd => vd.Account_ID)
-            .Select(g =>
+        var rows = accountTotals.Select(x =>
+        {
+            var balance = x.DebitTotal - x.CreditTotal;
+            return new TrialBalanceRow
             {
-                var first = g.First();
-                var debitTotal = g.Sum(vd => vd.DebitAmount);
-                var creditTotal = g.Sum(vd => vd.CreditAmount);
-                var balance = debitTotal - creditTotal;
-                return new TrialBalanceRow
-                {
-                    AccountId = first.Account_ID,
-                    AccountName = first.Account?.Name ?? "",
-                    AccountHeadName = first.Account?.AccountHead?.HeadName ?? "",
-                    AccountTypeName = first.Account?.AccountType?.Name ?? "",
-                    DebitTotal = debitTotal,
-                    CreditTotal = creditTotal,
-                    Balance = Math.Abs(balance),
-                    BalanceType = balance >= 0 ? "Dr" : "Cr"
-                };
-            })
-            .Where(r => r.DebitTotal != 0 || r.CreditTotal != 0)
-            .OrderBy(r => r.AccountHeadName).ThenBy(r => r.AccountName)
-            .ToList();
+                AccountId = x.Account_ID,
+                AccountName = x.AccountName,
+                AccountHeadName = x.AccountHeadName,
+                AccountTypeName = x.AccountTypeName,
+                DebitTotal = x.DebitTotal,
+                CreditTotal = x.CreditTotal,
+                Balance = Math.Abs(balance),
+                BalanceType = balance >= 0 ? "Dr" : "Cr"
+            };
+        }).ToList();
 
         var totalDebit = rows.Sum(r => r.DebitTotal);
         var totalCredit = rows.Sum(r => r.CreditTotal);
@@ -424,7 +433,7 @@ public class FinancialReportService : IFinancialReportService
         var isCustomer = partyType == "Customer";
         var relevantSaleCodes = isCustomer ? SaleCodes : PurchaseCodes;
         var relevantReturnCodes = isCustomer ? SaleReturnCodes : PurchaseReturnCodes;
-        var paymentType = isCustomer ? "RECEIPT" : "PAYMENT";
+        var paymentType = isCustomer ? PaymentType.RECEIPT.ToString() : PaymentType.PAYMENT.ToString();
 
         // Opening balance: transactions before FromDate
         var priorTransactions = await _db.StockMains

@@ -3,6 +3,8 @@ using System.ComponentModel.DataAnnotations.Schema;
 using PharmaCare.Domain.Entities.Base;
 using PharmaCare.Domain.Entities.Configuration;
 using PharmaCare.Domain.Entities.Accounting;
+using PharmaCare.Domain.Enums;
+using PaymentStatusEnum = PharmaCare.Domain.Enums.PaymentStatus;
 
 namespace PharmaCare.Domain.Entities.Transactions;
 
@@ -58,13 +60,13 @@ public class StockMain : BaseEntity
     /// Draft, Approved, Void
     /// </summary>
     [StringLength(20)]
-    public string Status { get; set; } = "Draft";
+    public string Status { get; set; } = TransactionStatus.Draft.ToString();
 
     /// <summary>
     /// Unpaid, Partial, Paid
     /// </summary>
     [StringLength(20)]
-    public string PaymentStatus { get; set; } = "Unpaid";
+    public string PaymentStatus { get; set; } = PaymentStatusEnum.Unpaid.ToString();
 
     // ========== ACCOUNTING LINK ==========
     [ForeignKey("Voucher")]

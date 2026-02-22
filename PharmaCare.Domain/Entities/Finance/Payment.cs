@@ -4,6 +4,9 @@ using PharmaCare.Domain.Entities.Base;
 using PharmaCare.Domain.Entities.Accounting;
 using PharmaCare.Domain.Entities.Configuration;
 using PharmaCare.Domain.Entities.Transactions;
+using PharmaCare.Domain.Enums;
+using PaymentMethodEnum = PharmaCare.Domain.Enums.PaymentMethod;
+using PaymentTypeEnum = PharmaCare.Domain.Enums.PaymentType;
 
 namespace PharmaCare.Domain.Entities.Finance;
 
@@ -20,7 +23,7 @@ public class Payment : BaseEntity
     /// </summary>
     [Required]
     [StringLength(20)]
-    public string PaymentType { get; set; } = "RECEIPT";
+    public string PaymentType { get; set; } = PaymentTypeEnum.RECEIPT.ToString();
 
     [ForeignKey("Party")]
     public int Party_ID { get; set; }
@@ -49,7 +52,7 @@ public class Payment : BaseEntity
     /// Cash, Bank, Cheque
     /// </summary>
     [StringLength(20)]
-    public string PaymentMethod { get; set; } = "Cash";
+    public string PaymentMethod { get; set; } = PaymentMethodEnum.Cash.ToString();
 
     [StringLength(100)]
     public string? Reference { get; set; }

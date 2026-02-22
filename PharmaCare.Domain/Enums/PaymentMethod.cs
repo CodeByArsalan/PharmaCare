@@ -7,5 +7,6 @@ public enum PaymentMethod
 {
     Cash,
     Bank,
-    Cheque
+    Cheque,
+    Adjustment
 }

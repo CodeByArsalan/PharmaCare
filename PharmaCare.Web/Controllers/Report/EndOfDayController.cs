@@ -22,17 +22,23 @@ public class EndOfDayController : BaseController
     public async Task<IActionResult> Index(DateTime? date)
     {
         var reportDate = date ?? DateTime.Today;
+        var dayStart = reportDate.Date;
+        var dayEnd = dayStart.AddDays(1);
 
         // 1. Get Sales
         var sales = await _stockRepository.Query()
-            .Where(s => s.TransactionDate.Date == reportDate.Date 
+            .AsNoTracking()
+            .Where(s => s.TransactionDate >= dayStart
+                        && s.TransactionDate < dayEnd
                         && s.TransactionType.Code == "SALE" 
                         && s.Status != "Void")
             .ToListAsync();
 
         // 2. Get Returns
         var returns = await _stockRepository.Query()
-            .Where(s => s.TransactionDate.Date == reportDate.Date 
+            .AsNoTracking()
+            .Where(s => s.TransactionDate >= dayStart
+                        && s.TransactionDate < dayEnd
                         && s.TransactionType.Code == "SRTN" 
                         && s.Status != "Void")
             .ToListAsync();
@@ -41,8 +47,9 @@ public class EndOfDayController : BaseController
         // CR = Cash Receipt (Customer Payments + Cash Sales posted as vouchers)
         // CP = Cash Payment (Supplier Payments + Expenses)
         var vouchers = await _voucherRepository.Query()
+            .AsNoTracking()
             .Include(v => v.VoucherType)
-            .Where(v => v.VoucherDate.Date == reportDate.Date && v.Status == "Posted")
+            .Where(v => v.VoucherDate >= dayStart && v.VoucherDate < dayEnd && v.Status == "Posted")
             .ToListAsync();
 
         var cashReceipts = vouchers.Where(v => v.VoucherType.Code == "CR" || v.VoucherType.Code == "RV").Sum(v => v.TotalDebit); // Cash Debit

@@ -8,6 +8,7 @@ using PharmaCare.Application.Interfaces.Transactions;
 using PharmaCare.Domain.Entities.Transactions;
 using PharmaCare.Web.Filters;
 using PharmaCare.Web.Utilities;
+using PharmaCare.Web.ViewModels.Transactions;
 
 namespace PharmaCare.Web.Controllers.SalesManagement;
 
@@ -52,51 +53,38 @@ public class SaleController : BaseController
 
     [HttpPost]
     [ValidateAntiForgeryToken]
-    public async Task<IActionResult> AddSale(StockMain sale, int? PaymentAccountId)
+    public async Task<IActionResult> AddSale(SaleCreateRequest request, int? PaymentAccountId)
     {
-        // Remove validation for navigation properties
-        ModelState.Remove("TransactionType");
-        ModelState.Remove("Party");
-        ModelState.Remove("Voucher");
-        ModelState.Remove("ReferenceStockMain");
-        
-        // Remove validation for auto-generated/computed fields
-        ModelState.Remove("TransactionNo");
-        ModelState.Remove("Status");
-        ModelState.Remove("PaymentStatus");
-        ModelState.Remove("StockMainID");
-
-        for (int i = 0; i < sale.StockDetails.Count; i++)
+        if (request.StockDetails == null || request.StockDetails.Count == 0)
         {
-            ModelState.Remove($"StockDetails[{i}].StockMain");
-            ModelState.Remove($"StockDetails[{i}].Product");
-            ModelState.Remove($"StockDetails[{i}].StockDetailID");
-            ModelState.Remove($"StockDetails[{i}].StockMain_ID");
+            ModelState.AddModelError(nameof(request.StockDetails), "At least one item is required.");
         }
 
-        if (ModelState.IsValid)
+        var sale = MapToStockMain(request);
+        if (!ModelState.IsValid)
         {
-            try
-            {
-                // Load Party with Account for accounting entries (if customer selected)
-                if (sale.Party_ID.HasValue && sale.Party_ID > 0)
-                {
-                    var party = await _partyService.GetByIdWithAccountAsync(sale.Party_ID.Value);
-                    sale.Party = party;
-                }
-
-                await _saleService.CreateAsync(sale, CurrentUserId, PaymentAccountId);
-                ShowMessage(MessageType.Success, "Sale created successfully!");
-                return RedirectToAction(nameof(Receipt), new { id = Utility.EncryptId(sale.StockMainID) });
-            }
-            catch (Exception ex)
-            {
-                _logger.LogError(ex, "Failed to create sale for user {UserId}.", CurrentUserId);
-                ShowMessage(MessageType.Error, "An unexpected error occurred while creating the sale.");
-            }
+            return View(sale);
         }
 
-        // await LoadDropdownsAsync(); // Removed
+        try
+        {
+            // Load Party with Account for accounting entries (if customer selected)
+            if (sale.Party_ID.HasValue && sale.Party_ID > 0)
+            {
+                var party = await _partyService.GetByIdWithAccountAsync(sale.Party_ID.Value);
+                sale.Party = party;
+            }
+
+            await _saleService.CreateAsync(sale, CurrentUserId, PaymentAccountId);
+            ShowMessage(MessageType.Success, "Sale created successfully!");
+            return RedirectToAction(nameof(Receipt), new { id = Utility.EncryptId(sale.StockMainID) });
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Failed to create sale for user {UserId}.", CurrentUserId);
+            ShowMessage(MessageType.Error, "An unexpected error occurred while creating the sale.");
+        }
+
         return View(sale);
     }
 
@@ -186,4 +174,27 @@ public class SaleController : BaseController
         return View(sale);
     }
 
+    private static StockMain MapToStockMain(SaleCreateRequest request)
+    {
+        return new StockMain
+        {
+            TransactionDate = request.TransactionDate,
+            Party_ID = request.Party_ID,
+            DiscountPercent = request.DiscountPercent,
+            PaidAmount = request.PaidAmount,
+            Remarks = request.Remarks,
+            StockDetails = request.StockDetails.Select(d => new StockDetail
+            {
+                Product_ID = d.Product_ID,
+                Quantity = d.Quantity,
+                UnitPrice = d.UnitPrice,
+                CostPrice = d.CostPrice,
+                DiscountPercent = d.DiscountPercent,
+                DiscountAmount = d.DiscountAmount,
+                LineTotal = d.LineTotal,
+                LineCost = d.LineCost,
+                Remarks = d.Remarks
+            }).ToList()
+        };
+    }
 }

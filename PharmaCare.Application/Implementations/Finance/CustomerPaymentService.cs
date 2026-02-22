@@ -7,6 +7,7 @@ using PharmaCare.Domain.Entities.Accounting;
 using PharmaCare.Domain.Entities.Configuration;
 using PharmaCare.Domain.Entities.Finance;
 using PharmaCare.Domain.Entities.Transactions;
+using PharmaCare.Domain.Enums;
 
 namespace PharmaCare.Application.Implementations.Finance;
 
@@ -29,6 +30,8 @@ public class CustomerPaymentService : ICustomerPaymentService
     private const string SALE_RETURN_TRANSACTION_TYPE_CODE = "SRTN";
     private const string PREFIX = "REC";
     private const string VOUCHER_TYPE_CODE = "RV"; // Receipt Voucher
+    private static readonly string CustomerReceiptPaymentType = PaymentType.RECEIPT.ToString();
+    private static readonly string RefundPaymentType = PaymentType.REFUND.ToString();
 
     public CustomerPaymentService(
         IRepository<Payment> paymentRepository,
@@ -58,7 +61,7 @@ public class CustomerPaymentService : ICustomerPaymentService
             .Include(p => p.Party)
             .Include(p => p.StockMain)
             .Include(p => p.Account)
-            .Where(p => p.PaymentType == "RECEIPT")
+            .Where(p => p.PaymentType == CustomerReceiptPaymentType)
             .OrderByDescending(p => p.PaymentDate)
             .ThenByDescending(p => p.PaymentID)
             .ToListAsync();
@@ -124,8 +127,10 @@ public class CustomerPaymentService : ICustomerPaymentService
             var totalReturns = returnMap.TryGetValue(sale.StockMainID, out var amount) ? amount : 0;
             sale.BalanceAmount = sale.TotalAmount - sale.PaidAmount - totalReturns;
             sale.PaymentStatus = sale.BalanceAmount <= 0
-                ? "Paid"
-                : (sale.PaidAmount > 0 ? "Partial" : "Unpaid");
+                ? PharmaCare.Domain.Enums.PaymentStatus.Paid.ToString()
+                : (sale.PaidAmount > 0
+                    ? PharmaCare.Domain.Enums.PaymentStatus.Partial.ToString()
+                    : PharmaCare.Domain.Enums.PaymentStatus.Unpaid.ToString());
         }
 
         return sales.Where(s => s.BalanceAmount > 0).ToList();
@@ -133,122 +138,128 @@ public class CustomerPaymentService : ICustomerPaymentService
 
     public async Task<Payment> CreateReceiptAsync(Payment payment, int userId)
     {
-        // Validate the transaction exists (include Party and their Account)
-        var stockMain = await _stockMainRepository.Query()
-            .Include(s => s.Party)
-                .ThenInclude(p => p!.Account)
-            .FirstOrDefaultAsync(s => s.StockMainID == payment.StockMain_ID);
+        return await ExecuteInTransactionAsync(async () =>
+        {
+            // Validate the transaction exists (include Party and their Account)
+            var stockMain = await _stockMainRepository.Query()
+                .Include(s => s.Party)
+                    .ThenInclude(p => p!.Account)
+                .FirstOrDefaultAsync(s => s.StockMainID == payment.StockMain_ID);
 
-        if (stockMain == null)
-            throw new InvalidOperationException("Transaction not found.");
+            if (stockMain == null)
+                throw new InvalidOperationException("Transaction not found.");
 
-        if (payment.Amount <= 0)
-            throw new InvalidOperationException("Receipt amount must be greater than zero.");
+            if (payment.Amount <= 0)
+                throw new InvalidOperationException("Receipt amount must be greater than zero.");
 
-        var outstandingBeforeReceipt = await GetNetOutstandingAmountAsync(stockMain.StockMainID, stockMain.TotalAmount, stockMain.PaidAmount);
-        if (outstandingBeforeReceipt <= 0)
-            throw new InvalidOperationException("This sale has no outstanding receivable after considering sale returns.");
+            var outstandingBeforeReceipt = await GetNetOutstandingAmountAsync(stockMain.StockMainID, stockMain.TotalAmount, stockMain.PaidAmount);
+            if (outstandingBeforeReceipt <= 0)
+                throw new InvalidOperationException("This sale has no outstanding receivable after considering sale returns.");
 
-        if (payment.Amount > outstandingBeforeReceipt)
-            throw new InvalidOperationException($"Receipt amount ({payment.Amount:N2}) exceeds balance ({outstandingBeforeReceipt:N2}).");
+            if (payment.Amount > outstandingBeforeReceipt)
+                throw new InvalidOperationException($"Receipt amount ({payment.Amount:N2}) exceeds balance ({outstandingBeforeReceipt:N2}).");
 
-        // Get the receipt account (Cash/Bank)
-        var receiptAccount = await _accountRepository.Query()
-            .FirstOrDefaultAsync(a => a.AccountID == payment.Account_ID);
+            // Get the receipt account (Cash/Bank)
+            var receiptAccount = await _accountRepository.Query()
+                .FirstOrDefaultAsync(a => a.AccountID == payment.Account_ID);
 
-        if (receiptAccount == null)
-            throw new InvalidOperationException("Receipt account not found.");
+            if (receiptAccount == null)
+                throw new InvalidOperationException("Receipt account not found.");
 
-        // Get customer's linked account directly
-        var customerAccount = stockMain.Party?.Account;
-        if (customerAccount == null)
-            throw new InvalidOperationException($"Customer '{stockMain.Party?.Name}' does not have a linked account. Please update the party record.");
+            // Get customer's linked account directly
+            var customerAccount = stockMain.Party?.Account;
+            if (customerAccount == null)
+                throw new InvalidOperationException($"Customer '{stockMain.Party?.Name}' does not have a linked account. Please update the party record.");
 
-        // Generate reference number
-        payment.Reference = await GenerateReferenceNoAsync();
-        payment.PaymentType = "RECEIPT"; // Customer receipt
-        payment.CreatedAt = DateTime.Now;
-        payment.CreatedBy = userId;
+            // Generate reference number
+            payment.Reference = await GenerateReferenceNoAsync();
+            payment.PaymentType = CustomerReceiptPaymentType; // Customer receipt
+            payment.CreatedAt = DateTime.Now;
+            payment.CreatedBy = userId;
 
-        // Create accounting voucher
-        var voucher = await CreateReceiptVoucherAsync(
-            payment, 
-            customerAccount, 
-            receiptAccount, 
-            stockMain.Party!.Name, 
-            userId);
+            // Create accounting voucher
+            var voucher = await CreateReceiptVoucherAsync(
+                payment,
+                customerAccount,
+                receiptAccount,
+                stockMain.Party!.Name,
+                userId);
 
-        payment.Voucher_ID = voucher.VoucherID;
+            payment.Voucher = voucher;
 
-        // Update transaction balance
-        stockMain.PaidAmount += payment.Amount;
-        await RecalculateSaleBalanceIncludingReturnsAsync(stockMain, userId);
+            // Update transaction balance
+            stockMain.PaidAmount += payment.Amount;
+            await RecalculateSaleBalanceIncludingReturnsAsync(stockMain, userId);
 
-        await _paymentRepository.AddAsync(payment);
-        _stockMainRepository.Update(stockMain);
-        await _unitOfWork.SaveChangesAsync();
+            await _paymentRepository.AddAsync(payment);
+            _stockMainRepository.Update(stockMain);
+            await _unitOfWork.SaveChangesAsync();
 
-        return payment;
+            return payment;
+        });
     }
 
     public async Task<Payment> CreateWalkingCustomerReceiptAsync(Payment payment, int userId)
     {
-        // Validate the transaction exists
-        var stockMain = await _stockMainRepository.Query()
-            .FirstOrDefaultAsync(s => s.StockMainID == payment.StockMain_ID);
+        return await ExecuteInTransactionAsync(async () =>
+        {
+            // Validate the transaction exists
+            var stockMain = await _stockMainRepository.Query()
+                .FirstOrDefaultAsync(s => s.StockMainID == payment.StockMain_ID);
 
-        if (stockMain == null)
-            throw new InvalidOperationException("Transaction not found.");
+            if (stockMain == null)
+                throw new InvalidOperationException("Transaction not found.");
 
-        if (payment.Amount <= 0)
-            throw new InvalidOperationException("Receipt amount must be greater than zero.");
+            if (payment.Amount <= 0)
+                throw new InvalidOperationException("Receipt amount must be greater than zero.");
 
-        var outstandingBeforeReceipt = await GetNetOutstandingAmountAsync(stockMain.StockMainID, stockMain.TotalAmount, stockMain.PaidAmount);
-        if (outstandingBeforeReceipt <= 0)
-            throw new InvalidOperationException("This sale has no outstanding receivable after considering sale returns.");
+            var outstandingBeforeReceipt = await GetNetOutstandingAmountAsync(stockMain.StockMainID, stockMain.TotalAmount, stockMain.PaidAmount);
+            if (outstandingBeforeReceipt <= 0)
+                throw new InvalidOperationException("This sale has no outstanding receivable after considering sale returns.");
 
-        if (payment.Amount > outstandingBeforeReceipt)
-            throw new InvalidOperationException($"Receipt amount ({payment.Amount:N2}) exceeds balance ({outstandingBeforeReceipt:N2}).");
+            if (payment.Amount > outstandingBeforeReceipt)
+                throw new InvalidOperationException($"Receipt amount ({payment.Amount:N2}) exceeds balance ({outstandingBeforeReceipt:N2}).");
 
-        // Get the receipt account (Cash/Bank)
-        var receiptAccount = await _accountRepository.Query()
-            .FirstOrDefaultAsync(a => a.AccountID == payment.Account_ID);
+            // Get the receipt account (Cash/Bank)
+            var receiptAccount = await _accountRepository.Query()
+                .FirstOrDefaultAsync(a => a.AccountID == payment.Account_ID);
 
-        if (receiptAccount == null)
-            throw new InvalidOperationException("Receipt account not found.");
+            if (receiptAccount == null)
+                throw new InvalidOperationException("Receipt account not found.");
 
-        // Get walking customer account from configuration
-        var walkingCustomerAccount = await _accountRepository.Query()
-            .FirstOrDefaultAsync(a => a.AccountID == _systemAccountSettings.WalkingCustomerAccountId);
+            // Get walking customer account from configuration
+            var walkingCustomerAccount = await _accountRepository.Query()
+                .FirstOrDefaultAsync(a => a.AccountID == _systemAccountSettings.WalkingCustomerAccountId);
 
-        if (walkingCustomerAccount == null)
-            throw new InvalidOperationException("Walking customer account not configured. Please check SystemAccounts settings.");
+            if (walkingCustomerAccount == null)
+                throw new InvalidOperationException("Walking customer account not configured. Please check SystemAccounts settings.");
 
-        // Generate reference number
-        payment.Reference = await GenerateReferenceNoAsync();
-        payment.PaymentType = "RECEIPT"; // Customer receipt
-        payment.CreatedAt = DateTime.Now;
-        payment.CreatedBy = userId;
+            // Generate reference number
+            payment.Reference = await GenerateReferenceNoAsync();
+            payment.PaymentType = CustomerReceiptPaymentType; // Customer receipt
+            payment.CreatedAt = DateTime.Now;
+            payment.CreatedBy = userId;
 
-        // Create accounting voucher
-        var voucher = await CreateReceiptVoucherAsync(
-            payment, 
-            walkingCustomerAccount, 
-            receiptAccount, 
-            "Walking Customer", 
-            userId);
+            // Create accounting voucher
+            var voucher = await CreateReceiptVoucherAsync(
+                payment,
+                walkingCustomerAccount,
+                receiptAccount,
+                "Walking Customer",
+                userId);
 
-        payment.Voucher_ID = voucher.VoucherID;
+            payment.Voucher = voucher;
 
-        // Update transaction balance
-        stockMain.PaidAmount += payment.Amount;
-        await RecalculateSaleBalanceIncludingReturnsAsync(stockMain, userId);
+            // Update transaction balance
+            stockMain.PaidAmount += payment.Amount;
+            await RecalculateSaleBalanceIncludingReturnsAsync(stockMain, userId);
 
-        await _paymentRepository.AddAsync(payment);
-        _stockMainRepository.Update(stockMain);
-        await _unitOfWork.SaveChangesAsync();
+            await _paymentRepository.AddAsync(payment);
+            _stockMainRepository.Update(stockMain);
+            await _unitOfWork.SaveChangesAsync();
 
-        return payment;
+            return payment;
+        });
     }
 
     private async Task<decimal> GetNetOutstandingAmountAsync(int saleId, decimal totalAmount, decimal paidAmount)
@@ -267,8 +278,10 @@ public class CustomerPaymentService : ICustomerPaymentService
     {
         sale.BalanceAmount = await GetNetOutstandingAmountAsync(sale.StockMainID, sale.TotalAmount, sale.PaidAmount);
         sale.PaymentStatus = sale.BalanceAmount <= 0
-            ? "Paid"
-            : (sale.PaidAmount > 0 ? "Partial" : "Unpaid");
+            ? PharmaCare.Domain.Enums.PaymentStatus.Paid.ToString()
+            : (sale.PaidAmount > 0
+                ? PharmaCare.Domain.Enums.PaymentStatus.Partial.ToString()
+                : PharmaCare.Domain.Enums.PaymentStatus.Unpaid.ToString());
         sale.UpdatedAt = DateTime.Now;
         sale.UpdatedBy = userId;
     }
@@ -341,7 +354,6 @@ public class CustomerPaymentService : ICustomerPaymentService
         };
 
         await _voucherRepository.AddAsync(voucher);
-        await _unitOfWork.SaveChangesAsync();
 
         return voucher;
     }
@@ -397,88 +409,90 @@ public class CustomerPaymentService : ICustomerPaymentService
     /// </summary>
     public async Task<Payment> CreateRefundAsync(Payment payment, int userId)
     {
-        if (payment.Amount <= 0)
-            throw new InvalidOperationException("Refund amount must be greater than zero.");
-
-        if (payment.Party_ID <= 0)
-            throw new InvalidOperationException("Customer is required for a refund.");
-
-        var customer = await _partyRepository.Query()
-            .Include(p => p.Account)
-            .FirstOrDefaultAsync(p => p.PartyID == payment.Party_ID);
-
-        if (customer == null)
-            throw new InvalidOperationException("Customer not found.");
-
-        if (customer.Account_ID == null || customer.Account == null)
-            throw new InvalidOperationException($"Customer '{customer.Name}' does not have a linked account.");
-
-        var customerAccount = customer.Account;
-
-        var refundAccount = await _accountRepository.Query()
-            .FirstOrDefaultAsync(a => a.AccountID == payment.Account_ID);
-
-        if (refundAccount == null)
-            throw new InvalidOperationException("Refund account not found.");
-
-        payment.Reference = await GenerateReferenceNoAsync();
-        payment.PaymentType = "REFUND";
-        payment.StockMain_ID = null;
-        payment.Remarks = string.IsNullOrWhiteSpace(payment.Remarks)
-            ? $"Refund to {customer.Name}"
-            : payment.Remarks;
-        payment.CreatedAt = DateTime.Now;
-        payment.CreatedBy = userId;
-
-        var voucherType = await _voucherTypeRepository.Query()
-            .FirstOrDefaultAsync(vt => vt.Code == VOUCHER_TYPE_CODE || vt.Code == "JV");
-
-        if (voucherType == null)
-            throw new InvalidOperationException("Voucher type not found.");
-
-        string voucherPrefix = refundAccount.AccountType_ID == 1 ? "CP" : "BP";
-        var voucherNo = await GenerateVoucherNoAsync(voucherPrefix);
-
-        var voucher = new Voucher
+        return await ExecuteInTransactionAsync(async () =>
         {
-            VoucherType_ID = voucherType.VoucherTypeID,
-            VoucherNo = voucherNo,
-            VoucherDate = payment.PaymentDate,
-            TotalDebit = payment.Amount,
-            TotalCredit = payment.Amount,
-            Status = "Posted",
-            SourceTable = "Payment",
-            Narration = $"Customer refund to {customer.Name}. Ref: {payment.Reference}",
-            CreatedAt = DateTime.Now,
-            CreatedBy = userId,
-            VoucherDetails = new List<VoucherDetail>
+            if (payment.Amount <= 0)
+                throw new InvalidOperationException("Refund amount must be greater than zero.");
+
+            if (payment.Party_ID <= 0)
+                throw new InvalidOperationException("Customer is required for a refund.");
+
+            var customer = await _partyRepository.Query()
+                .Include(p => p.Account)
+                .FirstOrDefaultAsync(p => p.PartyID == payment.Party_ID);
+
+            if (customer == null)
+                throw new InvalidOperationException("Customer not found.");
+
+            if (customer.Account_ID == null || customer.Account == null)
+                throw new InvalidOperationException($"Customer '{customer.Name}' does not have a linked account.");
+
+            var customerAccount = customer.Account;
+
+            var refundAccount = await _accountRepository.Query()
+                .FirstOrDefaultAsync(a => a.AccountID == payment.Account_ID);
+
+            if (refundAccount == null)
+                throw new InvalidOperationException("Refund account not found.");
+
+            payment.Reference = await GenerateReferenceNoAsync();
+            payment.PaymentType = RefundPaymentType;
+            payment.StockMain_ID = null;
+            payment.Remarks = string.IsNullOrWhiteSpace(payment.Remarks)
+                ? $"Refund to {customer.Name}"
+                : payment.Remarks;
+            payment.CreatedAt = DateTime.Now;
+            payment.CreatedBy = userId;
+
+            var voucherType = await _voucherTypeRepository.Query()
+                .FirstOrDefaultAsync(vt => vt.Code == VOUCHER_TYPE_CODE || vt.Code == "JV");
+
+            if (voucherType == null)
+                throw new InvalidOperationException("Voucher type not found.");
+
+            string voucherPrefix = refundAccount.AccountType_ID == 1 ? "CP" : "BP";
+            var voucherNo = await GenerateVoucherNoAsync(voucherPrefix);
+
+            var voucher = new Voucher
             {
-                new VoucherDetail
+                VoucherType_ID = voucherType.VoucherTypeID,
+                VoucherNo = voucherNo,
+                VoucherDate = payment.PaymentDate,
+                TotalDebit = payment.Amount,
+                TotalCredit = payment.Amount,
+                Status = "Posted",
+                SourceTable = "Payment",
+                Narration = $"Customer refund to {customer.Name}. Ref: {payment.Reference}",
+                CreatedAt = DateTime.Now,
+                CreatedBy = userId,
+                VoucherDetails = new List<VoucherDetail>
                 {
-                    Account_ID = customerAccount.AccountID,
-                    DebitAmount = payment.Amount,
-                    CreditAmount = 0,
-                    Description = $"Refund to {customer.Name}",
-                    Party_ID = payment.Party_ID
-                },
-                new VoucherDetail
-                {
-                    Account_ID = refundAccount.AccountID,
-                    DebitAmount = 0,
-                    CreditAmount = payment.Amount,
-                    Description = $"Refund via {payment.PaymentMethod}"
+                    new VoucherDetail
+                    {
+                        Account_ID = customerAccount.AccountID,
+                        DebitAmount = payment.Amount,
+                        CreditAmount = 0,
+                        Description = $"Refund to {customer.Name}",
+                        Party_ID = payment.Party_ID
+                    },
+                    new VoucherDetail
+                    {
+                        Account_ID = refundAccount.AccountID,
+                        DebitAmount = 0,
+                        CreditAmount = payment.Amount,
+                        Description = $"Refund via {payment.PaymentMethod}"
+                    }
                 }
-            }
-        };
+            };
 
-        await _voucherRepository.AddAsync(voucher);
-        await _unitOfWork.SaveChangesAsync();
+            await _voucherRepository.AddAsync(voucher);
 
-        payment.Voucher_ID = voucher.VoucherID;
-        await _paymentRepository.AddAsync(payment);
-        await _unitOfWork.SaveChangesAsync();
+            payment.Voucher = voucher;
+            await _paymentRepository.AddAsync(payment);
+            await _unitOfWork.SaveChangesAsync();
 
-        return payment;
+            return payment;
+        });
     }
 
     /// <summary>
@@ -489,9 +503,25 @@ public class CustomerPaymentService : ICustomerPaymentService
         return await _paymentRepository.Query()
             .Include(p => p.Party)
             .Include(p => p.Account)
-            .Where(p => p.PaymentType == "REFUND")
+            .Where(p => p.PaymentType == RefundPaymentType)
             .OrderByDescending(p => p.PaymentDate)
             .ThenByDescending(p => p.PaymentID)
             .ToListAsync();
+    }
+
+    private async Task<T> ExecuteInTransactionAsync<T>(Func<Task<T>> operation)
+    {
+        await _unitOfWork.BeginTransactionAsync();
+        try
+        {
+            var result = await operation();
+            await _unitOfWork.CommitTransactionAsync();
+            return result;
+        }
+        catch
+        {
+            await _unitOfWork.RollbackTransactionAsync();
+            throw;
+        }
     }
 }

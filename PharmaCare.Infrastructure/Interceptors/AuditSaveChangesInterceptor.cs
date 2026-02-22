@@ -19,6 +19,32 @@ public class AuditSaveChangesInterceptor : SaveChangesInterceptor
 
     // Track audit entries during the save operation
     private List<AuditEntry> _pendingAuditEntries = new();
+    private static readonly HashSet<string> ExcludedAuditProperties = new(StringComparer.OrdinalIgnoreCase)
+    {
+        "PasswordHash",
+        "Password",
+        "ConfirmPassword",
+        "SecurityStamp",
+        "ConcurrencyStamp",
+        "AuthenticatorKey",
+        "RecoveryCodes",
+        "TwoFactorEnabled",
+        "AccessFailedCount",
+        "LockoutEnd",
+        "LockoutEnabled",
+        "PhoneNumberConfirmed"
+    };
+
+    private static readonly HashSet<string> MaskedAuditProperties = new(StringComparer.OrdinalIgnoreCase)
+    {
+        "Email",
+        "NormalizedEmail",
+        "PhoneNumber",
+        "UserName",
+        "NormalizedUserName",
+        "AccountNumber",
+        "IBAN"
+    };
 
     public AuditSaveChangesInterceptor(
         IHttpContextAccessor httpContextAccessor,
@@ -212,13 +238,14 @@ public class AuditSaveChangesInterceptor : SaveChangesInterceptor
 
         foreach (var property in entry.Properties)
         {
-            if (property.Metadata.IsPrimaryKey()) continue;
+            var propertyName = property.Metadata.Name;
+            if (property.Metadata.IsPrimaryKey() || ShouldExcludeProperty(propertyName)) continue;
 
             var value = state == EntityState.Deleted
                 ? property.OriginalValue
                 : property.CurrentValue;
 
-            properties[property.Metadata.Name] = value;
+            properties[propertyName] = MaskValue(propertyName, value);
         }
 
         return properties.Count > 0
@@ -232,10 +259,11 @@ public class AuditSaveChangesInterceptor : SaveChangesInterceptor
 
         foreach (var property in entry.Properties)
         {
-            if (property.Metadata.IsPrimaryKey()) continue;
+            var propertyName = property.Metadata.Name;
+            if (property.Metadata.IsPrimaryKey() || ShouldExcludeProperty(propertyName)) continue;
             if (!property.IsModified) continue;
 
-            properties[property.Metadata.Name] = property.OriginalValue;
+            properties[propertyName] = MaskValue(propertyName, property.OriginalValue);
         }
 
         return properties.Count > 0
@@ -249,10 +277,11 @@ public class AuditSaveChangesInterceptor : SaveChangesInterceptor
 
         foreach (var property in entry.Properties)
         {
-            if (property.Metadata.IsPrimaryKey()) continue;
+            var propertyName = property.Metadata.Name;
+            if (property.Metadata.IsPrimaryKey() || ShouldExcludeProperty(propertyName)) continue;
             if (!property.IsModified) continue;
 
-            properties[property.Metadata.Name] = property.CurrentValue;
+            properties[propertyName] = MaskValue(propertyName, property.CurrentValue);
         }
 
         return properties.Count > 0
@@ -270,6 +299,62 @@ public class AuditSaveChangesInterceptor : SaveChangesInterceptor
             ActivityType.StatusChange => $"Changed status of {auditEntry.EntityName} (ID: {auditEntry.EntityId})",
             _ => $"{auditEntry.ActivityType} on {auditEntry.EntityName}"
         };
+    }
+
+    private static bool ShouldExcludeProperty(string propertyName)
+    {
+        return ExcludedAuditProperties.Contains(propertyName)
+               || propertyName.Contains("Password", StringComparison.OrdinalIgnoreCase)
+               || propertyName.Contains("Token", StringComparison.OrdinalIgnoreCase)
+               || propertyName.Contains("SecurityStamp", StringComparison.OrdinalIgnoreCase);
+    }
+
+    private static object? MaskValue(string propertyName, object? value)
+    {
+        if (value == null || !ShouldMaskProperty(propertyName))
+        {
+            return value;
+        }
+
+        return value switch
+        {
+            string stringValue => MaskString(stringValue),
+            _ => "***"
+        };
+    }
+
+    private static bool ShouldMaskProperty(string propertyName)
+    {
+        return MaskedAuditProperties.Contains(propertyName)
+               || propertyName.Contains("Email", StringComparison.OrdinalIgnoreCase)
+               || propertyName.Contains("Phone", StringComparison.OrdinalIgnoreCase)
+               || propertyName.Contains("UserName", StringComparison.OrdinalIgnoreCase);
+    }
+
+    private static string MaskString(string value)
+    {
+        if (string.IsNullOrWhiteSpace(value))
+        {
+            return value;
+        }
+
+        if (value.Contains('@', StringComparison.Ordinal))
+        {
+            var atIndex = value.IndexOf('@');
+            if (atIndex <= 1)
+            {
+                return $"***{value[atIndex..]}";
+            }
+
+            return $"{value[..1]}***{value[atIndex..]}";
+        }
+
+        if (value.Length <= 4)
+        {
+            return new string('*', value.Length);
+        }
+
+        return $"{value[..2]}***{value[^2..]}";
     }
 
     /// <summary>

@@ -1,6 +1,7 @@
 using Microsoft.EntityFrameworkCore;
 using PharmaCare.Application.Interfaces.Reports;
 using PharmaCare.Application.ViewModels.Report;
+using PharmaCare.Domain.Enums;
 using PharmaCare.Infrastructure;
 
 namespace PharmaCare.Infrastructure.Implementations.Reports;
@@ -250,35 +251,58 @@ public class SalesReportService : ISalesReportService
     public async Task<CustomerBalanceSummaryVM> GetCustomerBalanceSummaryAsync(DateTime asOfDate)
     {
         var customers = await _db.Parties
+            .AsNoTracking()
             .Where(p => p.PartyType == "Customer" && p.IsActive)
+            .Select(p => new
+            {
+                p.PartyID,
+                p.Name,
+                p.OpeningBalance,
+                p.CreditLimit
+            })
             .ToListAsync();
 
-        var sales = await _db.StockMains
-            .Include(s => s.TransactionType)
+        var salesByCustomer = await _db.StockMains
+            .AsNoTracking()
             .Where(s => SaleCodes.Contains(s.TransactionType!.Code)
                         && s.TransactionDate <= asOfDate
                         && s.Status != "Void"
                         && s.Party_ID != null)
+            .GroupBy(s => s.Party_ID!.Value)
+            .Select(g => new
+            {
+                PartyId = g.Key,
+                TotalSales = g.Sum(s => s.TotalAmount)
+            })
             .ToListAsync();
 
-        var receipts = await _db.Payments
-            .Where(p => p.PaymentType == "RECEIPT" && p.PaymentDate <= asOfDate)
+        var receiptsByCustomer = await _db.Payments
+            .AsNoTracking()
+            .Where(p => p.PaymentType == PaymentType.RECEIPT.ToString() && p.PaymentDate <= asOfDate)
+            .GroupBy(p => p.Party_ID)
+            .Select(g => new
+            {
+                PartyId = g.Key,
+                TotalReceipts = g.Sum(p => p.Amount)
+            })
             .ToListAsync();
+
+        var salesLookup = salesByCustomer.ToDictionary(x => x.PartyId, x => x.TotalSales);
+        var receiptsLookup = receiptsByCustomer.ToDictionary(x => x.PartyId, x => x.TotalReceipts);
 
         var rows = customers.Select(c =>
         {
-            var totalSales = sales.Where(s => s.Party_ID == c.PartyID).Sum(s => s.TotalAmount);
-            var totalReceipts = receipts.Where(r => r.Party_ID == c.PartyID).Sum(r => r.Amount);
-            // Factor in paid amount at time of sale
-            var paidAtSale = sales.Where(s => s.Party_ID == c.PartyID).Sum(s => s.PaidAmount);
-            var balance = totalSales - paidAtSale - totalReceipts + c.OpeningBalance;
+            var totalSales = salesLookup.TryGetValue(c.PartyID, out var salesTotal) ? salesTotal : 0;
+            // Single source of truth for cash collections: normalized Payment events.
+            var totalReceipts = receiptsLookup.TryGetValue(c.PartyID, out var receiptTotal) ? receiptTotal : 0;
+            var balance = totalSales - totalReceipts + c.OpeningBalance;
 
             return new CustomerBalanceRow
             {
                 PartyId = c.PartyID,
                 CustomerName = c.Name,
                 TotalSales = totalSales,
-                TotalReceipts = paidAtSale + totalReceipts,
+                TotalReceipts = totalReceipts,
                 BalanceDue = balance,
                 CreditLimit = c.CreditLimit,
                 IsOverLimit = c.CreditLimit > 0 && balance > c.CreditLimit
