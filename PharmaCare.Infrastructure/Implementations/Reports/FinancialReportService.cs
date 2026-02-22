@@ -84,51 +84,63 @@ public class FinancialReportService : IFinancialReportService
         var fromDate = filter.FromDate;
         var toDate = filter.ToDate.AddDays(1);
 
-        // Cash In: Sales Receipts (from Payments table only)
-        var totalCashIn = await _db.Payments
-            .Where(p => p.PaymentType == "RECEIPT" 
-                        && p.PaymentDate >= fromDate && p.PaymentDate < toDate
-                        && p.PaymentMethod != "ADJUSTMENT")
-            .SumAsync(p => p.Amount);
+        // Pre-aggregate payments once by day and type
+        var dailyPaymentTotals = await _db.Payments
+            .AsNoTracking()
+            .Where(p => p.PaymentDate >= fromDate
+                        && p.PaymentDate < toDate
+                        && p.PaymentMethod != "ADJUSTMENT"
+                        && (p.PaymentType == "RECEIPT" || p.PaymentType == "PAYMENT"))
+            .GroupBy(p => new { Date = p.PaymentDate.Date, p.PaymentType })
+            .Select(g => new
+            {
+                g.Key.Date,
+                g.Key.PaymentType,
+                Amount = g.Sum(p => p.Amount)
+            })
+            .ToListAsync();
 
-        // Cash Out: Purchase/Supplier Payments
-        var totalCashOut = await _db.Payments
-            .Where(p => p.PaymentType == "PAYMENT"
-                        && p.PaymentDate >= fromDate && p.PaymentDate < toDate
-                        && p.PaymentMethod != "ADJUSTMENT")
-            .SumAsync(p => p.Amount);
-
-        // Expense Payments
-        var expensePayments = await _db.Expenses
+        // Pre-aggregate expenses once by day
+        var dailyExpenseTotals = await _db.Expenses
+            .AsNoTracking()
             .Where(e => e.ExpenseDate >= fromDate && e.ExpenseDate < toDate)
-            .SumAsync(e => e.Amount);
+            .GroupBy(e => e.ExpenseDate.Date)
+            .Select(g => new
+            {
+                Date = g.Key,
+                Amount = g.Sum(e => e.Amount)
+            })
+            .ToListAsync();
 
-        totalCashOut += expensePayments;
+        var receiptsByDate = dailyPaymentTotals
+            .Where(x => x.PaymentType == "RECEIPT")
+            .ToDictionary(x => x.Date, x => x.Amount);
+
+        var paymentsByDate = dailyPaymentTotals
+            .Where(x => x.PaymentType == "PAYMENT")
+            .ToDictionary(x => x.Date, x => x.Amount);
+
+        var expensesByDate = dailyExpenseTotals
+            .ToDictionary(x => x.Date, x => x.Amount);
+
+        var totalCashIn = receiptsByDate.Values.Sum();
+        var purchasePayments = paymentsByDate.Values.Sum();
+        var expensePayments = expensesByDate.Values.Sum();
+        var totalCashOut = purchasePayments + expensePayments;
 
         // Daily data for chart
         var allDays = Enumerable.Range(0, (int)(filter.ToDate - filter.FromDate).TotalDays + 1)
             .Select(i => filter.FromDate.AddDays(i))
             .ToList();
 
-        var dailyData = new List<DailyCashFlowData>();
+        var dailyData = new List<DailyCashFlowData>(allDays.Count);
         foreach (var day in allDays)
         {
-            var dayEnd = day.AddDays(1);
-
-            var dayIn = await _db.Payments
-                .Where(p => p.PaymentType == "RECEIPT" 
-                            && p.PaymentDate >= day && p.PaymentDate < dayEnd
-                            && p.PaymentMethod != "ADJUSTMENT")
-                .SumAsync(p => p.Amount);
-
-            var dayOut = await _db.Payments
-                .Where(p => p.PaymentType == "PAYMENT" 
-                            && p.PaymentDate >= day && p.PaymentDate < dayEnd
-                            && p.PaymentMethod != "ADJUSTMENT")
-                .SumAsync(p => p.Amount)
-                + await _db.Expenses
-                    .Where(e => e.ExpenseDate >= day && e.ExpenseDate < dayEnd)
-                    .SumAsync(e => e.Amount);
+            var dayKey = day.Date;
+            var dayIn = receiptsByDate.TryGetValue(dayKey, out var receiptAmt) ? receiptAmt : 0;
+            var dayPaymentOut = paymentsByDate.TryGetValue(dayKey, out var paymentAmt) ? paymentAmt : 0;
+            var dayExpenseOut = expensesByDate.TryGetValue(dayKey, out var expenseAmt) ? expenseAmt : 0;
+            var dayOut = dayPaymentOut + dayExpenseOut;
 
             dailyData.Add(new DailyCashFlowData
             {
@@ -145,7 +157,7 @@ public class FinancialReportService : IFinancialReportService
             SalesReceipts = totalCashIn, // Assuming mostly Sales Receipts
             CustomerPayments = 0, // Merged
             TotalCashIn = totalCashIn,
-            PurchasePayments = totalCashOut - expensePayments,
+            PurchasePayments = purchasePayments,
             SupplierPayments = 0,
             ExpensePayments = expensePayments,
             TotalCashOut = totalCashOut,

@@ -22,52 +22,68 @@ public class InventoryReportService : IInventoryReportService
 
     public async Task<CurrentStockReportVM> GetCurrentStockReportAsync(DateRangeFilter filter)
     {
-        var products = await _db.Products
-            .Include(p => p.Category)
-            .Where(p => p.IsActive)
-            .ToListAsync();
+        var productsQuery = _db.Products
+            .AsNoTracking()
+            .Where(p => p.IsActive);
 
         if (filter.CategoryId.HasValue)
-            products = products.Where(p => p.Category_ID == filter.CategoryId.Value).ToList();
+            productsQuery = productsQuery.Where(p => p.Category_ID == filter.CategoryId.Value);
 
-        // Pre-load all stock details with transaction types
-        var stockDetails = await _db.StockDetails
-            .Include(d => d.StockMain).ThenInclude(s => s!.TransactionType)
-            .Where(d => d.StockMain!.Status != "Void")
+        var products = await productsQuery
+            .Select(p => new
+            {
+                p.ProductID,
+                p.Name,
+                CategoryName = p.Category != null ? p.Category.Name : "",
+                OpeningQty = (decimal)p.OpeningQuantity,
+                p.OpeningPrice,
+                p.ReorderLevel
+            })
             .ToListAsync();
 
-        var rows = new List<CurrentStockRow>();
+        var productIds = products.Select(p => p.ProductID).ToList();
+
+        var movementRows = await _db.StockDetails
+            .AsNoTracking()
+            .Where(d => productIds.Contains(d.Product_ID) && d.StockMain!.Status != "Void")
+            .GroupBy(d => d.Product_ID)
+            .Select(g => new
+            {
+                ProductId = g.Key,
+                PurchasedQty = g.Where(d => d.StockMain!.TransactionType!.StockDirection == 1)
+                    .Sum(d => (decimal?)d.Quantity) ?? 0,
+                SoldQty = g.Where(d => d.StockMain!.TransactionType!.StockDirection == -1
+                                       && SaleCodes.Contains(d.StockMain.TransactionType!.Code))
+                    .Sum(d => (decimal?)d.Quantity) ?? 0,
+                ReturnedInQty = g.Where(d => d.StockMain!.TransactionType!.StockDirection == 1
+                                             && SaleReturnCodes.Contains(d.StockMain.TransactionType!.Code))
+                    .Sum(d => (decimal?)d.Quantity) ?? 0,
+                ReturnedOutQty = g.Where(d => d.StockMain!.TransactionType!.StockDirection == -1
+                                              && PurchaseReturnCodes.Contains(d.StockMain.TransactionType!.Code))
+                    .Sum(d => (decimal?)d.Quantity) ?? 0
+            })
+            .ToListAsync();
+
+        var movementByProduct = movementRows.ToDictionary(m => m.ProductId);
+
+        var rows = new List<CurrentStockRow>(products.Count);
         foreach (var p in products)
         {
-            var pDetails = stockDetails.Where(d => d.Product_ID == p.ProductID).ToList();
+            movementByProduct.TryGetValue(p.ProductID, out var m);
 
-            var purchasedQty = pDetails
-                .Where(d => d.StockMain!.TransactionType!.StockDirection == 1)
-                .Sum(d => d.Quantity);
+            var purchasedQty = m?.PurchasedQty ?? 0;
+            var soldQty = m?.SoldQty ?? 0;
+            var returnedInQty = m?.ReturnedInQty ?? 0;
+            var returnedOutQty = m?.ReturnedOutQty ?? 0;
 
-            var soldQty = pDetails
-                .Where(d => d.StockMain!.TransactionType!.StockDirection == -1
-                            && SaleCodes.Contains(d.StockMain!.TransactionType!.Code))
-                .Sum(d => d.Quantity);
-
-            var returnedInQty = pDetails
-                .Where(d => d.StockMain!.TransactionType!.StockDirection == 1
-                            && SaleReturnCodes.Contains(d.StockMain!.TransactionType!.Code))
-                .Sum(d => d.Quantity);
-
-            var returnedOutQty = pDetails
-                .Where(d => d.StockMain!.TransactionType!.StockDirection == -1
-                            && PurchaseReturnCodes.Contains(d.StockMain!.TransactionType!.Code))
-                .Sum(d => d.Quantity);
-
-            var currentStock = p.OpeningQuantity + purchasedQty - soldQty + returnedInQty - returnedOutQty;
+            var currentStock = p.OpeningQty + purchasedQty - soldQty + returnedInQty - returnedOutQty;
 
             rows.Add(new CurrentStockRow
             {
                 ProductId = p.ProductID,
                 ProductName = p.Name,
-                CategoryName = p.Category?.Name ?? "",
-                OpeningQty = p.OpeningQuantity,
+                CategoryName = p.CategoryName,
+                OpeningQty = p.OpeningQty,
                 PurchasedQty = purchasedQty,
                 SoldQty = soldQty,
                 ReturnedInQty = returnedInQty,

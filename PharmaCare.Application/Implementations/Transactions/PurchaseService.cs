@@ -77,128 +77,110 @@ public class PurchaseService : TransactionServiceBase, IPurchaseService
         int? paymentAccountId = null,
         decimal transferredAdvanceAmount = 0)
     {
-        // Get the GRN transaction type
-        var transactionType = await _transactionTypeRepository.Query()
-            .FirstOrDefaultAsync(t => t.Code == TRANSACTION_TYPE_CODE);
-
-        if (transactionType == null)
-            throw new InvalidOperationException($"Transaction type '{TRANSACTION_TYPE_CODE}' not found.");
-
-        if (!purchase.ReferenceStockMain_ID.HasValue)
+        return await ExecuteInTransactionAsync(async () =>
         {
-            transferredAdvanceAmount = 0;
-        }
+            // Get the GRN transaction type
+            var transactionType = await _transactionTypeRepository.Query()
+                .FirstOrDefaultAsync(t => t.Code == TRANSACTION_TYPE_CODE);
 
-        var additionalPaymentAmount = Math.Max(0, purchase.PaidAmount - transferredAdvanceAmount);
-        purchase.PaidAmount = additionalPaymentAmount;
+            if (transactionType == null)
+                throw new InvalidOperationException($"Transaction type '{TRANSACTION_TYPE_CODE}' not found.");
 
-        if (additionalPaymentAmount > 0 && !paymentAccountId.HasValue)
-        {
-            throw new InvalidOperationException("Payment account is required when additional payment is entered.");
-        }
-
-        purchase.TransactionType_ID = transactionType.TransactionTypeID;
-        purchase.TransactionNo = await GenerateTransactionNoAsync(PREFIX);
-        purchase.Status = "Approved"; // GRN is immediately approved (stock impact)
-        purchase.CreatedAt = DateTime.Now;
-        purchase.CreatedBy = userId;
-
-        // Calculate totals
-        CalculateTotals(purchase);
-        purchase.PaymentStatus = purchase.PaidAmount > 0
-            ? (purchase.PaidAmount >= purchase.TotalAmount ? "Paid" : "Partial")
-            : "Unpaid";
-
-        await _stockMainRepository.AddAsync(purchase);
-        await _unitOfWork.SaveChangesAsync();
-
-        // Create accounting entries for the purchase
-        var purchaseVoucher = await CreatePurchaseVoucherAsync(purchase, userId);
-        purchase.Voucher_ID = purchaseVoucher.VoucherID;
-
-        // If this GRN is created from a PO (ReferenceStockMain_ID is present)
-        // We must transfer any advance payments from the PO to this GRN.
-        decimal transferredFromPo = 0;
-        if (purchase.ReferenceStockMain_ID.HasValue)
-        {
-            var poPayments = await _paymentRepository.Query()
-                .Where(p => p.StockMain_ID == purchase.ReferenceStockMain_ID.Value && p.PaymentType == "PAYMENT")
-                .ToListAsync();
-
-            if (poPayments.Any())
+            if (!purchase.ReferenceStockMain_ID.HasValue)
             {
-                foreach (var payment in poPayments)
-                {
-                    // Relink payment to this new GRN
-                    payment.StockMain_ID = purchase.StockMainID;
-                    payment.Remarks += $" (Transferred from PO {purchase.ReferenceStockMain?.TransactionNo ?? ""})";
-                    _paymentRepository.Update(payment);
+                transferredAdvanceAmount = 0;
+            }
 
-                    transferredFromPo += payment.Amount;
+            var additionalPaymentAmount = Math.Max(0, purchase.PaidAmount - transferredAdvanceAmount);
+            purchase.PaidAmount = additionalPaymentAmount;
+
+            if (additionalPaymentAmount > 0 && !paymentAccountId.HasValue)
+            {
+                throw new InvalidOperationException("Payment account is required when additional payment is entered.");
+            }
+
+            purchase.TransactionType_ID = transactionType.TransactionTypeID;
+            purchase.TransactionNo = await GenerateTransactionNoAsync(PREFIX);
+            purchase.Status = "Approved"; // GRN is immediately approved (stock impact)
+            purchase.CreatedAt = DateTime.Now;
+            purchase.CreatedBy = userId;
+
+            // Calculate totals
+            CalculateTotals(purchase);
+            purchase.PaymentStatus = purchase.PaidAmount > 0
+                ? (purchase.PaidAmount >= purchase.TotalAmount ? "Paid" : "Partial")
+                : "Unpaid";
+
+            await _stockMainRepository.AddAsync(purchase);
+            await _unitOfWork.SaveChangesAsync();
+
+            // Create accounting entries for the purchase
+            var purchaseVoucher = await CreatePurchaseVoucherAsync(purchase, userId);
+            purchase.Voucher = purchaseVoucher;
+
+            // If this GRN is created from a PO (ReferenceStockMain_ID is present),
+            // transfer advance payments from the PO to this GRN.
+            decimal transferredFromPo = 0;
+            if (purchase.ReferenceStockMain_ID.HasValue)
+            {
+                var poPayments = await _paymentRepository.Query()
+                    .Where(p => p.StockMain_ID == purchase.ReferenceStockMain_ID.Value && p.PaymentType == "PAYMENT")
+                    .ToListAsync();
+
+                if (poPayments.Any())
+                {
+                    foreach (var payment in poPayments)
+                    {
+                        payment.StockMain_ID = purchase.StockMainID;
+                        payment.Remarks += $" (Transferred from PO {purchase.ReferenceStockMain?.TransactionNo ?? ""})";
+                        _paymentRepository.Update(payment);
+                        transferredFromPo += payment.Amount;
+                    }
                 }
             }
-        }
 
-        purchase.PaidAmount = additionalPaymentAmount + transferredFromPo;
+            purchase.PaidAmount = additionalPaymentAmount + transferredFromPo;
 
-        // Update totals and status with the accumulated paid amount
-        purchase.BalanceAmount = purchase.TotalAmount - purchase.PaidAmount;
-        purchase.PaymentStatus = purchase.PaidAmount > 0
-            ? (purchase.PaidAmount >= purchase.TotalAmount ? "Paid" : "Partial")
-            : "Unpaid";
+            purchase.BalanceAmount = purchase.TotalAmount - purchase.PaidAmount;
+            purchase.PaymentStatus = purchase.PaidAmount > 0
+                ? (purchase.PaidAmount >= purchase.TotalAmount ? "Paid" : "Partial")
+                : "Unpaid";
 
-        _stockMainRepository.Update(purchase);
-        await _unitOfWork.SaveChangesAsync();
-
-        // ---------------------------------------------------------
-        // AUTOMATIC SUPPLIER ADVANCE DEDUCTION
-        // ---------------------------------------------------------
-        
-        // REVISED STRATEGY: 
-        // We now have a deterministic way to get "Balance Before this Purchase" 
-        // by excluding the current StockMainID from the sum.
-        
-        // This returns the balance effectively "Before" this purchase was added to the sum.
-        var previousBalance = await GetSupplierBalanceAsync(purchase.Party_ID ?? 0, purchase.StockMainID);
-        
-        // If previousBalance is Negative, we have an Advance.
-        if (previousBalance < 0)
-        {
-            var advanceAvailable = Math.Abs(previousBalance);
-            
-            // We can settle up to the remaining unpaid amount of this purchase
-            var remainingUnpaid = purchase.TotalAmount - purchase.PaidAmount;
-            
-            if (remainingUnpaid > 0)
+            var previousBalance = await GetSupplierBalanceAsync(purchase.Party_ID ?? 0, purchase.StockMainID);
+            if (previousBalance < 0)
             {
-                var deductionAmount = Math.Min(advanceAvailable, remainingUnpaid);
-                
-                if (deductionAmount > 0)
+                var advanceAvailable = Math.Abs(previousBalance);
+                var remainingUnpaid = purchase.TotalAmount - purchase.PaidAmount;
+
+                if (remainingUnpaid > 0)
                 {
-                    // Create Adjustment Payment
-                    var adjustmentVoucher = await CreateAdjustmentVoucherAsync(purchase, userId, deductionAmount);
-                    
-                    purchase.PaidAmount += deductionAmount;
-                    purchase.BalanceAmount = purchase.TotalAmount - purchase.PaidAmount;
-                    purchase.PaymentStatus = purchase.PaidAmount >= purchase.TotalAmount ? "Paid" : "Partial";
-                    purchase.Remarks += $"; Adjusted {deductionAmount:N2} from Advance.";
-                    
-                    _stockMainRepository.Update(purchase);
-                    await _unitOfWork.SaveChangesAsync();
+                    var deductionAmount = Math.Min(advanceAvailable, remainingUnpaid);
+                    if (deductionAmount > 0)
+                    {
+                        await CreateAdjustmentVoucherAsync(purchase, userId, deductionAmount);
+
+                        purchase.PaidAmount += deductionAmount;
+                        purchase.BalanceAmount = purchase.TotalAmount - purchase.PaidAmount;
+                        purchase.PaymentStatus = purchase.PaidAmount >= purchase.TotalAmount ? "Paid" : "Partial";
+                        purchase.Remarks += $"; Adjusted {deductionAmount:N2} from Advance.";
+                    }
                 }
             }
-        }
 
-        // If a NEW payment was made directly during creation (as indicated by paymentAccountId)
-        if (additionalPaymentAmount > 0)
-        {
-            await CreatePaymentVoucherAsync(purchase, userId, paymentAccountId!.Value, additionalPaymentAmount);
-        }
+            // If a NEW payment was made directly during creation (as indicated by paymentAccountId)
+            if (additionalPaymentAmount > 0)
+            {
+                await CreatePaymentVoucherAsync(purchase, userId, paymentAccountId!.Value, additionalPaymentAmount);
+            }
 
-        return purchase;
+            _stockMainRepository.Update(purchase);
+            await _unitOfWork.SaveChangesAsync();
+
+            return purchase;
+        });
     }
 
-    private async Task<Voucher> CreateAdjustmentVoucherAsync(StockMain purchase, int userId, decimal amount)
+    private async Task CreateAdjustmentVoucherAsync(StockMain purchase, int userId, decimal amount)
     {
         // For Adjustment, we are essentially saying "We paid this using our Advance".
         // Accounting Entry:
@@ -235,9 +217,6 @@ public class PurchaseService : TransactionServiceBase, IPurchaseService
         };
 
         await _paymentRepository.AddAsync(payment);
-        await _unitOfWork.SaveChangesAsync();
-        
-        return null; // No voucher
     }
 
     /// <summary>
@@ -325,7 +304,6 @@ public class PurchaseService : TransactionServiceBase, IPurchaseService
         });
 
         await _voucherRepository.AddAsync(voucher);
-        await _unitOfWork.SaveChangesAsync();
 
         return voucher;
     }
@@ -397,7 +375,6 @@ public class PurchaseService : TransactionServiceBase, IPurchaseService
         };
 
         await _voucherRepository.AddAsync(voucher);
-        await _unitOfWork.SaveChangesAsync();
 
         // Create the Payment record
         var payment = new Payment
@@ -411,13 +388,12 @@ public class PurchaseService : TransactionServiceBase, IPurchaseService
             PaymentMethod = cashBankAccount.AccountType?.Code == "BANK" ? "Bank" : "Cash",
             Reference = paymentReference,
             Remarks = $"Initial payment for purchase {purchase.TransactionNo}",
-            Voucher_ID = voucher.VoucherID,
+            Voucher = voucher,
             CreatedAt = DateTime.Now,
             CreatedBy = userId
         };
 
         await _paymentRepository.AddAsync(payment);
-        await _unitOfWork.SaveChangesAsync();
 
         return voucher;
     }
@@ -480,33 +456,28 @@ public class PurchaseService : TransactionServiceBase, IPurchaseService
 
     public async Task<bool> VoidAsync(int id, string reason, int userId)
     {
-        var purchase = await _stockMainRepository.Query()
-              .Include(s => s.TransactionType)
-              .Include(s => s.Voucher)
-                  .ThenInclude(v => v!.VoucherDetails)
-              .FirstOrDefaultAsync(s => s.StockMainID == id && s.TransactionType!.Code == TRANSACTION_TYPE_CODE);
-
-        if (purchase == null)
-            return false;
-
-        if (purchase.Status == "Void")
-            return false;
-
-        purchase.Status = "Void";
-        purchase.VoidReason = reason;
-        purchase.VoidedAt = DateTime.Now;
-        purchase.VoidedBy = userId;
-
-        // Create reversing voucher for the purchase voucher
-        if (purchase.Voucher != null && purchase.Voucher.VoucherDetails.Any())
+        return await ExecuteInTransactionAsync(async () =>
         {
-            await CreateReversalVoucherAsync(purchase.Voucher.VoucherID, userId, reason, "StockMain", purchase.StockMainID);
-        }
+            var purchase = await _stockMainRepository.Query()
+                .Include(s => s.TransactionType)
+                .FirstOrDefaultAsync(s => s.StockMainID == id && s.TransactionType!.Code == TRANSACTION_TYPE_CODE);
 
-        _stockMainRepository.Update(purchase);
-        await _unitOfWork.SaveChangesAsync();
+            if (purchase == null || purchase.Status == "Void")
+                return false;
 
-        return true;
+            purchase.Status = "Void";
+            purchase.VoidReason = reason;
+            purchase.VoidedAt = DateTime.Now;
+            purchase.VoidedBy = userId;
+
+            // Reverse all posted vouchers linked to this StockMain (purchase + payments, if any)
+            await CreateReversalVouchersForSourceAsync("StockMain", purchase.StockMainID, userId, reason);
+
+            _stockMainRepository.Update(purchase);
+            await _unitOfWork.SaveChangesAsync();
+
+            return true;
+        });
     }
 
     private async Task<decimal> GetSupplierBalanceAsync(int supplierId, int? excludeTransactionId = null)

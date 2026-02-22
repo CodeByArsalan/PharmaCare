@@ -26,6 +26,43 @@ public abstract class TransactionServiceBase
     }
 
     /// <summary>
+    /// Executes a multi-entity operation inside a single database transaction.
+    /// </summary>
+    protected async Task ExecuteInTransactionAsync(Func<Task> operation)
+    {
+        await _unitOfWork.BeginTransactionAsync();
+        try
+        {
+            await operation();
+            await _unitOfWork.CommitTransactionAsync();
+        }
+        catch
+        {
+            await _unitOfWork.RollbackTransactionAsync();
+            throw;
+        }
+    }
+
+    /// <summary>
+    /// Executes a multi-entity operation inside a single database transaction and returns a result.
+    /// </summary>
+    protected async Task<T> ExecuteInTransactionAsync<T>(Func<Task<T>> operation)
+    {
+        await _unitOfWork.BeginTransactionAsync();
+        try
+        {
+            var result = await operation();
+            await _unitOfWork.CommitTransactionAsync();
+            return result;
+        }
+        catch
+        {
+            await _unitOfWork.RollbackTransactionAsync();
+            throw;
+        }
+    }
+
+    /// <summary>
     /// Generates a new transaction number in the format PREFIX-YYYYMMDD-XXXX.
     /// </summary>
     protected async Task<string> GenerateTransactionNoAsync(string prefix)
@@ -151,14 +188,42 @@ public abstract class TransactionServiceBase
         }
 
         await _voucherRepository.AddAsync(reversalVoucher);
-        await _unitOfWork.SaveChangesAsync();
 
-        // Mark original voucher as reversed
+        // Mark original voucher as reversed and link it to the generated reversal voucher.
         originalVoucher.IsReversed = true;
-        originalVoucher.ReversedByVoucher_ID = reversalVoucher.VoucherID;
+        originalVoucher.ReversedByVoucher = reversalVoucher;
         _voucherRepository.Update(originalVoucher);
         await _unitOfWork.SaveChangesAsync();
 
         return reversalVoucher;
+    }
+
+    /// <summary>
+    /// Creates reversal vouchers for all posted vouchers linked to the same source record.
+    /// This supports multi-voucher transactions (e.g. invoice + payment vouchers on one StockMain).
+    /// </summary>
+    protected async Task<int> CreateReversalVouchersForSourceAsync(string sourceTable, int sourceId, int userId, string voidReason)
+    {
+        var voucherIds = await _voucherRepository.Query()
+            .Where(v => v.SourceTable == sourceTable
+                        && v.SourceID == sourceId
+                        && v.Status == "Posted"
+                        && !v.IsReversed
+                        && v.ReversesVoucher_ID == null)
+            .OrderBy(v => v.VoucherID)
+            .Select(v => v.VoucherID)
+            .ToListAsync();
+
+        var reversedCount = 0;
+        foreach (var voucherId in voucherIds)
+        {
+            var reversal = await CreateReversalVoucherAsync(voucherId, userId, voidReason, sourceTable, sourceId);
+            if (reversal != null)
+            {
+                reversedCount++;
+            }
+        }
+
+        return reversedCount;
     }
 }

@@ -74,65 +74,65 @@ public class SaleService : TransactionServiceBase, ISaleService
 
     public async Task<StockMain> CreateAsync(StockMain sale, int userId, int? paymentAccountId = null)
     {
-        // Get the SALE transaction type
-        var transactionType = await _transactionTypeRepository.Query()
-            .FirstOrDefaultAsync(t => t.Code == TRANSACTION_TYPE_CODE);
-
-        if (transactionType == null)
-            throw new InvalidOperationException($"Transaction type '{TRANSACTION_TYPE_CODE}' not found.");
-
-        sale.TransactionType_ID = transactionType.TransactionTypeID;
-        sale.TransactionNo = await GenerateTransactionNoAsync(PREFIX);
-        sale.Status = "Approved"; // Sales are immediately approved (stock impact)
-        sale.CreatedAt = DateTime.Now;
-        sale.CreatedBy = userId;
-
-        // Calculate totals
-        CalculateTotals(sale);
-
-        // Validate Sale (Stock & Walking Customer)
-        await ValidateSaleAsync(sale);
-
-        // Set payment status based on paid amount
-        if (sale.PaidAmount >= sale.TotalAmount)
+        return await ExecuteInTransactionAsync(async () =>
         {
-            sale.PaymentStatus = "Paid";
-        }
-        else if (sale.PaidAmount > 0)
-        {
-            sale.PaymentStatus = "Partial";
-        }
-        else
-        {
-            sale.PaymentStatus = "Unpaid";
-        }
+            // Get the SALE transaction type
+            var transactionType = await _transactionTypeRepository.Query()
+                .FirstOrDefaultAsync(t => t.Code == TRANSACTION_TYPE_CODE);
 
-        // STEP 1: Save StockMain and StockDetails FIRST
-        await _stockMainRepository.AddAsync(sale);
-        await _unitOfWork.SaveChangesAsync();
+            if (transactionType == null)
+                throw new InvalidOperationException($"Transaction type '{TRANSACTION_TYPE_CODE}' not found.");
 
-        // STEP 2: Create accounting voucher for the sale (now we have StockMainID)
-        var saleVoucher = await CreateSaleVoucherAsync(sale, userId);
-        sale.Voucher_ID = saleVoucher.VoucherID;
+            sale.TransactionType_ID = transactionType.TransactionTypeID;
+            sale.TransactionNo = await GenerateTransactionNoAsync(PREFIX);
+            sale.Status = "Approved"; // Sales are immediately approved (stock impact)
+            sale.CreatedAt = DateTime.Now;
+            sale.CreatedBy = userId;
 
-        // STEP 3: If payment is made, create a separate payment voucher
-        if (sale.PaidAmount > 0)
-        {
-            // PaymentAccountId is required when making a payment (selected from Cash/Bank dropdown)
-            if (!paymentAccountId.HasValue || paymentAccountId <= 0)
+            // Calculate totals
+            CalculateTotals(sale);
+
+            // Validate Sale (Stock & Walking Customer)
+            await ValidateSaleAsync(sale);
+
+            // Set payment status based on paid amount
+            if (sale.PaidAmount >= sale.TotalAmount)
             {
-                throw new InvalidOperationException(
-                    "Payment Account is required when making a payment. " +
-                    "Please select a Cash or Bank account from the dropdown.");
+                sale.PaymentStatus = "Paid";
             }
-            await CreatePaymentVoucherAsync(sale, paymentAccountId.Value, userId);
-        }
+            else if (sale.PaidAmount > 0)
+            {
+                sale.PaymentStatus = "Partial";
+            }
+            else
+            {
+                sale.PaymentStatus = "Unpaid";
+            }
 
-        // STEP 4: Update sale with voucher reference
-        _stockMainRepository.Update(sale);
-        await _unitOfWork.SaveChangesAsync();
+            // Save StockMain and StockDetails first to generate StockMainID for SourceID links.
+            await _stockMainRepository.AddAsync(sale);
+            await _unitOfWork.SaveChangesAsync();
 
-        return sale;
+            var saleVoucher = await CreateSaleVoucherAsync(sale, userId);
+            sale.Voucher = saleVoucher;
+
+            if (sale.PaidAmount > 0)
+            {
+                if (!paymentAccountId.HasValue || paymentAccountId <= 0)
+                {
+                    throw new InvalidOperationException(
+                        "Payment Account is required when making a payment. " +
+                        "Please select a Cash or Bank account from the dropdown.");
+                }
+
+                await CreatePaymentVoucherAsync(sale, paymentAccountId.Value, userId);
+            }
+
+            _stockMainRepository.Update(sale);
+            await _unitOfWork.SaveChangesAsync();
+
+            return sale;
+        });
     }
 
     /// <summary>
@@ -332,7 +332,6 @@ public class SaleService : TransactionServiceBase, ISaleService
         };
 
         await _voucherRepository.AddAsync(voucher);
-        await _unitOfWork.SaveChangesAsync();
 
         return voucher;
     }
@@ -427,42 +426,34 @@ public class SaleService : TransactionServiceBase, ISaleService
         };
 
         await _voucherRepository.AddAsync(voucher);
-        await _unitOfWork.SaveChangesAsync();
 
         return voucher;
     }
 
     public async Task<bool> VoidAsync(int id, string reason, int userId)
     {
-        var sale = await _stockMainRepository.Query()
-            .Include(s => s.TransactionType)
-            .Include(s => s.Party)
-            .Include(s => s.StockDetails)
-            .Include(s => s.Voucher)
-                .ThenInclude(v => v!.VoucherDetails)
-            .FirstOrDefaultAsync(s => s.StockMainID == id && s.TransactionType!.Code == TRANSACTION_TYPE_CODE);
-
-        if (sale == null)
-            return false;
-
-        if (sale.Status == "Void")
-            return false;
-
-        sale.Status = "Void";
-        sale.VoidReason = reason;
-        sale.VoidedAt = DateTime.Now;
-        sale.VoidedBy = userId;
-
-        // Create reversing voucher for the sale voucher
-        if (sale.Voucher != null && sale.Voucher.VoucherDetails.Any())
+        return await ExecuteInTransactionAsync(async () =>
         {
-            await CreateReversalVoucherAsync(sale.Voucher.VoucherID, userId, reason, "StockMain", sale.StockMainID);
-        }
+            var sale = await _stockMainRepository.Query()
+                .Include(s => s.TransactionType)
+                .FirstOrDefaultAsync(s => s.StockMainID == id && s.TransactionType!.Code == TRANSACTION_TYPE_CODE);
 
-        _stockMainRepository.Update(sale);
-        await _unitOfWork.SaveChangesAsync();
+            if (sale == null || sale.Status == "Void")
+                return false;
 
-        return true;
+            sale.Status = "Void";
+            sale.VoidReason = reason;
+            sale.VoidedAt = DateTime.Now;
+            sale.VoidedBy = userId;
+
+            // Reverse all posted vouchers linked to this StockMain (invoice + payments, if any)
+            await CreateReversalVouchersForSourceAsync("StockMain", sale.StockMainID, userId, reason);
+
+            _stockMainRepository.Update(sale);
+            await _unitOfWork.SaveChangesAsync();
+
+            return true;
+        });
     }
 
     private async Task ValidateSaleAsync(StockMain sale)

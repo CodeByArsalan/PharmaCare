@@ -1,6 +1,7 @@
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.Mvc.Rendering;
+using Microsoft.Extensions.Logging;
 using PharmaCare.Application.Interfaces.Accounting;
 using PharmaCare.Application.Interfaces.Configuration;
 using PharmaCare.Application.Interfaces.Transactions;
@@ -20,17 +21,20 @@ public class PurchaseController : BaseController
     private readonly IPartyService _partyService;
     private readonly IProductService _productService;
     private readonly IAccountService _accountService;
+    private readonly ILogger<PurchaseController> _logger;
 
     public PurchaseController(
         IPurchaseService purchaseService,
         IPartyService partyService,
         IProductService productService,
-        IAccountService accountService)
+        IAccountService accountService,
+        ILogger<PurchaseController> logger)
     {
         _purchaseService = purchaseService;
         _partyService = partyService;
         _productService = productService;
         _accountService = accountService;
+        _logger = logger;
     }
 
     public async Task<IActionResult> PurchasesIndex()
@@ -83,7 +87,8 @@ public class PurchaseController : BaseController
             }
             catch (Exception ex)
             {
-                ModelState.AddModelError("", "Error creating purchase: " + ex.Message);
+                _logger.LogError(ex, "Failed to create purchase for user {UserId}.", CurrentUserId);
+                ModelState.AddModelError("", "An unexpected error occurred while creating the purchase.");
             }
         }
 
@@ -112,6 +117,7 @@ public class PurchaseController : BaseController
 
     [HttpPost]
     [ValidateAntiForgeryToken]
+    [LinkedToPage("Purchase", "PurchasesIndex", PermissionType = "delete")]
     public async Task<IActionResult> Void(string id, string voidReason)
     {
         int purchaseId = Utility.DecryptId(id);

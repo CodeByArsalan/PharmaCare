@@ -12,7 +12,7 @@ namespace PharmaCare.Infrastructure;
 /// <summary>
 /// Database Context for PharmaCare application
 /// </summary>
-public class PharmaCareDBContext : IdentityDbContext<User, IdentityRole<int>, int>
+public class PharmaCareDBContext : IdentityUserContext<User, int>
 {
     public PharmaCareDBContext(DbContextOptions<PharmaCareDBContext> options)
         : base(options)
@@ -66,16 +66,6 @@ public class PharmaCareDBContext : IdentityDbContext<User, IdentityRole<int>, in
             entity.ToTable("Users");
         });
 
-        builder.Entity<IdentityRole<int>>(entity =>
-        {
-            entity.ToTable("IdentityRoles");
-        });
-
-        builder.Entity<IdentityUserRole<int>>(entity =>
-        {
-            entity.ToTable("IdentityUserRoles");
-        });
-
         builder.Entity<IdentityUserClaim<int>>(entity =>
         {
             entity.ToTable("IdentityUserClaims");
@@ -84,11 +74,6 @@ public class PharmaCareDBContext : IdentityDbContext<User, IdentityRole<int>, in
         builder.Entity<IdentityUserLogin<int>>(entity =>
         {
             entity.ToTable("IdentityUserLogins");
-        });
-
-        builder.Entity<IdentityRoleClaim<int>>(entity =>
-        {
-            entity.ToTable("IdentityRoleClaims");
         });
 
         builder.Entity<IdentityUserToken<int>>(entity =>
@@ -167,6 +152,26 @@ public class PharmaCareDBContext : IdentityDbContext<User, IdentityRole<int>, in
             entity.HasKey(e => e.CategoryID);
             entity.Property(e => e.Name).IsRequired().HasMaxLength(100);
 
+            entity.HasOne(e => e.StockAccount)
+                .WithMany()
+                .HasForeignKey(e => e.StockAccount_ID)
+                .OnDelete(DeleteBehavior.Restrict);
+
+            entity.HasOne(e => e.SaleAccount)
+                .WithMany()
+                .HasForeignKey(e => e.SaleAccount_ID)
+                .OnDelete(DeleteBehavior.Restrict);
+
+            entity.HasOne(e => e.COGSAccount)
+                .WithMany()
+                .HasForeignKey(e => e.COGSAccount_ID)
+                .OnDelete(DeleteBehavior.Restrict);
+
+            entity.HasOne(e => e.DamageAccount)
+                .WithMany()
+                .HasForeignKey(e => e.DamageAccount_ID)
+                .OnDelete(DeleteBehavior.Restrict);
+
         });
 
         builder.Entity<SubCategory>(entity =>
@@ -186,6 +191,8 @@ public class PharmaCareDBContext : IdentityDbContext<User, IdentityRole<int>, in
             entity.ToTable("Products");
             entity.HasKey(e => e.ProductID);
             entity.Property(e => e.Name).IsRequired().HasMaxLength(200);
+            entity.Property(e => e.UnitsInPack).HasDefaultValue(1);
+            entity.ToTable(t => t.HasCheckConstraint("CK_Products_UnitsInPack_Positive", "[UnitsInPack] > 0"));
             entity.HasIndex(e => e.ShortCode);
 
             entity.HasOne(e => e.Category)

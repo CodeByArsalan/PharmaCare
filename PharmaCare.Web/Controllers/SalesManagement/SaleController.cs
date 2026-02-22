@@ -1,6 +1,7 @@
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.Mvc.Rendering;
+using Microsoft.Extensions.Logging;
 using PharmaCare.Application.Interfaces.Accounting;
 using PharmaCare.Application.Interfaces.Configuration;
 using PharmaCare.Application.Interfaces.Transactions;
@@ -17,17 +18,20 @@ public class SaleController : BaseController
     private readonly IPartyService _partyService;
     private readonly IProductService _productService;
     private readonly IAccountService _accountService;
+    private readonly ILogger<SaleController> _logger;
 
     public SaleController(
         ISaleService saleService,
         IPartyService partyService,
         IProductService productService,
-        IAccountService accountService)
+        IAccountService accountService,
+        ILogger<SaleController> logger)
     {
         _saleService = saleService;
         _partyService = partyService;
         _productService = productService;
         _accountService = accountService;
+        _logger = logger;
     }
 
     public async Task<IActionResult> SalesIndex()
@@ -87,7 +91,8 @@ public class SaleController : BaseController
             }
             catch (Exception ex)
             {
-                ShowMessage(MessageType.Error, "Error creating sale: " + ex.Message);
+                _logger.LogError(ex, "Failed to create sale for user {UserId}.", CurrentUserId);
+                ShowMessage(MessageType.Error, "An unexpected error occurred while creating the sale.");
             }
         }
 
@@ -116,6 +121,7 @@ public class SaleController : BaseController
 
     [HttpPost]
     [ValidateAntiForgeryToken]
+    [LinkedToPage("Sale", "SalesIndex", PermissionType = "delete")]
     public async Task<IActionResult> Void(string id, string voidReason)
     {
         int saleId = Utility.DecryptId(id);
