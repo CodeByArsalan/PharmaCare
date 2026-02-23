@@ -67,7 +67,7 @@ public class FinancialReportService : IFinancialReportService
                 Amount = g.Sum(e => e.Amount)
             })
             .OrderByDescending(e => e.Amount)
-            .ToList();
+            .ToListAsync();
 
         var totalExpenses = expensesByCategory.Sum(e => e.Amount);
 

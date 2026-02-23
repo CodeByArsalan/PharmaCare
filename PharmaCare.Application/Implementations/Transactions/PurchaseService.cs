@@ -5,6 +5,7 @@ using PharmaCare.Domain.Entities.Accounting;
 using PharmaCare.Domain.Entities.Configuration;
 using PharmaCare.Domain.Entities.Finance;
 using PharmaCare.Domain.Entities.Transactions;
+using PharmaCare.Domain.Enums;
 
 namespace PharmaCare.Application.Implementations.Transactions;
 
@@ -26,7 +27,6 @@ public class PurchaseService : TransactionServiceBase, IPurchaseService
     private const string PREFIX = "GRN";
     private const string PURCHASE_VOUCHER_CODE = "PV";
     private const string CASH_PAYMENT_VOUCHER_CODE = "CP";
-    private const int DEFAULT_CASH_ACCOUNT_ID = 1; // Cash in Hand
 
     public PurchaseService(
         IRepository<StockMain> stockMainRepository,
@@ -79,6 +79,8 @@ public class PurchaseService : TransactionServiceBase, IPurchaseService
     {
         return await ExecuteInTransactionAsync(async () =>
         {
+            _ = transferredAdvanceAmount;
+
             // Get the GRN transaction type
             var transactionType = await _transactionTypeRepository.Query()
                 .FirstOrDefaultAsync(t => t.Code == TRANSACTION_TYPE_CODE);
@@ -86,12 +88,46 @@ public class PurchaseService : TransactionServiceBase, IPurchaseService
             if (transactionType == null)
                 throw new InvalidOperationException($"Transaction type '{TRANSACTION_TYPE_CODE}' not found.");
 
-            if (!purchase.ReferenceStockMain_ID.HasValue)
+            if (!purchase.Party_ID.HasValue || purchase.Party_ID.Value <= 0)
             {
-                transferredAdvanceAmount = 0;
+                throw new InvalidOperationException("Supplier is required.");
             }
 
-            var additionalPaymentAmount = Math.Max(0, purchase.PaidAmount - transferredAdvanceAmount);
+            StockMain? referencePo = null;
+            var poPaymentsToTransfer = new List<Payment>();
+            if (purchase.ReferenceStockMain_ID.HasValue)
+            {
+                referencePo = await _stockMainRepository.Query()
+                    .Include(s => s.TransactionType)
+                    .Include(s => s.StockDetails)
+                    .FirstOrDefaultAsync(s => s.StockMainID == purchase.ReferenceStockMain_ID.Value);
+
+                if (referencePo == null ||
+                    !string.Equals(referencePo.TransactionType?.Code, PO_TRANSACTION_TYPE_CODE, StringComparison.OrdinalIgnoreCase))
+                {
+                    throw new InvalidOperationException("Selected reference transaction is not a valid Purchase Order.");
+                }
+
+                if (!string.Equals(referencePo.Status, "Approved", StringComparison.OrdinalIgnoreCase))
+                {
+                    throw new InvalidOperationException("Only approved Purchase Orders can be used for GRN.");
+                }
+
+                if (referencePo.Party_ID != purchase.Party_ID)
+                {
+                    throw new InvalidOperationException("Selected Purchase Order belongs to a different supplier.");
+                }
+
+                await ValidateGrnAgainstPurchaseOrderAsync(purchase, referencePo);
+
+                poPaymentsToTransfer = await _paymentRepository.Query()
+                    .Where(p => p.StockMain_ID == referencePo.StockMainID && p.PaymentType == PaymentType.PAYMENT.ToString())
+                    .ToListAsync();
+            }
+
+            // Do not trust client-side transferred advance amount; derive it from PO payments on server.
+            var transferredAdvanceAmountActual = poPaymentsToTransfer.Sum(p => p.Amount);
+            var additionalPaymentAmount = Math.Max(0, purchase.PaidAmount - transferredAdvanceAmountActual);
             purchase.PaidAmount = additionalPaymentAmount;
 
             if (additionalPaymentAmount > 0 && !paymentAccountId.HasValue)
@@ -107,9 +143,8 @@ public class PurchaseService : TransactionServiceBase, IPurchaseService
 
             // Calculate totals
             CalculateTotals(purchase);
-            purchase.PaymentStatus = purchase.PaidAmount > 0
-                ? (purchase.PaidAmount >= purchase.TotalAmount ? "Paid" : "Partial")
-                : "Unpaid";
+            purchase.BalanceAmount = Math.Max(0, purchase.TotalAmount - purchase.PaidAmount);
+            purchase.PaymentStatus = CalculatePaymentStatus(purchase.PaidAmount, purchase.BalanceAmount);
 
             await _stockMainRepository.AddAsync(purchase);
             await _unitOfWork.SaveChangesAsync();
@@ -121,30 +156,36 @@ public class PurchaseService : TransactionServiceBase, IPurchaseService
             // If this GRN is created from a PO (ReferenceStockMain_ID is present),
             // transfer advance payments from the PO to this GRN.
             decimal transferredFromPo = 0;
-            if (purchase.ReferenceStockMain_ID.HasValue)
+            if (referencePo != null)
             {
-                var poPayments = await _paymentRepository.Query()
-                    .Where(p => p.StockMain_ID == purchase.ReferenceStockMain_ID.Value && p.PaymentType == "PAYMENT")
-                    .ToListAsync();
-
-                if (poPayments.Any())
+                if (poPaymentsToTransfer.Any())
                 {
-                    foreach (var payment in poPayments)
+                    foreach (var payment in poPaymentsToTransfer)
                     {
                         payment.StockMain_ID = purchase.StockMainID;
-                        payment.Remarks += $" (Transferred from PO {purchase.ReferenceStockMain?.TransactionNo ?? ""})";
+                        payment.Remarks = string.IsNullOrWhiteSpace(payment.Remarks)
+                            ? $"Transferred from PO {referencePo.TransactionNo}"
+                            : $"{payment.Remarks} (Transferred from PO {referencePo.TransactionNo})";
                         _paymentRepository.Update(payment);
                         transferredFromPo += payment.Amount;
                     }
+                }
+
+                if (transferredFromPo > 0)
+                {
+                    referencePo.PaidAmount = Math.Max(0, referencePo.PaidAmount - transferredFromPo);
+                    referencePo.BalanceAmount = Math.Max(0, referencePo.TotalAmount - referencePo.PaidAmount);
+                    referencePo.PaymentStatus = CalculatePaymentStatus(referencePo.PaidAmount, referencePo.BalanceAmount);
+                    referencePo.UpdatedAt = DateTime.Now;
+                    referencePo.UpdatedBy = userId;
+                    _stockMainRepository.Update(referencePo);
                 }
             }
 
             purchase.PaidAmount = additionalPaymentAmount + transferredFromPo;
 
-            purchase.BalanceAmount = purchase.TotalAmount - purchase.PaidAmount;
-            purchase.PaymentStatus = purchase.PaidAmount > 0
-                ? (purchase.PaidAmount >= purchase.TotalAmount ? "Paid" : "Partial")
-                : "Unpaid";
+            purchase.BalanceAmount = Math.Max(0, purchase.TotalAmount - purchase.PaidAmount);
+            purchase.PaymentStatus = CalculatePaymentStatus(purchase.PaidAmount, purchase.BalanceAmount);
 
             var previousBalance = await GetSupplierBalanceAsync(purchase.Party_ID ?? 0, purchase.StockMainID);
             if (previousBalance < 0)
@@ -160,8 +201,8 @@ public class PurchaseService : TransactionServiceBase, IPurchaseService
                         await CreateAdjustmentVoucherAsync(purchase, userId, deductionAmount);
 
                         purchase.PaidAmount += deductionAmount;
-                        purchase.BalanceAmount = purchase.TotalAmount - purchase.PaidAmount;
-                        purchase.PaymentStatus = purchase.PaidAmount >= purchase.TotalAmount ? "Paid" : "Partial";
+                        purchase.BalanceAmount = Math.Max(0, purchase.TotalAmount - purchase.PaidAmount);
+                        purchase.PaymentStatus = CalculatePaymentStatus(purchase.PaidAmount, purchase.BalanceAmount);
                         purchase.Remarks += $"; Adjusted {deductionAmount:N2} from Advance.";
                     }
                 }
@@ -203,13 +244,13 @@ public class PurchaseService : TransactionServiceBase, IPurchaseService
             // - ReportService.GetPartyLedgerAsync (Good!)
             // - ReportService.CashFlow (Good!)
             
-            PaymentType = "ADJUSTMENT", 
+            PaymentType = PaymentType.ADJUSTMENT.ToString(),
             Party_ID = purchase.Party_ID ?? 0,
             StockMain_ID = purchase.StockMainID,
             Account_ID = supplier?.Account_ID ?? 0, // Just link to supplier account? or null?
             Amount = amount,
             PaymentDate = purchase.TransactionDate,
-            PaymentMethod = "ADJUSTMENT",
+            PaymentMethod = PaymentMethod.Adjustment.ToString(),
             Reference = paymentReference + "-ADJ",
             Remarks = $"Adjusted against Advance for {purchase.TransactionNo}",
             CreatedAt = DateTime.Now,
@@ -379,7 +420,7 @@ public class PurchaseService : TransactionServiceBase, IPurchaseService
         // Create the Payment record
         var payment = new Payment
         {
-            PaymentType = "PAYMENT", // Money to supplier
+            PaymentType = PaymentType.PAYMENT.ToString(), // Money to supplier
             Party_ID = supplier.PartyID,
             StockMain_ID = purchase.StockMainID,
             Account_ID = cashBankAccount.AccountID,
@@ -422,36 +463,89 @@ public class PurchaseService : TransactionServiceBase, IPurchaseService
 
     public async Task<IEnumerable<StockMain>> GetPurchaseOrdersForGrnAsync(int? supplierId = null)
     {
-        var grnTypeId = await _transactionTypeRepository.Query()
-            .Where(t => t.Code == TRANSACTION_TYPE_CODE)
-            .Select(t => t.TransactionTypeID)
-            .FirstOrDefaultAsync();
-
-        if (grnTypeId == 0)
-        {
-            throw new InvalidOperationException($"Transaction type '{TRANSACTION_TYPE_CODE}' not found.");
-        }
-
         var query = _stockMainRepository.Query()
+            .AsNoTracking()
             .Include(s => s.TransactionType)
             .Include(s => s.Party)
             .Include(s => s.StockDetails)
                 .ThenInclude(d => d.Product)
-            .Where(s => s.TransactionType!.Code == PO_TRANSACTION_TYPE_CODE && s.Status == "Approved")
-            .Where(po => !_stockMainRepository.Query()
-                .Any(grn =>
-                    grn.TransactionType_ID == grnTypeId &&
-                    grn.ReferenceStockMain_ID == po.StockMainID &&
-                    grn.Status != "Void"));
+            .Where(s => s.TransactionType!.Code == PO_TRANSACTION_TYPE_CODE && s.Status == "Approved");
 
         if (supplierId.HasValue)
         {
             query = query.Where(s => s.Party_ID == supplierId.Value);
         }
 
-        return await query
+        var purchaseOrders = await query
             .OrderByDescending(s => s.TransactionDate)
             .ToListAsync();
+
+        if (purchaseOrders.Count == 0)
+        {
+            return purchaseOrders;
+        }
+
+        var poIds = purchaseOrders.Select(po => po.StockMainID).ToList();
+
+        var receivedLines = await _stockMainRepository.Query()
+            .Include(s => s.TransactionType)
+            .Where(s => s.TransactionType!.Code == TRANSACTION_TYPE_CODE
+                     && s.Status != "Void"
+                     && s.ReferenceStockMain_ID.HasValue
+                     && poIds.Contains(s.ReferenceStockMain_ID.Value))
+            .SelectMany(s => s.StockDetails.Select(d => new
+            {
+                PoId = s.ReferenceStockMain_ID!.Value,
+                d.Product_ID,
+                d.Quantity
+            }))
+            .ToListAsync();
+
+        var receivedLookup = receivedLines
+            .GroupBy(x => new { x.PoId, x.Product_ID })
+            .ToDictionary(
+                g => (g.Key.PoId, g.Key.Product_ID),
+                g => g.Sum(x => x.Quantity));
+
+        var availablePurchaseOrders = new List<StockMain>();
+        foreach (var po in purchaseOrders)
+        {
+            var remainingDetails = new List<StockDetail>();
+            foreach (var group in po.StockDetails.GroupBy(d => d.Product_ID))
+            {
+                var orderedQty = group.Sum(d => d.Quantity);
+                receivedLookup.TryGetValue((po.StockMainID, group.Key), out var receivedQty);
+                var remainingQty = orderedQty - receivedQty;
+                if (remainingQty <= 0)
+                {
+                    continue;
+                }
+
+                var firstDetail = group.First();
+                remainingDetails.Add(new StockDetail
+                {
+                    Product_ID = firstDetail.Product_ID,
+                    Product = firstDetail.Product,
+                    Quantity = remainingQty,
+                    CostPrice = firstDetail.CostPrice,
+                    UnitPrice = firstDetail.CostPrice,
+                    LineTotal = Math.Round(remainingQty * firstDetail.CostPrice, 2),
+                    LineCost = Math.Round(remainingQty * firstDetail.CostPrice, 2)
+                });
+            }
+
+            if (remainingDetails.Count == 0)
+            {
+                continue;
+            }
+
+            po.StockDetails = remainingDetails;
+            po.SubTotal = remainingDetails.Sum(d => d.LineTotal);
+            po.TotalAmount = po.SubTotal;
+            availablePurchaseOrders.Add(po);
+        }
+
+        return availablePurchaseOrders;
     }
 
     public async Task<bool> VoidAsync(int id, string reason, int userId)
@@ -511,9 +605,75 @@ public class PurchaseService : TransactionServiceBase, IPurchaseService
             
         // Payments (Debit)
         var payments = await _paymentRepository.Query()
-            .Where(p => p.Party_ID == supplierId && p.PaymentType == "PAYMENT")
+            .Where(p => p.Party_ID == supplierId && p.PaymentType == PaymentType.PAYMENT.ToString())
             .SumAsync(p => p.Amount);
 
         return balance + purchases - returns - payments;
+    }
+
+    private async Task ValidateGrnAgainstPurchaseOrderAsync(StockMain purchase, StockMain purchaseOrder)
+    {
+        if (purchase.StockDetails == null || purchase.StockDetails.Count == 0)
+        {
+            throw new InvalidOperationException("At least one item is required for GRN.");
+        }
+
+        var orderedByProduct = purchaseOrder.StockDetails
+            .GroupBy(d => d.Product_ID)
+            .ToDictionary(g => g.Key, g => g.Sum(d => d.Quantity));
+
+        var requestedByProduct = purchase.StockDetails
+            .GroupBy(d => d.Product_ID)
+            .ToDictionary(g => g.Key, g => g.Sum(d => d.Quantity));
+
+        var invalidProducts = requestedByProduct.Keys
+            .Where(productId => !orderedByProduct.ContainsKey(productId))
+            .ToList();
+
+        if (invalidProducts.Count > 0)
+        {
+            throw new InvalidOperationException("GRN contains item(s) that are not present in the selected Purchase Order.");
+        }
+
+        var receivedLines = await _stockMainRepository.Query()
+            .Include(s => s.TransactionType)
+            .Where(s => s.TransactionType!.Code == TRANSACTION_TYPE_CODE
+                     && s.Status != "Void"
+                     && s.ReferenceStockMain_ID == purchaseOrder.StockMainID)
+            .SelectMany(s => s.StockDetails.Select(d => new
+            {
+                d.Product_ID,
+                d.Quantity
+            }))
+            .ToListAsync();
+
+        var alreadyReceivedByProduct = receivedLines
+            .GroupBy(x => x.Product_ID)
+            .ToDictionary(g => g.Key, g => g.Sum(x => x.Quantity));
+
+        foreach (var requested in requestedByProduct)
+        {
+            var productId = requested.Key;
+            var orderedQty = orderedByProduct[productId];
+            alreadyReceivedByProduct.TryGetValue(productId, out var alreadyReceivedQty);
+            var requestedQty = requested.Value;
+
+            if (alreadyReceivedQty + requestedQty > orderedQty)
+            {
+                throw new InvalidOperationException(
+                    $"GRN quantity for product ID {productId} exceeds PO quantity. " +
+                    $"Ordered: {orderedQty:N4}, Already Received: {alreadyReceivedQty:N4}, Current GRN: {requestedQty:N4}.");
+            }
+        }
+    }
+
+    private static string CalculatePaymentStatus(decimal paidAmount, decimal balanceAmount)
+    {
+        if (balanceAmount <= 0)
+        {
+            return PaymentStatus.Paid.ToString();
+        }
+
+        return paidAmount <= 0 ? PaymentStatus.Unpaid.ToString() : PaymentStatus.Partial.ToString();
     }
 }

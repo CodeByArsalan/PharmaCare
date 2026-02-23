@@ -59,6 +59,10 @@ public class SaleController : BaseController
         {
             ModelState.AddModelError(nameof(request.StockDetails), "At least one item is required.");
         }
+        if (!request.Party_ID.HasValue || request.Party_ID.Value <= 0)
+        {
+            ModelState.AddModelError(nameof(request.Party_ID), "Customer is required.");
+        }
 
         var sale = MapToStockMain(request);
         if (!ModelState.IsValid)

@@ -42,6 +42,12 @@ public class PurchaseReturnController : BaseController
     [ValidateAntiForgeryToken]
     public async Task<IActionResult> AddPurchaseReturn(StockMain purchaseReturn)
     {
+        purchaseReturn.StockDetails ??= new List<StockDetail>();
+        if (purchaseReturn.StockDetails.Count == 0)
+        {
+            ModelState.AddModelError(nameof(purchaseReturn.StockDetails), "At least one item is required.");
+        }
+
         // Remove validation for navigation properties
         ModelState.Remove("TransactionType");
         ModelState.Remove("Party");
@@ -171,7 +177,7 @@ public class PurchaseReturnController : BaseController
         // Load suppliers
         var parties = await _partyService.GetAllAsync();
         ViewBag.Suppliers = new SelectList(
-            parties.Where(p => p.IsActive && p.PartyType == "Supplier"),
+            parties.Where(p => p.IsActive && (p.PartyType == "Supplier" || p.PartyType == "Both")),
             "PartyID",
             "Name"
         );

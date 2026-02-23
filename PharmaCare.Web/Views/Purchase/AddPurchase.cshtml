@@ -140,18 +140,14 @@
             addLineItem();
         });
 
-        // Supplier change - load POs and check for counter party
+        // Supplier change - load POs and reset payment context
         document.getElementById('supplierSelect').addEventListener('change', async function() {
             const supplierId = this.value;
             const poSelect = document.getElementById('poSelect');
             poSelect.innerHTML = '<option value="">-- No PO (Direct Purchase) --</option>';
             document.getElementById('transferredAdvanceAmount').value = '0';
-            
-            // Check if this is a counter party
-            checkCounterParty();
-            if (!isCurrentSupplierCounter()) {
-                document.getElementById('paidAmount').value = '0.00';
-            }
+
+            document.getElementById('paidAmount').value = '0.00';
             calculateBalance();
             togglePaymentAccount();
             
@@ -164,42 +160,6 @@
             }
         });
         
-        // Check if selected supplier is a counter party (name contains 'Counter')
-        function checkCounterParty() {
-            const supplierSelect = document.getElementById('supplierSelect');
-            const selectedOption = supplierSelect.options[supplierSelect.selectedIndex];
-            const supplierName = selectedOption ? selectedOption.text : '';
-            const paidAmountInput = document.getElementById('paidAmount');
-            
-            // Check if supplier name contains 'Counter' (case-insensitive)
-            const isCounterParty = supplierName.toLowerCase().includes('counter');
-            
-            if (isCounterParty) {
-                // Counter party: Paid = Total, readonly, payment account required
-                paidAmountInput.readOnly = true;
-                paidAmountInput.style.backgroundColor = 'var(--bg-elevated)';
-                paidAmountInput.style.color = 'var(--text-primary)';
-                paidAmountInput.title = 'Counter party - full payment required';
-            } else {
-                // Regular party: Paid is editable
-                paidAmountInput.readOnly = false;
-                paidAmountInput.style.backgroundColor = '';
-                paidAmountInput.style.color = '';
-                paidAmountInput.title = '';
-            }
-            
-            // Recalculate totals to apply paid amount logic
-            calculateTotals();
-        }
-        
-        // Helper to check if current supplier is counter party
-        function isCurrentSupplierCounter() {
-            const supplierSelect = document.getElementById('supplierSelect');
-            const selectedOption = supplierSelect.options[supplierSelect.selectedIndex];
-            const supplierName = selectedOption ? selectedOption.text : '';
-            return supplierName.toLowerCase().includes('counter');
-        }
-
         // PO change - load details
         document.getElementById('poSelect').addEventListener('change', function() {
             const selectedOption = this.options[this.selectedIndex];
@@ -207,9 +167,7 @@
 
             if (!selectedOption.value) {
                 transferredAdvanceInput.value = '0';
-                if (!isCurrentSupplierCounter()) {
-                    document.getElementById('paidAmount').value = '0.00';
-                }
+                document.getElementById('paidAmount').value = '0.00';
                 calculateBalance();
                 togglePaymentAccount();
                 return;
@@ -237,9 +195,7 @@
                 rowIndex = 0;
                 details.forEach(d => addLineItem(d));
 
-                if (!isCurrentSupplierCounter()) {
-                    document.getElementById('paidAmount').value = paidAmount.toFixed(2);
-                }
+                document.getElementById('paidAmount').value = paidAmount.toFixed(2);
 
                 calculateTotals();
                 togglePaymentAccount();
@@ -358,12 +314,6 @@
 
             // Always update TotalAmount to match SubTotal (since no discounts are applied)
             document.getElementById('totalAmountInput').value = subTotal.toFixed(2);
-
-            // For counter parties, auto-set Paid = Total
-            if (isCurrentSupplierCounter()) {
-                document.getElementById('paidAmount').value = subTotal.toFixed(2);
-                togglePaymentAccount(); // Show payment account dropdown
-            }
 
             calculateBalance();
         }

@@ -3,7 +3,6 @@
 @{
     ViewData["Title"] = "Receive Payment";
     var sale = ViewBag.Sale as PharmaCare.Domain.Entities.Transactions.StockMain;
-    var isWalkingCustomer = ViewBag.IsWalkingCustomer ?? false;
 }
 
 <!-- Page Header -->
@@ -40,16 +39,7 @@
                         </tr>
                         <tr>
                             <td><strong>Customer:</strong></td>
-                            <td>
-                                @if (isWalkingCustomer)
-                                {
-                                    <span class="badge bg-secondary">Walking Customer</span>
-                                }
-                                else
-                                {
-                                    @sale.Party?.Name
-                                }
-                            </td>
+                            <td>@sale.Party?.Name</td>
                         </tr>
                         <tr>
                             <td><strong>Total Amount:</strong></td>
@@ -79,7 +69,6 @@
                 <form asp-action="ReceivePayment" method="post">
                     <input type="hidden" asp-for="StockMain_ID" />
                     <input type="hidden" asp-for="Party_ID" />
-                    <input type="hidden" name="isWalkingCustomer" value="@isWalkingCustomer.ToString().ToLower()" />
 
                     <div asp-validation-summary="All" class="text-danger mb-3"></div>
 

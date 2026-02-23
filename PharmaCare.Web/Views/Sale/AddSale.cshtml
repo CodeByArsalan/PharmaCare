@@ -333,42 +333,6 @@
 
         document.getElementById('addLineBtn').addEventListener('click', function() { addLineItem(); });
 
-        // Customer change handler - check for counter party
-        document.getElementById('customerSelect').addEventListener('change', function() {
-            checkCounterParty();
-        });
-
-        // Check if selected customer is a counter/walking party
-        function checkCounterParty() {
-            const paidAmountInput = document.getElementById('paidAmount');
-            
-            // Use the shared detection function
-            if (isCurrentCustomerCounter()) {
-                // Counter/Walking party: Paid = Total, readonly, payment account required
-                paidAmountInput.readOnly = true;
-                paidAmountInput.style.backgroundColor = 'var(--bg-elevated)';
-                paidAmountInput.style.color = 'var(--text-primary)';
-                paidAmountInput.title = 'Walking/Counter customer - full payment required';
-            } else {
-                // Regular party: Paid is editable
-                paidAmountInput.readOnly = false;
-                paidAmountInput.style.backgroundColor = '';
-                paidAmountInput.style.color = '';
-                paidAmountInput.title = '';
-            }
-            
-            // Recalculate totals to apply paid amount logic
-            calculateTotals();
-        }
-        
-        // Helper to check if current customer is counter party or walking customer
-        function isCurrentCustomerCounter() {
-            const customerSelect = document.getElementById('customerSelect');
-            const selectedOption = customerSelect.options[customerSelect.selectedIndex];
-            const customerName = selectedOption ? selectedOption.text.toLowerCase() : '';
-            return customerName.includes('counter') || customerName.includes('walkin') || customerName.includes('walk-in') || customerName.includes('walk in');
-        }
-
         function addLineItem(detail = null) {
             const tbody = document.getElementById('lineItemsBody');
             const row = document.createElement('tr');
@@ -534,11 +498,6 @@
             document.getElementById('totalAmountDisplay').textContent = totalAmount.toFixed(2);
             document.getElementById('totalAmount').value = totalAmount.toFixed(2);
 
-            // For counter parties, auto-set Paid = Total
-            if (isCurrentCustomerCounter()) {
-                document.getElementById('paidAmount').value = totalAmount.toFixed(2);
-            }
-
             // Calculate balance
             calculatePayment();
         }
@@ -558,12 +517,7 @@
             const totalAmount = subTotal - discountAmount;
             document.getElementById('totalAmountDisplay').textContent = totalAmount.toFixed(2);
             document.getElementById('totalAmount').value = totalAmount.toFixed(2);
-            
-            // For counter parties, auto-set Paid = Total
-            if (isCurrentCustomerCounter()) {
-                document.getElementById('paidAmount').value = totalAmount.toFixed(2);
-            }
-            
+
             calculatePayment();
         }
 
@@ -606,9 +560,7 @@
         // Quick Cash Buttons
         document.querySelectorAll('.quick-cash-btn').forEach(btn => {
             btn.addEventListener('click', function() {
-                // If walking customer, don't allow overpayment via quick buttons if we enforce exact payment
-                // But usually convenience stores allow "Keep the change" or just recording the tender
-                // For now, standard logic: set paid amount
+                // Set paid amount directly from quick cash shortcut
                 const amount = parseFloat(this.getAttribute('data-amount'));
                 const currentPaid = parseFloat(document.getElementById('paidAmount').value) || 0;
                 
@@ -739,24 +691,7 @@
 
             // 2. Custom Validation: Payment Account Required if Paid Amount > 0
             const paidAmount = parseFloat(document.getElementById('paidAmount').value) || 0;
-            const totalAmount = parseFloat(document.getElementById('totalAmount').value) || 0;
             const paymentAccountId = document.getElementById('paymentAccountId');
-            
-            // Walking Customer Check
-            if (isCurrentCustomerCounter()) {
-                // For walking/counter customers, paid amount must equal total amount
-                // Allow small floating point difference
-                if (paidAmount < (totalAmount - 0.01)) {
-                    alert('Walking/Counter customers must pay the full amount immediately.');
-                    
-                    // Auto-fix the amount to help the user
-                    document.getElementById('paidAmount').value = totalAmount.toFixed(2);
-                    calculatePayment(); // Update balance and payment account visibility
-                    
-                    document.getElementById('paidAmount').focus();
-                    return;
-                }
-            }
 
             if (paidAmount > 0 && !paymentAccountId.value) {
                 // Ensure payment account is visible so user can select it

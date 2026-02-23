@@ -1,6 +1,8 @@
+@using PharmaCare.Web.Utilities
 @model PharmaCare.Domain.Entities.Transactions.StockMain
 @{
     ViewData["Title"] = "View Purchase";
+    var encryptedStockMainId = Model.StockMainID.EncryptId();
 }
 
 <!-- Page Header -->
@@ -147,7 +149,7 @@
             <h6 class="mb-0"><i class="fas fa-money-bill-wave me-2"></i>Payment Information</h6>
             @if (Model.BalanceAmount > 0)
             {
-                <a asp-controller="SupplierPayment" asp-action="MakePayment" asp-route-stockMainId="@Model.StockMainID" 
+                <a asp-controller="SupplierPayment" asp-action="MakePayment" asp-route-stockMainId="@encryptedStockMainId" 
                    class="btn btn-sm btn-success">
                     <i class="fas fa-plus me-1"></i>Make Payment
                 </a>
@@ -216,7 +218,7 @@
 
         async function loadPaymentHistory() {
             try {
-                const response = await fetch('@Url.Action("GetPaymentHistory", "SupplierPayment", new { stockMainId = Model.StockMainID })');
+                const response = await fetch('@Url.Action("GetPaymentHistory", "SupplierPayment", new { stockMainId = encryptedStockMainId })');
                 const payments = await response.json();
                 
                 const container = document.getElementById('paymentHistoryContainer');

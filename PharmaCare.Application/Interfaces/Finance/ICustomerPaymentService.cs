@@ -34,12 +34,6 @@ public interface ICustomerPaymentService
     Task<Payment> CreateReceiptAsync(Payment payment, int userId);
 
     /// <summary>
-    /// Creates a receipt for walking customer transactions.
-    /// Uses the configured walking customer account.
-    /// </summary>
-    Task<Payment> CreateWalkingCustomerReceiptAsync(Payment payment, int userId);
-
-    /// <summary>
     /// Creates a refund payment to a customer (reverse of receipt).
     /// DR: Customer Account (A/R) — increases what they can claim
     /// CR: Cash/Bank Account — cash goes out

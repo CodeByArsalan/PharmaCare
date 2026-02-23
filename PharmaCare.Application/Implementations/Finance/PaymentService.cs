@@ -24,6 +24,7 @@ public class PaymentService : IPaymentService
     private readonly IUnitOfWork _unitOfWork;
 
     private const string GRN_TRANSACTION_TYPE_CODE = "GRN";
+    private const string PO_TRANSACTION_TYPE_CODE = "PO";
     private const string PURCHASE_RETURN_TRANSACTION_TYPE_CODE = "PRTN";
     private const string PREFIX = "PAY";
     private const string CASH_PAYMENT_VOUCHER_CODE = "CP"; // Cash Payment Voucher
@@ -106,7 +107,7 @@ public class PaymentService : IPaymentService
 
         var supplier = await _partyRepository.Query()
             .AsNoTracking()
-            .FirstOrDefaultAsync(p => p.PartyID == supplierId && p.PartyType == "Supplier");
+            .FirstOrDefaultAsync(p => p.PartyID == supplierId && (p.PartyType == "Supplier" || p.PartyType == "Both"));
 
         if (supplier == null)
             return 0;
@@ -138,14 +139,25 @@ public class PaymentService : IPaymentService
     {
         return await ExecuteInTransactionAsync(async () =>
         {
-            // Validate the transaction exists (include Party and their Account)
+            // Validate the transaction exists (include type + party + linked account)
             var stockMain = await _stockMainRepository.Query()
+                .Include(s => s.TransactionType)
                 .Include(s => s.Party)
                     .ThenInclude(p => p!.Account)
                 .FirstOrDefaultAsync(s => s.StockMainID == payment.StockMain_ID);
 
             if (stockMain == null)
                 throw new InvalidOperationException("Transaction not found.");
+
+            if (!string.Equals(stockMain.Status, "Approved", StringComparison.OrdinalIgnoreCase))
+                throw new InvalidOperationException("Payments can only be made against approved transactions.");
+
+            var transactionCode = stockMain.TransactionType?.Code;
+            if (!string.Equals(transactionCode, GRN_TRANSACTION_TYPE_CODE, StringComparison.OrdinalIgnoreCase) &&
+                !string.Equals(transactionCode, PO_TRANSACTION_TYPE_CODE, StringComparison.OrdinalIgnoreCase))
+            {
+                throw new InvalidOperationException("Payments are only supported for GRN or PO transactions.");
+            }
 
             if (payment.Amount <= 0)
                 throw new InvalidOperationException("Payment amount must be greater than zero.");
@@ -165,6 +177,13 @@ public class PaymentService : IPaymentService
             if (supplierAccount == null)
                 throw new InvalidOperationException($"Supplier '{stockMain.Party?.Name}' does not have a linked account. Please update the party record.");
 
+            var partyId = stockMain.Party_ID ?? 0;
+            if (partyId <= 0)
+                throw new InvalidOperationException("Transaction is not linked to a supplier.");
+
+            // Prevent party tampering from hidden fields by always deriving party from the linked transaction.
+            payment.Party_ID = partyId;
+
             // Generate reference number
             payment.Reference = await GenerateReferenceNoAsync();
             payment.PaymentType = SupplierPaymentType; // Supplier payment
@@ -183,10 +202,10 @@ public class PaymentService : IPaymentService
 
             // Update transaction balance
             stockMain.PaidAmount += payment.Amount;
-            stockMain.BalanceAmount = stockMain.TotalAmount - stockMain.PaidAmount;
+            stockMain.BalanceAmount = Math.Max(0, stockMain.TotalAmount - stockMain.PaidAmount);
             stockMain.PaymentStatus = stockMain.BalanceAmount <= 0
-                ? PharmaCare.Domain.Enums.PaymentStatus.Paid.ToString()
-                : PharmaCare.Domain.Enums.PaymentStatus.Partial.ToString();
+                ? PaymentStatus.Paid.ToString()
+                : (stockMain.PaidAmount <= 0 ? PaymentStatus.Unpaid.ToString() : PaymentStatus.Partial.ToString());
             stockMain.UpdatedAt = DateTime.Now;
             stockMain.UpdatedBy = userId;
 
@@ -210,8 +229,12 @@ public class PaymentService : IPaymentService
         string supplierName,
         int userId)
     {
-        // Determine voucher type based on payment method (CP for Cash, BP for Bank)
-        var voucherTypeCode = string.Equals(payment.PaymentMethod, PaymentMethod.Bank.ToString(), StringComparison.OrdinalIgnoreCase)
+        // Determine voucher type based on payment method (CP for Cash, BP for Bank/Cheque)
+        var isBankLikePayment =
+            string.Equals(payment.PaymentMethod, PaymentMethod.Bank.ToString(), StringComparison.OrdinalIgnoreCase) ||
+            string.Equals(payment.PaymentMethod, PaymentMethod.Cheque.ToString(), StringComparison.OrdinalIgnoreCase);
+
+        var voucherTypeCode = isBankLikePayment
             ? BANK_PAYMENT_VOUCHER_CODE 
             : CASH_PAYMENT_VOUCHER_CODE;
 

@@ -1,8 +1,6 @@
 using Microsoft.EntityFrameworkCore;
-using Microsoft.Extensions.Options;
 using PharmaCare.Application.Interfaces;
 using PharmaCare.Application.Interfaces.Transactions;
-using PharmaCare.Application.Settings;
 using PharmaCare.Domain.Entities.Accounting;
 using PharmaCare.Domain.Entities.Configuration;
 using PharmaCare.Domain.Entities.Transactions;
@@ -17,9 +15,7 @@ public class SaleReturnService : TransactionServiceBase, ISaleReturnService
     private readonly IRepository<TransactionType> _transactionTypeRepository;
     private readonly IRepository<VoucherType> _voucherTypeRepository;
     private readonly IRepository<Product> _productRepository;
-    private readonly IRepository<Account> _accountRepository;
     private readonly IRepository<Party> _partyRepository;
-    private readonly SystemAccountSettings _systemAccounts;
 
     private const string TRANSACTION_TYPE_CODE = "SRTN";
     private const string SALE_TRANSACTION_TYPE_CODE = "SALE";
@@ -32,18 +28,14 @@ public class SaleReturnService : TransactionServiceBase, ISaleReturnService
         IRepository<Voucher> voucherRepository,
         IRepository<VoucherType> voucherTypeRepository,
         IRepository<Product> productRepository,
-        IRepository<Account> accountRepository,
         IRepository<Party> partyRepository,
-        IUnitOfWork unitOfWork,
-        IOptions<SystemAccountSettings> systemAccountSettings)
+        IUnitOfWork unitOfWork)
         : base(stockMainRepository, voucherRepository, unitOfWork)
     {
         _transactionTypeRepository = transactionTypeRepository;
         _voucherTypeRepository = voucherTypeRepository;
         _productRepository = productRepository;
-        _accountRepository = accountRepository;
         _partyRepository = partyRepository;
-        _systemAccounts = systemAccountSettings.Value;
     }
 
     public async Task<IEnumerable<StockMain>> GetAllAsync()
@@ -83,6 +75,13 @@ public class SaleReturnService : TransactionServiceBase, ISaleReturnService
         if (originalSale == null)
         {
             throw new InvalidOperationException("Original Sale not found.");
+        }
+
+        if (!originalSale.Party_ID.HasValue || originalSale.Party_ID.Value <= 0)
+        {
+            throw new InvalidOperationException(
+                "Sale Return requires an original sale linked to a customer. " +
+                "Please update the original sale with a customer and try again.");
         }
 
         // Server-side quantity validation against the reference sale
@@ -151,72 +150,9 @@ public class SaleReturnService : TransactionServiceBase, ISaleReturnService
         if (voucherType == null)
              throw new InvalidOperationException($"Voucher type '{SALE_RETURN_VOUCHER_CODE}' or 'JV' not found.");
 
-        // Get customer account
-        Account customerAccount;
-        string customerName;
-
-        if (saleReturn.Party_ID.HasValue)
-        {
-            var party = saleReturn.Party;
-            // Need to load party if not loaded, but usually it is attached or we need to query
-            // Since we set Party_ID from Original Sale, let's look it up or trust navigation if present
-            if (party == null)
-            {
-                 // Use _partyRepository instead of _accountRepository
-                 var loadedParty = await _partyRepository.Query()
-                     .Include(p => p.Account)
-                     .FirstOrDefaultAsync(p => p.PartyID == saleReturn.Party_ID);
-
-                 if (loadedParty != null)
-                 {
-                     if (loadedParty.Account != null)
-                     {
-                         customerAccount = loadedParty.Account;
-                         customerName = loadedParty.Name;
-                     }
-                     else
-                     {
-                         throw new InvalidOperationException($"Party '{loadedParty.Name}' does not have an account.");
-                     }
-                 }
-                 else
-                 {
-                     if (saleReturn.Party_ID == null)
-                     {
-                         var walkingCustomerAccount = await _accountRepository.Query()
-                            .FirstOrDefaultAsync(a => a.AccountID == _systemAccounts.WalkingCustomerAccountId);
-                         
-                         customerAccount = walkingCustomerAccount!;
-                         customerName = "Walk-in Customer";
-                     }
-                     else
-                     {
-                         throw new InvalidOperationException("Party not found and no account linked for Sale Return.");
-                     }
-                 }
-            }
-            else
-            {
-                 if (party.Account != null)
-                 {
-                     customerAccount = party.Account;
-                     customerName = party.Name;
-                 }
-                 else 
-                 {
-                      throw new InvalidOperationException("Party does not have an account.");
-                 }
-            }
-        }
-        else
-        {
-            // Walk-in
-            var walkingCustomerAccount = await _accountRepository.Query()
-                .FirstOrDefaultAsync(a => a.AccountID == _systemAccounts.WalkingCustomerAccountId);
-            
-            customerAccount = walkingCustomerAccount!;
-            customerName = "Walk-in Customer";
-        }
+        var customerParty = await ResolveCustomerPartyWithAccountAsync(saleReturn.Party_ID);
+        var customerAccount = customerParty.Account!;
+        var customerName = customerParty.Name;
 
         // Generate Voucher No
         // Use SRV- instead of SV? Or just SV?
@@ -352,6 +288,33 @@ public class SaleReturnService : TransactionServiceBase, ISaleReturnService
         await _unitOfWork.SaveChangesAsync();
 
         return voucher;
+    }
+
+    private async Task<Party> ResolveCustomerPartyWithAccountAsync(int? partyId)
+    {
+        if (!partyId.HasValue || partyId.Value <= 0)
+        {
+            throw new InvalidOperationException(
+                "Customer is required for sale return posting. Please select a customer.");
+        }
+
+        var party = await _partyRepository.Query()
+            .Include(p => p.Account)
+            .Where(p =>
+                p.IsActive &&
+                p.Account_ID.HasValue &&
+                p.PartyID == partyId.Value &&
+                (p.PartyType.ToLower() == "customer" || p.PartyType.ToLower() == "both"))
+            .FirstOrDefaultAsync();
+
+        if (party?.Account == null || !party.Account.IsActive)
+        {
+            throw new InvalidOperationException(
+                "Selected customer does not have an active linked account. " +
+                "Please update the customer party before posting sale return vouchers.");
+        }
+
+        return party;
     }
 
     /// <summary>

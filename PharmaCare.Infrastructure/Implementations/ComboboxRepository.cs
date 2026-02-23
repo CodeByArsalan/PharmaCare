@@ -81,8 +81,22 @@ public class ComboboxRepository : IComboboxRepository
 
     public IEnumerable<SelectListItem> GetActivePartiesByType(string partyType, int? selectedValue = null)
     {
-        return _context.Parties
-            .Where(p => p.IsActive && p.PartyType == partyType)
+        var query = _context.Parties.Where(p => p.IsActive);
+
+        if (string.Equals(partyType, "Supplier", StringComparison.OrdinalIgnoreCase))
+        {
+            query = query.Where(p => p.PartyType == "Supplier" || p.PartyType == "Both");
+        }
+        else if (string.Equals(partyType, "Customer", StringComparison.OrdinalIgnoreCase))
+        {
+            query = query.Where(p => p.PartyType == "Customer" || p.PartyType == "Both");
+        }
+        else
+        {
+            query = query.Where(p => p.PartyType == partyType);
+        }
+
+        return query
             .OrderBy(p => p.Name)
             .Select(p => new SelectListItem
             {

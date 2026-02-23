@@ -21,17 +21,12 @@ using PharmaCare.Application.Interfaces.Transactions;
 using PharmaCare.Application.Implementations.Transactions;
 using PharmaCare.Application.Interfaces.Finance;
 using PharmaCare.Application.Implementations.Finance;
-using PharmaCare.Application.Settings;
 
 var builder = WebApplication.CreateBuilder(args);
 var connectionString = builder.Configuration.GetConnectionString("PharmaCareDBConnectionString") 
     ?? throw new InvalidOperationException("Connection string 'PharmaCareDBConnectionString' not found.");
 var logConnectionString = builder.Configuration.GetConnectionString("PharmaCareLogDBConnectionString")
     ?? throw new InvalidOperationException("Connection string 'PharmaCareLogDBConnectionString' not found.");
-
-// Configure System Accounts Settings
-builder.Services.Configure<SystemAccountSettings>(
-    builder.Configuration.GetSection(SystemAccountSettings.SectionName));
 
 // Logging Database Context (separate database for audit logs)
 builder.Services.AddDbContext<LogDbContext>(options => options.UseSqlServer(logConnectionString));

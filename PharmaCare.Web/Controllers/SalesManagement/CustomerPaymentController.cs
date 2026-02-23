@@ -1,8 +1,6 @@
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
-using Microsoft.AspNetCore.Mvc.Rendering;
 using PharmaCare.Application.Interfaces.Accounting;
-using PharmaCare.Application.Interfaces.Configuration;
 using PharmaCare.Application.Interfaces.Finance;
 using PharmaCare.Domain.Entities.Finance;
 using PharmaCare.Web.Utilities;
@@ -13,16 +11,13 @@ public class CustomerPaymentController : BaseController
 {
     private readonly ICustomerPaymentService _customerPaymentService;
     private readonly IAccountService _accountService;
-    private readonly IPartyService _partyService;
 
     public CustomerPaymentController(
         ICustomerPaymentService customerPaymentService,
-        IAccountService accountService,
-        IPartyService partyService)
+        IAccountService accountService)
     {
         _customerPaymentService = customerPaymentService;
         _accountService = accountService;
-        _partyService = partyService;
     }
 
     /// Displays list of all customer receipts.
@@ -60,12 +55,17 @@ public class CustomerPaymentController : BaseController
 
         // await LoadDropdownsAsync(); // Removed
         ViewBag.Sale = sale;
-        ViewBag.IsWalkingCustomer = sale.Party_ID == null;
+
+        if (!sale.Party_ID.HasValue || sale.Party_ID.Value <= 0)
+        {
+            ShowMessage(MessageType.Error, "This sale is not linked to a customer. Please update the sale first.");
+            return RedirectToAction(nameof(PendingSales));
+        }
 
         return View(new Payment
         {
             StockMain_ID = id,
-            Party_ID = sale.Party_ID ?? 0,
+            Party_ID = sale.Party_ID.Value,
             Amount = sale.BalanceAmount,
             PaymentDate = DateTime.Now,
             PaymentMethod = "Cash"
@@ -75,7 +75,7 @@ public class CustomerPaymentController : BaseController
     /// Processes a receipt.
     [HttpPost]
     [ValidateAntiForgeryToken]
-    public async Task<IActionResult> ReceivePayment(Payment payment, bool isWalkingCustomer = false)
+    public async Task<IActionResult> ReceivePayment(Payment payment)
     {
         // Remove validation for navigation properties
         ModelState.Remove("Party");
@@ -89,14 +89,7 @@ public class CustomerPaymentController : BaseController
         {
             try
             {
-                if (isWalkingCustomer)
-                {
-                    await _customerPaymentService.CreateWalkingCustomerReceiptAsync(payment, CurrentUserId);
-                }
-                else
-                {
-                    await _customerPaymentService.CreateReceiptAsync(payment, CurrentUserId);
-                }
+                await _customerPaymentService.CreateReceiptAsync(payment, CurrentUserId);
                 
                 ShowMessage(MessageType.Success, "Payment received successfully!");
                 return RedirectToAction(nameof(ReceiptsIndex));
@@ -111,7 +104,6 @@ public class CustomerPaymentController : BaseController
         var pendingSales = await _customerPaymentService.GetPendingSalesAsync();
         var sale = pendingSales.FirstOrDefault(s => s.StockMainID == payment.StockMain_ID);
         ViewBag.Sale = sale;
-        ViewBag.IsWalkingCustomer = isWalkingCustomer;
         // await LoadDropdownsAsync(); // Removed
         return View(payment);
     }

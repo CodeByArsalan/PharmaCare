@@ -4,6 +4,7 @@ using PharmaCare.Application.Interfaces.Transactions;
 using PharmaCare.Domain.Entities.Accounting;
 using PharmaCare.Domain.Entities.Configuration;
 using PharmaCare.Domain.Entities.Transactions;
+using PharmaCare.Domain.Enums;
 
 namespace PharmaCare.Application.Implementations.Transactions;
 
@@ -100,18 +101,10 @@ public class PurchaseReturnService : TransactionServiceBase, IPurchaseReturnServ
         purchaseReturn.Voucher_ID = voucher.VoucherID;
         _stockMainRepository.Update(purchaseReturn);
 
-        // Update the reference GRN's balance if linked
+        // Recalculate the reference GRN's balance/status if linked
         if (purchaseReturn.ReferenceStockMain_ID.HasValue)
         {
-            var grn = await _stockMainRepository.Query()
-                .FirstOrDefaultAsync(s => s.StockMainID == purchaseReturn.ReferenceStockMain_ID.Value);
-
-            if (grn != null)
-            {
-                grn.BalanceAmount -= purchaseReturn.TotalAmount;
-                if (grn.BalanceAmount < 0) grn.BalanceAmount = 0;
-                _stockMainRepository.Update(grn);
-            }
+            await RecalculateReferenceGrnBalanceAsync(purchaseReturn.ReferenceStockMain_ID.Value);
         }
 
         await _unitOfWork.SaveChangesAsync();
@@ -213,22 +206,86 @@ public class PurchaseReturnService : TransactionServiceBase, IPurchaseReturnServ
     public async Task<IEnumerable<StockMain>> GetGrnsForReturnAsync(int? supplierId = null)
     {
         var query = _stockMainRepository.Query()
+            .AsNoTracking()
             .Include(s => s.TransactionType)
             .Include(s => s.Party)
             .Include(s => s.StockDetails)
                 .ThenInclude(d => d.Product)
             .Where(s => s.TransactionType!.Code == GRN_TRANSACTION_TYPE_CODE 
-                     && s.Status == "Approved"
-                     && s.BalanceAmount > 0);
+                     && s.Status == "Approved");
 
         if (supplierId.HasValue)
         {
             query = query.Where(s => s.Party_ID == supplierId.Value);
         }
 
-        return await query
+        var grns = await query
             .OrderByDescending(s => s.TransactionDate)
             .ToListAsync();
+
+        if (grns.Count == 0)
+        {
+            return grns;
+        }
+
+        var grnIds = grns.Select(g => g.StockMainID).ToList();
+        var returnedLines = await _stockMainRepository.Query()
+            .Include(s => s.TransactionType)
+            .Where(s => s.TransactionType!.Code == TRANSACTION_TYPE_CODE
+                     && s.Status != "Void"
+                     && s.ReferenceStockMain_ID.HasValue
+                     && grnIds.Contains(s.ReferenceStockMain_ID.Value))
+            .SelectMany(s => s.StockDetails.Select(d => new
+            {
+                GrnId = s.ReferenceStockMain_ID!.Value,
+                d.Product_ID,
+                d.Quantity
+            }))
+            .ToListAsync();
+
+        var returnedLookup = returnedLines
+            .GroupBy(x => new { x.GrnId, x.Product_ID })
+            .ToDictionary(g => (g.Key.GrnId, g.Key.Product_ID), g => g.Sum(x => x.Quantity));
+
+        var availableGrns = new List<StockMain>();
+        foreach (var grn in grns)
+        {
+            var remainingDetails = new List<StockDetail>();
+            foreach (var group in grn.StockDetails.GroupBy(d => d.Product_ID))
+            {
+                var originalQty = group.Sum(d => d.Quantity);
+                returnedLookup.TryGetValue((grn.StockMainID, group.Key), out var returnedQty);
+                var remainingQty = originalQty - returnedQty;
+                if (remainingQty <= 0)
+                {
+                    continue;
+                }
+
+                var firstDetail = group.First();
+                remainingDetails.Add(new StockDetail
+                {
+                    Product_ID = firstDetail.Product_ID,
+                    Product = firstDetail.Product,
+                    Quantity = remainingQty,
+                    UnitPrice = firstDetail.UnitPrice,
+                    CostPrice = firstDetail.CostPrice,
+                    LineTotal = Math.Round(remainingQty * firstDetail.CostPrice, 2),
+                    LineCost = Math.Round(remainingQty * firstDetail.CostPrice, 2)
+                });
+            }
+
+            if (remainingDetails.Count == 0)
+            {
+                continue;
+            }
+
+            grn.StockDetails = remainingDetails;
+            grn.SubTotal = remainingDetails.Sum(d => d.LineTotal);
+            grn.TotalAmount = grn.SubTotal;
+            availableGrns.Add(grn);
+        }
+
+        return availableGrns;
     }
 
     public async Task<bool> VoidAsync(int id, string reason, int userId)
@@ -252,17 +309,10 @@ public class PurchaseReturnService : TransactionServiceBase, IPurchaseReturnServ
             await CreateReversalVoucherAsync(purchaseReturn.Voucher_ID.Value, userId, reason, "StockMain", purchaseReturn.StockMainID);
         }
 
-        // Restore the reference GRN's balance if linked
+        // Recalculate the reference GRN's balance/status if linked
         if (purchaseReturn.ReferenceStockMain_ID.HasValue)
         {
-            var grn = await _stockMainRepository.Query()
-                .FirstOrDefaultAsync(s => s.StockMainID == purchaseReturn.ReferenceStockMain_ID.Value);
-
-            if (grn != null)
-            {
-                grn.BalanceAmount += purchaseReturn.TotalAmount;
-                _stockMainRepository.Update(grn);
-            }
+            await RecalculateReferenceGrnBalanceAsync(purchaseReturn.ReferenceStockMain_ID.Value);
         }
 
         _stockMainRepository.Update(purchaseReturn);
@@ -326,5 +376,32 @@ public class PurchaseReturnService : TransactionServiceBase, IPurchaseReturnServ
                     $"exceeds available quantity ({availableForReturn}). " +
                     $"GRN Qty: {grnDetail.Quantity}, Already Returned: {previouslyReturned}.");
         }
+    }
+
+    private async Task RecalculateReferenceGrnBalanceAsync(int grnId)
+    {
+        var grn = await _stockMainRepository.Query()
+            .Include(s => s.TransactionType)
+            .FirstOrDefaultAsync(s => s.StockMainID == grnId && s.TransactionType!.Code == GRN_TRANSACTION_TYPE_CODE);
+
+        if (grn == null)
+        {
+            return;
+        }
+
+        var totalReturns = await _stockMainRepository.Query()
+            .Include(s => s.TransactionType)
+            .Where(s => s.TransactionType!.Code == TRANSACTION_TYPE_CODE
+                     && s.ReferenceStockMain_ID == grnId
+                     && s.Status != "Void")
+            .SumAsync(s => (decimal?)s.TotalAmount) ?? 0;
+
+        var outstanding = grn.TotalAmount - totalReturns - grn.PaidAmount;
+        grn.BalanceAmount = Math.Max(0, outstanding);
+        grn.PaymentStatus = grn.BalanceAmount <= 0
+            ? PaymentStatus.Paid.ToString()
+            : (grn.PaidAmount <= 0 ? PaymentStatus.Unpaid.ToString() : PaymentStatus.Partial.ToString());
+
+        _stockMainRepository.Update(grn);
     }
 }

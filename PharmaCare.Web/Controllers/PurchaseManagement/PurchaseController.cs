@@ -58,6 +58,11 @@ public class PurchaseController : BaseController
     [ValidateAntiForgeryToken]
     public async Task<IActionResult> AddPurchase(PurchaseCreateRequest request, int? PaymentAccountId, decimal transferredAdvanceAmount = 0)
     {
+        if (!request.Party_ID.HasValue || request.Party_ID.Value <= 0)
+        {
+            ModelState.AddModelError(nameof(request.Party_ID), "Supplier is required.");
+        }
+
         if (request.StockDetails == null || request.StockDetails.Count == 0)
         {
             ModelState.AddModelError(nameof(request.StockDetails), "At least one item is required.");

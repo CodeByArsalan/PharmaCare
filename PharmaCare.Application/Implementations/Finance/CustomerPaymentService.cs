@@ -1,8 +1,6 @@
 using Microsoft.EntityFrameworkCore;
-using Microsoft.Extensions.Options;
 using PharmaCare.Application.Interfaces;
 using PharmaCare.Application.Interfaces.Finance;
-using PharmaCare.Application.Settings;
 using PharmaCare.Domain.Entities.Accounting;
 using PharmaCare.Domain.Entities.Configuration;
 using PharmaCare.Domain.Entities.Finance;
@@ -24,7 +22,6 @@ public class CustomerPaymentService : ICustomerPaymentService
     private readonly IRepository<Party> _partyRepository;
     private readonly IRepository<Account> _accountRepository;
     private readonly IUnitOfWork _unitOfWork;
-    private readonly SystemAccountSettings _systemAccountSettings;
 
     private const string SALE_TRANSACTION_TYPE_CODE = "SALE";
     private const string SALE_RETURN_TRANSACTION_TYPE_CODE = "SRTN";
@@ -41,8 +38,7 @@ public class CustomerPaymentService : ICustomerPaymentService
         IRepository<VoucherType> voucherTypeRepository,
         IRepository<Party> partyRepository,
         IRepository<Account> accountRepository,
-        IUnitOfWork unitOfWork,
-        IOptions<SystemAccountSettings> systemAccountSettings)
+        IUnitOfWork unitOfWork)
     {
         _paymentRepository = paymentRepository;
         _stockMainRepository = stockMainRepository;
@@ -52,7 +48,6 @@ public class CustomerPaymentService : ICustomerPaymentService
         _partyRepository = partyRepository;
         _accountRepository = accountRepository;
         _unitOfWork = unitOfWork;
-        _systemAccountSettings = systemAccountSettings.Value;
     }
 
     public async Task<IEnumerable<Payment>> GetAllCustomerReceiptsAsync()
@@ -91,7 +86,8 @@ public class CustomerPaymentService : ICustomerPaymentService
             .Include(s => s.TransactionType)
             .Include(s => s.Party)
             .Where(s => s.TransactionType!.Code == SALE_TRANSACTION_TYPE_CODE
-                     && s.Status == "Approved");
+                     && s.Status == "Approved"
+                     && s.Party_ID.HasValue);
 
         if (customerId.HasValue)
         {
@@ -183,69 +179,6 @@ public class CustomerPaymentService : ICustomerPaymentService
                 customerAccount,
                 receiptAccount,
                 stockMain.Party!.Name,
-                userId);
-
-            payment.Voucher = voucher;
-
-            // Update transaction balance
-            stockMain.PaidAmount += payment.Amount;
-            await RecalculateSaleBalanceIncludingReturnsAsync(stockMain, userId);
-
-            await _paymentRepository.AddAsync(payment);
-            _stockMainRepository.Update(stockMain);
-            await _unitOfWork.SaveChangesAsync();
-
-            return payment;
-        });
-    }
-
-    public async Task<Payment> CreateWalkingCustomerReceiptAsync(Payment payment, int userId)
-    {
-        return await ExecuteInTransactionAsync(async () =>
-        {
-            // Validate the transaction exists
-            var stockMain = await _stockMainRepository.Query()
-                .FirstOrDefaultAsync(s => s.StockMainID == payment.StockMain_ID);
-
-            if (stockMain == null)
-                throw new InvalidOperationException("Transaction not found.");
-
-            if (payment.Amount <= 0)
-                throw new InvalidOperationException("Receipt amount must be greater than zero.");
-
-            var outstandingBeforeReceipt = await GetNetOutstandingAmountAsync(stockMain.StockMainID, stockMain.TotalAmount, stockMain.PaidAmount);
-            if (outstandingBeforeReceipt <= 0)
-                throw new InvalidOperationException("This sale has no outstanding receivable after considering sale returns.");
-
-            if (payment.Amount > outstandingBeforeReceipt)
-                throw new InvalidOperationException($"Receipt amount ({payment.Amount:N2}) exceeds balance ({outstandingBeforeReceipt:N2}).");
-
-            // Get the receipt account (Cash/Bank)
-            var receiptAccount = await _accountRepository.Query()
-                .FirstOrDefaultAsync(a => a.AccountID == payment.Account_ID);
-
-            if (receiptAccount == null)
-                throw new InvalidOperationException("Receipt account not found.");
-
-            // Get walking customer account from configuration
-            var walkingCustomerAccount = await _accountRepository.Query()
-                .FirstOrDefaultAsync(a => a.AccountID == _systemAccountSettings.WalkingCustomerAccountId);
-
-            if (walkingCustomerAccount == null)
-                throw new InvalidOperationException("Walking customer account not configured. Please check SystemAccounts settings.");
-
-            // Generate reference number
-            payment.Reference = await GenerateReferenceNoAsync();
-            payment.PaymentType = CustomerReceiptPaymentType; // Customer receipt
-            payment.CreatedAt = DateTime.Now;
-            payment.CreatedBy = userId;
-
-            // Create accounting voucher
-            var voucher = await CreateReceiptVoucherAsync(
-                payment,
-                walkingCustomerAccount,
-                receiptAccount,
-                "Walking Customer",
                 userId);
 
             payment.Voucher = voucher;

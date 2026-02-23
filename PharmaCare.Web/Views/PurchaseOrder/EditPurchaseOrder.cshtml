@@ -90,12 +90,12 @@
                                 <div class="col-4">
                                     <label class="form-label">Total Amount</label>
                                     <input asp-for="TotalAmount" type="number" step="0.01" min="0" 
-                                           class="form-control" id="totalAmountInput" />
+                                           class="form-control" id="totalAmountInput" readonly />
                                 </div>
                                 <div class="col-4">
                                     <label class="form-label">Paid Amount</label>
                                     <input asp-for="PaidAmount" type="number" step="0.01" min="0" 
-                                           class="form-control" id="paidAmount" />
+                                           class="form-control" id="paidAmount" readonly />
                                 </div>
                                 <div class="col-4">
                                     <label class="form-label">Balance Amount</label>
@@ -281,12 +281,8 @@
             document.getElementById('subTotal').value = subTotal.toFixed(2);
             document.getElementById('subTotalSummary').textContent = subTotal.toFixed(2);
 
-            // Set TotalAmount to SubTotal by default (user can override)
-            const totalAmountInput = document.getElementById('totalAmountInput');
-            if (parseFloat(totalAmountInput.value) === 0 || totalAmountInput.dataset.autoSet === 'true') {
-                totalAmountInput.value = subTotal.toFixed(2);
-                totalAmountInput.dataset.autoSet = 'true';
-            }
+            // TotalAmount always follows line-level subtotal in PO edit.
+            document.getElementById('totalAmountInput').value = subTotal.toFixed(2);
 
             calculateBalance();
         }
@@ -300,11 +296,6 @@
             document.getElementById('totalAmountDisplay').textContent = totalAmount.toFixed(2);
         }
 
-        // Event listeners for payment fields
-        document.getElementById('totalAmountInput').addEventListener('input', function() {
-            this.dataset.autoSet = 'false';
-            calculateBalance();
-        });
-        document.getElementById('paidAmount').addEventListener('input', calculateBalance);
+        calculateBalance();
     </script>
 }

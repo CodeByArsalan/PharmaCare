@@ -1,14 +1,12 @@
 using Microsoft.EntityFrameworkCore;
-using Microsoft.Extensions.Options;
 using PharmaCare.Application.Interfaces;
+using PharmaCare.Application.Interfaces.Configuration;
 using PharmaCare.Application.Interfaces.Transactions;
-using PharmaCare.Application.Settings;
 using PharmaCare.Domain.Entities.Accounting;
 using PharmaCare.Domain.Entities.Configuration;
 using PharmaCare.Domain.Entities.Finance;
 using PharmaCare.Domain.Entities.Transactions;
 using PharmaCare.Domain.Enums;
-using PharmaCare.Application.Interfaces.Configuration;
 using PaymentStatusEnum = PharmaCare.Domain.Enums.PaymentStatus;
 
 namespace PharmaCare.Application.Implementations.Transactions;
@@ -23,9 +21,8 @@ public class SaleService : TransactionServiceBase, ISaleService
     private readonly IRepository<Account> _accountRepository;
     private readonly IRepository<Product> _productRepository;
     private readonly IRepository<Payment> _paymentRepository;
-    private readonly SystemAccountSettings _systemAccounts;
+    private readonly IRepository<Party> _partyRepository;
     private readonly IProductService _productService;
-    private readonly IPartyService _partyService;
 
     private const string TRANSACTION_TYPE_CODE = "SALE";
     private const string PREFIX = "SALE";
@@ -40,10 +37,9 @@ public class SaleService : TransactionServiceBase, ISaleService
         IRepository<Account> accountRepository,
         IRepository<Product> productRepository,
         IRepository<Payment> paymentRepository,
+        IRepository<Party> partyRepository,
         IUnitOfWork unitOfWork,
-        IOptions<SystemAccountSettings> systemAccountSettings,
-        IProductService productService,
-        IPartyService partyService)
+        IProductService productService)
         : base(stockMainRepository, voucherRepository, unitOfWork)
     {
         _transactionTypeRepository = transactionTypeRepository;
@@ -51,9 +47,8 @@ public class SaleService : TransactionServiceBase, ISaleService
         _accountRepository = accountRepository;
         _productRepository = productRepository;
         _paymentRepository = paymentRepository;
-        _systemAccounts = systemAccountSettings.Value;
+        _partyRepository = partyRepository;
         _productService = productService;
-        _partyService = partyService;
     }
 
     public async Task<IEnumerable<StockMain>> GetAllAsync()
@@ -98,7 +93,7 @@ public class SaleService : TransactionServiceBase, ISaleService
             // Calculate totals
             CalculateTotals(sale);
 
-            // Validate Sale (Stock & Walking Customer)
+            // Validate Sale (stock availability)
             await ValidateSaleAsync(sale);
 
             // Set payment status based on paid amount
@@ -159,26 +154,9 @@ public class SaleService : TransactionServiceBase, ISaleService
         if (voucherType == null)
             throw new InvalidOperationException($"Voucher type '{VOUCHER_TYPE_CODE}' or 'JV' not found.");
 
-        // Get customer account (either from Party or use Walking Customer account)
-        Account customerAccount;
-        string customerName;
-
-        if (sale.Party_ID.HasValue && sale.Party?.Account != null)
-        {
-            customerAccount = sale.Party.Account;
-            customerName = sale.Party.Name;
-        }
-        else
-        {
-            var walkingCustomerAccount = await _accountRepository.Query()
-                .FirstOrDefaultAsync(a => a.AccountID == _systemAccounts.WalkingCustomerAccountId);
-
-            if (walkingCustomerAccount == null)
-                throw new InvalidOperationException($"Walking Customer account (ID: {_systemAccounts.WalkingCustomerAccountId}) not found.");
-
-            customerAccount = walkingCustomerAccount;
-            customerName = "Walk-in Customer";
-        }
+        var customerParty = await ResolveCustomerPartyWithAccountAsync(sale);
+        var customerAccount = customerParty.Account!;
+        var customerName = customerParty.Name;
 
         // Load products with categories for each detail line
         var productIds = sale.StockDetails.Select(d => d.Product_ID).Distinct().ToList();
@@ -356,26 +334,9 @@ public class SaleService : TransactionServiceBase, ISaleService
         if (voucherType == null)
             throw new InvalidOperationException($"Voucher type '{PAYMENT_VOUCHER_TYPE_CODE}' or 'JV' not found.");
 
-        // Get customer account
-        Account customerAccount;
-        string customerName;
-
-        if (sale.Party_ID.HasValue && sale.Party?.Account != null)
-        {
-            customerAccount = sale.Party.Account;
-            customerName = sale.Party.Name;
-        }
-        else
-        {
-            var walkingCustomerAccount = await _accountRepository.Query()
-                .FirstOrDefaultAsync(a => a.AccountID == _systemAccounts.WalkingCustomerAccountId);
-
-            if (walkingCustomerAccount == null)
-                throw new InvalidOperationException($"Walking Customer account not found.");
-
-            customerAccount = walkingCustomerAccount;
-            customerName = "Walk-in Customer";
-        }
+        var customerParty = await ResolveCustomerPartyWithAccountAsync(sale);
+        var customerAccount = customerParty.Account!;
+        var customerName = customerParty.Name;
 
         // Get payment account to determine voucher prefix (CR for Cash, BR for Bank)
         var paymentAccount = await _accountRepository.GetByIdAsync(paymentAccountId);
@@ -439,27 +400,13 @@ public class SaleService : TransactionServiceBase, ISaleService
 
     private async Task CreateInitialPaymentRecordAsync(StockMain sale, Voucher paymentVoucher, int paymentAccountId, int userId)
     {
-        int partyId;
-        if (sale.Party_ID.HasValue && sale.Party_ID.Value > 0)
+        if (!sale.Party_ID.HasValue || sale.Party_ID.Value <= 0)
         {
-            partyId = sale.Party_ID.Value;
+            throw new InvalidOperationException(
+                "Customer is required for sale payment posting. Please select a customer before saving.");
         }
-        else
-        {
-            var walkingCustomer = (await _partyService.GetAllAsync())
-                .FirstOrDefault(p =>
-                    p.IsActive &&
-                    string.Equals(p.PartyType, "Customer", StringComparison.OrdinalIgnoreCase) &&
-                    p.Account_ID == _systemAccounts.WalkingCustomerAccountId);
 
-            if (walkingCustomer == null)
-            {
-                throw new InvalidOperationException(
-                    "Walking customer party is not configured. Please link a Customer party to the Walking Customer account.");
-            }
-
-            partyId = walkingCustomer.PartyID;
-        }
+        var partyId = sale.Party_ID.Value;
 
         var paymentAccount = await _accountRepository.GetByIdAsync(paymentAccountId);
         if (paymentAccount == null)
@@ -490,6 +437,38 @@ public class SaleService : TransactionServiceBase, ISaleService
         await _paymentRepository.AddAsync(payment);
     }
 
+    private async Task<Party> ResolveCustomerPartyWithAccountAsync(StockMain sale)
+    {
+        if (!sale.Party_ID.HasValue || sale.Party_ID.Value <= 0)
+        {
+            throw new InvalidOperationException(
+                "Customer is required for sales posting. Please select a customer.");
+        }
+
+        if (sale.Party != null && sale.Party.Account != null && sale.Party.IsActive && sale.Party.Account.IsActive)
+        {
+            return sale.Party;
+        }
+
+        var party = await _partyRepository.Query()
+            .Include(p => p.Account)
+            .Where(p =>
+                p.IsActive &&
+                p.Account_ID.HasValue &&
+                p.PartyID == sale.Party_ID.Value &&
+                (p.PartyType.ToLower() == "customer" || p.PartyType.ToLower() == "both"))
+            .FirstOrDefaultAsync();
+
+        if (party?.Account == null || !party.Account.IsActive)
+        {
+            throw new InvalidOperationException(
+                "Selected customer does not have an active linked account. " +
+                "Please update the customer party before posting sale vouchers.");
+        }
+
+        return party;
+    }
+
     public async Task<bool> VoidAsync(int id, string reason, int userId)
     {
         return await ExecuteInTransactionAsync(async () =>
@@ -518,7 +497,10 @@ public class SaleService : TransactionServiceBase, ISaleService
 
     private async Task ValidateSaleAsync(StockMain sale)
     {
-        // 1. Stock Validation
+        // Customer and account are required for voucher posting
+        sale.Party = await ResolveCustomerPartyWithAccountAsync(sale);
+
+        // Stock Validation
         var productIds = sale.StockDetails.Select(d => d.Product_ID).Distinct().ToList();
         var stockStatus = await _productService.GetStockStatusAsync(productIds);
 
@@ -533,53 +515,6 @@ public class SaleService : TransactionServiceBase, ISaleService
                         $"Insufficient stock for product '{product?.Name ?? "ID " + detail.Product_ID}'. " +
                         $"Requested: {detail.Quantity}, Available: {currentStock}");
                 }
-            }
-        }
-
-        // 2. Walking Customer Validation
-        bool isWalkingCustomer = false;
-        
-        // Check 1: Explicit System Account ID Match (Reliable)
-        if (sale.Party_ID.HasValue)
-        {
-            var party = await _partyService.GetByIdWithAccountAsync(sale.Party_ID.Value);
-            
-            // Log for debugging
-            // Console.WriteLine($"Validating Sale - PartyID: {party?.PartyID}, Name: {party?.Name}, AccountID: {party?.Account?.AccountID}");
-
-            if (party != null)
-            {
-                if (party.Account != null && party.Account.AccountID == _systemAccounts.WalkingCustomerAccountId)
-                {
-                    isWalkingCustomer = true;
-                }
-                
-                // Check 2: Name Fallback
-                if (!isWalkingCustomer)
-                {
-                    var name = party.Name.ToLower();
-                    if (name.Contains("walkin") || name.Contains("walk-in") || name.Contains("walk in") || name.Contains("counter"))
-                    {
-                        isWalkingCustomer = true;
-                    }
-                }
-            }
-        }
-        else
-        {
-            // If logic allows null Party_ID to mean Walking Customer
-            isWalkingCustomer = true; 
-        }
-
-        if (isWalkingCustomer)
-        {
-            // Paid Amount must equal Total Amount
-            // Allow small buffer for floating point
-            if (sale.PaidAmount < (sale.TotalAmount - 0.01m))
-            {
-                 throw new InvalidOperationException(
-                    "Walking/Counter Customers must pay the full amount immediately. " +
-                    $"Total: {sale.TotalAmount}, Paid: {sale.PaidAmount}");
             }
         }
     }

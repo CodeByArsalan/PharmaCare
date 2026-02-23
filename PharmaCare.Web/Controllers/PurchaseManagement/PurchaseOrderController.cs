@@ -53,6 +53,12 @@ public class PurchaseOrderController : BaseController
     [ValidateAntiForgeryToken]
     public async Task<IActionResult> AddPurchaseOrder(StockMain purchaseOrder)
     {
+        purchaseOrder.StockDetails ??= new List<StockDetail>();
+        if (purchaseOrder.StockDetails.Count == 0)
+        {
+            ModelState.AddModelError(nameof(purchaseOrder.StockDetails), "At least one item is required.");
+        }
+
         // Remove validation for navigation properties
         ModelState.Remove("TransactionType");
         ModelState.Remove("Party");
@@ -78,17 +84,9 @@ public class PurchaseOrderController : BaseController
         {
             try
             {
-                var createdPurchaseOrder = await _purchaseOrderService.CreateAsync(purchaseOrder, CurrentUserId);
-                var isApproved = await _purchaseOrderService.ApproveAsync(createdPurchaseOrder.StockMainID, CurrentUserId);
-
-                if (!isApproved)
-                {
-                    ShowMessage(MessageType.Warning, "Purchase Order created, but automatic approval failed.");
-                    return RedirectToAction(nameof(PurchaseOrdersIndex));
-                }
-
-                ShowMessage(MessageType.Success, "Purchase Order created and approved successfully. Proceed with payment.");
-                return RedirectToAction(nameof(MakePayment), new { id = createdPurchaseOrder.StockMainID.EncryptId() });
+                await _purchaseOrderService.CreateAsync(purchaseOrder, CurrentUserId);
+                ShowMessage(MessageType.Success, "Purchase Order created as Draft. Approve it when ready.");
+                return RedirectToAction(nameof(PurchaseOrdersIndex));
             }
             catch (Exception ex)
             {
@@ -130,6 +128,12 @@ public class PurchaseOrderController : BaseController
     [ValidateAntiForgeryToken]
     public async Task<IActionResult> EditPurchaseOrder(StockMain purchaseOrder)
     {
+        purchaseOrder.StockDetails ??= new List<StockDetail>();
+        if (purchaseOrder.StockDetails.Count == 0)
+        {
+            ModelState.AddModelError(nameof(purchaseOrder.StockDetails), "At least one item is required.");
+        }
+
         // Remove validation for navigation properties
         ModelState.Remove("TransactionType");
         ModelState.Remove("Party");
@@ -352,7 +356,7 @@ public class PurchaseOrderController : BaseController
         // Load suppliers (parties with PartyType = "Supplier")
         var parties = await _partyService.GetAllAsync();
         ViewBag.Suppliers = new SelectList(
-            parties.Where(p => p.IsActive && p.PartyType == "Supplier"),
+            parties.Where(p => p.IsActive && (p.PartyType == "Supplier" || p.PartyType == "Both")),
             "PartyID",
             "Name"
         );

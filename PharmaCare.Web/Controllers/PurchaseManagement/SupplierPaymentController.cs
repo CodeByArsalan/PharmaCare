@@ -37,12 +37,6 @@ public class SupplierPaymentController : BaseController
         var grns = await _paymentService.GetPendingGrnsAsync(supplierId);
         var grnList = grns.ToList();
 
-        // "Paid" is not applicable on pending GRNs screen.
-        if (string.Equals(paymentStatus, "Paid", StringComparison.OrdinalIgnoreCase))
-        {
-            paymentStatus = "All";
-        }
-
         // Apply filters
         if (!string.IsNullOrEmpty(paymentStatus) && paymentStatus != "All")
         {
@@ -88,6 +82,12 @@ public class SupplierPaymentController : BaseController
             return RedirectToAction("PurchasesIndex", "Purchase");
         }
 
+        if (!string.Equals(grn.Status, "Approved", StringComparison.OrdinalIgnoreCase))
+        {
+            ShowMessage(MessageType.Warning, "Payments can only be made against approved purchases.");
+            return RedirectToAction(nameof(PaymentsIndex));
+        }
+
         if (grn.BalanceAmount <= 0)
         {
             ShowMessage(MessageType.Warning, "This purchase is already fully paid.");
@@ -112,6 +112,36 @@ public class SupplierPaymentController : BaseController
     [ValidateAntiForgeryToken]
     public async Task<IActionResult> MakePayment(Payment payment)
     {
+        var grn = await _purchaseService.GetByIdAsync(payment.StockMain_ID ?? 0);
+        if (grn == null)
+        {
+            ShowMessage(MessageType.Error, "Purchase not found.");
+            return RedirectToAction(nameof(PaymentsIndex));
+        }
+
+        if (!string.Equals(grn.Status, "Approved", StringComparison.OrdinalIgnoreCase))
+        {
+            ShowMessage(MessageType.Warning, "Payments can only be made against approved purchases.");
+            return RedirectToAction(nameof(PaymentsIndex));
+        }
+
+        if (grn.BalanceAmount <= 0)
+        {
+            ShowMessage(MessageType.Warning, "This purchase is already fully paid.");
+            return RedirectToAction(nameof(PaymentsIndex));
+        }
+
+        if (!grn.Party_ID.HasValue || grn.Party_ID.Value <= 0)
+        {
+            ModelState.AddModelError("", "Selected purchase is not linked to a supplier.");
+        }
+        else
+        {
+            // Prevent tampering with hidden fields.
+            payment.StockMain_ID = grn.StockMainID;
+            payment.Party_ID = grn.Party_ID.Value;
+        }
+
         // Remove validation for navigation properties
         ModelState.Remove("Party");
         ModelState.Remove("StockMain");
@@ -135,7 +165,6 @@ public class SupplierPaymentController : BaseController
         }
 
         // Reload GRN for display
-        var grn = await _purchaseService.GetByIdAsync(payment.StockMain_ID ?? 0);
         ViewBag.GRN = grn;
         // await LoadDropdownsAsync(); // Removed
         return View(payment);
