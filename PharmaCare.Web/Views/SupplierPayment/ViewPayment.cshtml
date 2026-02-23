@@ -1,3 +1,4 @@
+@using PharmaCare.Web.Utilities
 @model PharmaCare.Domain.Entities.Finance.Payment
 @{
     ViewData["Title"] = "Payment Details";
@@ -68,9 +69,22 @@
                                 <td>
                                     @if (Model.StockMain != null)
                                     {
-                                        <a asp-controller="Purchase" asp-action="ViewPurchase" asp-route-id="@Model.StockMain_ID">
+                                        if (Model.StockMain.TransactionType?.Code == "GRN")
+                                        {
+                                            <a asp-controller="Purchase" asp-action="ViewPurchase" asp-route-id="@Model.StockMain.StockMainID.EncryptId()">
+                                                @Model.StockMain.TransactionNo
+                                            </a>
+                                        }
+                                        else if (Model.StockMain.TransactionType?.Code == "PO")
+                                        {
+                                            <a asp-controller="PurchaseOrder" asp-action="MakePayment" asp-route-id="@Model.StockMain.StockMainID.EncryptId()">
+                                                @Model.StockMain.TransactionNo
+                                            </a>
+                                        }
+                                        else
+                                        {
                                             @Model.StockMain.TransactionNo
-                                        </a>
+                                        }
                                     }
                                 </td>
                             </tr>

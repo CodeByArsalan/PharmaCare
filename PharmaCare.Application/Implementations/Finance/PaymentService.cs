@@ -68,6 +68,7 @@ public class PaymentService : IPaymentService
         return await _paymentRepository.Query()
             .Include(p => p.Party)
             .Include(p => p.StockMain)
+                .ThenInclude(s => s!.TransactionType)
             .Include(p => p.Account)
             .FirstOrDefaultAsync(p => p.PaymentID == id);
     }
@@ -84,20 +85,52 @@ public class PaymentService : IPaymentService
     public async Task<IEnumerable<StockMain>> GetPendingGrnsAsync(int? supplierId = null)
     {
         var query = _stockMainRepository.Query()
+            .AsNoTracking()
             .Include(s => s.TransactionType)
             .Include(s => s.Party)
             .Where(s => s.TransactionType!.Code == GRN_TRANSACTION_TYPE_CODE 
-                     && s.Status == "Approved" 
-                     && s.BalanceAmount > 0);
+                     && s.Status == "Approved");
 
         if (supplierId.HasValue)
         {
             query = query.Where(s => s.Party_ID == supplierId.Value);
         }
 
-        return await query
+        var grns = await query
             .OrderByDescending(s => s.TransactionDate)
             .ToListAsync();
+
+        if (grns.Count == 0)
+        {
+            return grns;
+        }
+
+        var grnIds = grns.Select(g => g.StockMainID).ToList();
+        var returnTotals = await _stockMainRepository.Query()
+            .Include(s => s.TransactionType)
+            .Where(s => s.TransactionType!.Code == PURCHASE_RETURN_TRANSACTION_TYPE_CODE
+                     && s.Status != "Void"
+                     && s.ReferenceStockMain_ID.HasValue
+                     && grnIds.Contains(s.ReferenceStockMain_ID.Value))
+            .GroupBy(s => s.ReferenceStockMain_ID!.Value)
+            .Select(g => new
+            {
+                GrnId = g.Key,
+                TotalReturn = g.Sum(s => s.TotalAmount)
+            })
+            .ToListAsync();
+
+        var returnLookup = returnTotals.ToDictionary(x => x.GrnId, x => x.TotalReturn);
+        foreach (var grn in grns)
+        {
+            returnLookup.TryGetValue(grn.StockMainID, out var totalReturns);
+            grn.BalanceAmount = Math.Max(0, grn.TotalAmount - totalReturns - grn.PaidAmount);
+            grn.PaymentStatus = grn.BalanceAmount <= 0
+                ? PaymentStatus.Paid.ToString()
+                : (grn.PaidAmount <= 0 ? PaymentStatus.Unpaid.ToString() : PaymentStatus.Partial.ToString());
+        }
+
+        return grns.Where(g => g.BalanceAmount > 0).ToList();
     }
 
     public async Task<decimal> GetSupplierPayableToMeAsync(int supplierId)
@@ -127,7 +160,10 @@ public class PaymentService : IPaymentService
             .SumAsync(s => (decimal?)s.TotalAmount) ?? 0;
 
         var totalPayments = await _paymentRepository.Query()
-            .Where(p => p.Party_ID == supplierId && p.PaymentType == SupplierPaymentType)
+            .Include(p => p.StockMain)
+            .Where(p => p.Party_ID == supplierId
+                        && p.PaymentType == SupplierPaymentType
+                        && (!p.StockMain_ID.HasValue || p.StockMain == null || p.StockMain.Status != "Void"))
             .SumAsync(p => (decimal?)p.Amount) ?? 0;
 
         // Positive = payable to supplier; Negative = supplier owes company.
@@ -162,8 +198,12 @@ public class PaymentService : IPaymentService
             if (payment.Amount <= 0)
                 throw new InvalidOperationException("Payment amount must be greater than zero.");
 
-            if (payment.Amount > stockMain.BalanceAmount)
-                throw new InvalidOperationException($"Payment amount ({payment.Amount:N2}) exceeds balance ({stockMain.BalanceAmount:N2}).");
+            var outstandingBeforePayment = await CalculateOutstandingAmountAsync(stockMain, stockMain.PaidAmount);
+            if (outstandingBeforePayment <= 0)
+                throw new InvalidOperationException("This transaction has no outstanding balance.");
+
+            if (payment.Amount > outstandingBeforePayment)
+                throw new InvalidOperationException($"Payment amount ({payment.Amount:N2}) exceeds balance ({outstandingBeforePayment:N2}).");
 
             // Get the payment account (Cash/Bank)
             var paymentAccount = await _accountRepository.Query()
@@ -202,7 +242,7 @@ public class PaymentService : IPaymentService
 
             // Update transaction balance
             stockMain.PaidAmount += payment.Amount;
-            stockMain.BalanceAmount = Math.Max(0, stockMain.TotalAmount - stockMain.PaidAmount);
+            stockMain.BalanceAmount = await CalculateOutstandingAmountAsync(stockMain, stockMain.PaidAmount);
             stockMain.PaymentStatus = stockMain.BalanceAmount <= 0
                 ? PaymentStatus.Paid.ToString()
                 : (stockMain.PaidAmount <= 0 ? PaymentStatus.Unpaid.ToString() : PaymentStatus.Partial.ToString());
@@ -215,6 +255,29 @@ public class PaymentService : IPaymentService
 
             return payment;
         });
+    }
+
+    private async Task<decimal> CalculateOutstandingAmountAsync(StockMain stockMain, decimal paidAmount)
+    {
+        if (stockMain == null)
+        {
+            return 0;
+        }
+
+        var transactionCode = stockMain.TransactionType?.Code;
+        if (!string.Equals(transactionCode, GRN_TRANSACTION_TYPE_CODE, StringComparison.OrdinalIgnoreCase))
+        {
+            return Math.Max(0, stockMain.TotalAmount - paidAmount);
+        }
+
+        var totalReturns = await _stockMainRepository.Query()
+            .Include(s => s.TransactionType)
+            .Where(s => s.TransactionType!.Code == PURCHASE_RETURN_TRANSACTION_TYPE_CODE
+                     && s.ReferenceStockMain_ID == stockMain.StockMainID
+                     && s.Status != "Void")
+            .SumAsync(s => (decimal?)s.TotalAmount) ?? 0;
+
+        return Math.Max(0, stockMain.TotalAmount - totalReturns - paidAmount);
     }
 
     /// <summary>

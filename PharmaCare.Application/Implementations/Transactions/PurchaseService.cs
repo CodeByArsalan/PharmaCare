@@ -27,6 +27,7 @@ public class PurchaseService : TransactionServiceBase, IPurchaseService
     private const string PREFIX = "GRN";
     private const string PURCHASE_VOUCHER_CODE = "PV";
     private const string CASH_PAYMENT_VOUCHER_CODE = "CP";
+    private const string BANK_PAYMENT_VOUCHER_CODE = "BP";
 
     public PurchaseService(
         IRepository<StockMain> stockMainRepository,
@@ -79,8 +80,6 @@ public class PurchaseService : TransactionServiceBase, IPurchaseService
     {
         return await ExecuteInTransactionAsync(async () =>
         {
-            _ = transferredAdvanceAmount;
-
             // Get the GRN transaction type
             var transactionType = await _transactionTypeRepository.Query()
                 .FirstOrDefaultAsync(t => t.Code == TRANSACTION_TYPE_CODE);
@@ -125,15 +124,20 @@ public class PurchaseService : TransactionServiceBase, IPurchaseService
                     .ToListAsync();
             }
 
-            // Do not trust client-side transferred advance amount; derive it from PO payments on server.
-            var transferredAdvanceAmountActual = poPaymentsToTransfer.Sum(p => p.Amount);
-            var additionalPaymentAmount = Math.Max(0, purchase.PaidAmount - transferredAdvanceAmountActual);
-            purchase.PaidAmount = additionalPaymentAmount;
-
-            if (additionalPaymentAmount > 0 && !paymentAccountId.HasValue)
+            if (!purchase.ReferenceStockMain_ID.HasValue && transferredAdvanceAmount > 0)
             {
-                throw new InvalidOperationException("Payment account is required when additional payment is entered.");
+                throw new InvalidOperationException("Advance transfer amount can only be used when a reference PO is selected.");
             }
+
+            var availablePoAdvanceAmount = poPaymentsToTransfer.Sum(p => p.Amount);
+            var requestedTransferAmount = Math.Max(0, Math.Round(transferredAdvanceAmount, 2));
+            if (requestedTransferAmount > availablePoAdvanceAmount)
+            {
+                throw new InvalidOperationException(
+                    $"Requested advance transfer ({requestedTransferAmount:N2}) exceeds available PO advance ({availablePoAdvanceAmount:N2}).");
+            }
+
+            NormalizePurchaseLines(purchase);
 
             purchase.TransactionType_ID = transactionType.TransactionTypeID;
             purchase.TransactionNo = await GenerateTransactionNoAsync(PREFIX);
@@ -143,6 +147,29 @@ public class PurchaseService : TransactionServiceBase, IPurchaseService
 
             // Calculate totals
             CalculateTotals(purchase);
+
+            if (requestedTransferAmount > purchase.TotalAmount)
+            {
+                throw new InvalidOperationException(
+                    $"Requested advance transfer ({requestedTransferAmount:N2}) cannot exceed GRN total ({purchase.TotalAmount:N2}).");
+            }
+
+            if (purchase.PaidAmount < requestedTransferAmount)
+            {
+                throw new InvalidOperationException("Paid amount cannot be less than the advance transfer amount.");
+            }
+
+            if (purchase.PaidAmount > purchase.TotalAmount)
+            {
+                throw new InvalidOperationException("Paid amount cannot exceed GRN total amount.");
+            }
+
+            var additionalPaymentAmount = purchase.PaidAmount - requestedTransferAmount;
+            if (additionalPaymentAmount > 0 && !paymentAccountId.HasValue)
+            {
+                throw new InvalidOperationException("Payment account is required when additional payment is entered.");
+            }
+
             purchase.BalanceAmount = Math.Max(0, purchase.TotalAmount - purchase.PaidAmount);
             purchase.PaymentStatus = CalculatePaymentStatus(purchase.PaidAmount, purchase.BalanceAmount);
 
@@ -158,17 +185,13 @@ public class PurchaseService : TransactionServiceBase, IPurchaseService
             decimal transferredFromPo = 0;
             if (referencePo != null)
             {
-                if (poPaymentsToTransfer.Any())
+                if (requestedTransferAmount > 0)
                 {
-                    foreach (var payment in poPaymentsToTransfer)
-                    {
-                        payment.StockMain_ID = purchase.StockMainID;
-                        payment.Remarks = string.IsNullOrWhiteSpace(payment.Remarks)
-                            ? $"Transferred from PO {referencePo.TransactionNo}"
-                            : $"{payment.Remarks} (Transferred from PO {referencePo.TransactionNo})";
-                        _paymentRepository.Update(payment);
-                        transferredFromPo += payment.Amount;
-                    }
+                    transferredFromPo = await TransferPoAdvancePaymentsAsync(
+                        referencePo,
+                        purchase,
+                        requestedTransferAmount,
+                        userId);
                 }
 
                 if (transferredFromPo > 0)
@@ -219,6 +242,235 @@ public class PurchaseService : TransactionServiceBase, IPurchaseService
 
             return purchase;
         });
+    }
+
+    private async Task<decimal> TransferPoAdvancePaymentsAsync(
+        StockMain referencePo,
+        StockMain purchase,
+        decimal requestedTransferAmount,
+        int userId)
+    {
+        if (requestedTransferAmount <= 0)
+        {
+            return 0;
+        }
+
+        var poPayments = await _paymentRepository.Query()
+            .Where(p => p.StockMain_ID == referencePo.StockMainID && p.PaymentType == PaymentType.PAYMENT.ToString())
+            .OrderBy(p => p.PaymentDate)
+            .ThenBy(p => p.PaymentID)
+            .ToListAsync();
+
+        var availableAmount = poPayments.Sum(p => p.Amount);
+        if (requestedTransferAmount > availableAmount)
+        {
+            throw new InvalidOperationException(
+                $"Requested advance transfer ({requestedTransferAmount:N2}) exceeds available PO advance ({availableAmount:N2}).");
+        }
+
+        decimal transferredAmount = 0;
+        var remainingAmount = requestedTransferAmount;
+
+        foreach (var payment in poPayments)
+        {
+            if (remainingAmount <= 0)
+            {
+                break;
+            }
+
+            var moveAmount = Math.Min(payment.Amount, remainingAmount);
+            if (moveAmount <= 0)
+            {
+                continue;
+            }
+
+            var originalRemarks = payment.Remarks;
+            var transferNote = $"Transferred {moveAmount:N2} from PO {referencePo.TransactionNo} to GRN {purchase.TransactionNo}";
+
+            if (Math.Abs(moveAmount - payment.Amount) < 0.0001m)
+            {
+                payment.StockMain_ID = purchase.StockMainID;
+                payment.Remarks = string.IsNullOrWhiteSpace(originalRemarks)
+                    ? transferNote
+                    : $"{originalRemarks} ({transferNote})";
+                _paymentRepository.Update(payment);
+
+                if (payment.Voucher_ID.HasValue)
+                {
+                    var linkedVoucher = await _voucherRepository.Query()
+                        .FirstOrDefaultAsync(v => v.VoucherID == payment.Voucher_ID.Value);
+
+                    if (linkedVoucher != null)
+                    {
+                        linkedVoucher.SourceTable = "StockMain";
+                        linkedVoucher.SourceID = purchase.StockMainID;
+                        linkedVoucher.Narration = string.IsNullOrWhiteSpace(linkedVoucher.Narration)
+                            ? transferNote
+                            : $"{linkedVoucher.Narration} ({transferNote})";
+                        _voucherRepository.Update(linkedVoucher);
+                    }
+                }
+            }
+            else
+            {
+                var transferredVoucherId = await SplitPaymentVoucherForTransferAsync(
+                    payment,
+                    moveAmount,
+                    purchase.StockMainID,
+                    transferNote,
+                    userId);
+
+                payment.Amount = Math.Round(payment.Amount - moveAmount, 2);
+                payment.Remarks = string.IsNullOrWhiteSpace(originalRemarks)
+                    ? $"Partially transferred {moveAmount:N2} to GRN {purchase.TransactionNo}"
+                    : $"{originalRemarks} (Partially transferred {moveAmount:N2} to GRN {purchase.TransactionNo})";
+                _paymentRepository.Update(payment);
+
+                var transferredPayment = new Payment
+                {
+                    PaymentType = payment.PaymentType,
+                    Party_ID = payment.Party_ID,
+                    StockMain_ID = purchase.StockMainID,
+                    Account_ID = payment.Account_ID,
+                    Amount = Math.Round(moveAmount, 2),
+                    PaymentDate = payment.PaymentDate,
+                    PaymentMethod = payment.PaymentMethod,
+                    Reference = payment.Reference,
+                    ChequeNo = payment.ChequeNo,
+                    ChequeDate = payment.ChequeDate,
+                    Remarks = transferNote,
+                    Voucher_ID = transferredVoucherId,
+                    CreatedAt = DateTime.Now,
+                    CreatedBy = userId
+                };
+
+                await _paymentRepository.AddAsync(transferredPayment);
+            }
+
+            transferredAmount += moveAmount;
+            remainingAmount -= moveAmount;
+        }
+
+        return Math.Round(transferredAmount, 2);
+    }
+
+    private async Task<int?> SplitPaymentVoucherForTransferAsync(
+        Payment originalPayment,
+        decimal moveAmount,
+        int newSourceStockMainId,
+        string transferNote,
+        int userId)
+    {
+        if (!originalPayment.Voucher_ID.HasValue || moveAmount <= 0)
+        {
+            return originalPayment.Voucher_ID;
+        }
+
+        var originalVoucher = await _voucherRepository.Query()
+            .Include(v => v.VoucherType)
+            .Include(v => v.VoucherDetails)
+            .FirstOrDefaultAsync(v => v.VoucherID == originalPayment.Voucher_ID.Value);
+
+        if (originalVoucher == null)
+        {
+            return originalPayment.Voucher_ID;
+        }
+
+        var originalAmount = originalPayment.Amount;
+        if (moveAmount >= originalAmount)
+        {
+            originalVoucher.SourceTable = "StockMain";
+            originalVoucher.SourceID = newSourceStockMainId;
+            originalVoucher.Narration = string.IsNullOrWhiteSpace(originalVoucher.Narration)
+                ? transferNote
+                : $"{originalVoucher.Narration} ({transferNote})";
+            _voucherRepository.Update(originalVoucher);
+            return originalVoucher.VoucherID;
+        }
+
+        var remainingAmount = Math.Round(originalAmount - moveAmount, 2);
+        var ratio = originalAmount <= 0 ? 0 : moveAmount / originalAmount;
+
+        var transferredVoucherNo = await GenerateVoucherNoAsync(originalVoucher.VoucherType?.Code ?? CASH_PAYMENT_VOUCHER_CODE);
+        var transferredVoucher = new Voucher
+        {
+            VoucherType_ID = originalVoucher.VoucherType_ID,
+            VoucherNo = transferredVoucherNo,
+            VoucherDate = originalVoucher.VoucherDate,
+            TotalDebit = Math.Round(moveAmount, 2),
+            TotalCredit = Math.Round(moveAmount, 2),
+            Status = originalVoucher.Status,
+            SourceTable = "StockMain",
+            SourceID = newSourceStockMainId,
+            Narration = transferNote,
+            CreatedAt = DateTime.Now,
+            CreatedBy = userId
+        };
+
+        foreach (var detail in originalVoucher.VoucherDetails)
+        {
+            var moveDebit = Math.Round(detail.DebitAmount * ratio, 2);
+            var moveCredit = Math.Round(detail.CreditAmount * ratio, 2);
+
+            detail.DebitAmount = Math.Round(detail.DebitAmount - moveDebit, 2);
+            detail.CreditAmount = Math.Round(detail.CreditAmount - moveCredit, 2);
+
+            transferredVoucher.VoucherDetails.Add(new VoucherDetail
+            {
+                Account_ID = detail.Account_ID,
+                DebitAmount = moveDebit,
+                CreditAmount = moveCredit,
+                Description = detail.Description,
+                Party_ID = detail.Party_ID,
+                Product_ID = detail.Product_ID
+            });
+        }
+
+        originalVoucher.TotalDebit = Math.Round(remainingAmount, 2);
+        originalVoucher.TotalCredit = Math.Round(remainingAmount, 2);
+        _voucherRepository.Update(originalVoucher);
+        await _voucherRepository.AddAsync(transferredVoucher);
+        await _unitOfWork.SaveChangesAsync();
+
+        return transferredVoucher.VoucherID;
+    }
+
+    private static void NormalizePurchaseLines(StockMain purchase)
+    {
+        if (purchase.StockDetails == null || purchase.StockDetails.Count == 0)
+        {
+            throw new InvalidOperationException("At least one item is required.");
+        }
+
+        foreach (var detail in purchase.StockDetails)
+        {
+            if (detail.Quantity <= 0)
+            {
+                throw new InvalidOperationException("Each line item must have a quantity greater than zero.");
+            }
+
+            var unitRate = detail.CostPrice > 0 ? detail.CostPrice : detail.UnitPrice;
+            if (unitRate < 0)
+            {
+                throw new InvalidOperationException("Cost price cannot be negative.");
+            }
+
+            var grossAmount = Math.Round(detail.Quantity * unitRate, 2);
+            var lineDiscount = detail.DiscountPercent > 0
+                ? Math.Round(grossAmount * detail.DiscountPercent / 100, 2)
+                : Math.Round(Math.Max(0, detail.DiscountAmount), 2);
+
+            if (lineDiscount > grossAmount)
+            {
+                throw new InvalidOperationException("Line discount cannot exceed line amount.");
+            }
+
+            detail.CostPrice = unitRate;
+            detail.UnitPrice = unitRate;
+            detail.DiscountAmount = lineDiscount;
+            detail.LineTotal = Math.Round(grossAmount - lineDiscount, 2);
+            detail.LineCost = Math.Round(detail.Quantity * detail.CostPrice, 2);
+        }
     }
 
     private async Task CreateAdjustmentVoucherAsync(StockMain purchase, int userId, decimal amount)
@@ -356,13 +608,6 @@ public class PurchaseService : TransactionServiceBase, IPurchaseService
     /// </summary>
     private async Task<Voucher> CreatePaymentVoucherAsync(StockMain purchase, int userId, int accountId, decimal amount)
     {
-        // Get Cash Payment Voucher type
-        var voucherType = await _voucherTypeRepository.Query()
-            .FirstOrDefaultAsync(vt => vt.Code == CASH_PAYMENT_VOUCHER_CODE);
-
-        if (voucherType == null)
-            throw new InvalidOperationException($"Voucher type '{CASH_PAYMENT_VOUCHER_CODE}' not found.");
-
         // Get supplier with account
         var supplier = await _partyRepository.Query()
             .Include(p => p.Account)
@@ -372,11 +617,24 @@ public class PurchaseService : TransactionServiceBase, IPurchaseService
             throw new InvalidOperationException("Supplier does not have an associated account.");
 
         // Get the selected cash/bank account
-        var cashBankAccount = await _accountRepository.GetByIdAsync(accountId);
+        var cashBankAccount = await _accountRepository.Query()
+            .Include(a => a.AccountType)
+            .FirstOrDefaultAsync(a => a.AccountID == accountId);
         if (cashBankAccount == null)
             throw new InvalidOperationException("Selected payment account not found.");
 
-        var voucherNo = await GenerateVoucherNoAsync(CASH_PAYMENT_VOUCHER_CODE);
+        var isBankLikeAccount =
+            string.Equals(cashBankAccount.AccountType?.Code, "BANK", StringComparison.OrdinalIgnoreCase) ||
+            cashBankAccount.AccountType?.Name?.Contains("Bank", StringComparison.OrdinalIgnoreCase) == true;
+
+        var voucherTypeCode = isBankLikeAccount ? BANK_PAYMENT_VOUCHER_CODE : CASH_PAYMENT_VOUCHER_CODE;
+        var voucherType = await _voucherTypeRepository.Query()
+            .FirstOrDefaultAsync(vt => vt.Code == voucherTypeCode);
+
+        if (voucherType == null)
+            throw new InvalidOperationException($"Voucher type '{voucherTypeCode}' not found.");
+
+        var voucherNo = await GenerateVoucherNoAsync(voucherTypeCode);
         var paymentReference = await GeneratePaymentReferenceAsync();
 
         // Create the voucher
@@ -426,7 +684,7 @@ public class PurchaseService : TransactionServiceBase, IPurchaseService
             Account_ID = cashBankAccount.AccountID,
             Amount = amount,
             PaymentDate = purchase.TransactionDate,
-            PaymentMethod = cashBankAccount.AccountType?.Code == "BANK" ? "Bank" : "Cash",
+            PaymentMethod = isBankLikeAccount ? PaymentMethod.Bank.ToString() : PaymentMethod.Cash.ToString(),
             Reference = paymentReference,
             Remarks = $"Initial payment for purchase {purchase.TransactionNo}",
             Voucher = voucher,
@@ -605,7 +863,10 @@ public class PurchaseService : TransactionServiceBase, IPurchaseService
             
         // Payments (Debit)
         var payments = await _paymentRepository.Query()
-            .Where(p => p.Party_ID == supplierId && p.PaymentType == PaymentType.PAYMENT.ToString())
+            .Include(p => p.StockMain)
+            .Where(p => p.Party_ID == supplierId
+                        && p.PaymentType == PaymentType.PAYMENT.ToString()
+                        && (!p.StockMain_ID.HasValue || p.StockMain == null || p.StockMain.Status != "Void"))
             .SumAsync(p => p.Amount);
 
         return balance + purchases - returns - payments;

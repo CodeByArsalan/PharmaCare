@@ -84,17 +84,24 @@
                     <div class="card" style="background-color: var(--bg-card); border-color: var(--glass-border);">
                         <div class="card-body">
                             <div class="row g-2">
-                                <div class="col-4">
+                                <div class="col-3">
                                     <label class="form-label">Total Amount</label>
                                     <input asp-for="TotalAmount" type="number" step="0.01" min="0" 
                                            class="form-control" id="totalAmountInput" value="0" readonly />
                                 </div>
-                                <div class="col-4">
+                                <div class="col-3">
+                                    <label class="form-label">Advance To Apply</label>
+                                    <input type="number" step="0.01" min="0"
+                                           class="form-control" id="transferredAdvanceAmount"
+                                           name="transferredAdvanceAmount" value="0" disabled />
+                                    <small class="text-muted">From selected PO advance</small>
+                                </div>
+                                <div class="col-3">
                                     <label class="form-label">Paid Amount</label>
                                     <input asp-for="PaidAmount" type="number" step="0.01" min="0" 
                                            class="form-control" id="paidAmount" value="0" />
                                 </div>
-                                <div class="col-4">
+                                <div class="col-3">
                                     <label class="form-label">Balance Amount</label>
                                     <input asp-for="BalanceAmount" type="number" step="0.01" 
                                            class="form-control" id="balanceAmount" value="0" readonly />
@@ -111,7 +118,7 @@
                                     <input type="hidden" asp-for="SubTotal" id="subTotal" />
                                     <input type="hidden" asp-for="DiscountPercent" value="0" />
                                     <input type="hidden" asp-for="DiscountAmount" value="0" />
-                                    <input type="hidden" id="transferredAdvanceAmount" name="transferredAdvanceAmount" value="0" />
+                                    <input type="hidden" id="availableAdvanceAmount" value="0" />
                                 </div>
                             </div>
                         </div>
@@ -147,9 +154,11 @@
             const poSelect = document.getElementById('poSelect');
             poSelect.innerHTML = '<option value="">-- No PO (Direct Purchase) --</option>';
             document.getElementById('transferredAdvanceAmount').value = '0';
+            document.getElementById('availableAdvanceAmount').value = '0';
+            document.getElementById('transferredAdvanceAmount').disabled = true;
             isPaidAmountAuto = true;
 
-            document.getElementById('paidAmount').value = '0.00';
+            syncPaidAmountWithTotal(true);
             calculateBalance();
             togglePaymentAccount();
             
@@ -166,11 +175,14 @@
         document.getElementById('poSelect').addEventListener('change', function() {
             const selectedOption = this.options[this.selectedIndex];
             const transferredAdvanceInput = document.getElementById('transferredAdvanceAmount');
+            const availableAdvanceInput = document.getElementById('availableAdvanceAmount');
 
             if (!selectedOption.value) {
                 transferredAdvanceInput.value = '0';
+                availableAdvanceInput.value = '0';
+                transferredAdvanceInput.disabled = true;
                 isPaidAmountAuto = true;
-                document.getElementById('paidAmount').value = '0.00';
+                syncPaidAmountWithTotal(true);
                 calculateBalance();
                 togglePaymentAccount();
                 return;
@@ -180,13 +192,15 @@
                 const details = JSON.parse(selectedOption.dataset.details);
                 const paidAmount = parseFloat(selectedOption.dataset.paid) || 0;
                 transferredAdvanceInput.value = paidAmount.toFixed(2);
+                availableAdvanceInput.value = paidAmount.toFixed(2);
+                transferredAdvanceInput.disabled = paidAmount <= 0;
 
                 // Show advance payment info
                 if (paidAmount > 0) {
                     Swal.fire({
                         icon: 'info',
                         title: 'Advance Payment Found',
-                        text: `This PO has an advance payment of ${paidAmount.toFixed(2)}. It will be applied to this Purchase automatically.`,
+                        text: `This PO has an advance payment of ${paidAmount.toFixed(2)}. It is prefilled in "Advance To Apply" and can be adjusted.`,
                         toast: true,
                         position: 'top-end',
                         showConfirmButton: false,
@@ -199,9 +213,11 @@
                 details.forEach(d => addLineItem(d));
 
                 isPaidAmountAuto = false;
-                document.getElementById('paidAmount').value = paidAmount.toFixed(2);
-
                 calculateTotals();
+                sanitizeTransferredAdvanceAmount();
+                const transferAmount = parseFloat(transferredAdvanceInput.value) || 0;
+                document.getElementById('paidAmount').value = transferAmount.toFixed(2);
+                calculateBalance();
                 togglePaymentAccount();
             }
         });
@@ -320,6 +336,7 @@
             document.getElementById('totalAmountInput').value = subTotal.toFixed(2);
 
             syncPaidAmountWithTotal();
+            sanitizeTransferredAdvanceAmount();
             calculateBalance();
             togglePaymentAccount();
         }
@@ -333,10 +350,41 @@
             document.getElementById('paidAmount').value = totalAmount.toFixed(2);
         }
 
+        function sanitizeTransferredAdvanceAmount() {
+            const transferredInput = document.getElementById('transferredAdvanceAmount');
+            const availableAdvance = parseFloat(document.getElementById('availableAdvanceAmount').value) || 0;
+            const totalAmount = parseFloat(document.getElementById('totalAmountInput').value) || 0;
+            const maxTransfer = Math.max(0, Math.min(availableAdvance, totalAmount));
+
+            let transferAmount = parseFloat(transferredInput.value) || 0;
+            if (transferAmount < 0) {
+                transferAmount = 0;
+            }
+            if (transferAmount > maxTransfer) {
+                transferAmount = maxTransfer;
+            }
+
+            transferredInput.max = maxTransfer.toFixed(2);
+            transferredInput.value = transferAmount.toFixed(2);
+            transferredInput.disabled = maxTransfer <= 0;
+        }
+
         function calculateBalance() {
             const totalAmount = parseFloat(document.getElementById('totalAmountInput').value) || 0;
-            const paidAmount = parseFloat(document.getElementById('paidAmount').value) || 0;
-            const balanceAmount = totalAmount - paidAmount;
+            const paidInput = document.getElementById('paidAmount');
+            let paidAmount = parseFloat(paidInput.value) || 0;
+            const transferredAdvanceAmount = parseFloat(document.getElementById('transferredAdvanceAmount').value) || 0;
+
+            if (paidAmount < transferredAdvanceAmount) {
+                paidAmount = transferredAdvanceAmount;
+                paidInput.value = paidAmount.toFixed(2);
+            }
+            if (paidAmount > totalAmount) {
+                paidAmount = totalAmount;
+                paidInput.value = paidAmount.toFixed(2);
+            }
+
+            const balanceAmount = Math.max(0, totalAmount - paidAmount);
 
             document.getElementById('balanceAmount').value = balanceAmount.toFixed(2);
         }
@@ -350,6 +398,12 @@
         // Event listener for paid amount
         document.getElementById('paidAmount').addEventListener('input', function() {
             isPaidAmountAuto = false;
+            calculateBalance();
+            togglePaymentAccount();
+        });
+
+        document.getElementById('transferredAdvanceAmount').addEventListener('input', function() {
+            sanitizeTransferredAdvanceAmount();
             calculateBalance();
             togglePaymentAccount();
         });

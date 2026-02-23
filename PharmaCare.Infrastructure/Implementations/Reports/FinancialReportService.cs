@@ -445,9 +445,11 @@ public class FinancialReportService : IFinancialReportService
             .ToListAsync();
 
         var priorPayments = await _db.Payments
+            .Include(p => p.StockMain)
             .Where(p => p.Party_ID == filter.PartyId.Value
                         && p.PaymentDate < filter.FromDate
-                        && p.PaymentType == paymentType)
+                        && p.PaymentType == paymentType
+                        && (!p.StockMain_ID.HasValue || p.StockMain == null || p.StockMain.Status != "Void"))
             .ToListAsync();
 
         // For customer: Sale = Debit (adds to receivable), Receipt = Credit (reduces receivable)
@@ -477,10 +479,12 @@ public class FinancialReportService : IFinancialReportService
             .ToListAsync();
 
         var periodPayments = await _db.Payments
+            .Include(p => p.StockMain)
             .Where(p => p.Party_ID == filter.PartyId.Value
                         && p.PaymentDate >= filter.FromDate
                         && p.PaymentDate < filter.ToDate.AddDays(1)
-                        && p.PaymentType == paymentType)
+                        && p.PaymentType == paymentType
+                        && (!p.StockMain_ID.HasValue || p.StockMain == null || p.StockMain.Status != "Void"))
             .ToListAsync();
 
         // Merge and sort by date

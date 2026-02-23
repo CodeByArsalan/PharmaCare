@@ -75,6 +75,18 @@ public class PurchaseReturnService : TransactionServiceBase, IPurchaseReturnServ
         if (transactionType == null)
             throw new InvalidOperationException($"Transaction type '{TRANSACTION_TYPE_CODE}' not found.");
 
+        if (!purchaseReturn.ReferenceStockMain_ID.HasValue)
+        {
+            throw new InvalidOperationException("Reference GRN is required for purchase return.");
+        }
+
+        if (!purchaseReturn.Party_ID.HasValue || purchaseReturn.Party_ID.Value <= 0)
+        {
+            throw new InvalidOperationException("Supplier is required for purchase return.");
+        }
+
+        NormalizeReturnLines(purchaseReturn);
+
         purchaseReturn.TransactionType_ID = transactionType.TransactionTypeID;
         purchaseReturn.TransactionNo = await GenerateTransactionNoAsync(PREFIX);
         purchaseReturn.Status = "Approved"; // Returns are immediately approved (stock impact)
@@ -85,11 +97,8 @@ public class PurchaseReturnService : TransactionServiceBase, IPurchaseReturnServ
         // Calculate totals
         CalculateTotals(purchaseReturn);
 
-        // Server-side quantity validation against the reference GRN
-        if (purchaseReturn.ReferenceStockMain_ID.HasValue)
-        {
-            await ValidateReturnQuantitiesAsync(purchaseReturn);
-        }
+        // Server-side validation against reference GRN and already-returned quantities
+        await ValidateReturnQuantitiesAsync(purchaseReturn);
 
         await _stockMainRepository.AddAsync(purchaseReturn);
         await _unitOfWork.SaveChangesAsync();
@@ -327,13 +336,35 @@ public class PurchaseReturnService : TransactionServiceBase, IPurchaseReturnServ
     /// </summary>
     private async Task ValidateReturnQuantitiesAsync(StockMain purchaseReturn)
     {
+        if (!purchaseReturn.ReferenceStockMain_ID.HasValue)
+        {
+            throw new InvalidOperationException("Reference GRN is required.");
+        }
+
+        if (!purchaseReturn.Party_ID.HasValue || purchaseReturn.Party_ID.Value <= 0)
+        {
+            throw new InvalidOperationException("Supplier is required.");
+        }
+
         // Get the reference GRN with its details
         var grn = await _stockMainRepository.Query()
+            .Include(s => s.TransactionType)
+            .Include(s => s.Party)
             .Include(s => s.StockDetails)
-            .FirstOrDefaultAsync(s => s.StockMainID == purchaseReturn.ReferenceStockMain_ID!.Value);
+                .ThenInclude(d => d.Product)
+            .FirstOrDefaultAsync(s => s.StockMainID == purchaseReturn.ReferenceStockMain_ID.Value);
 
         if (grn == null)
             throw new InvalidOperationException("Reference GRN not found.");
+
+        if (!string.Equals(grn.TransactionType?.Code, GRN_TRANSACTION_TYPE_CODE, StringComparison.OrdinalIgnoreCase))
+            throw new InvalidOperationException("Reference transaction must be a GRN.");
+
+        if (!string.Equals(grn.Status, "Approved", StringComparison.OrdinalIgnoreCase))
+            throw new InvalidOperationException("Only approved GRNs can be returned.");
+
+        if (grn.Party_ID != purchaseReturn.Party_ID)
+            throw new InvalidOperationException("Selected supplier does not match the supplier of the reference GRN.");
 
         // Get all existing non-voided returns against this GRN
         var existingReturns = await _stockMainRepository.Query()
@@ -357,24 +388,68 @@ public class PurchaseReturnService : TransactionServiceBase, IPurchaseReturnServ
             }
         }
 
-        // Validate each line item in the new return
-        foreach (var detail in purchaseReturn.StockDetails)
-        {
-            var grnDetail = grn.StockDetails.FirstOrDefault(d => d.Product_ID == detail.Product_ID);
-            if (grnDetail == null)
-                throw new InvalidOperationException($"Product ID {detail.Product_ID} was not found in the reference GRN.");
+        var grnQuantitiesByProduct = grn.StockDetails
+            .GroupBy(d => d.Product_ID)
+            .ToDictionary(g => g.Key, g => g.Sum(x => x.Quantity));
 
-            var previouslyReturned = alreadyReturned.ContainsKey(detail.Product_ID) 
-                ? alreadyReturned[detail.Product_ID] 
+        var requestedByProduct = purchaseReturn.StockDetails
+            .GroupBy(d => d.Product_ID)
+            .ToDictionary(g => g.Key, g => g.Sum(x => x.Quantity));
+
+        // Validate each requested product quantity in aggregate to handle duplicate lines safely.
+        foreach (var requested in requestedByProduct)
+        {
+            var productId = requested.Key;
+            var requestedQty = requested.Value;
+
+            if (!grnQuantitiesByProduct.TryGetValue(productId, out var grnQty))
+            {
+                throw new InvalidOperationException($"Product ID {productId} was not found in the reference GRN.");
+            }
+
+            var previouslyReturned = alreadyReturned.ContainsKey(productId)
+                ? alreadyReturned[productId]
                 : 0;
 
-            var availableForReturn = grnDetail.Quantity - previouslyReturned;
+            var availableForReturn = grnQty - previouslyReturned;
 
-            if (detail.Quantity > availableForReturn)
+            if (requestedQty > availableForReturn)
+            {
+                var productName = grn.StockDetails.FirstOrDefault(d => d.Product_ID == productId)?.Product?.Name ?? $"ID:{productId}";
                 throw new InvalidOperationException(
-                    $"Return quantity ({detail.Quantity}) for product '{grnDetail.Product?.Name ?? $"ID:{detail.Product_ID}"}' " +
+                    $"Return quantity ({requestedQty}) for product '{productName}' " +
                     $"exceeds available quantity ({availableForReturn}). " +
-                    $"GRN Qty: {grnDetail.Quantity}, Already Returned: {previouslyReturned}.");
+                    $"GRN Qty: {grnQty}, Already Returned: {previouslyReturned}.");
+            }
+        }
+    }
+
+    private static void NormalizeReturnLines(StockMain purchaseReturn)
+    {
+        if (purchaseReturn.StockDetails == null || purchaseReturn.StockDetails.Count == 0)
+        {
+            throw new InvalidOperationException("At least one return item is required.");
+        }
+
+        foreach (var detail in purchaseReturn.StockDetails)
+        {
+            if (detail.Quantity <= 0)
+            {
+                throw new InvalidOperationException("Return quantity must be greater than zero.");
+            }
+
+            var rate = detail.CostPrice > 0 ? detail.CostPrice : detail.UnitPrice;
+            if (rate < 0)
+            {
+                throw new InvalidOperationException("Cost price cannot be negative.");
+            }
+
+            detail.CostPrice = rate;
+            detail.UnitPrice = rate;
+            detail.DiscountPercent = 0;
+            detail.DiscountAmount = 0;
+            detail.LineTotal = Math.Round(detail.Quantity * rate, 2);
+            detail.LineCost = Math.Round(detail.Quantity * rate, 2);
         }
     }
 

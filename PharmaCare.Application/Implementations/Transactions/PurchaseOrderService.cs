@@ -64,6 +64,8 @@ public class PurchaseOrderService : IPurchaseOrderService
         purchaseOrder.CreatedAt = DateTime.Now;
         purchaseOrder.CreatedBy = userId;
 
+        NormalizePurchaseOrderLines(purchaseOrder);
+
         // Calculate totals
         CalculateTotals(purchaseOrder);
 
@@ -90,6 +92,8 @@ public class PurchaseOrderService : IPurchaseOrderService
         existing.Remarks = purchaseOrder.Remarks;
         existing.UpdatedAt = DateTime.Now;
         existing.UpdatedBy = userId;
+
+        NormalizePurchaseOrderLines(purchaseOrder);
 
         // Clear and re-add details
         existing.StockDetails.Clear();
@@ -209,6 +213,49 @@ public class PurchaseOrderService : IPurchaseOrderService
         }
 
         purchaseOrder.TotalAmount = purchaseOrder.SubTotal - purchaseOrder.DiscountAmount;
+        if (purchaseOrder.PaidAmount > purchaseOrder.TotalAmount)
+        {
+            throw new InvalidOperationException("Paid amount cannot exceed total amount.");
+        }
+
         purchaseOrder.BalanceAmount = purchaseOrder.TotalAmount - purchaseOrder.PaidAmount;
+    }
+
+    private static void NormalizePurchaseOrderLines(StockMain purchaseOrder)
+    {
+        if (purchaseOrder.StockDetails == null || purchaseOrder.StockDetails.Count == 0)
+        {
+            throw new InvalidOperationException("At least one item is required.");
+        }
+
+        foreach (var detail in purchaseOrder.StockDetails)
+        {
+            if (detail.Quantity <= 0)
+            {
+                throw new InvalidOperationException("Each line item must have a quantity greater than zero.");
+            }
+
+            var unitRate = detail.UnitPrice > 0 ? detail.UnitPrice : detail.CostPrice;
+            if (unitRate < 0)
+            {
+                throw new InvalidOperationException("Unit price cannot be negative.");
+            }
+
+            var grossAmount = Math.Round(detail.Quantity * unitRate, 2);
+            var lineDiscount = detail.DiscountPercent > 0
+                ? Math.Round(grossAmount * detail.DiscountPercent / 100, 2)
+                : Math.Round(Math.Max(0, detail.DiscountAmount), 2);
+
+            if (lineDiscount > grossAmount)
+            {
+                throw new InvalidOperationException("Line discount cannot exceed line amount.");
+            }
+
+            detail.UnitPrice = unitRate;
+            detail.CostPrice = detail.CostPrice > 0 ? detail.CostPrice : unitRate;
+            detail.DiscountAmount = lineDiscount;
+            detail.LineTotal = Math.Round(grossAmount - lineDiscount, 2);
+            detail.LineCost = Math.Round(detail.Quantity * detail.CostPrice, 2);
+        }
     }
 }

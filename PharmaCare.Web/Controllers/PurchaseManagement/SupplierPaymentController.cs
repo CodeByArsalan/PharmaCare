@@ -82,6 +82,8 @@ public class SupplierPaymentController : BaseController
             return RedirectToAction("PurchasesIndex", "Purchase");
         }
 
+        await RefreshGrnOutstandingAsync(grn);
+
         if (!string.Equals(grn.Status, "Approved", StringComparison.OrdinalIgnoreCase))
         {
             ShowMessage(MessageType.Warning, "Payments can only be made against approved purchases.");
@@ -118,6 +120,8 @@ public class SupplierPaymentController : BaseController
             ShowMessage(MessageType.Error, "Purchase not found.");
             return RedirectToAction(nameof(PaymentsIndex));
         }
+
+        await RefreshGrnOutstandingAsync(grn);
 
         if (!string.Equals(grn.Status, "Approved", StringComparison.OrdinalIgnoreCase))
         {
@@ -282,4 +286,24 @@ public class SupplierPaymentController : BaseController
     }
 
     // private async Task LoadDropdownsAsync() { ... } // Removed
+
+    private async Task RefreshGrnOutstandingAsync(Domain.Entities.Transactions.StockMain grn)
+    {
+        if (!grn.Party_ID.HasValue || grn.Party_ID.Value <= 0)
+        {
+            return;
+        }
+
+        var pendingForSupplier = await _paymentService.GetPendingGrnsAsync(grn.Party_ID.Value);
+        var refreshedGrn = pendingForSupplier.FirstOrDefault(x => x.StockMainID == grn.StockMainID);
+        if (refreshedGrn == null)
+        {
+            grn.BalanceAmount = 0;
+            grn.PaymentStatus = "Paid";
+            return;
+        }
+
+        grn.BalanceAmount = refreshedGrn.BalanceAmount;
+        grn.PaymentStatus = refreshedGrn.PaymentStatus;
+    }
 }
