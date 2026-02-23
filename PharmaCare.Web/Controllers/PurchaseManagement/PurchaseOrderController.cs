@@ -268,19 +268,15 @@ public class PurchaseOrderController : BaseController
             return RedirectToAction(nameof(PurchaseOrdersIndex));
         }
 
-        var supplierPayableToMe = await _paymentService.GetSupplierPayableToMeAsync(po.Party_ID ?? 0);
-        var autoDeduction = Math.Min(supplierPayableToMe, po.BalanceAmount);
-        var finalPayableAmount = po.BalanceAmount - autoDeduction;
-
         // Use IComboboxRepository in View for accounts
         ViewBag.PO = po;
-        SetPaymentContextViewData(supplierPayableToMe, autoDeduction, finalPayableAmount);
+        SetPaymentContextViewData(po.BalanceAmount);
 
         return View(new Domain.Entities.Finance.Payment
         {
             StockMain_ID = po.StockMainID,
             Party_ID = po.Party_ID ?? 0,
-            Amount = finalPayableAmount,
+            Amount = po.BalanceAmount,
             PaymentDate = DateTime.Now,
             PaymentMethod = "Cash"
         });
@@ -304,17 +300,9 @@ public class PurchaseOrderController : BaseController
             return RedirectToAction(nameof(PurchaseOrdersIndex));
         }
 
-        var supplierPayableToMe = await _paymentService.GetSupplierPayableToMeAsync(po.Party_ID ?? 0);
-        var autoDeduction = Math.Min(supplierPayableToMe, po.BalanceAmount);
-        var finalPayableAmount = po.BalanceAmount - autoDeduction;
-
-        if (finalPayableAmount <= 0)
+        if (payment.Amount > po.BalanceAmount)
         {
-            ModelState.AddModelError("Amount", "No cash payment is required. Supplier payable-to-me fully offsets this Purchase Order.");
-        }
-        else if (payment.Amount > finalPayableAmount)
-        {
-            ModelState.AddModelError("Amount", $"Payment amount cannot exceed net payable amount ({finalPayableAmount:N2}) after supplier deduction.");
+            ModelState.AddModelError("Amount", $"Payment amount cannot exceed PO balance ({po.BalanceAmount:N2}).");
         }
 
         // Prevent tampering with hidden fields.
@@ -347,7 +335,7 @@ public class PurchaseOrderController : BaseController
         }
 
         ViewBag.PO = po;
-        SetPaymentContextViewData(supplierPayableToMe, autoDeduction, finalPayableAmount);
+        SetPaymentContextViewData(po.BalanceAmount);
         return View(payment);
     }
 
@@ -370,10 +358,8 @@ public class PurchaseOrderController : BaseController
         );
     }
 
-    private void SetPaymentContextViewData(decimal supplierPayableToMe, decimal autoDeduction, decimal finalPayableAmount)
+    private void SetPaymentContextViewData(decimal finalPayableAmount)
     {
-        ViewBag.SupplierPayableToMe = supplierPayableToMe;
-        ViewBag.AutoDeduction = autoDeduction;
         ViewBag.FinalPayableAmount = Math.Max(0, finalPayableAmount);
     }
 }

@@ -4,14 +4,11 @@
 @{
     ViewData["Title"] = "Advance Payment against PO";
     var po = ViewBag.PO as PharmaCare.Domain.Entities.Transactions.StockMain;
-    decimal supplierPayableToMe = ViewBag.SupplierPayableToMe != null ? Convert.ToDecimal(ViewBag.SupplierPayableToMe) : 0;
-    decimal autoDeduction = ViewBag.AutoDeduction != null ? Convert.ToDecimal(ViewBag.AutoDeduction) : 0;
     decimal finalPayableAmount = ViewBag.FinalPayableAmount != null
         ? Convert.ToDecimal(ViewBag.FinalPayableAmount)
         : (po?.BalanceAmount ?? 0);
-    var noCashPaymentRequired = finalPayableAmount <= 0;
     var finalPayableAttr = finalPayableAmount.ToString("0.##", CultureInfo.InvariantCulture);
-    var minPayableAttr = noCashPaymentRequired ? "0" : "0.01";
+    var minPayableAttr = "0.01";
 }
 
 <!-- Page Header -->
@@ -61,22 +58,6 @@
                         </div>
 
                         <div class="col-md-6">
-                            <label class="form-label">Supplier Payable To Me</label>
-                            <div class="input-group">
-                                <span class="input-group-text">PKR</span>
-                                <input type="text" class="form-control" value="@supplierPayableToMe.ToString("N2")" readonly />
-                            </div>
-                        </div>
-
-                        <div class="col-md-6">
-                            <label class="form-label">Auto Deduction Applied</label>
-                            <div class="input-group">
-                                <span class="input-group-text">PKR</span>
-                                <input type="text" class="form-control" value="@autoDeduction.ToString("N2")" readonly />
-                            </div>
-                        </div>
-
-                        <div class="col-md-6">
                             <label class="form-label">Payment Amount <span class="text-danger">*</span></label>
                             <div class="input-group">
                                 <span class="input-group-text">PKR</span>
@@ -85,7 +66,7 @@
                                        placeholder="Enter amount" required />
                             </div>
                             <span asp-validation-for="Amount" class="text-danger small"></span>
-                            <div class="form-text">Final Payable Amount: @finalPayableAmount.ToString("N2")</div>
+                            <div class="form-text">PO Balance Amount: @finalPayableAmount.ToString("N2")</div>
                         </div>
                         
                         <div class="col-md-6">
@@ -122,36 +103,20 @@
                             <textarea asp-for="Remarks" class="form-control" rows="2" placeholder="e.g. Advance payment"></textarea>
                         </div>
 
-                        @if (autoDeduction > 0)
-                        {
-                            <div class="col-12">
-                                <div class="alert alert-warning mb-0">
-                                    Supplier payable-to-me has been auto-deducted by <strong>@autoDeduction.ToString("N2")</strong>.
-                                    Final payable is <strong>@finalPayableAmount.ToString("N2")</strong>.
-                                </div>
+                        <div class="col-12">
+                            <div class="alert alert-info mb-0">
+                                PO advances are captured directly against this PO balance. Supplier-credit adjustments are applied when settling GRN, not in PO advance screen.
                             </div>
-                        }
-
-                        @if (noCashPaymentRequired)
-                        {
-                            <div class="col-12">
-                                <div class="alert alert-success mb-0">
-                                    No cash payment is required. Supplier payable-to-me fully offsets this Purchase Order.
-                                </div>
-                            </div>
-                        }
+                        </div>
                     </div>
 
                     <hr class="my-4" />
 
                     <div class="text-end">
                         <a asp-action="PurchaseOrdersIndex" class="btn btn-outline-secondary me-2">Skip Payment</a>
-                        @if (!noCashPaymentRequired)
-                        {
-                            <button type="submit" class="btn btn-success">
-                                <i class="fas fa-check me-2"></i>Record Payment
-                            </button>
-                        }
+                        <button type="submit" class="btn btn-success">
+                            <i class="fas fa-check me-2"></i>Record Payment
+                        </button>
                     </div>
                 </form>
             </div>

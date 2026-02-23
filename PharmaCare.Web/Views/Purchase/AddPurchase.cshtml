@@ -133,6 +133,7 @@
     <script>
         let products = [];
         let rowIndex = 0;
+        let isPaidAmountAuto = true;
 
         document.addEventListener('DOMContentLoaded', async function() {
             const response = await fetch('@Url.Action("GetProducts")');
@@ -146,6 +147,7 @@
             const poSelect = document.getElementById('poSelect');
             poSelect.innerHTML = '<option value="">-- No PO (Direct Purchase) --</option>';
             document.getElementById('transferredAdvanceAmount').value = '0';
+            isPaidAmountAuto = true;
 
             document.getElementById('paidAmount').value = '0.00';
             calculateBalance();
@@ -167,6 +169,7 @@
 
             if (!selectedOption.value) {
                 transferredAdvanceInput.value = '0';
+                isPaidAmountAuto = true;
                 document.getElementById('paidAmount').value = '0.00';
                 calculateBalance();
                 togglePaymentAccount();
@@ -195,6 +198,7 @@
                 rowIndex = 0;
                 details.forEach(d => addLineItem(d));
 
+                isPaidAmountAuto = false;
                 document.getElementById('paidAmount').value = paidAmount.toFixed(2);
 
                 calculateTotals();
@@ -315,7 +319,18 @@
             // Always update TotalAmount to match SubTotal (since no discounts are applied)
             document.getElementById('totalAmountInput').value = subTotal.toFixed(2);
 
+            syncPaidAmountWithTotal();
             calculateBalance();
+            togglePaymentAccount();
+        }
+
+        function syncPaidAmountWithTotal(force = false) {
+            if (!force && !isPaidAmountAuto) {
+                return;
+            }
+
+            const totalAmount = parseFloat(document.getElementById('totalAmountInput').value) || 0;
+            document.getElementById('paidAmount').value = totalAmount.toFixed(2);
         }
 
         function calculateBalance() {
@@ -334,6 +349,7 @@
 
         // Event listener for paid amount
         document.getElementById('paidAmount').addEventListener('input', function() {
+            isPaidAmountAuto = false;
             calculateBalance();
             togglePaymentAccount();
         });
