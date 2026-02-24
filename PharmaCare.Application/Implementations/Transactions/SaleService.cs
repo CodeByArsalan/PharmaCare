@@ -93,6 +93,15 @@ public class SaleService : TransactionServiceBase, ISaleService
             // Calculate totals
             CalculateTotals(sale);
 
+            if (sale.PaidAmount < 0)
+            {
+                throw new InvalidOperationException("Paid amount cannot be negative.");
+            }
+
+            // Treat incoming PaidAmount as tendered amount and cap posting at invoice total.
+            sale.PaidAmount = Math.Min(sale.TotalAmount, sale.PaidAmount);
+            sale.BalanceAmount = Math.Max(0, sale.TotalAmount - sale.PaidAmount);
+
             // Validate Sale (stock availability)
             await ValidateSaleAsync(sale);
 

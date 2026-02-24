@@ -903,8 +903,27 @@ pre {
     color: var(--text-primary) !important;
 }
 
+.select2-container--bootstrap-5 .select2-selection--single {
+    min-height: calc((0.9375rem * 1.5) + (0.875rem * 2) + 2px) !important;
+    height: calc((0.9375rem * 1.5) + (0.875rem * 2) + 2px) !important;
+    padding: 0.875rem 1rem !important;
+    border-radius: var(--radius-lg) !important;
+    display: flex !important;
+    align-items: center !important;
+    box-sizing: border-box !important;
+}
+
 .select2-container--bootstrap-5 .select2-selection--single .select2-selection__rendered {
     color: var(--text-primary) !important;
+    line-height: 1.5 !important;
+    padding-left: 0 !important;
+    padding-right: 2rem !important;
+}
+
+.select2-container--bootstrap-5 .select2-selection--single .select2-selection__arrow {
+    top: 50% !important;
+    right: 1rem !important;
+    transform: translateY(-50%) !important;
 }
 
 .select2-container--bootstrap-5 .select2-dropdown {

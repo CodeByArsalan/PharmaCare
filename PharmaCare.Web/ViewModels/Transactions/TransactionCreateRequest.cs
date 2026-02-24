@@ -45,6 +45,12 @@ public class SaleCreateRequest
     [Range(typeof(decimal), "0", "79228162514264337593543950335")]
     public decimal PaidAmount { get; set; }
 
+    [Range(typeof(decimal), "0", "79228162514264337593543950335")]
+    public decimal? TenderedAmount { get; set; }
+
+    [StringLength(200)]
+    public string? WalkInCustomerName { get; set; }
+
     [StringLength(500)]
     public string? Remarks { get; set; }
 

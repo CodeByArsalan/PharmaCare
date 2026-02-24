@@ -195,6 +195,14 @@ public class PaymentService : IPaymentService
                 throw new InvalidOperationException("Payments are only supported for GRN or PO transactions.");
             }
 
+            if (string.Equals(transactionCode, PO_TRANSACTION_TYPE_CODE, StringComparison.OrdinalIgnoreCase))
+            {
+                stockMain.PaidAmount = await _paymentRepository.Query()
+                    .Where(p => p.PaymentType == SupplierPaymentType
+                             && p.StockMain_ID == stockMain.StockMainID)
+                    .SumAsync(p => (decimal?)p.Amount) ?? 0;
+            }
+
             if (payment.Amount <= 0)
                 throw new InvalidOperationException("Payment amount must be greater than zero.");
 
@@ -265,6 +273,11 @@ public class PaymentService : IPaymentService
         }
 
         var transactionCode = stockMain.TransactionType?.Code;
+        if (string.Equals(transactionCode, PO_TRANSACTION_TYPE_CODE, StringComparison.OrdinalIgnoreCase))
+        {
+            return await CalculatePurchaseOrderOutstandingAmountAsync(stockMain, paidAmount);
+        }
+
         if (!string.Equals(transactionCode, GRN_TRANSACTION_TYPE_CODE, StringComparison.OrdinalIgnoreCase))
         {
             return Math.Max(0, stockMain.TotalAmount - paidAmount);
@@ -278,6 +291,52 @@ public class PaymentService : IPaymentService
             .SumAsync(s => (decimal?)s.TotalAmount) ?? 0;
 
         return Math.Max(0, stockMain.TotalAmount - totalReturns - paidAmount);
+    }
+
+    private async Task<decimal> CalculatePurchaseOrderOutstandingAmountAsync(StockMain purchaseOrder, decimal paidAmount)
+    {
+        if (purchaseOrder.StockDetails == null || purchaseOrder.StockDetails.Count == 0)
+        {
+            purchaseOrder = await _stockMainRepository.Query()
+                .AsNoTracking()
+                .Include(s => s.StockDetails)
+                .FirstOrDefaultAsync(s => s.StockMainID == purchaseOrder.StockMainID) ?? purchaseOrder;
+        }
+
+        var receivedLines = await _stockMainRepository.Query()
+            .AsNoTracking()
+            .Include(s => s.TransactionType)
+            .Where(s => s.TransactionType!.Code == GRN_TRANSACTION_TYPE_CODE
+                     && s.Status != "Void"
+                     && s.ReferenceStockMain_ID == purchaseOrder.StockMainID)
+            .SelectMany(s => s.StockDetails.Select(d => new
+            {
+                d.Product_ID,
+                d.Quantity
+            }))
+            .ToListAsync();
+
+        var receivedLookup = receivedLines
+            .GroupBy(x => x.Product_ID)
+            .ToDictionary(g => g.Key, g => g.Sum(x => x.Quantity));
+
+        decimal remainingTotal = 0;
+        foreach (var detailGroup in purchaseOrder.StockDetails.GroupBy(d => d.Product_ID))
+        {
+            var orderedQty = detailGroup.Sum(d => d.Quantity);
+            receivedLookup.TryGetValue(detailGroup.Key, out var receivedQty);
+            var remainingQty = Math.Max(0, orderedQty - receivedQty);
+            if (remainingQty <= 0)
+            {
+                continue;
+            }
+
+            var sourceLine = detailGroup.First();
+            var unitRate = sourceLine.CostPrice > 0 ? sourceLine.CostPrice : sourceLine.UnitPrice;
+            remainingTotal += Math.Round(remainingQty * unitRate, 2);
+        }
+
+        return Math.Max(0, Math.Round(remainingTotal - paidAmount, 2));
     }
 
     /// <summary>

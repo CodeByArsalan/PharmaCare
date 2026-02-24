@@ -2,11 +2,58 @@
 @inject PharmaCare.Infrastructure.Interfaces.IComboboxRepository _combobox
 @{
     ViewData["Title"] = "Add Sale";
+    var selectedPaymentAccountId = ViewBag.SelectedPaymentAccountId as int?;
+    var tenderedAmountValue = ViewBag.TenderedAmount != null
+        ? Convert.ToDecimal(ViewBag.TenderedAmount)
+        : Model.PaidAmount;
+    var walkInCustomerNameValue = ViewBag.WalkInCustomerName as string;
 }
 
-<!-- Select2 CSS for searchable dropdowns -->
-<link href="https://cdn.jsdelivr.net/npm/select2@4.1.0-rc.0/dist/css/select2.min.css" rel="stylesheet" />
-<link href="https://cdn.jsdelivr.net/npm/select2-bootstrap-5-theme@1.3.0/dist/select2-bootstrap-5-theme.min.css" rel="stylesheet" />
+<style>
+    @@media (max-width: 767.98px) {
+        #lineItemsBody tr {
+            display: block;
+            border: 1px solid var(--glass-border);
+            border-radius: 0.5rem;
+            margin-bottom: 0.75rem;
+            background: var(--bg-card);
+        }
+
+        #lineItemsBody td {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            gap: 0.5rem;
+            padding: 0.5rem 0.75rem;
+            border: 0;
+        }
+
+        #lineItemsBody td::before {
+            content: attr(data-label);
+            font-weight: 600;
+            color: var(--text-secondary);
+            min-width: 88px;
+        }
+
+        #lineItemsBody td .form-control,
+        #lineItemsBody td .select2-container {
+            width: 100% !important;
+            max-width: 62%;
+        }
+
+        table.table > thead,
+        table.table > tfoot {
+            display: none;
+        }
+
+        .sale-summary-sticky {
+            position: sticky;
+            bottom: 0;
+            z-index: 10;
+            box-shadow: 0 -6px 20px rgba(0, 0, 0, 0.15);
+        }
+    }
+</style>
 
 
 <!-- Page Header -->
@@ -22,15 +69,26 @@
 
 <div class="card">
     <div class="card-body">
+        <div asp-validation-summary="All" class="text-danger mb-3"></div>
         <form asp-action="AddSale" method="post" id="saleForm">
             <!-- Header Section -->
             <div class="row g-3 mb-4">
                 <div class="col-md-3">
                     <label class="form-label">Customer <span class="text-danger">*</span></label>
-                    <select asp-for="Party_ID" asp-items="@_combobox.GetActivePartiesByType("Customer")" class="form-select" id="customerSelect" required>
+                    <select asp-for="Party_ID" asp-items="@_combobox.GetActivePartiesByType("Customer")" class="form-select select2-manual" id="customerSelect" required>
                         <option value="">-- Select Customer --</option>
                     </select>
                     <span asp-validation-for="Party_ID" class="text-danger small"></span>
+                </div>
+                <div class="col-md-3 d-none-soft" id="walkInNameSection">
+                    <label class="form-label">Walk-in Name</label>
+                    <input type="text"
+                           class="form-control"
+                           id="walkInCustomerName"
+                           name="WalkInCustomerName"
+                           value="@walkInCustomerNameValue"
+                           placeholder="Walk-in" />
+                    <small class="text-muted">Only used when walk-in customer is selected.</small>
                 </div>
                 <div class="col-md-3">
                     <label class="form-label">Date <span class="text-danger">*</span></label>
@@ -90,7 +148,7 @@
             <!-- Totals & Payment Section -->
             <div class="row g-3 mb-4">
                 <div class="col-md-6 offset-md-6">
-                    <div class="card">
+                    <div class="card sale-summary-sticky">
                         <div class="card-body">
                             <div class="row g-2">
                                 <div class="col-6">
@@ -100,7 +158,7 @@
                                 </div>
                                 <div class="col-6">
                                     <label class="form-label">Discount Amount</label>
-                                    <input asp-for="DiscountAmount" type="number" step="1" min="0" 
+                                    <input asp-for="DiscountAmount" type="number" step="0.01" min="0"
                                            class="form-control" id="discountAmount" value="0" />
                                 </div>
                                 <div class="col-12">
@@ -126,18 +184,20 @@
                                     </div>
                                 </div>
                                 <div class="col-5">
-                                    <label class="form-label">Amount Received</label>
+                                    <label class="form-label">Amount Tendered</label>
                                     <div class="input-group">
-                                        <input asp-for="PaidAmount" type="number" step="1" min="0" 
-                                               class="form-control" id="paidAmount" value="0" />
+                                        <input type="number" step="1" min="0"
+                                               class="form-control" id="tenderedAmount" name="TenderedAmount"
+                                               value="@tenderedAmountValue.ToString("0.##")" />
                                         <button type="button" class="btn btn-outline-success" id="payFullBtn" title="Pay Full Amount">
                                             <i class="fas fa-check"></i>
                                         </button>
                                     </div>
+                                    <input asp-for="PaidAmount" type="hidden" id="paidAmount" value="0" />
                                 </div>
                                 <div class="col-7">
                                     <div id="balanceContainer">
-                                        <label class="form-label">Balance</label>
+                                        <label class="form-label">Remaining Due</label>
                                         <input type="number" class="form-control" id="balanceDisplay" 
                                                readonly value="0.00" step="1" />
                                     </div>
@@ -156,7 +216,9 @@
                                         <option value="">-- Select Payment Account --</option>
                                         @foreach (var account in _combobox.GetCashBankAccounts())
                                         {
-                                            <option value="@account.Value">@account.Text</option>
+                                            var isSelected = selectedPaymentAccountId.HasValue
+                                                && selectedPaymentAccountId.Value.ToString() == account.Value;
+                                            <option value="@account.Value" selected="@(isSelected ? "selected" : null)">@account.Text</option>
                                         }
                                     </select>
                                     <small class="text-muted">Select Cash or Bank account to receive payment</small>
@@ -173,6 +235,11 @@
                     <div class="alert py-2 mb-0" id="paymentStatusAlert">
                         <span id="paymentStatusText"></span>
                     </div>
+                    <div class="small text-muted mt-2">
+                        <div>You Saved: <strong id="savedAmountCue">0.00</strong></div>
+                        <div>Remaining Due: <strong id="remainingDueCue">0.00</strong></div>
+                        <div>Customer Status: <strong id="customerOutstandingCue">Loading...</strong></div>
+                    </div>
                 </div>
             </div>
 
@@ -181,6 +248,9 @@
                 <button type="button" class="btn btn-primary" id="confirmSaveBtn">
                     <i class="fas fa-save me-2"></i>Save Sale
                 </button>
+                <div class="text-danger small mt-2 d-none-soft" id="stockErrorHint">
+                    Please resolve stock quantity issues before saving.
+                </div>
             </div>
         </form>
     </div>
@@ -235,12 +305,20 @@
                             <strong id="confirmTotal">0.00</strong>
                         </div>
                         <div class="d-flex justify-content-between">
-                            <span>Paid:</span>
+                            <span>Tendered:</span>
+                            <strong id="confirmTendered">0.00</strong>
+                        </div>
+                        <div class="d-flex justify-content-between">
+                            <span>Paid (Applied):</span>
                             <strong id="confirmPaid">0.00</strong>
                         </div>
                         <div class="d-flex justify-content-between">
                             <span>Balance:</span>
                             <strong id="confirmBalance">0.00</strong>
+                        </div>
+                        <div class="d-flex justify-content-between text-success">
+                            <span>Change:</span>
+                            <strong id="confirmChange">0.00</strong>
                         </div>
                     </div>
                 </div>
@@ -256,25 +334,148 @@
 </div>
 
 @section Scripts {
-    <!-- Select2 JS -->
-    <script src="https://cdn.jsdelivr.net/npm/select2@4.1.0-rc.0/dist/js/select2.min.js"></script>
     <script>
         let products = [];
         let rowIndex = 0;
+        const HIGH_DISCOUNT_CONFIRM_THRESHOLD = 10;
+        const WALKING_CUSTOMER_PATTERN = /(walk[\s-]?in|counter)/i;
 
         document.addEventListener('DOMContentLoaded', function() {
+            initializeCustomerSelect();
             fetchProducts();
-            
-            // Event listener for Price Type change
+
             document.getElementById('priceTypeSelect').addEventListener('change', function() {
                 fetchProducts();
             });
-            
-            // Initialize payment status
-            setTimeout(function() {
+
+            document.getElementById('discountPercent').addEventListener('input', calculateTotals);
+            document.getElementById('discountAmount').addEventListener('input', calculateDiscountFromAmount);
+            document.getElementById('tenderedAmount').addEventListener('input', calculatePayment);
+            document.getElementById('paymentAccountId').addEventListener('change', function() {
+                this.setCustomValidity('');
+            });
+
+            document.querySelectorAll('.quick-cash-btn').forEach(btn => {
+                btn.addEventListener('click', function() {
+                    const amount = parseFloat(this.getAttribute('data-amount')) || 0;
+                    document.getElementById('tenderedAmount').value = amount;
+                    calculatePayment();
+                });
+            });
+
+            document.getElementById('payFullBtn').addEventListener('click', function() {
+                const totalAmount = parseFloat(document.getElementById('totalAmount').value) || 0;
+                document.getElementById('tenderedAmount').value = Math.ceil(totalAmount);
                 calculatePayment();
-            }, 100);
+            });
+
+            document.getElementById('confirmSaveBtn').addEventListener('click', handleSaveClick);
+            document.getElementById('finalSubmitBtn').addEventListener('click', function() {
+                if (!validateBeforeSubmit()) {
+                    return;
+                }
+
+                persistLastPaymentAccount();
+                document.getElementById('saleForm').submit();
+            });
+
+            document.addEventListener('keydown', function(e) {
+                if (e.ctrlKey && e.key === 'n') {
+                    e.preventDefault();
+                    addLineItem();
+                }
+
+                if (e.ctrlKey && e.key === 's') {
+                    e.preventDefault();
+                    handleSaveClick();
+                }
+
+                if (e.key === 'Enter') {
+                    const target = e.target;
+                    if ((target.tagName === 'INPUT' || target.tagName === 'SELECT') && target.type !== 'submit') {
+                        e.preventDefault();
+                    }
+                }
+            });
+
+            calculatePayment();
+            updateSaveButtonState();
         });
+
+        function initializeCustomerSelect() {
+            const customerSelectElement = document.getElementById('customerSelect');
+            const customerSelect = $('#customerSelect');
+
+            customerSelect.select2({
+                theme: 'bootstrap-5',
+                placeholder: '-- Select Customer --',
+                allowClear: true,
+                width: '100%'
+            });
+
+            customerSelect.on('change', function() {
+                toggleWalkInNameInput();
+                fetchCustomerCreditStatus();
+            });
+
+            if (!customerSelectElement.value) {
+                const walkInOption = Array.from(customerSelectElement.options)
+                    .find(opt => opt.value && WALKING_CUSTOMER_PATTERN.test(opt.text));
+                if (walkInOption) {
+                    customerSelectElement.value = walkInOption.value;
+                }
+            }
+
+            customerSelect.trigger('change');
+        }
+
+        function toggleWalkInNameInput() {
+            const customerSelect = document.getElementById('customerSelect');
+            const walkInSection = document.getElementById('walkInNameSection');
+            const walkInNameInput = document.getElementById('walkInCustomerName');
+            const selectedOption = customerSelect.options[customerSelect.selectedIndex];
+            const isWalkIn = selectedOption && selectedOption.value && WALKING_CUSTOMER_PATTERN.test(selectedOption.text || '');
+
+            if (isWalkIn) {
+                walkInSection.classList.remove('d-none-soft');
+                walkInNameInput.required = true;
+                if (!walkInNameInput.value.trim()) {
+                    walkInNameInput.value = 'Walk-in';
+                }
+            } else {
+                walkInSection.classList.add('d-none-soft');
+                walkInNameInput.required = false;
+                walkInNameInput.value = '';
+            }
+        }
+
+        async function fetchCustomerCreditStatus() {
+            const customerId = parseInt(document.getElementById('customerSelect').value || '0', 10);
+            const cue = document.getElementById('customerOutstandingCue');
+
+            if (!customerId) {
+                cue.textContent = 'No customer selected';
+                return;
+            }
+
+            try {
+                const response = await fetch(`@Url.Action("GetCustomerCreditStatus")?customerId=${customerId}`);
+                if (!response.ok) {
+                    cue.textContent = 'Unavailable';
+                    return;
+                }
+
+                const result = await response.json();
+                if (result.status === 'Outstanding') {
+                    cue.textContent = `Outstanding PKR ${Number(result.outstandingBalance || 0).toFixed(2)} (${result.openInvoices || 0} invoices)`;
+                } else {
+                    cue.textContent = 'Clear';
+                }
+            } catch (error) {
+                console.error('Failed to load customer status', error);
+                cue.textContent = 'Unavailable';
+            }
+        }
 
         async function fetchProducts() {
             const priceTypeId = document.getElementById('priceTypeSelect').value;
@@ -301,20 +502,15 @@
             rows.forEach(row => {
                 const select = row.querySelector('.product-select');
                 const selectedProductId = select.value;
-                
-                // Update dataset on option (optional, as we use global list now, but good for consistency)
-                // Note: Re-populating options might be overkill, we just update the current value
-                
+
                 if (selectedProductId) {
                     const product = products.find(p => p.id == selectedProductId);
                     if (product) {
-                        // Update price input
                         row.querySelector('.price-input').value = product.unitPrice.toFixed(2);
+                        row.querySelector('.cost-price-input').value = (product.costPrice || product.unitPrice).toFixed(2);
                     }
                 }
-                
-                // Re-populate options for all dropdowns to reflect new prices in data attributes
-                // This ensures if user changes product, they get new price
+
                 const currentVal = select.value;
                 let productOptions = '<option value="">-- Select Product --</option>';
                 products.forEach(p => {
@@ -322,11 +518,9 @@
                     const stockText = p.stockQuantity !== undefined ? ` (Stock: ${p.stockQuantity})` : '';
                     productOptions += `<option value="${p.id}" data-price="${p.unitPrice}" data-cost="${p.costPrice || p.unitPrice}" data-stock="${p.stockQuantity || 0}" ${selected}>${p.name}${stockText}</option>`;
                 });
-                
-                // Save current selection, update HTML, restore selection (Select2 needs re-init or update)
+
                 select.innerHTML = productOptions;
-                
-                // Re-trigger calculation
+                $(select).trigger('change.select2');
                 calculateLineTotal({ target: row.querySelector('.quantity-input') });
             });
         }
@@ -349,30 +543,33 @@
             const lineTotal = detail ? detail.lineTotal : 0;
 
             row.innerHTML = `
-                <td class="align-middle">${rowIndex + 1}</td>
-                <td>
-                    <select name="StockDetails[${rowIndex}].Product_ID" class="form-select product-select" required>
+                <td class="align-middle" data-label="#">${rowIndex + 1}</td>
+                <td data-label="Product">
+                    <select name="StockDetails[${rowIndex}].Product_ID" class="form-select product-select select2-manual" required>
                         ${productOptions}
                     </select>
                 </td>
-                <td>
-                    <input type="number" name="StockDetails[${rowIndex}].Quantity" class="form-control quantity-input" 
-                           step="1" min="1" value="${quantity}" required />
+                <td data-label="Quantity">
+                    <div class="w-100">
+                        <input type="number" name="StockDetails[${rowIndex}].Quantity" class="form-control quantity-input"
+                               step="1" min="1" value="${quantity}" required />
+                        <div class="invalid-feedback stock-feedback"></div>
+                    </div>
                 </td>
-                <td>
-                    <input type="number" name="StockDetails[${rowIndex}].UnitPrice" class="form-control price-input" 
-                           step="1" min="0" value="${unitPrice}" required />
+                <td data-label="Unit Price">
+                    <input type="number" name="StockDetails[${rowIndex}].UnitPrice" class="form-control price-input"
+                           step="0.01" min="0" value="${unitPrice}" required />
                     <input type="hidden" name="StockDetails[${rowIndex}].CostPrice" class="cost-price-input" value="0" />
                 </td>
-                <td>
-                    <input type="number" name="StockDetails[${rowIndex}].LineTotal" class="form-control line-total" 
+                <td data-label="Line Total">
+                    <input type="number" name="StockDetails[${rowIndex}].LineTotal" class="form-control line-total"
                            readonly value="${lineTotal}" />
                     <input type="hidden" name="StockDetails[${rowIndex}].LineCost" class="line-cost" value="0" />
                 </td>
-                <td class="text-center align-middle">
+                <td class="text-center align-middle" data-label="Margin">
                     <span class="badge bg-success margin-display">--%</span>
                 </td>
-                <td class="text-center align-middle">
+                <td class="text-center align-middle" data-label="Remove">
                     <button type="button" class="btn btn-sm btn-outline-danger remove-row-btn">
                         <i class="fas fa-trash"></i>
                     </button>
@@ -402,6 +599,7 @@
             }
 
             rowIndex++;
+            updateSaveButtonState();
         }
 
         function onProductChange(e) {
@@ -432,21 +630,19 @@
             const unitPrice = parseFloat(row.querySelector('.price-input').value) || 0;
             const costPrice = parseFloat(row.querySelector('.cost-price-input').value) || 0;
             
-            // Stock Validation
             const select = row.querySelector('.product-select');
             const selectedOption = select.options[select.selectedIndex];
             const stock = parseFloat(selectedOption.dataset.stock) || 0;
+            const feedback = row.querySelector('.stock-feedback');
 
-            if (quantity > stock) {
-                // Show visual indicator (bootstrap invalid class)
+            if (select.value && quantity > stock) {
                 quantityInput.classList.add('is-invalid');
-                
-                // Optional: Tooltip or message?
-                // For now, adding a title
-                quantityInput.title = `Insufficient Stock! Available: ${stock}`;
+                quantityInput.title = '';
+                feedback.textContent = `Insufficient stock. Available: ${stock}`;
             } else {
                 quantityInput.classList.remove('is-invalid');
                 quantityInput.title = '';
+                feedback.textContent = '';
             }
 
             const lineTotal = quantity * unitPrice;
@@ -456,6 +652,7 @@
             row.querySelector('.line-cost').value = lineCost.toFixed(2);
             updateMarginDisplay(row);
             calculateTotals();
+            updateSaveButtonState();
         }
 
         function removeRow(e) {
@@ -465,6 +662,7 @@
                 renumberRows();
                 calculateTotals();
             }
+            updateSaveButtonState();
         }
 
         function renumberRows() {
@@ -489,8 +687,8 @@
             });
 
             const discountPercent = parseFloat(document.getElementById('discountPercent').value) || 0;
-            const discountAmount = Math.round(subTotal * discountPercent / 100 * 100) / 100;
-            const totalAmount = subTotal - discountAmount;
+            const discountAmount = Math.max(0, Math.round(subTotal * discountPercent / 100 * 100) / 100);
+            const totalAmount = Math.max(0, subTotal - discountAmount);
 
             document.getElementById('subTotalDisplay').textContent = subTotal.toFixed(2);
             document.getElementById('subTotal').value = subTotal.toFixed(2);
@@ -498,14 +696,20 @@
             document.getElementById('totalAmountDisplay').textContent = totalAmount.toFixed(2);
             document.getElementById('totalAmount').value = totalAmount.toFixed(2);
 
-            // Calculate balance
             calculatePayment();
         }
 
         // Bi-directional discount: update % when amount changes
         function calculateDiscountFromAmount() {
             const subTotal = parseFloat(document.getElementById('subTotal').value) || 0;
-            const discountAmount = parseFloat(document.getElementById('discountAmount').value) || 0;
+            let discountAmount = parseFloat(document.getElementById('discountAmount').value) || 0;
+
+            if (discountAmount < 0) {
+                discountAmount = 0;
+            }
+            if (discountAmount > subTotal) {
+                discountAmount = subTotal;
+            }
             
             if (subTotal > 0) {
                 const discountPercent = Math.round(discountAmount / subTotal * 100 * 100) / 100;
@@ -514,7 +718,8 @@
                 document.getElementById('discountPercent').value = '0';
             }
             
-            const totalAmount = subTotal - discountAmount;
+            const totalAmount = Math.max(0, subTotal - discountAmount);
+            document.getElementById('discountAmount').value = discountAmount.toFixed(2);
             document.getElementById('totalAmountDisplay').textContent = totalAmount.toFixed(2);
             document.getElementById('totalAmount').value = totalAmount.toFixed(2);
 
@@ -523,137 +728,44 @@
 
         function calculatePayment() {
             const totalAmount = parseFloat(document.getElementById('totalAmount').value) || 0;
-            const paidAmount = parseFloat(document.getElementById('paidAmount').value) || 0;
-            const balance = totalAmount - paidAmount;
+            let tenderedAmount = Math.max(0, parseFloat(document.getElementById('tenderedAmount').value) || 0);
+            tenderedAmount = Math.round(tenderedAmount);
+            document.getElementById('tenderedAmount').value = tenderedAmount;
+            const paidAmount = Math.min(totalAmount, tenderedAmount);
+            const balance = Math.max(0, totalAmount - paidAmount);
+            const change = Math.max(0, tenderedAmount - totalAmount);
 
-            document.getElementById('balanceDisplay').value = balance.toFixed(2);
+            document.getElementById('paidAmount').value = paidAmount.toFixed(2);
             document.getElementById('balanceAmount').value = balance.toFixed(2);
 
-            // Show/Hide Payment Account dropdown based on payment
-            const paymentSection = document.getElementById('paymentAccountSection');
-            if (paidAmount > 0) {
-                paymentSection.style.display = 'block';
-            } else {
-                paymentSection.style.display = 'none';
-                document.getElementById('paymentAccountId').value = ''; // Clear selection
-            }
-
-            // Update payment status
-            const alertDiv = document.getElementById('paymentStatusAlert');
-            const statusText = document.getElementById('paymentStatusText');
-
-            if (totalAmount === 0) {
-                alertDiv.className = 'alert alert-secondary mb-0 mt-2';
-                statusText.innerHTML = '<i class="fas fa-info-circle me-1"></i>Add items to calculate total';
-            } else if (paidAmount >= totalAmount) {
-                alertDiv.className = 'alert alert-success mb-0 mt-2';
-                statusText.innerHTML = '<i class="fas fa-check-circle me-1"></i>Fully Paid';
-            } else if (paidAmount > 0) {
-                alertDiv.className = 'alert alert-warning mb-0 mt-2';
-                statusText.innerHTML = '<i class="fas fa-exclamation-circle me-1"></i>Partial Payment - Balance: ' + balance.toFixed(2);
-            } else {
-                alertDiv.className = 'alert alert-info mb-0 mt-2';
-                statusText.innerHTML = '<i class="fas fa-money-bill me-1"></i>No Payment - Credit Sale';
-            }
-        }
-
-        // Quick Cash Buttons
-        document.querySelectorAll('.quick-cash-btn').forEach(btn => {
-            btn.addEventListener('click', function() {
-                // Set paid amount directly from quick cash shortcut
-                const amount = parseFloat(this.getAttribute('data-amount'));
-                const currentPaid = parseFloat(document.getElementById('paidAmount').value) || 0;
-                
-                // Optional: Standard behavior is Additive or Replacement?
-                // Usually Replacement for exact notes, but let's make it intuitive:
-                // If 0, replace. If >0, probably adding notes? 
-                // Let's stick to Replacement for simplicity as requested "Buttons" usually imply "I was handed a 500 note"
-                document.getElementById('paidAmount').value = amount;
-                
-                calculatePayment();
-            });
-        });
-
-        document.getElementById('discountPercent').addEventListener('input', calculateTotals);
-        document.getElementById('paidAmount').addEventListener('input', function() {
-            calculatePayment();
-        });
-
-        // Pay Full button click handler
-        document.getElementById('payFullBtn').addEventListener('click', function() {
-            const totalAmount = parseFloat(document.getElementById('totalAmount').value) || 0;
-            document.getElementById('paidAmount').value = totalAmount.toFixed(2);
-            calculatePayment();
-        });
-
-        // Discount amount change handler (bi-directional)
-        document.getElementById('discountAmount').addEventListener('input', calculateDiscountFromAmount);
-
-        // Keyboard shortcuts
-        document.addEventListener('keydown', function(e) {
-            // Ctrl+N: Add new line item
-            if (e.ctrlKey && e.key === 'n') {
-                e.preventDefault();
-                addLineItem();
-            }
-            // Ctrl+S: Show confirmation modal
-            if (e.ctrlKey && e.key === 's') {
-                e.preventDefault();
-                showConfirmationModal();
-            }
-            // Enter key navigation support (generic optimization)
-            if (e.key === 'Enter') {
-                const target = e.target;
-                if (target.tagName === 'INPUT' || target.tagName === 'SELECT') {
-                    // Prevent default form submission if it's not the submit button
-                    if(target.type !== 'submit') {
-                         e.preventDefault();
-                         // Logic to move to next input could be added here
-                         // For now, just preventing accidental submit
-                    }
-                }
-            }
-        });
-        
-        function calculatePayment() {
-            const totalAmount = parseFloat(document.getElementById('totalAmount').value) || 0;
-            const paidAmount = parseFloat(document.getElementById('paidAmount').value) || 0;
-            
-            // Calculate Balance / Change
-            let balance = 0;
-            let change = 0;
-            
-            if (paidAmount >= totalAmount) {
-                change = paidAmount - totalAmount;
-                balance = 0;
-                
-                // Show Change, Hide Balance
+            if (change > 0) {
                 document.getElementById('changeContainer').style.display = 'block';
                 document.getElementById('balanceContainer').style.display = 'none';
                 document.getElementById('changeDisplay').value = change.toFixed(2);
-                document.getElementById('balanceDisplay').value = '0.00'; // Logical balance is 0
+                document.getElementById('balanceDisplay').value = '0.00';
             } else {
-                balance = totalAmount - paidAmount;
-                change = 0;
-                
-                // Show Balance, Hide Change
                 document.getElementById('changeContainer').style.display = 'none';
                 document.getElementById('balanceContainer').style.display = 'block';
                 document.getElementById('balanceDisplay').value = balance.toFixed(2);
             }
 
-            document.getElementById('balanceAmount').value = (totalAmount - paidAmount).toFixed(2); // Store actual algebraic difference
-
-            // Show/Hide Payment Account dropdown based on payment
             const paymentSection = document.getElementById('paymentAccountSection');
+            const paymentAccountSelect = document.getElementById('paymentAccountId');
             if (paidAmount > 0) {
                 paymentSection.style.display = 'block';
+                paymentAccountSelect.required = true;
+                if (!paymentAccountSelect.value) {
+                    const lastAccount = localStorage.getItem('sale_last_payment_account_id');
+                    if (lastAccount && Array.from(paymentAccountSelect.options).some(opt => opt.value === lastAccount)) {
+                        paymentAccountSelect.value = lastAccount;
+                    }
+                }
             } else {
                 paymentSection.style.display = 'none';
-                document.getElementById('paymentAccountId').value = ''; // Clear selection
+                paymentAccountSelect.required = false;
+                paymentAccountSelect.value = '';
             }
 
-            // Update payment status
             const alertDiv = document.getElementById('paymentStatusAlert');
             const statusText = document.getElementById('paymentStatusText');
 
@@ -671,64 +783,98 @@
                 alertDiv.className = 'alert alert-info mb-0 mt-2';
                 statusText.innerHTML = '<i class="fas fa-money-bill me-1"></i>No Payment - Credit Sale';
             }
+
+            document.getElementById('savedAmountCue').textContent = (parseFloat(document.getElementById('discountAmount').value) || 0).toFixed(2);
+            document.getElementById('remainingDueCue').textContent = balance.toFixed(2);
+            updateSaveButtonState();
         }
-        document.getElementById('confirmSaveBtn').addEventListener('click', showConfirmationModal);
 
-        function showConfirmationModal() {
-            // 1. Stock Validation Check
-            const quantityInputs = document.querySelectorAll('.quantity-input');
-            let stockError = false;
-            quantityInputs.forEach(input => {
-                if (input.classList.contains('is-invalid')) {
-                    stockError = true;
-                }
-            });
+        function hasStockErrors() {
+            return !!document.querySelector('.quantity-input.is-invalid');
+        }
 
-            if (stockError) {
-                alert('Please correct stock quantity errors before saving.');
-                return;
+        function updateSaveButtonState() {
+            const saveButton = document.getElementById('confirmSaveBtn');
+            const stockErrorHint = document.getElementById('stockErrorHint');
+            const stockErrors = hasStockErrors();
+
+            saveButton.disabled = stockErrors;
+            if (stockErrors) {
+                stockErrorHint.classList.remove('d-none-soft');
+            } else {
+                stockErrorHint.classList.add('d-none-soft');
+            }
+        }
+
+        function validateBeforeSubmit() {
+            if (hasStockErrors()) {
+                updateSaveButtonState();
+                return false;
             }
 
-            // 2. Custom Validation: Payment Account Required if Paid Amount > 0
             const paidAmount = parseFloat(document.getElementById('paidAmount').value) || 0;
             const paymentAccountId = document.getElementById('paymentAccountId');
-
             if (paidAmount > 0 && !paymentAccountId.value) {
-                // Ensure payment account is visible so user can select it
                 document.getElementById('paymentAccountSection').style.display = 'block';
-                
+                paymentAccountId.required = true;
                 paymentAccountId.setCustomValidity('Please select a payment account.');
                 paymentAccountId.reportValidity();
-                return;
-            } else {
-                paymentAccountId.setCustomValidity('');
+                return false;
             }
+            paymentAccountId.setCustomValidity('');
 
-            // 3. Validate form
             const form = document.getElementById('saleForm');
             if (!form.checkValidity()) {
                 form.reportValidity();
-                return;
+                return false;
             }
-            
-            // 4. Ensure at least one row
+
             const rows = document.querySelectorAll('#lineItemsBody tr');
             if (rows.length === 0) {
                 alert('Please add at least one product.');
                 addLineItem();
+                return false;
+            }
+
+            return true;
+        }
+
+        function isRiskySale() {
+            const totalAmount = parseFloat(document.getElementById('totalAmount').value) || 0;
+            const paidAmount = parseFloat(document.getElementById('paidAmount').value) || 0;
+            const discountPercent = parseFloat(document.getElementById('discountPercent').value) || 0;
+            const isCreditSale = totalAmount > 0 && paidAmount < totalAmount;
+            const hasHighDiscount = discountPercent >= HIGH_DISCOUNT_CONFIRM_THRESHOLD;
+            return isCreditSale || hasHighDiscount;
+        }
+
+        function handleSaveClick() {
+            calculateTotals();
+            if (!validateBeforeSubmit()) {
                 return;
             }
 
-            // Get customer name
+            if (isRiskySale()) {
+                showConfirmationModal();
+                return;
+            }
+
+            persistLastPaymentAccount();
+            document.getElementById('saleForm').submit();
+        }
+
+        function showConfirmationModal() {
+            if (!validateBeforeSubmit()) {
+                return;
+            }
+
             const customerSelect = document.getElementById('customerSelect');
             const customerName = customerSelect.options[customerSelect.selectedIndex]?.text || '-';
             document.getElementById('confirmCustomer').textContent = customerName;
 
-            // Get date
             const dateInput = document.querySelector('input[name="TransactionDate"]');
             document.getElementById('confirmDate').textContent = dateInput.value || '-';
 
-            // Populate line items
             const confirmItemsBody = document.getElementById('confirmItemsBody');
             confirmItemsBody.innerHTML = '';
             const confirmRows = document.querySelectorAll('#lineItemsBody tr');
@@ -740,22 +886,25 @@
                 confirmItemsBody.innerHTML += `<tr><td>${idx + 1}</td><td>${productName.split(' (Stock')[0]}</td><td>${qty}</td><td>${price}</td><td>${total}</td></tr>`;
             });
 
-            // Populate totals
             document.getElementById('confirmSubTotal').textContent = document.getElementById('subTotal').value || '0.00';
             document.getElementById('confirmDiscount').textContent = document.getElementById('discountAmount').value || '0.00';
             document.getElementById('confirmTotal').textContent = document.getElementById('totalAmount').value || '0.00';
+            document.getElementById('confirmTendered').textContent = document.getElementById('tenderedAmount').value || '0.00';
             document.getElementById('confirmPaid').textContent = document.getElementById('paidAmount').value || '0.00';
             document.getElementById('confirmBalance').textContent = document.getElementById('balanceAmount').value || '0.00';
+            document.getElementById('confirmChange').textContent = document.getElementById('changeDisplay').value || '0.00';
 
-            // Show modal
             const modal = new bootstrap.Modal(document.getElementById('confirmSaleModal'));
             modal.show();
         }
 
-        // Final submit handler
-        document.getElementById('finalSubmitBtn').addEventListener('click', function() {
-            document.getElementById('saleForm').submit();
-        });
+        function persistLastPaymentAccount() {
+            const paidAmount = parseFloat(document.getElementById('paidAmount').value) || 0;
+            const paymentAccount = document.getElementById('paymentAccountId').value;
+            if (paidAmount > 0 && paymentAccount) {
+                localStorage.setItem('sale_last_payment_account_id', paymentAccount);
+            }
+        }
 
         // Update margin display when price/cost changes
         function updateMarginDisplay(row) {

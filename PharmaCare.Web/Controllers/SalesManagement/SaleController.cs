@@ -55,6 +55,14 @@ public class SaleController : BaseController
     [ValidateAntiForgeryToken]
     public async Task<IActionResult> AddSale(SaleCreateRequest request, int? PaymentAccountId)
     {
+        var tenderedAmount = Math.Round(request.TenderedAmount ?? request.PaidAmount, 0, MidpointRounding.AwayFromZero);
+        if (tenderedAmount < 0)
+        {
+            ModelState.AddModelError(nameof(request.TenderedAmount), "Tendered amount cannot be negative.");
+        }
+
+        request.PaidAmount = Math.Max(0, tenderedAmount);
+
         if (request.StockDetails == null || request.StockDetails.Count == 0)
         {
             ModelState.AddModelError(nameof(request.StockDetails), "At least one item is required.");
@@ -65,8 +73,26 @@ public class SaleController : BaseController
         }
 
         var sale = MapToStockMain(request);
+        sale.PaidAmount = Math.Max(0, tenderedAmount);
+
+        var walkInName = request.WalkInCustomerName?.Trim();
+        if (sale.Party_ID.HasValue && sale.Party_ID.Value > 0 && !string.IsNullOrWhiteSpace(walkInName))
+        {
+            var selectedParty = await _partyService.GetByIdAsync(sale.Party_ID.Value);
+            if (selectedParty != null
+                && IsWalkingCustomerParty(selectedParty.Name)
+                && !IsDefaultWalkInLabel(walkInName))
+            {
+                var walkInTag = $"Walk-in Name: {walkInName}";
+                sale.Remarks = string.IsNullOrWhiteSpace(sale.Remarks)
+                    ? walkInTag
+                    : $"{sale.Remarks} | {walkInTag}";
+            }
+        }
+
         if (!ModelState.IsValid)
         {
+            SetSaleFormState(request, PaymentAccountId);
             return View(sale);
         }
 
@@ -86,9 +112,21 @@ public class SaleController : BaseController
         catch (Exception ex)
         {
             _logger.LogError(ex, "Failed to create sale for user {UserId}.", CurrentUserId);
-            ShowMessage(MessageType.Error, "An unexpected error occurred while creating the sale.");
+
+            if (ex is InvalidOperationException || ex is ArgumentException)
+            {
+                ModelState.AddModelError(string.Empty, ex.Message);
+                ShowMessage(MessageType.Error, ex.Message);
+            }
+            else
+            {
+                const string fallbackMessage = "An unexpected error occurred while creating the sale.";
+                ModelState.AddModelError(string.Empty, fallbackMessage);
+                ShowMessage(MessageType.Error, fallbackMessage);
+            }
         }
 
+        SetSaleFormState(request, PaymentAccountId);
         return View(sale);
     }
 
@@ -158,6 +196,36 @@ public class SaleController : BaseController
 
         return Json(result);
     }
+
+    [HttpGet]
+    public async Task<IActionResult> GetCustomerCreditStatus(int customerId)
+    {
+        if (customerId <= 0)
+        {
+            return Json(new
+            {
+                outstandingBalance = 0m,
+                openInvoices = 0,
+                status = "Unknown"
+            });
+        }
+
+        var sales = await _saleService.GetAllAsync();
+        var customerSales = sales
+            .Where(s => s.Party_ID == customerId && !string.Equals(s.Status, "Void", StringComparison.OrdinalIgnoreCase))
+            .ToList();
+
+        var outstandingBalance = Math.Round(customerSales.Where(s => s.BalanceAmount > 0).Sum(s => s.BalanceAmount), 2);
+        var openInvoices = customerSales.Count(s => s.BalanceAmount > 0);
+
+        return Json(new
+        {
+            outstandingBalance,
+            openInvoices,
+            status = outstandingBalance > 0 ? "Outstanding" : "Clear"
+        });
+    }
+
     [LinkedToPage("Sale", "SalesIndex")]
     public async Task<IActionResult> Receipt(string id)
     {
@@ -200,5 +268,37 @@ public class SaleController : BaseController
                 Remarks = d.Remarks
             }).ToList()
         };
+    }
+
+    private static bool IsWalkingCustomerParty(string? partyName)
+    {
+        if (string.IsNullOrWhiteSpace(partyName))
+        {
+            return false;
+        }
+
+        var normalized = partyName.Trim().ToLowerInvariant();
+        return normalized.Contains("walkin")
+               || normalized.Contains("walk-in")
+               || normalized.Contains("walk in")
+               || normalized.Contains("counter");
+    }
+
+    private static bool IsDefaultWalkInLabel(string? walkInName)
+    {
+        if (string.IsNullOrWhiteSpace(walkInName))
+        {
+            return true;
+        }
+
+        var normalized = walkInName.Trim().ToLowerInvariant();
+        return normalized == "walk-in" || normalized == "walk in" || normalized == "walkin";
+    }
+
+    private void SetSaleFormState(SaleCreateRequest request, int? paymentAccountId)
+    {
+        ViewBag.TenderedAmount = request.TenderedAmount ?? request.PaidAmount;
+        ViewBag.WalkInCustomerName = request.WalkInCustomerName;
+        ViewBag.SelectedPaymentAccountId = paymentAccountId;
     }
 }
