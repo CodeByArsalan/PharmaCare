@@ -38,6 +38,18 @@
         return !!(el.classList.contains("dt-input") && el.name && el.name.endsWith("_length"));
     }
 
+    function isSweetAlertControl(el) {
+        if (!el || !el.closest) {
+            return false;
+        }
+
+        if (el.classList.contains("swal2-select")) {
+            return true;
+        }
+
+        return !!el.closest(".swal2-container, .swal2-popup, .swal2-toast");
+    }
+
     function canInitialize(el) {
         if (!el || el.tagName !== "SELECT") {
             return false;
@@ -52,6 +64,10 @@
         }
 
         if (isDataTablesControl(el)) {
+            return false;
+        }
+
+        if (isSweetAlertControl(el)) {
             return false;
         }
 
