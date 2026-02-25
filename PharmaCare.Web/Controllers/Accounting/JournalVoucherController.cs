@@ -48,7 +48,7 @@ public class JournalVoucherController : BaseController
         // 1. Clean up empty lines? Or rely on validation?
         // Let's filter out lines with no account selected or zero amounts if desired.
         // For now, strict validation.
-
+         
         // 2. Validate Totals
         if (vm.TotalDebit != vm.TotalCredit)
         {
@@ -95,7 +95,6 @@ public class JournalVoucherController : BaseController
             }
         }
 
-        // await LoadDropdowns(); // REMOVED
         return View(vm);
     }
     

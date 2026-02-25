@@ -300,5 +300,6 @@ public class SaleController : BaseController
         ViewBag.TenderedAmount = request.TenderedAmount ?? request.PaidAmount;
         ViewBag.WalkInCustomerName = request.WalkInCustomerName;
         ViewBag.SelectedPaymentAccountId = paymentAccountId;
+        ViewBag.SelectedPriceTypeId = request.PriceTypeId;
     }
 }

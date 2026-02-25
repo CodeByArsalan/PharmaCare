@@ -38,6 +38,7 @@ public class SaleCreateRequest
     public DateTime TransactionDate { get; set; } = DateTime.Now;
 
     public int? Party_ID { get; set; }
+    public int? PriceTypeId { get; set; }
 
     [Range(typeof(decimal), "0", "100")]
     public decimal DiscountPercent { get; set; }

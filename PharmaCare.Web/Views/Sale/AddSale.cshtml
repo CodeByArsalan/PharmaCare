@@ -3,6 +3,7 @@
 @{
     ViewData["Title"] = "Add Sale";
     var selectedPaymentAccountId = ViewBag.SelectedPaymentAccountId as int?;
+    var selectedPriceTypeId = ViewBag.SelectedPriceTypeId as int?;
     var tenderedAmountValue = ViewBag.TenderedAmount != null
         ? Convert.ToDecimal(ViewBag.TenderedAmount)
         : Model.PaidAmount;
@@ -96,10 +97,12 @@
                 </div>
                 <div class="col-md-3">
                     <label class="form-label">Price Type</label>
-                    <select id="priceTypeSelect" class="form-select">
+                    <select id="priceTypeSelect" name="PriceTypeId" class="form-select">
                         @foreach (var type in _combobox.GetPriceTypes())
                         {
-                            <option value="@type.Value">@type.Text</option>
+                            var isSelected = selectedPriceTypeId.HasValue
+                                && selectedPriceTypeId.Value.ToString() == type.Value;
+                            <option value="@type.Value" selected="@(isSelected ? "selected" : null)">@type.Text</option>
                         }
                     </select>
                 </div>
@@ -113,9 +116,12 @@
             <div class="card mb-4">
                 <div class="card-header d-flex justify-content-between align-items-center">
                     <h6 class="mb-0"><i class="fas fa-list me-2"></i>Line Items</h6>
-                    <button type="button" class="btn btn-sm btn-primary" id="addLineBtn">
-                        <i class="fas fa-plus me-1"></i>Add Item
-                    </button>
+                    <div class="d-flex align-items-center gap-2">
+                        <small class="text-muted d-none d-md-inline">Tab on Line Total adds next row</small>
+                        <button type="button" class="btn btn-sm btn-primary" id="addLineBtn">
+                            <i class="fas fa-plus me-1"></i>Add Item
+                        </button>
+                    </div>
                 </div>
                 <div class="card-body p-0">
                     <div class="table-responsive">
@@ -174,17 +180,8 @@
                                     <hr class="my-2" />
                                     <h6 class="text-muted mb-2"><i class="fas fa-money-bill-wave me-1"></i>Payment</h6>
                                 </div>
-                                <div class="col-12 mb-2">
-                                    <small class="text-muted d-block mb-1">Quick Cash:</small>
-                                    <div class="btn-group btn-group-sm w-100" role="group">
-                                        <button type="button" class="btn btn-outline-secondary quick-cash-btn" data-amount="100">100</button>
-                                        <button type="button" class="btn btn-outline-secondary quick-cash-btn" data-amount="500">500</button>
-                                        <button type="button" class="btn btn-outline-secondary quick-cash-btn" data-amount="1000">1000</button>
-                                        <button type="button" class="btn btn-outline-secondary quick-cash-btn" data-amount="5000">5000</button>
-                                    </div>
-                                </div>
                                 <div class="col-5">
-                                    <label class="form-label">Amount Tendered</label>
+                                    <label class="form-label">Paid Amount</label>
                                     <div class="input-group">
                                         <input type="number" step="1" min="0"
                                                class="form-control" id="tenderedAmount" name="TenderedAmount"
@@ -305,7 +302,7 @@
                             <strong id="confirmTotal">0.00</strong>
                         </div>
                         <div class="d-flex justify-content-between">
-                            <span>Tendered:</span>
+                            <span>Paid Amount:</span>
                             <strong id="confirmTendered">0.00</strong>
                         </div>
                         <div class="d-flex justify-content-between">
@@ -337,33 +334,37 @@
     <script>
         let products = [];
         let rowIndex = 0;
+        let isPaidAmountAuto = true;
         const HIGH_DISCOUNT_CONFIRM_THRESHOLD = 10;
+        let lastDiscountEdit = 'percent'; // Track which discount field was last edited
         const WALKING_CUSTOMER_PATTERN = /(walk[\s-]?in|counter)/i;
 
         document.addEventListener('DOMContentLoaded', function() {
             initializeCustomerSelect();
             fetchProducts();
 
-            document.getElementById('priceTypeSelect').addEventListener('change', function() {
+            $('#priceTypeSelect').on('change', function() {
                 fetchProducts();
             });
 
-            document.getElementById('discountPercent').addEventListener('input', calculateTotals);
-            document.getElementById('discountAmount').addEventListener('input', calculateDiscountFromAmount);
-            document.getElementById('tenderedAmount').addEventListener('input', calculatePayment);
+            document.getElementById('discountPercent').addEventListener('input', function() {
+                lastDiscountEdit = 'percent';
+                calculateTotals();
+            });
+            document.getElementById('discountAmount').addEventListener('input', function() {
+                lastDiscountEdit = 'amount';
+                calculateDiscountFromAmount();
+            });
+            document.getElementById('tenderedAmount').addEventListener('input', function() {
+                isPaidAmountAuto = false;
+                calculatePayment();
+            });
             document.getElementById('paymentAccountId').addEventListener('change', function() {
                 this.setCustomValidity('');
             });
 
-            document.querySelectorAll('.quick-cash-btn').forEach(btn => {
-                btn.addEventListener('click', function() {
-                    const amount = parseFloat(this.getAttribute('data-amount')) || 0;
-                    document.getElementById('tenderedAmount').value = amount;
-                    calculatePayment();
-                });
-            });
-
             document.getElementById('payFullBtn').addEventListener('click', function() {
+                isPaidAmountAuto = true;
                 const totalAmount = parseFloat(document.getElementById('totalAmount').value) || 0;
                 document.getElementById('tenderedAmount').value = Math.ceil(totalAmount);
                 calculatePayment();
@@ -376,7 +377,7 @@
                 }
 
                 persistLastPaymentAccount();
-                document.getElementById('saleForm').submit();
+                submitSaleFormInNewTab();
             });
 
             document.addEventListener('keydown', function(e) {
@@ -478,8 +479,9 @@
         }
 
         async function fetchProducts() {
-            const priceTypeId = document.getElementById('priceTypeSelect').value;
-            const url = '@Url.Action("GetProducts")' + (priceTypeId ? `?priceTypeId=${priceTypeId}` : '');
+            const priceTypeRaw = document.getElementById('priceTypeSelect').value;
+            const priceTypeId = parseInt(priceTypeRaw, 10);
+            const url = '@Url.Action("GetProducts")' + (Number.isInteger(priceTypeId) ? `?priceTypeId=${priceTypeId}` : '');
             
             try {
                 const response = await fetch(url);
@@ -581,6 +583,7 @@
             row.querySelector('.product-select').addEventListener('change', onProductChange);
             row.querySelector('.quantity-input').addEventListener('input', calculateLineTotal);
             row.querySelector('.price-input').addEventListener('input', calculateLineTotal);
+            row.querySelector('.line-total').addEventListener('keydown', handleLineTotalTabNavigation);
             row.querySelector('.remove-row-btn').addEventListener('click', removeRow);
 
             // Initialize Select2 for searchable product dropdown
@@ -602,6 +605,21 @@
             updateSaveButtonState();
         }
 
+        function handleLineTotalTabNavigation(e) {
+            if (e.key !== 'Tab' || e.shiftKey || e.repeat) {
+                return;
+            }
+
+            const row = e.target.closest('tr');
+            const tbody = document.getElementById('lineItemsBody');
+            if (!row || tbody.lastElementChild !== row) {
+                return;
+            }
+
+            e.preventDefault();
+            addLineItem();
+        }
+
         function onProductChange(e) {
             const row = e.target.closest('tr');
             const selectedOption = e.target.options[e.target.selectedIndex];
@@ -610,6 +628,7 @@
             
             row.querySelector('.price-input').value = unitPrice.toFixed(2);
             row.querySelector('.cost-price-input').value = costPrice.toFixed(2);
+            isPaidAmountAuto = true;
             calculateLineTotal({ target: row.querySelector('.quantity-input') });
             
             // Keyboard Optimization: Focus Quantity after selection
@@ -686,8 +705,20 @@
                 subTotal += parseFloat(input.value) || 0;
             });
 
-            const discountPercent = parseFloat(document.getElementById('discountPercent').value) || 0;
-            const discountAmount = Math.max(0, Math.round(subTotal * discountPercent / 100 * 100) / 100);
+            let discountAmount;
+            if (lastDiscountEdit === 'amount') {
+                // User typed a specific discount amount — preserve it, recalculate percent
+                discountAmount = parseFloat(document.getElementById('discountAmount').value) || 0;
+                discountAmount = Math.max(0, Math.min(discountAmount, subTotal));
+                if (subTotal > 0) {
+                    const discountPercent = Math.round(discountAmount / subTotal * 100 * 100) / 100;
+                    document.getElementById('discountPercent').value = discountPercent.toFixed(2);
+                }
+            } else {
+                // User typed a percent — calculate amount from percent
+                const discountPercent = parseFloat(document.getElementById('discountPercent').value) || 0;
+                discountAmount = Math.max(0, Math.round(subTotal * discountPercent / 100 * 100) / 100);
+            }
             const totalAmount = Math.max(0, subTotal - discountAmount);
 
             document.getElementById('subTotalDisplay').textContent = subTotal.toFixed(2);
@@ -696,6 +727,7 @@
             document.getElementById('totalAmountDisplay').textContent = totalAmount.toFixed(2);
             document.getElementById('totalAmount').value = totalAmount.toFixed(2);
 
+            setPaidAmountToTotal();
             calculatePayment();
         }
 
@@ -723,6 +755,7 @@
             document.getElementById('totalAmountDisplay').textContent = totalAmount.toFixed(2);
             document.getElementById('totalAmount').value = totalAmount.toFixed(2);
 
+            setPaidAmountToTotal();
             calculatePayment();
         }
 
@@ -751,17 +784,25 @@
 
             const paymentSection = document.getElementById('paymentAccountSection');
             const paymentAccountSelect = document.getElementById('paymentAccountId');
-            if (paidAmount > 0) {
-                paymentSection.style.display = 'block';
-                paymentAccountSelect.required = true;
+            if (totalAmount > 0) {
+                const wasHidden = paymentSection.classList.contains('d-none-soft');
+                paymentSection.classList.remove('d-none-soft');
+                paymentAccountSelect.required = paidAmount > 0;
+
+                // Reinitialize Select2 after section becomes visible (fixes 0-width issue)
+                if (wasHidden && window.PharmaCareSelect2) {
+                    window.PharmaCareSelect2.reinit(paymentAccountSelect);
+                }
+
                 if (!paymentAccountSelect.value) {
                     const lastAccount = localStorage.getItem('sale_last_payment_account_id');
                     if (lastAccount && Array.from(paymentAccountSelect.options).some(opt => opt.value === lastAccount)) {
                         paymentAccountSelect.value = lastAccount;
+                        $(paymentAccountSelect).trigger('change');
                     }
                 }
             } else {
-                paymentSection.style.display = 'none';
+                paymentSection.classList.add('d-none-soft');
                 paymentAccountSelect.required = false;
                 paymentAccountSelect.value = '';
             }
@@ -787,6 +828,15 @@
             document.getElementById('savedAmountCue').textContent = (parseFloat(document.getElementById('discountAmount').value) || 0).toFixed(2);
             document.getElementById('remainingDueCue').textContent = balance.toFixed(2);
             updateSaveButtonState();
+        }
+
+        function setPaidAmountToTotal() {
+            if (!isPaidAmountAuto) {
+                return;
+            }
+
+            const totalAmount = parseFloat(document.getElementById('totalAmount').value) || 0;
+            document.getElementById('tenderedAmount').value = totalAmount.toFixed(2);
         }
 
         function hasStockErrors() {
@@ -860,7 +910,7 @@
             }
 
             persistLastPaymentAccount();
-            document.getElementById('saleForm').submit();
+            submitSaleFormInNewTab();
         }
 
         function showConfirmationModal() {
@@ -904,6 +954,13 @@
             if (paidAmount > 0 && paymentAccount) {
                 localStorage.setItem('sale_last_payment_account_id', paymentAccount);
             }
+        }
+
+        function submitSaleFormInNewTab() {
+            const form = document.getElementById('saleForm');
+            form.setAttribute('target', '_blank');
+            form.submit();
+            setTimeout(() => form.removeAttribute('target'), 0);
         }
 
         // Update margin display when price/cost changes
