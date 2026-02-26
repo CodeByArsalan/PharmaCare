@@ -1,0 +1,108 @@
+@model IEnumerable<PharmaCare.Domain.Entities.Finance.CreditNote>
+@inject PharmaCare.Infrastructure.Interfaces.IComboboxRepository _combobox
+@{
+    ViewData["Title"] = "Customer Credit Notes";
+    var selectedCustomerId = ViewBag.SelectedCustomerId as int?;
+}
+
+<div class="page-header d-flex justify-content-between align-items-center">
+    <h4 class="page-title">
+        <i class="fas fa-file-invoice"></i>
+        Customer Credit Notes
+    </h4>
+    <div>
+        <a asp-action="Reconciliation" asp-route-customerId="@selectedCustomerId" class="btn btn-outline-primary me-2">
+            <i class="fas fa-balance-scale"></i> Reconciliation
+        </a>
+        <a asp-action="ReceiptsIndex" class="btn btn-outline-secondary">
+            <i class="fas fa-arrow-left"></i> Receipts
+        </a>
+    </div>
+</div>
+
+<div class="card mb-3">
+    <div class="card-body">
+        <form method="get" asp-action="CreditNotesIndex" class="row g-3 align-items-end">
+            <div class="col-md-4">
+                <label class="form-label">Customer</label>
+                <select name="customerId" class="form-select">
+                    <option value="">-- All Customers --</option>
+                    @foreach (var item in _combobox.GetActivePartiesByType("Customer", selectedCustomerId))
+                    {
+                        <option value="@item.Value" selected="@item.Selected">@item.Text</option>
+                    }
+                </select>
+            </div>
+            <div class="col-md-2">
+                <button type="submit" class="btn btn-primary w-100">Filter</button>
+            </div>
+        </form>
+    </div>
+</div>
+
+<div class="card">
+    <div class="card-body">
+        <div class="table-responsive">
+            <table class="table table-hover" id="creditNotesTable">
+                <thead>
+                    <tr>
+                        <th style="width:50px;">S.No</th>
+                        <th>Credit Note #</th>
+                        <th>Date</th>
+                        <th>Customer</th>
+                        <th>Source Return</th>
+                        <th class="text-end">Total</th>
+                        <th class="text-end">Applied</th>
+                        <th class="text-end">Balance</th>
+                        <th>Status</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    @{
+                        int sNo = 1;
+                    }
+                    @foreach (var cn in Model)
+                    {
+                        <tr>
+                            <td>@(sNo++)</td>
+                            <td><strong>@cn.CreditNoteNo</strong></td>
+                            <td>@cn.CreditDate.ToString("dd/MM/yyyy")</td>
+                            <td>@cn.Party?.Name</td>
+                            <td>@(cn.SourceStockMain?.TransactionNo ?? "-")</td>
+                            <td class="text-end">@cn.TotalAmount.ToString("N2")</td>
+                            <td class="text-end">@cn.AppliedAmount.ToString("N2")</td>
+                            <td class="text-end"><strong>@cn.BalanceAmount.ToString("N2")</strong></td>
+                            <td>
+                                @if (cn.Status == "Open")
+                                {
+                                    <span class="badge bg-success">Open</span>
+                                }
+                                else if (cn.Status == "Applied")
+                                {
+                                    <span class="badge bg-primary">Applied</span>
+                                }
+                                else
+                                {
+                                    <span class="badge bg-danger">Void</span>
+                                }
+                            </td>
+                        </tr>
+                    }
+                </tbody>
+            </table>
+        </div>
+    </div>
+</div>
+
+@section Scripts {
+    <script>
+        $(document).ready(function() {
+            if (!$.fn.DataTable.isDataTable('#creditNotesTable')) {
+                $('#creditNotesTable').DataTable({
+                    order: [[2, 'desc']],
+                    pageLength: 25
+                });
+            }
+        });
+    </script>
+}

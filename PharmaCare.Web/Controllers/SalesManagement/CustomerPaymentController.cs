@@ -3,6 +3,7 @@ using Microsoft.AspNetCore.Mvc;
 using PharmaCare.Application.Interfaces.Accounting;
 using PharmaCare.Application.Interfaces.Finance;
 using PharmaCare.Domain.Entities.Finance;
+using PharmaCare.Web.Filters;
 using PharmaCare.Web.Utilities;
 
 namespace PharmaCare.Web.Controllers.SalesManagement;
@@ -21,6 +22,7 @@ public class CustomerPaymentController : BaseController
     }
 
     /// Displays list of all customer receipts.
+    [LinkedToPage("CustomerPayment", "ReceiptsIndex")]
     public async Task<IActionResult> ReceiptsIndex()
     {
         var receipts = await _customerPaymentService.GetAllCustomerReceiptsAsync();
@@ -159,10 +161,94 @@ public class CustomerPaymentController : BaseController
     }
 
     /// Displays list of all customer refunds.
+    [LinkedToPage("CustomerPayment", "ReceiptsIndex")]
     public async Task<IActionResult> RefundsIndex()
     {
         var refunds = await _customerPaymentService.GetAllRefundsAsync();
         return View(refunds);
+    }
+
+    [LinkedToPage("CustomerPayment", "ReceiptsIndex")]
+    public async Task<IActionResult> CreditNotesIndex(int? customerId)
+    {
+        var creditNotes = await _customerPaymentService.GetOpenCreditNotesAsync(customerId);
+        ViewBag.SelectedCustomerId = customerId;
+        return View(creditNotes);
+    }
+
+    [LinkedToPage("CustomerPayment", "ReceiptsIndex")]
+    public async Task<IActionResult> Reconciliation(int? customerId)
+    {
+        var vm = await _customerPaymentService.GetCustomerReconciliationAsync(customerId);
+        return View(vm);
+    }
+
+    [HttpPost]
+    [ValidateAntiForgeryToken]
+    [LinkedToPage("CustomerPayment", "ReceiptsIndex", PermissionType = "create")]
+    public async Task<IActionResult> ApplyCreditNote(int creditNoteId, int saleId, decimal amount, int? customerId)
+    {
+        try
+        {
+            await _customerPaymentService.ApplyCreditNoteAsync(creditNoteId, saleId, amount, CurrentUserId);
+            ShowMessage(MessageType.Success, "Credit note applied successfully.");
+        }
+        catch (Exception ex)
+        {
+            ShowMessage(MessageType.Error, ex.Message);
+        }
+
+        return RedirectToAction(nameof(Reconciliation), new { customerId });
+    }
+
+    [HttpPost]
+    [ValidateAntiForgeryToken]
+    [LinkedToPage("CustomerPayment", "ReceiptsIndex", PermissionType = "delete")]
+    public async Task<IActionResult> VoidReceipt(string id, string voidReason)
+    {
+        var paymentId = Utility.DecryptId(id);
+        if (paymentId <= 0)
+        {
+            ShowMessage(MessageType.Error, "Invalid receipt ID.");
+            return RedirectToAction(nameof(ReceiptsIndex));
+        }
+
+        try
+        {
+            var result = await _customerPaymentService.VoidReceiptAsync(paymentId, voidReason, CurrentUserId);
+            ShowMessage(result ? MessageType.Success : MessageType.Warning, result ? "Receipt voided successfully." : "Receipt is already voided.");
+        }
+        catch (Exception ex)
+        {
+            ShowMessage(MessageType.Error, ex.Message);
+        }
+
+        return RedirectToAction(nameof(ReceiptsIndex));
+    }
+
+    [HttpPost]
+    [ValidateAntiForgeryToken]
+    [LinkedToPage("CustomerPayment", "ReceiptsIndex", PermissionType = "delete")]
+    public async Task<IActionResult> VoidRefund(string id, string voidReason)
+    {
+        var paymentId = Utility.DecryptId(id);
+        if (paymentId <= 0)
+        {
+            ShowMessage(MessageType.Error, "Invalid refund ID.");
+            return RedirectToAction(nameof(RefundsIndex));
+        }
+
+        try
+        {
+            var result = await _customerPaymentService.VoidRefundAsync(paymentId, voidReason, CurrentUserId);
+            ShowMessage(result ? MessageType.Success : MessageType.Warning, result ? "Refund voided successfully." : "Refund is already voided.");
+        }
+        catch (Exception ex)
+        {
+            ShowMessage(MessageType.Error, ex.Message);
+        }
+
+        return RedirectToAction(nameof(RefundsIndex));
     }
 
     /// Shows form to create a customer refund.

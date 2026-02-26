@@ -16,11 +16,15 @@ namespace PharmaCare.Application.Implementations.Transactions;
 /// </summary>
 public class SaleService : TransactionServiceBase, ISaleService
 {
+    private const int CashAccountTypeId = 1;
+    private const int BankAccountTypeId = 2;
+
     private readonly IRepository<TransactionType> _transactionTypeRepository;
     private readonly IRepository<VoucherType> _voucherTypeRepository;
     private readonly IRepository<Account> _accountRepository;
     private readonly IRepository<Product> _productRepository;
     private readonly IRepository<Payment> _paymentRepository;
+    private readonly IRepository<PaymentAllocation> _paymentAllocationRepository;
     private readonly IRepository<Party> _partyRepository;
     private readonly IProductService _productService;
 
@@ -37,6 +41,7 @@ public class SaleService : TransactionServiceBase, ISaleService
         IRepository<Account> accountRepository,
         IRepository<Product> productRepository,
         IRepository<Payment> paymentRepository,
+        IRepository<PaymentAllocation> paymentAllocationRepository,
         IRepository<Party> partyRepository,
         IUnitOfWork unitOfWork,
         IProductService productService)
@@ -47,6 +52,7 @@ public class SaleService : TransactionServiceBase, ISaleService
         _accountRepository = accountRepository;
         _productRepository = productRepository;
         _paymentRepository = paymentRepository;
+        _paymentAllocationRepository = paymentAllocationRepository;
         _partyRepository = partyRepository;
         _productService = productService;
     }
@@ -73,10 +79,71 @@ public class SaleService : TransactionServiceBase, ISaleService
             .FirstOrDefaultAsync(s => s.StockMainID == id && s.TransactionType!.Code == TRANSACTION_TYPE_CODE);
     }
 
+    public async Task<(decimal OutstandingBalance, int OpenInvoices)> GetCustomerOutstandingSummaryAsync(int customerId)
+    {
+        if (customerId <= 0)
+        {
+            return (0m, 0);
+        }
+
+        var sales = await _stockMainRepository.Query()
+            .Include(s => s.TransactionType)
+            .Where(s =>
+                s.TransactionType!.Code == TRANSACTION_TYPE_CODE &&
+                s.Party_ID == customerId &&
+                !string.Equals(s.Status, TransactionStatus.Void.ToString(), StringComparison.OrdinalIgnoreCase))
+            .Select(s => new
+            {
+                s.StockMainID,
+                s.TotalAmount,
+                s.PaidAmount
+            })
+            .ToListAsync();
+
+        if (sales.Count == 0)
+        {
+            return (0m, 0);
+        }
+
+        var saleIds = sales.Select(s => s.StockMainID).ToList();
+        var totalReturnsBySale = await _stockMainRepository.Query()
+            .Include(s => s.TransactionType)
+            .Where(s =>
+                s.TransactionType!.Code == "SRTN" &&
+                s.ReferenceStockMain_ID.HasValue &&
+                saleIds.Contains(s.ReferenceStockMain_ID.Value) &&
+                !string.Equals(s.Status, TransactionStatus.Void.ToString(), StringComparison.OrdinalIgnoreCase))
+            .GroupBy(s => s.ReferenceStockMain_ID!.Value)
+            .Select(g => new
+            {
+                SaleId = g.Key,
+                TotalReturns = g.Sum(x => x.TotalAmount)
+            })
+            .ToDictionaryAsync(x => x.SaleId, x => x.TotalReturns);
+
+        decimal outstandingBalance = 0;
+        var openInvoices = 0;
+
+        foreach (var sale in sales)
+        {
+            var totalReturns = totalReturnsBySale.TryGetValue(sale.StockMainID, out var returnedAmount) ? returnedAmount : 0m;
+            var balance = Math.Max(0m, sale.TotalAmount - sale.PaidAmount - totalReturns);
+            if (balance > 0)
+            {
+                outstandingBalance += balance;
+                openInvoices++;
+            }
+        }
+
+        return (Math.Round(outstandingBalance, 2), openInvoices);
+    }
+
     public async Task<StockMain> CreateAsync(StockMain sale, int userId, int? paymentAccountId = null)
     {
         return await ExecuteInTransactionAsync(async () =>
         {
+            NormalizeSaleLines(sale);
+
             // Get the SALE transaction type
             var transactionType = await _transactionTypeRepository.Query()
                 .FirstOrDefaultAsync(t => t.Code == TRANSACTION_TYPE_CODE);
@@ -215,11 +282,13 @@ public class SaleService : TransactionServiceBase, ISaleService
         var stockByAccount = new Dictionary<int, decimal>();   // Stock Account -> Credit Amount
 
         decimal totalCOGS = 0;
+        var netLineAmounts = AllocateNetSalesByLine(sale);
+        var detailIndex = 0;
 
         foreach (var item in productDetailsMap)
         {
             var category = item.Product!.Category!;
-            var lineTotal = item.Detail.LineTotal;
+            var lineTotal = netLineAmounts[detailIndex++];
             var lineCost = item.Detail.LineCost;
 
             // Validate category has Sales Account configured
@@ -352,12 +421,17 @@ public class SaleService : TransactionServiceBase, ISaleService
         if (paymentAccount == null)
             throw new InvalidOperationException($"Payment account ID {paymentAccountId} not found.");
 
+        if (paymentAccount.AccountType_ID != CashAccountTypeId && paymentAccount.AccountType_ID != BankAccountTypeId)
+        {
+            throw new InvalidOperationException("Payment account must be a Cash or Bank account.");
+        }
+
         string voucherPrefix = "RV";
-        if (paymentAccount.AccountType_ID == 1) // Cash
+        if (paymentAccount.AccountType_ID == CashAccountTypeId) // Cash
         {
             voucherPrefix = "CR";
         }
-        else if (paymentAccount.AccountType_ID == 2) // Bank
+        else if (paymentAccount.AccountType_ID == BankAccountTypeId) // Bank
         {
             voucherPrefix = "BR";
         }
@@ -423,7 +497,12 @@ public class SaleService : TransactionServiceBase, ISaleService
             throw new InvalidOperationException($"Payment account ID {paymentAccountId} not found.");
         }
 
-        var paymentMethod = paymentAccount.AccountType_ID == 2
+        if (paymentAccount.AccountType_ID != CashAccountTypeId && paymentAccount.AccountType_ID != BankAccountTypeId)
+        {
+            throw new InvalidOperationException("Payment account must be a Cash or Bank account.");
+        }
+
+        var paymentMethod = paymentAccount.AccountType_ID == BankAccountTypeId
             ? PaymentMethod.Bank.ToString()
             : PaymentMethod.Cash.ToString();
 
@@ -444,6 +523,18 @@ public class SaleService : TransactionServiceBase, ISaleService
         };
 
         await _paymentRepository.AddAsync(payment);
+
+        await _paymentAllocationRepository.AddAsync(new PaymentAllocation
+        {
+            Payment = payment,
+            StockMain_ID = sale.StockMainID,
+            Amount = sale.PaidAmount,
+            SourceType = "Receipt",
+            AllocationDate = sale.TransactionDate,
+            Remarks = $"Initial payment captured during sale {sale.TransactionNo}",
+            CreatedAt = DateTime.Now,
+            CreatedBy = userId
+        });
     }
 
     private async Task<Party> ResolveCustomerPartyWithAccountAsync(StockMain sale)
@@ -496,6 +587,8 @@ public class SaleService : TransactionServiceBase, ISaleService
 
             // Reverse all posted vouchers linked to this StockMain (invoice + payments, if any)
             await CreateReversalVouchersForSourceAsync("StockMain", sale.StockMainID, userId, reason);
+            await CreateReversalVouchersForLinkedReceiptsAsync(sale.StockMainID, userId, reason);
+            await VoidLinkedReceiptsAsync(sale.StockMainID, userId, reason);
 
             _stockMainRepository.Update(sale);
             await _unitOfWork.SaveChangesAsync();
@@ -525,6 +618,137 @@ public class SaleService : TransactionServiceBase, ISaleService
                         $"Requested: {detail.Quantity}, Available: {currentStock}");
                 }
             }
+        }
+    }
+
+    private static void NormalizeSaleLines(StockMain sale)
+    {
+        if (sale.StockDetails == null || sale.StockDetails.Count == 0)
+        {
+            throw new InvalidOperationException("At least one sale line is required.");
+        }
+
+        foreach (var detail in sale.StockDetails)
+        {
+            if (detail.Product_ID <= 0)
+            {
+                throw new InvalidOperationException("Each line must have a valid product.");
+            }
+
+            if (detail.Quantity <= 0)
+            {
+                throw new InvalidOperationException("Line quantity must be greater than zero.");
+            }
+
+            if (detail.UnitPrice < 0 || detail.CostPrice < 0)
+            {
+                throw new InvalidOperationException("Unit and cost prices cannot be negative.");
+            }
+
+            var grossAmount = Math.Round(detail.Quantity * detail.UnitPrice, 2);
+            var lineDiscount = detail.DiscountPercent > 0
+                ? Math.Round(grossAmount * detail.DiscountPercent / 100, 2)
+                : Math.Round(Math.Max(0, detail.DiscountAmount), 2);
+
+            if (lineDiscount > grossAmount)
+            {
+                lineDiscount = grossAmount;
+            }
+
+            detail.DiscountAmount = lineDiscount;
+            detail.LineTotal = Math.Round(grossAmount - lineDiscount, 2);
+            detail.LineCost = Math.Round(detail.Quantity * detail.CostPrice, 2);
+        }
+    }
+
+    private static List<decimal> AllocateNetSalesByLine(StockMain sale)
+    {
+        var allocations = new List<decimal>();
+        if (sale.StockDetails == null || sale.StockDetails.Count == 0)
+        {
+            return allocations;
+        }
+
+        var details = sale.StockDetails.ToList();
+
+        var grossSubTotal = details.Sum(d => d.LineTotal);
+        if (grossSubTotal <= 0 || sale.TotalAmount <= 0)
+        {
+            allocations.AddRange(Enumerable.Repeat(0m, details.Count));
+            return allocations;
+        }
+
+        var remaining = sale.TotalAmount;
+        for (var i = 0; i < details.Count; i++)
+        {
+            decimal netAmount;
+            if (i == details.Count - 1)
+            {
+                netAmount = Math.Round(remaining, 2);
+            }
+            else
+            {
+                netAmount = Math.Round((details[i].LineTotal / grossSubTotal) * sale.TotalAmount, 2);
+                remaining -= netAmount;
+            }
+
+            allocations.Add(Math.Max(0, netAmount));
+        }
+
+        return allocations;
+    }
+
+    private async Task CreateReversalVouchersForLinkedReceiptsAsync(int saleId, int userId, string reason)
+    {
+        var receiptVoucherIds = await _paymentRepository.Query()
+            .Where(p =>
+                p.StockMain_ID == saleId &&
+                p.PaymentType == PaymentType.RECEIPT.ToString() &&
+                p.Voucher_ID.HasValue)
+            .Select(p => p.Voucher_ID!.Value)
+            .Distinct()
+            .ToListAsync();
+
+        foreach (var voucherId in receiptVoucherIds)
+        {
+            await CreateReversalVoucherAsync(voucherId, userId, reason, "StockMain", saleId);
+        }
+    }
+
+    private async Task VoidLinkedReceiptsAsync(int saleId, int userId, string reason)
+    {
+        var linkedReceipts = await _paymentRepository.Query()
+            .Where(p =>
+                p.StockMain_ID == saleId &&
+                p.PaymentType == PaymentType.RECEIPT.ToString() &&
+                !p.IsVoided)
+            .ToListAsync();
+
+        if (linkedReceipts.Count == 0)
+        {
+            return;
+        }
+
+        var now = DateTime.Now;
+        foreach (var receipt in linkedReceipts)
+        {
+            receipt.IsVoided = true;
+            receipt.VoidReason = $"Sale voided: {reason}";
+            receipt.VoidedAt = now;
+            receipt.VoidedBy = userId;
+            receipt.UpdatedAt = now;
+            receipt.UpdatedBy = userId;
+            _paymentRepository.Update(receipt);
+        }
+
+        var receiptIds = linkedReceipts.Select(r => r.PaymentID).ToList();
+        var allocations = await _paymentAllocationRepository.Query()
+            .Where(a => a.Payment_ID.HasValue && receiptIds.Contains(a.Payment_ID.Value))
+            .ToListAsync();
+
+        if (allocations.Count > 0)
+        {
+            _paymentAllocationRepository.RemoveRange(allocations);
         }
     }
 }

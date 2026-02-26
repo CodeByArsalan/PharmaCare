@@ -56,6 +56,8 @@ public class PharmaCareDBContext : IdentityUserContext<User, int>
     public DbSet<ExpenseCategory> ExpenseCategories { get; set; } = null!;
     public DbSet<Expense> Expenses { get; set; } = null!;
     public DbSet<Payment> Payments { get; set; } = null!;
+    public DbSet<CreditNote> CreditNotes { get; set; } = null!;
+    public DbSet<PaymentAllocation> PaymentAllocations { get; set; } = null!;
 
     protected override void OnModelCreating(ModelBuilder builder)
     {
@@ -456,6 +458,7 @@ public class PharmaCareDBContext : IdentityUserContext<User, int>
             entity.ToTable("Payments");
             entity.HasKey(e => e.PaymentID);
             entity.Property(e => e.PaymentType).IsRequired().HasMaxLength(20);
+            entity.Property(e => e.IsVoided).HasDefaultValue(false);
             entity.ToTable(t =>
             {
                 t.HasCheckConstraint(
@@ -479,6 +482,61 @@ public class PharmaCareDBContext : IdentityUserContext<User, int>
                 .HasForeignKey(e => e.Voucher_ID)
                 .OnDelete(DeleteBehavior.SetNull);
 
+        });
+
+        builder.Entity<CreditNote>(entity =>
+        {
+            entity.ToTable("CreditNotes");
+            entity.HasKey(e => e.CreditNoteID);
+            entity.Property(e => e.CreditNoteNo).IsRequired().HasMaxLength(50);
+            entity.HasIndex(e => e.CreditNoteNo).IsUnique();
+            entity.Property(e => e.Status).HasMaxLength(20);
+            entity.ToTable(t =>
+            {
+                t.HasCheckConstraint("CK_CreditNotes_Status_Valid", "[Status] IN ('Open','Applied','Void')");
+            });
+
+            entity.HasOne(e => e.Party)
+                .WithMany()
+                .HasForeignKey(e => e.Party_ID)
+                .OnDelete(DeleteBehavior.Restrict);
+
+            entity.HasOne(e => e.SourceStockMain)
+                .WithMany()
+                .HasForeignKey(e => e.SourceStockMain_ID)
+                .OnDelete(DeleteBehavior.SetNull);
+
+            entity.HasOne(e => e.Voucher)
+                .WithMany()
+                .HasForeignKey(e => e.Voucher_ID)
+                .OnDelete(DeleteBehavior.SetNull);
+        });
+
+        builder.Entity<PaymentAllocation>(entity =>
+        {
+            entity.ToTable("PaymentAllocations");
+            entity.HasKey(e => e.PaymentAllocationID);
+            entity.Property(e => e.SourceType).HasMaxLength(20);
+            entity.ToTable(t =>
+            {
+                t.HasCheckConstraint("CK_PaymentAllocations_Source_Valid", "[SourceType] IN ('Receipt','CreditNote')");
+                t.HasCheckConstraint("CK_PaymentAllocations_Source_NotNull", "[Payment_ID] IS NOT NULL OR [CreditNote_ID] IS NOT NULL");
+            });
+
+            entity.HasOne(e => e.Payment)
+                .WithMany(p => p.PaymentAllocations)
+                .HasForeignKey(e => e.Payment_ID)
+                .OnDelete(DeleteBehavior.Cascade);
+
+            entity.HasOne(e => e.CreditNote)
+                .WithMany(c => c.PaymentAllocations)
+                .HasForeignKey(e => e.CreditNote_ID)
+                .OnDelete(DeleteBehavior.Cascade);
+
+            entity.HasOne(e => e.StockMain)
+                .WithMany()
+                .HasForeignKey(e => e.StockMain_ID)
+                .OnDelete(DeleteBehavior.Restrict);
         });
     }
 }

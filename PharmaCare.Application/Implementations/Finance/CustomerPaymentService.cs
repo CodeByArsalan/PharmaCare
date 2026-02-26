@@ -1,4 +1,5 @@
 using Microsoft.EntityFrameworkCore;
+using PharmaCare.Application.DTOs.Finance;
 using PharmaCare.Application.Interfaces;
 using PharmaCare.Application.Interfaces.Finance;
 using PharmaCare.Domain.Entities.Accounting;
@@ -14,6 +15,9 @@ namespace PharmaCare.Application.Implementations.Finance;
 /// </summary>
 public class CustomerPaymentService : ICustomerPaymentService
 {
+    private const int CashAccountTypeId = 1;
+    private const int BankAccountTypeId = 2;
+
     private readonly IRepository<Payment> _paymentRepository;
     private readonly IRepository<StockMain> _stockMainRepository;
     private readonly IRepository<TransactionType> _transactionTypeRepository;
@@ -21,6 +25,8 @@ public class CustomerPaymentService : ICustomerPaymentService
     private readonly IRepository<VoucherType> _voucherTypeRepository;
     private readonly IRepository<Party> _partyRepository;
     private readonly IRepository<Account> _accountRepository;
+    private readonly IRepository<CreditNote> _creditNoteRepository;
+    private readonly IRepository<PaymentAllocation> _paymentAllocationRepository;
     private readonly IUnitOfWork _unitOfWork;
 
     private const string SALE_TRANSACTION_TYPE_CODE = "SALE";
@@ -38,6 +44,8 @@ public class CustomerPaymentService : ICustomerPaymentService
         IRepository<VoucherType> voucherTypeRepository,
         IRepository<Party> partyRepository,
         IRepository<Account> accountRepository,
+        IRepository<CreditNote> creditNoteRepository,
+        IRepository<PaymentAllocation> paymentAllocationRepository,
         IUnitOfWork unitOfWork)
     {
         _paymentRepository = paymentRepository;
@@ -47,6 +55,8 @@ public class CustomerPaymentService : ICustomerPaymentService
         _voucherTypeRepository = voucherTypeRepository;
         _partyRepository = partyRepository;
         _accountRepository = accountRepository;
+        _creditNoteRepository = creditNoteRepository;
+        _paymentAllocationRepository = paymentAllocationRepository;
         _unitOfWork = unitOfWork;
     }
 
@@ -68,6 +78,7 @@ public class CustomerPaymentService : ICustomerPaymentService
             .Include(p => p.Party)
             .Include(p => p.StockMain)
             .Include(p => p.Account)
+            .Include(p => p.Voucher)
             .FirstOrDefaultAsync(p => p.PaymentID == id);
     }
 
@@ -75,8 +86,9 @@ public class CustomerPaymentService : ICustomerPaymentService
     {
         return await _paymentRepository.Query()
             .Include(p => p.Account)
-            .Where(p => p.StockMain_ID == stockMainId)
+            .Where(p => p.StockMain_ID == stockMainId && p.PaymentType == CustomerReceiptPaymentType)
             .OrderByDescending(p => p.PaymentDate)
+            .ThenByDescending(p => p.PaymentID)
             .ToListAsync();
     }
 
@@ -121,7 +133,8 @@ public class CustomerPaymentService : ICustomerPaymentService
         foreach (var sale in sales)
         {
             var totalReturns = returnMap.TryGetValue(sale.StockMainID, out var amount) ? amount : 0;
-            sale.BalanceAmount = sale.TotalAmount - sale.PaidAmount - totalReturns;
+            var outstanding = sale.TotalAmount - sale.PaidAmount - totalReturns;
+            sale.BalanceAmount = Math.Max(0, outstanding);
             sale.PaymentStatus = sale.BalanceAmount <= 0
                 ? PharmaCare.Domain.Enums.PaymentStatus.Paid.ToString()
                 : (sale.PaidAmount > 0
@@ -138,12 +151,19 @@ public class CustomerPaymentService : ICustomerPaymentService
         {
             // Validate the transaction exists (include Party and their Account)
             var stockMain = await _stockMainRepository.Query()
+                .Include(s => s.TransactionType)
                 .Include(s => s.Party)
                     .ThenInclude(p => p!.Account)
                 .FirstOrDefaultAsync(s => s.StockMainID == payment.StockMain_ID);
 
             if (stockMain == null)
                 throw new InvalidOperationException("Transaction not found.");
+
+            if (!string.Equals(stockMain.TransactionType?.Code, SALE_TRANSACTION_TYPE_CODE, StringComparison.OrdinalIgnoreCase))
+                throw new InvalidOperationException("Receipts can only be recorded against sales.");
+
+            if (!string.Equals(stockMain.Status, "Approved", StringComparison.OrdinalIgnoreCase))
+                throw new InvalidOperationException("Receipts can only be recorded against approved sales.");
 
             if (payment.Amount <= 0)
                 throw new InvalidOperationException("Receipt amount must be greater than zero.");
@@ -162,14 +182,23 @@ public class CustomerPaymentService : ICustomerPaymentService
             if (receiptAccount == null)
                 throw new InvalidOperationException("Receipt account not found.");
 
+            if (receiptAccount.AccountType_ID != CashAccountTypeId && receiptAccount.AccountType_ID != BankAccountTypeId)
+                throw new InvalidOperationException("Receipt account must be a Cash or Bank account.");
+
             // Get customer's linked account directly
             var customerAccount = stockMain.Party?.Account;
             if (customerAccount == null)
                 throw new InvalidOperationException($"Customer '{stockMain.Party?.Name}' does not have a linked account. Please update the party record.");
 
+            if (!stockMain.Party_ID.HasValue || stockMain.Party_ID.Value <= 0)
+                throw new InvalidOperationException("Sale is not linked to a customer.");
+
             // Generate reference number
             payment.Reference = await GenerateReferenceNoAsync();
             payment.PaymentType = CustomerReceiptPaymentType; // Customer receipt
+            payment.Party_ID = stockMain.Party_ID.Value;
+            payment.PaymentMethod = NormalizePaymentMethod(payment.PaymentMethod, receiptAccount.AccountType_ID);
+            payment.IsVoided = false;
             payment.CreatedAt = DateTime.Now;
             payment.CreatedBy = userId;
 
@@ -188,6 +217,16 @@ public class CustomerPaymentService : ICustomerPaymentService
             await RecalculateSaleBalanceIncludingReturnsAsync(stockMain, userId);
 
             await _paymentRepository.AddAsync(payment);
+            await _paymentAllocationRepository.AddAsync(new PaymentAllocation
+            {
+                Payment = payment,
+                StockMain_ID = stockMain.StockMainID,
+                Amount = payment.Amount,
+                SourceType = "Receipt",
+                AllocationDate = payment.PaymentDate,
+                CreatedAt = DateTime.Now,
+                CreatedBy = userId
+            });
             _stockMainRepository.Update(stockMain);
             await _unitOfWork.SaveChangesAsync();
 
@@ -204,7 +243,7 @@ public class CustomerPaymentService : ICustomerPaymentService
                      && s.Status != "Void")
             .SumAsync(s => (decimal?)s.TotalAmount) ?? 0;
 
-        return totalAmount - paidAmount - totalReturns;
+        return Math.Max(0, totalAmount - paidAmount - totalReturns);
     }
 
     private async Task RecalculateSaleBalanceIncludingReturnsAsync(StockMain sale, int userId)
@@ -259,8 +298,8 @@ public class CustomerPaymentService : ICustomerPaymentService
             TotalDebit = payment.Amount,
             TotalCredit = payment.Amount,
             Status = "Posted",
-            SourceTable = "Payment",
-            SourceID = null,
+            SourceTable = "StockMain",
+            SourceID = payment.StockMain_ID,
             Narration = $"Receipt from customer: {customerName}. Ref: {payment.Reference}",
             CreatedAt = DateTime.Now,
             CreatedBy = userId,
@@ -368,9 +407,14 @@ public class CustomerPaymentService : ICustomerPaymentService
             if (refundAccount == null)
                 throw new InvalidOperationException("Refund account not found.");
 
+            if (refundAccount.AccountType_ID != CashAccountTypeId && refundAccount.AccountType_ID != BankAccountTypeId)
+                throw new InvalidOperationException("Refund account must be a Cash or Bank account.");
+
             payment.Reference = await GenerateReferenceNoAsync();
             payment.PaymentType = RefundPaymentType;
             payment.StockMain_ID = null;
+            payment.PaymentMethod = NormalizePaymentMethod(payment.PaymentMethod, refundAccount.AccountType_ID);
+            payment.IsVoided = false;
             payment.Remarks = string.IsNullOrWhiteSpace(payment.Remarks)
                 ? $"Refund to {customer.Name}"
                 : payment.Remarks;
@@ -440,6 +484,316 @@ public class CustomerPaymentService : ICustomerPaymentService
             .OrderByDescending(p => p.PaymentDate)
             .ThenByDescending(p => p.PaymentID)
             .ToListAsync();
+    }
+
+    public async Task<IEnumerable<CreditNote>> GetOpenCreditNotesAsync(int? customerId = null)
+    {
+        var query = _creditNoteRepository.Query()
+            .Include(c => c.Party)
+            .Include(c => c.SourceStockMain)
+            .Where(c => c.Status == "Open" && c.BalanceAmount > 0);
+
+        if (customerId.HasValue && customerId.Value > 0)
+        {
+            query = query.Where(c => c.Party_ID == customerId.Value);
+        }
+
+        return await query
+            .OrderBy(c => c.CreditDate)
+            .ThenBy(c => c.CreditNoteNo)
+            .ToListAsync();
+    }
+
+    public async Task<CustomerReconciliationVM> GetCustomerReconciliationAsync(int? customerId = null)
+    {
+        var outstandingSales = (await GetPendingSalesAsync(customerId)).ToList();
+        var openCredits = (await GetOpenCreditNotesAsync(customerId)).ToList();
+
+        var result = new CustomerReconciliationVM
+        {
+            CustomerId = customerId
+        };
+
+        result.OutstandingSales = outstandingSales
+            .Select(s => new OutstandingSaleVM
+            {
+                SaleId = s.StockMainID,
+                TransactionNo = s.TransactionNo,
+                TransactionDate = s.TransactionDate,
+                CustomerName = s.Party?.Name ?? string.Empty,
+                TotalAmount = s.TotalAmount,
+                PaidAmount = s.PaidAmount,
+                ReturnedAmount = Math.Max(0, s.TotalAmount - s.PaidAmount - s.BalanceAmount),
+                BalanceAmount = s.BalanceAmount
+            })
+            .OrderByDescending(s => s.TransactionDate)
+            .ToList();
+
+        result.OpenCreditNotes = openCredits
+            .Select(c => new OpenCreditNoteVM
+            {
+                CreditNoteId = c.CreditNoteID,
+                CreditNoteNo = c.CreditNoteNo,
+                CreditDate = c.CreditDate,
+                TotalAmount = c.TotalAmount,
+                AppliedAmount = c.AppliedAmount,
+                BalanceAmount = c.BalanceAmount,
+                SourceTransactionNo = c.SourceStockMain?.TransactionNo,
+                CustomerName = c.Party?.Name ?? string.Empty
+            })
+            .OrderBy(c => c.CreditDate)
+            .ToList();
+
+        result.CustomerName = result.OutstandingSales.FirstOrDefault()?.CustomerName
+                              ?? result.OpenCreditNotes.FirstOrDefault()?.CustomerName;
+
+        return result;
+    }
+
+    public async Task ApplyCreditNoteAsync(int creditNoteId, int saleId, decimal amount, int userId)
+    {
+        await ExecuteInTransactionAsync(async () =>
+        {
+            if (amount <= 0)
+            {
+                throw new InvalidOperationException("Applied amount must be greater than zero.");
+            }
+
+            var creditNote = await _creditNoteRepository.Query()
+                .FirstOrDefaultAsync(c => c.CreditNoteID == creditNoteId);
+
+            if (creditNote == null)
+            {
+                throw new InvalidOperationException("Credit note not found.");
+            }
+
+            if (creditNote.Status != "Open" || creditNote.BalanceAmount <= 0)
+            {
+                throw new InvalidOperationException("Credit note is not open for allocation.");
+            }
+
+            if (amount > creditNote.BalanceAmount)
+            {
+                throw new InvalidOperationException("Applied amount exceeds available credit.");
+            }
+
+            var sale = await _stockMainRepository.Query()
+                .Include(s => s.TransactionType)
+                .FirstOrDefaultAsync(s => s.StockMainID == saleId);
+
+            if (sale == null || !string.Equals(sale.TransactionType?.Code, SALE_TRANSACTION_TYPE_CODE, StringComparison.OrdinalIgnoreCase))
+            {
+                throw new InvalidOperationException("Target sale not found.");
+            }
+
+            if (!string.Equals(sale.Status, "Approved", StringComparison.OrdinalIgnoreCase))
+            {
+                throw new InvalidOperationException("Credit notes can only be applied to approved sales.");
+            }
+
+            if (!sale.Party_ID.HasValue || sale.Party_ID.Value != creditNote.Party_ID)
+            {
+                throw new InvalidOperationException("Credit note customer does not match the selected sale.");
+            }
+
+            var saleOutstanding = await GetNetOutstandingAmountAsync(sale.StockMainID, sale.TotalAmount, sale.PaidAmount);
+            if (saleOutstanding <= 0)
+            {
+                throw new InvalidOperationException("Selected sale has no outstanding balance.");
+            }
+
+            if (amount > saleOutstanding)
+            {
+                throw new InvalidOperationException("Applied amount exceeds sale outstanding balance.");
+            }
+
+            sale.PaidAmount += amount;
+            await RecalculateSaleBalanceIncludingReturnsAsync(sale, userId);
+            _stockMainRepository.Update(sale);
+
+            creditNote.AppliedAmount = Math.Round(creditNote.AppliedAmount + amount, 2);
+            creditNote.BalanceAmount = Math.Round(Math.Max(0, creditNote.TotalAmount - creditNote.AppliedAmount), 2);
+            creditNote.Status = creditNote.BalanceAmount <= 0 ? "Applied" : "Open";
+            creditNote.UpdatedAt = DateTime.Now;
+            creditNote.UpdatedBy = userId;
+            _creditNoteRepository.Update(creditNote);
+
+            await _paymentAllocationRepository.AddAsync(new PaymentAllocation
+            {
+                CreditNote_ID = creditNote.CreditNoteID,
+                StockMain_ID = sale.StockMainID,
+                Amount = amount,
+                SourceType = "CreditNote",
+                AllocationDate = DateTime.Now,
+                Remarks = $"Applied {creditNote.CreditNoteNo} against {sale.TransactionNo}",
+                CreatedAt = DateTime.Now,
+                CreatedBy = userId
+            });
+
+            await _unitOfWork.SaveChangesAsync();
+            return true;
+        });
+    }
+
+    public async Task<bool> VoidReceiptAsync(int paymentId, string reason, int userId)
+    {
+        return await ExecuteInTransactionAsync(async () =>
+        {
+            if (string.IsNullOrWhiteSpace(reason))
+            {
+                throw new InvalidOperationException("Void reason is required.");
+            }
+
+            var receipt = await _paymentRepository.Query()
+                .Include(p => p.StockMain)
+                    .ThenInclude(s => s!.TransactionType)
+                .FirstOrDefaultAsync(p => p.PaymentID == paymentId && p.PaymentType == CustomerReceiptPaymentType);
+
+            if (receipt == null || receipt.IsVoided)
+            {
+                return false;
+            }
+
+            receipt.IsVoided = true;
+            receipt.VoidReason = reason.Trim();
+            receipt.VoidedAt = DateTime.Now;
+            receipt.VoidedBy = userId;
+            receipt.UpdatedAt = DateTime.Now;
+            receipt.UpdatedBy = userId;
+            _paymentRepository.Update(receipt);
+
+            var allocations = await _paymentAllocationRepository.Query()
+                .Where(a => a.Payment_ID == receipt.PaymentID)
+                .ToListAsync();
+            if (allocations.Count > 0)
+            {
+                _paymentAllocationRepository.RemoveRange(allocations);
+            }
+
+            if (receipt.StockMain != null && string.Equals(receipt.StockMain.TransactionType?.Code, SALE_TRANSACTION_TYPE_CODE, StringComparison.OrdinalIgnoreCase))
+            {
+                receipt.StockMain.PaidAmount = Math.Max(0, receipt.StockMain.PaidAmount - receipt.Amount);
+                await RecalculateSaleBalanceIncludingReturnsAsync(receipt.StockMain, userId);
+                _stockMainRepository.Update(receipt.StockMain);
+            }
+
+            if (receipt.Voucher_ID.HasValue)
+            {
+                await CreateVoucherReversalAsync(receipt.Voucher_ID.Value, userId, reason);
+            }
+
+            await _unitOfWork.SaveChangesAsync();
+            return true;
+        });
+    }
+
+    public async Task<bool> VoidRefundAsync(int paymentId, string reason, int userId)
+    {
+        return await ExecuteInTransactionAsync(async () =>
+        {
+            if (string.IsNullOrWhiteSpace(reason))
+            {
+                throw new InvalidOperationException("Void reason is required.");
+            }
+
+            var refund = await _paymentRepository.Query()
+                .FirstOrDefaultAsync(p => p.PaymentID == paymentId && p.PaymentType == RefundPaymentType);
+
+            if (refund == null || refund.IsVoided)
+            {
+                return false;
+            }
+
+            refund.IsVoided = true;
+            refund.VoidReason = reason.Trim();
+            refund.VoidedAt = DateTime.Now;
+            refund.VoidedBy = userId;
+            refund.UpdatedAt = DateTime.Now;
+            refund.UpdatedBy = userId;
+            _paymentRepository.Update(refund);
+
+            if (refund.Voucher_ID.HasValue)
+            {
+                await CreateVoucherReversalAsync(refund.Voucher_ID.Value, userId, reason);
+            }
+
+            await _unitOfWork.SaveChangesAsync();
+            return true;
+        });
+    }
+
+    private static string NormalizePaymentMethod(string? paymentMethod, int accountTypeId)
+    {
+        if (!Enum.TryParse<PaymentMethod>(paymentMethod, true, out var parsedMethod))
+        {
+            parsedMethod = accountTypeId == BankAccountTypeId ? PaymentMethod.Bank : PaymentMethod.Cash;
+        }
+
+        if (parsedMethod == PaymentMethod.Adjustment)
+        {
+            throw new InvalidOperationException("Adjustment is not a valid customer payment method.");
+        }
+
+        if (parsedMethod == PaymentMethod.Cash && accountTypeId != CashAccountTypeId)
+        {
+            throw new InvalidOperationException("Cash method requires a cash account.");
+        }
+
+        if ((parsedMethod == PaymentMethod.Bank || parsedMethod == PaymentMethod.Cheque) && accountTypeId != BankAccountTypeId)
+        {
+            throw new InvalidOperationException("Bank or Cheque method requires a bank account.");
+        }
+
+        return parsedMethod.ToString();
+    }
+
+    private async Task<Voucher?> CreateVoucherReversalAsync(int originalVoucherId, int userId, string reason)
+    {
+        var originalVoucher = await _voucherRepository.Query()
+            .Include(v => v.VoucherDetails)
+            .FirstOrDefaultAsync(v => v.VoucherID == originalVoucherId);
+
+        if (originalVoucher == null || originalVoucher.IsReversed)
+        {
+            return null;
+        }
+
+        var reversalVoucher = new Voucher
+        {
+            VoucherType_ID = originalVoucher.VoucherType_ID,
+            VoucherNo = $"REV-{originalVoucher.VoucherNo}",
+            VoucherDate = DateTime.Now,
+            TotalDebit = originalVoucher.TotalCredit,
+            TotalCredit = originalVoucher.TotalDebit,
+            Status = "Posted",
+            SourceTable = originalVoucher.SourceTable,
+            SourceID = originalVoucher.SourceID,
+            Narration = $"Reversal of {originalVoucher.VoucherNo} - Void: {reason}",
+            ReversesVoucher_ID = originalVoucher.VoucherID,
+            CreatedAt = DateTime.Now,
+            CreatedBy = userId
+        };
+
+        foreach (var detail in originalVoucher.VoucherDetails)
+        {
+            reversalVoucher.VoucherDetails.Add(new VoucherDetail
+            {
+                Account_ID = detail.Account_ID,
+                DebitAmount = detail.CreditAmount,
+                CreditAmount = detail.DebitAmount,
+                Description = $"Reversal - {detail.Description}",
+                Party_ID = detail.Party_ID,
+                Product_ID = detail.Product_ID
+            });
+        }
+
+        await _voucherRepository.AddAsync(reversalVoucher);
+
+        originalVoucher.IsReversed = true;
+        originalVoucher.ReversedByVoucher = reversalVoucher;
+        _voucherRepository.Update(originalVoucher);
+
+        return reversalVoucher;
     }
 
     private async Task<T> ExecuteInTransactionAsync<T>(Func<Task<T>> operation)

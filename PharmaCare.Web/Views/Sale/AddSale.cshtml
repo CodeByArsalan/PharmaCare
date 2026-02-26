@@ -183,7 +183,7 @@
                                 <div class="col-5">
                                     <label class="form-label">Paid Amount</label>
                                     <div class="input-group">
-                                        <input type="number" step="1" min="0"
+                                        <input type="number" step="0.01" min="0"
                                                class="form-control" id="tenderedAmount" name="TenderedAmount"
                                                value="@tenderedAmountValue.ToString("0.##")" />
                                         <button type="button" class="btn btn-outline-success" id="payFullBtn" title="Pay Full Amount">
@@ -366,7 +366,7 @@
             document.getElementById('payFullBtn').addEventListener('click', function() {
                 isPaidAmountAuto = true;
                 const totalAmount = parseFloat(document.getElementById('totalAmount').value) || 0;
-                document.getElementById('tenderedAmount').value = Math.ceil(totalAmount);
+                document.getElementById('tenderedAmount').value = totalAmount.toFixed(2);
                 calculatePayment();
             });
 
@@ -762,8 +762,7 @@
         function calculatePayment() {
             const totalAmount = parseFloat(document.getElementById('totalAmount').value) || 0;
             let tenderedAmount = Math.max(0, parseFloat(document.getElementById('tenderedAmount').value) || 0);
-            tenderedAmount = Math.round(tenderedAmount);
-            document.getElementById('tenderedAmount').value = tenderedAmount;
+            document.getElementById('tenderedAmount').value = tenderedAmount.toFixed(2);
             const paidAmount = Math.min(totalAmount, tenderedAmount);
             const balance = Math.max(0, totalAmount - paidAmount);
             const change = Math.max(0, tenderedAmount - totalAmount);
@@ -956,11 +955,38 @@
             }
         }
 
-        function submitSaleFormInNewTab() {
+        async function submitSaleFormInNewTab() {
             const form = document.getElementById('saleForm');
-            form.setAttribute('target', '_blank');
-            form.submit();
-            setTimeout(() => form.removeAttribute('target'), 0);
+            const formData = new FormData(form);
+            const saveBtn = document.getElementById('confirmSaveBtn');
+
+            try {
+                saveBtn.disabled = true;
+                saveBtn.innerHTML = '<i class="fas fa-spinner fa-spin me-1"></i>Saving...';
+
+                const response = await fetch(form.action, {
+                    method: 'POST',
+                    body: formData,
+                    headers: { 'X-Requested-With': 'XMLHttpRequest' }
+                });
+
+                const result = await response.json();
+
+                if (result.success) {
+                    // Open receipt in new tab, redirect current tab to sales index
+                    window.open(result.receiptUrl, '_blank');
+                    window.location.href = result.salesIndexUrl;
+                } else {
+                    alert(result.message || 'Failed to save sale. Please try again.');
+                    saveBtn.disabled = false;
+                    saveBtn.innerHTML = '<i class="fas fa-save me-1"></i>Save Sale';
+                }
+            } catch (error) {
+                console.error('Error saving sale:', error);
+                alert('An error occurred while saving. Please try again.');
+                saveBtn.disabled = false;
+                saveBtn.innerHTML = '<i class="fas fa-save me-1"></i>Save Sale';
+            }
         }
 
         // Update margin display when price/cost changes

@@ -65,6 +65,10 @@
                                    class="btn btn-sm btn-outline-primary" title="View">
                                     <i class="fas fa-eye"></i>
                                 </a>
+                                <a asp-action="Receipt" asp-route-id="@item.StockMainID.EncryptId()" 
+                                   class="btn btn-sm btn-outline-success" title="Print Receipt" target="_blank">
+                                    <i class="fas fa-print"></i>
+                                </a>
                                 @if (item.Status != "Void")
                                 {
                                     <button type="button" class="btn btn-sm btn-outline-danger void-btn"

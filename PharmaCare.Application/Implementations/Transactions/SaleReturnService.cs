@@ -3,6 +3,7 @@ using PharmaCare.Application.Interfaces;
 using PharmaCare.Application.Interfaces.Transactions;
 using PharmaCare.Domain.Entities.Accounting;
 using PharmaCare.Domain.Entities.Configuration;
+using PharmaCare.Domain.Entities.Finance;
 using PharmaCare.Domain.Entities.Transactions;
 
 namespace PharmaCare.Application.Implementations.Transactions;
@@ -16,6 +17,7 @@ public class SaleReturnService : TransactionServiceBase, ISaleReturnService
     private readonly IRepository<VoucherType> _voucherTypeRepository;
     private readonly IRepository<Product> _productRepository;
     private readonly IRepository<Party> _partyRepository;
+    private readonly IRepository<CreditNote> _creditNoteRepository;
 
     private const string TRANSACTION_TYPE_CODE = "SRTN";
     private const string SALE_TRANSACTION_TYPE_CODE = "SALE";
@@ -29,6 +31,7 @@ public class SaleReturnService : TransactionServiceBase, ISaleReturnService
         IRepository<VoucherType> voucherTypeRepository,
         IRepository<Product> productRepository,
         IRepository<Party> partyRepository,
+        IRepository<CreditNote> creditNoteRepository,
         IUnitOfWork unitOfWork)
         : base(stockMainRepository, voucherRepository, unitOfWork)
     {
@@ -36,6 +39,7 @@ public class SaleReturnService : TransactionServiceBase, ISaleReturnService
         _voucherTypeRepository = voucherTypeRepository;
         _productRepository = productRepository;
         _partyRepository = partyRepository;
+        _creditNoteRepository = creditNoteRepository;
     }
 
     public async Task<IEnumerable<StockMain>> GetAllAsync()
@@ -43,6 +47,7 @@ public class SaleReturnService : TransactionServiceBase, ISaleReturnService
         return await _stockMainRepository.Query()
             .Include(s => s.TransactionType)
             .Include(s => s.Party)
+            .Include(s => s.ReferenceStockMain)
             .Where(s => s.TransactionType!.Code == TRANSACTION_TYPE_CODE)
             .OrderByDescending(s => s.TransactionDate)
             .ThenByDescending(s => s.StockMainID)
@@ -54,6 +59,7 @@ public class SaleReturnService : TransactionServiceBase, ISaleReturnService
         return await _stockMainRepository.Query()
             .Include(s => s.TransactionType)
             .Include(s => s.Party)
+            .Include(s => s.ReferenceStockMain)
             .Include(s => s.StockDetails)
                 .ThenInclude(d => d.Product)
             .Include(s => s.Voucher)
@@ -62,78 +68,83 @@ public class SaleReturnService : TransactionServiceBase, ISaleReturnService
 
     public async Task<StockMain> CreateAsync(StockMain saleReturn, int userId)
     {
-        // 1. Validate Return against Original Sale
-        if (!saleReturn.ReferenceStockMain_ID.HasValue)
+        return await ExecuteInTransactionAsync(async () =>
         {
-            throw new InvalidOperationException("Sale Return must reference an original Sale.");
-        }
-
-        var originalSale = await _stockMainRepository.Query()
-            .Include(s => s.StockDetails)
-            .FirstOrDefaultAsync(s => s.StockMainID == saleReturn.ReferenceStockMain_ID.Value);
-
-        if (originalSale == null)
-        {
-            throw new InvalidOperationException("Original Sale not found.");
-        }
-
-        if (!originalSale.Party_ID.HasValue || originalSale.Party_ID.Value <= 0)
-        {
-            throw new InvalidOperationException(
-                "Sale Return requires an original sale linked to a customer. " +
-                "Please update the original sale with a customer and try again.");
-        }
-
-        // Server-side quantity validation against the reference sale
-        await ValidateReturnQuantitiesAsync(saleReturn);
-        await PopulateMissingLineCostsFromReferenceSaleAsync(saleReturn);
-
-        // 2. Prepare StockMain
-        var transactionType = await _transactionTypeRepository.Query()
-            .FirstOrDefaultAsync(t => t.Code == TRANSACTION_TYPE_CODE);
-
-        if (transactionType == null)
-            throw new InvalidOperationException($"Transaction type '{TRANSACTION_TYPE_CODE}' not found.");
-
-        saleReturn.TransactionType_ID = transactionType.TransactionTypeID;
-        saleReturn.TransactionNo = await GenerateTransactionNoAsync(PREFIX);
-        saleReturn.Status = "Approved";
-        saleReturn.CreatedAt = DateTime.Now;
-        saleReturn.CreatedBy = userId;
-        saleReturn.Party_ID = originalSale.Party_ID; // Same party as original sale
-
-        // Calculate totals
-        CalculateTotals(saleReturn);
-
-        // 3. Save StockMain
-        await _stockMainRepository.AddAsync(saleReturn);
-        await _unitOfWork.SaveChangesAsync();
-
-        // 4. Create Accounting Voucher
-        var voucher = await CreateSaleReturnVoucherAsync(saleReturn, userId);
-        saleReturn.Voucher_ID = voucher.VoucherID;
-
-        // 5. Update Sale Return with Voucher ID
-        _stockMainRepository.Update(saleReturn);
-        
-        // Update the reference Sale's balance if linked
-        if (saleReturn.ReferenceStockMain_ID.HasValue)
-        {
-            var sale = await _stockMainRepository.Query()
-                .Include(s => s.TransactionType)
-                .FirstOrDefaultAsync(s => s.StockMainID == saleReturn.ReferenceStockMain_ID.Value
-                                       && s.TransactionType!.Code == SALE_TRANSACTION_TYPE_CODE);
-
-            if (sale != null)
+            // 1. Validate Return against Original Sale
+            if (!saleReturn.ReferenceStockMain_ID.HasValue)
             {
-                await RecalculateSaleBalanceIncludingReturnsAsync(sale, userId);
-                _stockMainRepository.Update(sale);
+                throw new InvalidOperationException("Sale Return must reference an original Sale.");
             }
-        }
 
-        await _unitOfWork.SaveChangesAsync();
+            var originalSale = await _stockMainRepository.Query()
+                .Include(s => s.StockDetails)
+                .FirstOrDefaultAsync(s => s.StockMainID == saleReturn.ReferenceStockMain_ID.Value);
 
-        return saleReturn;
+            if (originalSale == null)
+            {
+                throw new InvalidOperationException("Original Sale not found.");
+            }
+
+            if (!originalSale.Party_ID.HasValue || originalSale.Party_ID.Value <= 0)
+            {
+                throw new InvalidOperationException(
+                    "Sale Return requires an original sale linked to a customer. " +
+                    "Please update the original sale with a customer and try again.");
+            }
+
+            // Server-side quantity validation against the reference sale
+            await ValidateReturnQuantitiesAsync(saleReturn);
+            await PopulateMissingLineCostsFromReferenceSaleAsync(saleReturn);
+            NormalizeReturnLines(saleReturn);
+
+            // 2. Prepare StockMain
+            var transactionType = await _transactionTypeRepository.Query()
+                .FirstOrDefaultAsync(t => t.Code == TRANSACTION_TYPE_CODE);
+
+            if (transactionType == null)
+                throw new InvalidOperationException($"Transaction type '{TRANSACTION_TYPE_CODE}' not found.");
+
+            saleReturn.TransactionType_ID = transactionType.TransactionTypeID;
+            saleReturn.TransactionNo = await GenerateTransactionNoAsync(PREFIX);
+            saleReturn.Status = "Approved";
+            saleReturn.CreatedAt = DateTime.Now;
+            saleReturn.CreatedBy = userId;
+            saleReturn.Party_ID = originalSale.Party_ID; // Same party as original sale
+
+            // Calculate totals
+            CalculateTotals(saleReturn);
+
+            // 3. Save StockMain
+            await _stockMainRepository.AddAsync(saleReturn);
+            await _unitOfWork.SaveChangesAsync();
+
+            // 4. Create Accounting Voucher
+            var voucher = await CreateSaleReturnVoucherAsync(saleReturn, userId);
+            saleReturn.Voucher_ID = voucher.VoucherID;
+
+            // 5. Update Sale Return with Voucher ID
+            _stockMainRepository.Update(saleReturn);
+            
+            // Update the reference Sale's balance if linked
+            if (saleReturn.ReferenceStockMain_ID.HasValue)
+            {
+                var sale = await _stockMainRepository.Query()
+                    .Include(s => s.TransactionType)
+                    .FirstOrDefaultAsync(s => s.StockMainID == saleReturn.ReferenceStockMain_ID.Value
+                                           && s.TransactionType!.Code == SALE_TRANSACTION_TYPE_CODE);
+
+                if (sale != null)
+                {
+                    await RecalculateSaleBalanceIncludingReturnsAsync(sale, userId);
+                    _stockMainRepository.Update(sale);
+                    await CreateCreditNoteForOverpaymentAsync(saleReturn, sale, userId);
+                }
+            }
+
+            await _unitOfWork.SaveChangesAsync();
+
+            return saleReturn;
+        });
     }
 
     private async Task<Voucher> CreateSaleReturnVoucherAsync(StockMain saleReturn, int userId)
@@ -182,25 +193,33 @@ public class SaleReturnService : TransactionServiceBase, ISaleReturnService
         var salesReturnByAccount = new Dictionary<int, decimal>(); // Debit
         var stockByAccount = new Dictionary<int, decimal>();       // Debit (Asset Increase)
         var cogsByAccount = new Dictionary<int, decimal>();        // Credit (Expense Decrease)
+        var netLineAmounts = AllocateNetReturnByLine(saleReturn);
+        var detailIndex = 0;
 
         foreach (var detail in saleReturn.StockDetails)
         {
             var product = products.FirstOrDefault(p => p.ProductID == detail.Product_ID);
             var category = product?.Category;
 
-            if (category == null) continue;
+            if (category == null)
+            {
+                throw new InvalidOperationException($"Product '{product?.Name ?? detail.Product_ID.ToString()}' does not have a category assigned.");
+            }
 
             // Sales Account (for Return)
             // Use SaleReturnAccount_ID if exists, otherwise SaleAccount_ID
             // Actually usually we Debit Sales Account directly to reduce Revenue
             int salesAccountId = category.SaleAccount_ID ?? 0;
-            if (salesAccountId != 0)
+            if (salesAccountId == 0)
             {
-                if (salesReturnByAccount.ContainsKey(salesAccountId))
-                    salesReturnByAccount[salesAccountId] += detail.LineTotal;
-                else
-                    salesReturnByAccount[salesAccountId] = detail.LineTotal;
+                throw new InvalidOperationException($"Category '{category.Name}' does not have a Sales Account configured.");
             }
+            
+            var lineTotal = netLineAmounts[detailIndex++];
+            if (salesReturnByAccount.ContainsKey(salesAccountId))
+                salesReturnByAccount[salesAccountId] += lineTotal;
+            else
+                salesReturnByAccount[salesAccountId] = lineTotal;
 
             // Stock & COGS
             if (detail.LineCost > 0)
@@ -208,21 +227,25 @@ public class SaleReturnService : TransactionServiceBase, ISaleReturnService
                 int stockAccountId = category.StockAccount_ID ?? 0;
                 int cogsAccountId = category.COGSAccount_ID ?? 0;
 
-                if (stockAccountId != 0)
+                if (stockAccountId == 0)
                 {
-                    if (stockByAccount.ContainsKey(stockAccountId))
-                        stockByAccount[stockAccountId] += detail.LineCost;
-                    else
-                        stockByAccount[stockAccountId] = detail.LineCost;
+                    throw new InvalidOperationException($"Category '{category.Name}' does not have a Stock Account configured.");
                 }
 
-                if (cogsAccountId != 0)
+                if (cogsAccountId == 0)
                 {
-                    if (cogsByAccount.ContainsKey(cogsAccountId))
-                        cogsByAccount[cogsAccountId] += detail.LineCost;
-                    else
-                        cogsByAccount[cogsAccountId] = detail.LineCost;
+                    throw new InvalidOperationException($"Category '{category.Name}' does not have a COGS Account configured.");
                 }
+
+                if (stockByAccount.ContainsKey(stockAccountId))
+                    stockByAccount[stockAccountId] += detail.LineCost;
+                else
+                    stockByAccount[stockAccountId] = detail.LineCost;
+
+                if (cogsByAccount.ContainsKey(cogsAccountId))
+                    cogsByAccount[cogsAccountId] += detail.LineCost;
+                else
+                    cogsByAccount[cogsAccountId] = detail.LineCost;
             }
         }
 
@@ -285,7 +308,6 @@ public class SaleReturnService : TransactionServiceBase, ISaleReturnService
         };
 
         await _voucherRepository.AddAsync(voucher);
-        await _unitOfWork.SaveChangesAsync();
 
         return voucher;
     }
@@ -417,6 +439,137 @@ public class SaleReturnService : TransactionServiceBase, ISaleReturnService
         }
     }
 
+    private static void NormalizeReturnLines(StockMain saleReturn)
+    {
+        if (saleReturn.StockDetails == null || saleReturn.StockDetails.Count == 0)
+        {
+            throw new InvalidOperationException("At least one return line is required.");
+        }
+
+        foreach (var detail in saleReturn.StockDetails)
+        {
+            if (detail.Product_ID <= 0)
+            {
+                throw new InvalidOperationException("Each return line must have a valid product.");
+            }
+
+            if (detail.Quantity <= 0)
+            {
+                throw new InvalidOperationException("Return quantity must be greater than zero.");
+            }
+
+            if (detail.UnitPrice < 0 || detail.CostPrice < 0)
+            {
+                throw new InvalidOperationException("Unit and cost prices cannot be negative.");
+            }
+
+            detail.DiscountPercent = 0;
+            detail.DiscountAmount = 0;
+            detail.LineTotal = Math.Round(detail.Quantity * detail.UnitPrice, 2);
+            detail.LineCost = Math.Round(detail.Quantity * detail.CostPrice, 2);
+        }
+    }
+
+    private static List<decimal> AllocateNetReturnByLine(StockMain saleReturn)
+    {
+        var allocations = new List<decimal>();
+        if (saleReturn.StockDetails == null || saleReturn.StockDetails.Count == 0)
+        {
+            return allocations;
+        }
+
+        var details = saleReturn.StockDetails.ToList();
+
+        var grossSubTotal = details.Sum(d => d.LineTotal);
+        if (grossSubTotal <= 0 || saleReturn.TotalAmount <= 0)
+        {
+            allocations.AddRange(Enumerable.Repeat(0m, details.Count));
+            return allocations;
+        }
+
+        var remaining = saleReturn.TotalAmount;
+        for (var i = 0; i < details.Count; i++)
+        {
+            decimal netAmount;
+            if (i == details.Count - 1)
+            {
+                netAmount = Math.Round(remaining, 2);
+            }
+            else
+            {
+                netAmount = Math.Round((details[i].LineTotal / grossSubTotal) * saleReturn.TotalAmount, 2);
+                remaining -= netAmount;
+            }
+
+            allocations.Add(Math.Max(0, netAmount));
+        }
+
+        return allocations;
+    }
+
+    private async Task CreateCreditNoteForOverpaymentAsync(StockMain saleReturn, StockMain sale, int userId)
+    {
+        if (!sale.Party_ID.HasValue || sale.Party_ID.Value <= 0)
+        {
+            return;
+        }
+
+        var totalReturnsBefore = await _stockMainRepository.Query()
+            .Include(s => s.TransactionType)
+            .Where(s => s.TransactionType!.Code == TRANSACTION_TYPE_CODE
+                     && s.ReferenceStockMain_ID == sale.StockMainID
+                     && s.StockMainID != saleReturn.StockMainID
+                     && s.Status != "Void")
+            .SumAsync(s => (decimal?)s.TotalAmount) ?? 0;
+
+        var overpaymentBefore = Math.Max(0, sale.PaidAmount + totalReturnsBefore - sale.TotalAmount);
+        var overpaymentAfter = Math.Max(0, sale.PaidAmount + totalReturnsBefore + saleReturn.TotalAmount - sale.TotalAmount);
+        var creditAmount = Math.Round(overpaymentAfter - overpaymentBefore, 2);
+
+        if (creditAmount <= 0)
+        {
+            return;
+        }
+
+        var creditNote = new CreditNote
+        {
+            CreditNoteNo = await GenerateCreditNoteNoAsync(),
+            Party_ID = sale.Party_ID.Value,
+            SourceStockMain_ID = saleReturn.StockMainID,
+            TotalAmount = creditAmount,
+            AppliedAmount = 0,
+            BalanceAmount = creditAmount,
+            CreditDate = saleReturn.TransactionDate,
+            Status = "Open",
+            Remarks = $"Credit from sale return {saleReturn.TransactionNo}",
+            CreatedAt = DateTime.Now,
+            CreatedBy = userId
+        };
+
+        await _creditNoteRepository.AddAsync(creditNote);
+    }
+
+    private async Task<string> GenerateCreditNoteNoAsync()
+    {
+        var datePrefix = $"CN-{DateTime.Now:yyyyMMdd}-";
+        var lastCreditNote = await _creditNoteRepository.Query()
+            .Where(c => c.CreditNoteNo.StartsWith(datePrefix))
+            .OrderByDescending(c => c.CreditNoteNo)
+            .FirstOrDefaultAsync();
+
+        var nextNum = 1;
+        if (lastCreditNote?.CreditNoteNo != null)
+        {
+            var parts = lastCreditNote.CreditNoteNo.Split('-');
+            if (parts.Length > 2 && int.TryParse(parts.Last(), out var lastNum))
+            {
+                nextNum = lastNum + 1;
+            }
+        }
+
+        return $"{datePrefix}{nextNum:D4}";
+    }
+
     private async Task RecalculateSaleBalanceIncludingReturnsAsync(StockMain sale, int userId, int? excludeReturnId = null)
     {
         var returnQuery = _stockMainRepository.Query()
@@ -432,7 +585,8 @@ public class SaleReturnService : TransactionServiceBase, ISaleReturnService
 
         var totalReturns = await returnQuery.SumAsync(s => (decimal?)s.TotalAmount) ?? 0;
 
-        sale.BalanceAmount = sale.TotalAmount - sale.PaidAmount - totalReturns;
+        var outstanding = sale.TotalAmount - sale.PaidAmount - totalReturns;
+        sale.BalanceAmount = Math.Max(0, outstanding);
         sale.PaymentStatus = sale.BalanceAmount <= 0
             ? "Paid"
             : (sale.PaidAmount > 0 ? "Partial" : "Unpaid");
@@ -462,42 +616,71 @@ public class SaleReturnService : TransactionServiceBase, ISaleReturnService
 
     public async Task<bool> VoidAsync(int id, string reason, int userId)
     {
-        var saleReturn = await GetByIdAsync(id);
-        if (saleReturn == null)
-            return false;
-
-        if (saleReturn.Status == "Void")
-            return false;
-
-        saleReturn.Status = "Void";
-        saleReturn.VoidReason = reason;
-        saleReturn.VoidedAt = DateTime.Now;
-        saleReturn.VoidedBy = userId;
-
-        // Create reversal voucher if original voucher exists
-        if (saleReturn.Voucher_ID.HasValue)
+        return await ExecuteInTransactionAsync(async () =>
         {
-            await CreateReversalVoucherAsync(saleReturn.Voucher_ID.Value, userId, reason, "StockMain", saleReturn.StockMainID);
-        }
-        
-        // Restore the reference Sale's balance if linked
-        if (saleReturn.ReferenceStockMain_ID.HasValue)
-        {
-            var sale = await _stockMainRepository.Query()
-                .Include(s => s.TransactionType)
-                .FirstOrDefaultAsync(s => s.StockMainID == saleReturn.ReferenceStockMain_ID.Value
-                                       && s.TransactionType!.Code == SALE_TRANSACTION_TYPE_CODE);
-
-            if (sale != null)
+            var saleReturn = await GetByIdAsync(id);
+            if (saleReturn == null || saleReturn.Status == "Void")
             {
-                await RecalculateSaleBalanceIncludingReturnsAsync(sale, userId);
-                _stockMainRepository.Update(sale);
+                return false;
             }
-        }
 
-        _stockMainRepository.Update(saleReturn);
-        await _unitOfWork.SaveChangesAsync();
+            var creditNotes = await _creditNoteRepository.Query()
+                .Where(c => c.SourceStockMain_ID == saleReturn.StockMainID && c.Status != "Void")
+                .ToListAsync();
 
-        return true;
+            foreach (var creditNote in creditNotes)
+            {
+                if (creditNote.AppliedAmount > 0)
+                {
+                    throw new InvalidOperationException(
+                        $"Credit note '{creditNote.CreditNoteNo}' is already applied. Unapply allocations before voiding this return.");
+                }
+
+                creditNote.Status = "Void";
+                creditNote.VoidReason = $"Sale Return voided: {reason}";
+                creditNote.VoidedAt = DateTime.Now;
+                creditNote.VoidedBy = userId;
+                creditNote.UpdatedAt = DateTime.Now;
+                creditNote.UpdatedBy = userId;
+
+                if (creditNote.Voucher_ID.HasValue)
+                {
+                    await CreateReversalVoucherAsync(creditNote.Voucher_ID.Value, userId, reason, "StockMain", saleReturn.StockMainID);
+                }
+
+                _creditNoteRepository.Update(creditNote);
+            }
+
+            saleReturn.Status = "Void";
+            saleReturn.VoidReason = reason;
+            saleReturn.VoidedAt = DateTime.Now;
+            saleReturn.VoidedBy = userId;
+
+            // Create reversal voucher if original voucher exists
+            if (saleReturn.Voucher_ID.HasValue)
+            {
+                await CreateReversalVoucherAsync(saleReturn.Voucher_ID.Value, userId, reason, "StockMain", saleReturn.StockMainID);
+            }
+            
+            // Restore the reference Sale's balance if linked
+            if (saleReturn.ReferenceStockMain_ID.HasValue)
+            {
+                var sale = await _stockMainRepository.Query()
+                    .Include(s => s.TransactionType)
+                    .FirstOrDefaultAsync(s => s.StockMainID == saleReturn.ReferenceStockMain_ID.Value
+                                           && s.TransactionType!.Code == SALE_TRANSACTION_TYPE_CODE);
+
+                if (sale != null)
+                {
+                    await RecalculateSaleBalanceIncludingReturnsAsync(sale, userId, saleReturn.StockMainID);
+                    _stockMainRepository.Update(sale);
+                }
+            }
+
+            _stockMainRepository.Update(saleReturn);
+            await _unitOfWork.SaveChangesAsync();
+
+            return true;
+        });
     }
 }

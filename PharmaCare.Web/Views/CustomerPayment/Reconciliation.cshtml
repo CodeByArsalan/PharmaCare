@@ -1,0 +1,262 @@
+@model PharmaCare.Application.DTOs.Finance.CustomerReconciliationVM
+@inject PharmaCare.Infrastructure.Interfaces.IComboboxRepository _combobox
+@{
+    ViewData["Title"] = "Customer Reconciliation";
+}
+
+<div class="page-header d-flex justify-content-between align-items-center">
+    <h4 class="page-title">
+        <i class="fas fa-balance-scale"></i>
+        Customer Reconciliation
+    </h4>
+    <div>
+        <a asp-action="CreditNotesIndex" asp-route-customerId="@Model.CustomerId" class="btn btn-outline-info me-2">
+            <i class="fas fa-file-invoice"></i> Credit Notes
+        </a>
+        <a asp-action="ReceiptsIndex" class="btn btn-outline-secondary">
+            <i class="fas fa-arrow-left"></i> Receipts
+        </a>
+    </div>
+</div>
+
+<div class="card mb-3">
+    <div class="card-body">
+        <form method="get" asp-action="Reconciliation" class="row g-3 align-items-end">
+            <div class="col-md-5">
+                <label class="form-label">Customer</label>
+                <select name="customerId" class="form-select">
+                    <option value="">-- Select Customer --</option>
+                    @foreach (var item in _combobox.GetActivePartiesByType("Customer", Model.CustomerId))
+                    {
+                        <option value="@item.Value" selected="@item.Selected">@item.Text</option>
+                    }
+                </select>
+                <small class="text-muted">Select a customer to apply credit notes.</small>
+            </div>
+            <div class="col-md-2">
+                <button type="submit" class="btn btn-primary w-100">Load</button>
+            </div>
+        </form>
+    </div>
+</div>
+
+<div class="row g-3 mb-3">
+    <div class="col-md-4">
+        <div class="card h-100">
+            <div class="card-body">
+                <div class="text-muted small">Customer</div>
+                <div class="fs-5 fw-semibold">@(!string.IsNullOrWhiteSpace(Model.CustomerName) ? Model.CustomerName : "All Customers")</div>
+            </div>
+        </div>
+    </div>
+    <div class="col-md-4">
+        <div class="card h-100 border-warning">
+            <div class="card-body">
+                <div class="text-muted small">Outstanding Receivable</div>
+                <div class="fs-4 fw-bold text-warning">@Model.TotalOutstanding.ToString("N2")</div>
+            </div>
+        </div>
+    </div>
+    <div class="col-md-4">
+        <div class="card h-100 border-success">
+            <div class="card-body">
+                <div class="text-muted small">Available Credit</div>
+                <div class="fs-4 fw-bold text-success">@Model.TotalAvailableCredit.ToString("N2")</div>
+            </div>
+        </div>
+    </div>
+</div>
+
+@if (!Model.CustomerId.HasValue)
+{
+    <div class="alert alert-info">
+        Select a customer to enable credit note application.
+    </div>
+}
+
+<div class="card mb-3">
+    <div class="card-header">
+        <h6 class="mb-0"><i class="fas fa-file-invoice-dollar me-2"></i>Outstanding Sales</h6>
+    </div>
+    <div class="card-body">
+        <div class="table-responsive">
+            <table class="table table-hover mb-0" id="outstandingSalesTable">
+                <thead>
+                    <tr>
+                        <th style="width:50px;">S.No</th>
+                        <th>Invoice #</th>
+                        <th>Date</th>
+                        <th>Customer</th>
+                        <th class="text-end">Total</th>
+                        <th class="text-end">Paid</th>
+                        <th class="text-end">Returns</th>
+                        <th class="text-end">Balance</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    @{
+                        var saleNo = 1;
+                    }
+                    @foreach (var sale in Model.OutstandingSales)
+                    {
+                        <tr>
+                            <td>@(saleNo++)</td>
+                            <td><strong>@sale.TransactionNo</strong></td>
+                            <td>@sale.TransactionDate.ToString("dd/MM/yyyy")</td>
+                            <td>@sale.CustomerName</td>
+                            <td class="text-end">@sale.TotalAmount.ToString("N2")</td>
+                            <td class="text-end">@sale.PaidAmount.ToString("N2")</td>
+                            <td class="text-end">@sale.ReturnedAmount.ToString("N2")</td>
+                            <td class="text-end"><strong>@sale.BalanceAmount.ToString("N2")</strong></td>
+                        </tr>
+                    }
+                </tbody>
+            </table>
+        </div>
+    </div>
+</div>
+
+<div class="card">
+    <div class="card-header">
+        <h6 class="mb-0"><i class="fas fa-file-invoice me-2"></i>Open Credit Notes</h6>
+    </div>
+    <div class="card-body">
+        <div class="table-responsive">
+            <table class="table table-hover mb-0" id="creditNotesTable">
+                <thead>
+                    <tr>
+                        <th style="width:50px;">S.No</th>
+                        <th>Credit Note #</th>
+                        <th>Date</th>
+                        <th>Customer</th>
+                        <th>Source</th>
+                        <th class="text-end">Balance</th>
+                        <th class="text-end" style="width:120px;">Action</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    @{
+                        var creditNo = 1;
+                    }
+                    @foreach (var credit in Model.OpenCreditNotes)
+                    {
+                        <tr>
+                            <td>@(creditNo++)</td>
+                            <td><strong>@credit.CreditNoteNo</strong></td>
+                            <td>@credit.CreditDate.ToString("dd/MM/yyyy")</td>
+                            <td>@credit.CustomerName</td>
+                            <td>@(credit.SourceTransactionNo ?? "-")</td>
+                            <td class="text-end"><strong>@credit.BalanceAmount.ToString("N2")</strong></td>
+                            <td class="text-end">
+                                <button type="button"
+                                        class="btn btn-sm btn-primary apply-credit-btn"
+                                        data-id="@credit.CreditNoteId"
+                                        data-no="@credit.CreditNoteNo"
+                                        data-balance="@credit.BalanceAmount"
+                                        @(Model.CustomerId.HasValue && Model.OutstandingSales.Any() ? null : "disabled")>
+                                    Apply
+                                </button>
+                            </td>
+                        </tr>
+                    }
+                </tbody>
+            </table>
+        </div>
+    </div>
+</div>
+
+<div class="modal fade" id="applyCreditModal" tabindex="-1" aria-hidden="true">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <form asp-action="ApplyCreditNote" method="post">
+                <div class="modal-header">
+                    <h5 class="modal-title">Apply Credit Note</h5>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+                </div>
+                <div class="modal-body">
+                    <input type="hidden" name="creditNoteId" id="applyCreditNoteId" />
+                    <input type="hidden" name="customerId" value="@Model.CustomerId" />
+                    <div class="mb-3">
+                        <label class="form-label">Credit Note</label>
+                        <input type="text" class="form-control" id="applyCreditNoteNo" readonly />
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label">Outstanding Sale <span class="text-danger">*</span></label>
+                        <select name="saleId" class="form-select" id="applySaleId" required>
+                            <option value="">-- Select Sale --</option>
+                            @foreach (var sale in Model.OutstandingSales)
+                            {
+                                <option value="@sale.SaleId" data-balance="@sale.BalanceAmount">
+                                    @sale.TransactionNo - Balance @sale.BalanceAmount.ToString("N2")
+                                </option>
+                            }
+                        </select>
+                    </div>
+                    <div class="mb-2">
+                        <label class="form-label">Amount <span class="text-danger">*</span></label>
+                        <input type="number" step="0.01" min="0.01" name="amount" class="form-control" id="applyAmount" required />
+                        <small class="text-muted" id="applyAmountHint"></small>
+                    </div>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-outline-secondary" data-bs-dismiss="modal">Cancel</button>
+                    <button type="submit" class="btn btn-primary">Apply Credit</button>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
+
+@section Scripts {
+    <script>
+        $(document).ready(function() {
+            if (!$.fn.DataTable.isDataTable('#outstandingSalesTable')) {
+                $('#outstandingSalesTable').DataTable({
+                    order: [[2, 'desc']],
+                    pageLength: 25
+                });
+            }
+
+            if (!$.fn.DataTable.isDataTable('#creditNotesTable')) {
+                $('#creditNotesTable').DataTable({
+                    order: [[2, 'asc']],
+                    pageLength: 25
+                });
+            }
+        });
+
+        let currentCreditBalance = 0;
+
+        function updateApplyAmountLimit() {
+            const saleSelect = document.getElementById('applySaleId');
+            const amountInput = document.getElementById('applyAmount');
+            const hint = document.getElementById('applyAmountHint');
+            const selected = saleSelect.options[saleSelect.selectedIndex];
+            const saleBalance = selected && selected.dataset
+                ? parseFloat(selected.dataset.balance || '0')
+                : 0;
+            const maxAmount = Math.max(0, Math.min(currentCreditBalance, saleBalance));
+
+            amountInput.max = maxAmount.toFixed(2);
+            if (!amountInput.value || parseFloat(amountInput.value) > maxAmount) {
+                amountInput.value = maxAmount > 0 ? maxAmount.toFixed(2) : '';
+            }
+
+            hint.textContent = maxAmount > 0
+                ? `Maximum apply amount: ${maxAmount.toFixed(2)}`
+                : 'Select a sale with outstanding balance.';
+        }
+
+        document.getElementById('applySaleId').addEventListener('change', updateApplyAmountLimit);
+
+        document.querySelectorAll('.apply-credit-btn').forEach(btn => {
+            btn.addEventListener('click', function() {
+                currentCreditBalance = parseFloat(this.dataset.balance || '0');
+                document.getElementById('applyCreditNoteId').value = this.dataset.id;
+                document.getElementById('applyCreditNoteNo').value = this.dataset.no;
+                updateApplyAmountLimit();
+                new bootstrap.Modal(document.getElementById('applyCreditModal')).show();
+            });
+        });
+    </script>
+}

@@ -55,7 +55,7 @@ public class SaleController : BaseController
     [ValidateAntiForgeryToken]
     public async Task<IActionResult> AddSale(SaleCreateRequest request, int? PaymentAccountId)
     {
-        var tenderedAmount = Math.Round(request.TenderedAmount ?? request.PaidAmount, 0, MidpointRounding.AwayFromZero);
+        var tenderedAmount = Math.Round(request.TenderedAmount ?? request.PaidAmount, 2, MidpointRounding.AwayFromZero);
         if (tenderedAmount < 0)
         {
             ModelState.AddModelError(nameof(request.TenderedAmount), "Tendered amount cannot be negative.");
@@ -92,6 +92,11 @@ public class SaleController : BaseController
 
         if (!ModelState.IsValid)
         {
+            if (Request.Headers.XRequestedWith == "XMLHttpRequest")
+            {
+                var errors = ModelState.Values.SelectMany(v => v.Errors).Select(e => e.ErrorMessage);
+                return Json(new { success = false, message = string.Join(" ", errors) });
+            }
             SetSaleFormState(request, PaymentAccountId);
             return View(sale);
         }
@@ -106,24 +111,36 @@ public class SaleController : BaseController
             }
 
             await _saleService.CreateAsync(sale, CurrentUserId, PaymentAccountId);
+            TempData["ReceiptTenderedAmount"] = tenderedAmount.ToString();
+
+            var encryptedId = Utility.EncryptId(sale.StockMainID);
+            var receiptUrl = Url.Action(nameof(Receipt), new { id = encryptedId })!;
+            var salesIndexUrl = Url.Action(nameof(SalesIndex))!;
+
+            // AJAX request: return JSON so JS can open receipt in new tab + redirect
+            if (Request.Headers.XRequestedWith == "XMLHttpRequest")
+            {
+                return Json(new { success = true, receiptUrl, salesIndexUrl });
+            }
+
             ShowMessage(MessageType.Success, "Sale created successfully!");
-            return RedirectToAction(nameof(Receipt), new { id = Utility.EncryptId(sale.StockMainID) });
+            return RedirectToAction(nameof(Receipt), new { id = encryptedId });
         }
         catch (Exception ex)
         {
             _logger.LogError(ex, "Failed to create sale for user {UserId}.", CurrentUserId);
 
-            if (ex is InvalidOperationException || ex is ArgumentException)
+            var errorMessage = (ex is InvalidOperationException || ex is ArgumentException)
+                ? ex.Message
+                : "An unexpected error occurred while creating the sale.";
+
+            if (Request.Headers.XRequestedWith == "XMLHttpRequest")
             {
-                ModelState.AddModelError(string.Empty, ex.Message);
-                ShowMessage(MessageType.Error, ex.Message);
+                return Json(new { success = false, message = errorMessage });
             }
-            else
-            {
-                const string fallbackMessage = "An unexpected error occurred while creating the sale.";
-                ModelState.AddModelError(string.Empty, fallbackMessage);
-                ShowMessage(MessageType.Error, fallbackMessage);
-            }
+
+            ModelState.AddModelError(string.Empty, errorMessage);
+            ShowMessage(MessageType.Error, errorMessage);
         }
 
         SetSaleFormState(request, PaymentAccountId);
@@ -210,13 +227,9 @@ public class SaleController : BaseController
             });
         }
 
-        var sales = await _saleService.GetAllAsync();
-        var customerSales = sales
-            .Where(s => s.Party_ID == customerId && !string.Equals(s.Status, "Void", StringComparison.OrdinalIgnoreCase))
-            .ToList();
-
-        var outstandingBalance = Math.Round(customerSales.Where(s => s.BalanceAmount > 0).Sum(s => s.BalanceAmount), 2);
-        var openInvoices = customerSales.Count(s => s.BalanceAmount > 0);
+        var summary = await _saleService.GetCustomerOutstandingSummaryAsync(customerId);
+        var outstandingBalance = summary.OutstandingBalance;
+        var openInvoices = summary.OpenInvoices;
 
         return Json(new
         {
@@ -241,6 +254,13 @@ public class SaleController : BaseController
         {
             ShowMessage(MessageType.Error, "Sale not found.");
             return RedirectToAction(nameof(SalesIndex));
+        }
+
+        if (TempData.TryGetValue("ReceiptTenderedAmount", out var tenderedAmountObj)
+            && decimal.TryParse(Convert.ToString(tenderedAmountObj), out var tenderedAmount))
+        {
+            ViewBag.TenderedAmount = tenderedAmount;
+            TempData.Keep("ReceiptTenderedAmount");
         }
 
         return View(sale);

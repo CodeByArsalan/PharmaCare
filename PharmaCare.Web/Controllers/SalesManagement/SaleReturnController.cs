@@ -69,12 +69,27 @@ public class SaleReturnController : BaseController
         ModelState.Remove("PaymentStatus");
         ModelState.Remove("StockMainID");
 
-        for (int i = 0; i < saleReturn.StockDetails.Count; i++)
+        if (saleReturn.StockDetails == null || saleReturn.StockDetails.Count == 0)
+        {
+            ModelState.AddModelError(nameof(saleReturn.StockDetails), "At least one return item is required.");
+        }
+
+        for (int i = 0; i < (saleReturn.StockDetails?.Count ?? 0); i++)
         {
             ModelState.Remove($"StockDetails[{i}].StockMain");
             ModelState.Remove($"StockDetails[{i}].Product");
             ModelState.Remove($"StockDetails[{i}].StockDetailID");
             ModelState.Remove($"StockDetails[{i}].StockMain_ID");
+        }
+
+        if (!saleReturn.ReferenceStockMain_ID.HasValue || saleReturn.ReferenceStockMain_ID.Value <= 0)
+        {
+            ModelState.AddModelError(nameof(saleReturn.ReferenceStockMain_ID), "Reference Sale is required.");
+        }
+
+        if (!saleReturn.Party_ID.HasValue || saleReturn.Party_ID.Value <= 0)
+        {
+            ModelState.AddModelError(nameof(saleReturn.Party_ID), "Customer is required.");
         }
 
         if (ModelState.IsValid)

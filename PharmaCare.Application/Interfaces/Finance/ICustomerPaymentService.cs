@@ -1,3 +1,4 @@
+using PharmaCare.Application.DTOs.Finance;
 using PharmaCare.Domain.Entities.Finance;
 using PharmaCare.Domain.Entities.Transactions;
 
@@ -35,8 +36,8 @@ public interface ICustomerPaymentService
 
     /// <summary>
     /// Creates a refund payment to a customer (reverse of receipt).
-    /// DR: Customer Account (A/R) — increases what they can claim
-    /// CR: Cash/Bank Account — cash goes out
+    /// DR: Customer Account (A/R) - increases what they can claim.
+    /// CR: Cash/Bank Account - cash goes out.
     /// </summary>
     Task<Payment> CreateRefundAsync(Payment payment, int userId);
 
@@ -44,4 +45,29 @@ public interface ICustomerPaymentService
     /// Gets all customer refunds.
     /// </summary>
     Task<IEnumerable<Payment>> GetAllRefundsAsync();
+
+    /// <summary>
+    /// Voids a customer receipt and reverses accounting impact.
+    /// </summary>
+    Task<bool> VoidReceiptAsync(int paymentId, string reason, int userId);
+
+    /// <summary>
+    /// Voids a customer refund and reverses accounting impact.
+    /// </summary>
+    Task<bool> VoidRefundAsync(int paymentId, string reason, int userId);
+
+    /// <summary>
+    /// Gets open customer credit notes.
+    /// </summary>
+    Task<IEnumerable<CreditNote>> GetOpenCreditNotesAsync(int? customerId = null);
+
+    /// <summary>
+    /// Applies a credit note amount to an outstanding sale invoice.
+    /// </summary>
+    Task ApplyCreditNoteAsync(int creditNoteId, int saleId, decimal amount, int userId);
+
+    /// <summary>
+    /// Gets reconciliation data for outstanding invoices and open credits.
+    /// </summary>
+    Task<CustomerReconciliationVM> GetCustomerReconciliationAsync(int? customerId = null);
 }

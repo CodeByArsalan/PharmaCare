@@ -49,7 +49,7 @@
                         </div>
                         <div class="col-md-6">
                             <label class="form-label">Payment Method <span class="text-danger">*</span></label>
-                            <select asp-for="PaymentMethod" asp-items="ViewBag.PaymentMethods" class="form-select" id="paymentMethod" required>
+                            <select asp-for="PaymentMethod" asp-items="_combobox.GetPaymentMethods(Model.PaymentMethod)" class="form-select" id="paymentMethod" required>
                             </select>
                         </div>
                         <div class="col-md-6">

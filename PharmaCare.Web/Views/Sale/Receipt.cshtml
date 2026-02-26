@@ -4,6 +4,9 @@
     var companyName = "PharmaCare Setup";
     var companyAddress = "123 Health Street, Medical District";
     var companyPhone = "(042) 1234-5678";
+    var tenderedAmount = ViewBag.TenderedAmount != null ? Convert.ToDecimal(ViewBag.TenderedAmount) : Model.PaidAmount;
+    var appliedAmount = Model.PaidAmount;
+    var changeAmount = Math.Max(0m, tenderedAmount - Model.TotalAmount);
 }
 
 <!DOCTYPE html>
@@ -123,14 +126,21 @@
             <td class="text-end">@Model.TotalAmount.ToString("N2")</td>
         </tr>
         <tr>
-            <td>Paid:</td>
-            <td class="text-end">@Model.PaidAmount.ToString("N2")</td>
+            <td>Tendered:</td>
+            <td class="text-end">@tenderedAmount.ToString("N2")</td>
         </tr>
-        @if (Model.PaidAmount >= Model.TotalAmount)
+        @if (Math.Round(appliedAmount, 2) != Math.Round(tenderedAmount, 2))
+        {
+            <tr>
+                <td>Applied:</td>
+                <td class="text-end">@appliedAmount.ToString("N2")</td>
+            </tr>
+        }
+        @if (changeAmount > 0)
         {
              <tr>
                 <td>Change:</td>
-                <td class="text-end">@((Model.PaidAmount - Model.TotalAmount).ToString("N2"))</td>
+                <td class="text-end">@changeAmount.ToString("N2")</td>
             </tr>
         }
         else

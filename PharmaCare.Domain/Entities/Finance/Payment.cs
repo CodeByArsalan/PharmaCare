@@ -65,10 +65,19 @@ public class Payment : BaseEntity
     [StringLength(500)]
     public string? Remarks { get; set; }
 
+    public bool IsVoided { get; set; }
+
+    [StringLength(500)]
+    public string? VoidReason { get; set; }
+    public int? VoidedBy { get; set; }
+    public DateTime? VoidedAt { get; set; }
+
     /// <summary>
     /// Link to auto-generated accounting voucher
     /// </summary>
     [ForeignKey("Voucher")]
     public int? Voucher_ID { get; set; }
     public Voucher? Voucher { get; set; }
+
+    public ICollection<PaymentAllocation> PaymentAllocations { get; set; } = new List<PaymentAllocation>();
 }

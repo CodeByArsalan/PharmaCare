@@ -20,9 +20,9 @@
             <!-- Header Section -->
             <div class="row g-3 mb-4">
                 <div class="col-md-3">
-                    <label class="form-label">Customer</label>
-                    <select asp-for="Party_ID" asp-items="ViewBag.Customers" class="form-select" id="customerSelect">
-                        <option value="">-- Walk-in Customer --</option>
+                    <label class="form-label">Customer <span class="text-danger">*</span></label>
+                    <select asp-for="Party_ID" asp-items="ViewBag.Customers" class="form-select" id="customerSelect" required>
+                        <option value="">-- Select Customer --</option>
                     </select>
                     <span asp-validation-for="Party_ID" class="text-danger small"></span>
                 </div>
@@ -31,10 +31,11 @@
                     <input asp-for="TransactionDate" type="date" class="form-control" required />
                 </div>
                 <div class="col-md-3">
-                    <label class="form-label">Reference Sale</label>
-                    <select asp-for="ReferenceStockMain_ID" class="form-select" id="saleSelect">
-                        <option value="">-- No Reference Sale --</option>
+                    <label class="form-label">Reference Sale <span class="text-danger">*</span></label>
+                    <select asp-for="ReferenceStockMain_ID" class="form-select" id="saleSelect" required>
+                        <option value="">-- Select Reference Sale --</option>
                     </select>
+                    <span asp-validation-for="ReferenceStockMain_ID" class="text-danger small"></span>
                 </div>
                 <div class="col-md-3">
                     <label class="form-label">Remarks</label>
@@ -133,7 +134,7 @@
         document.getElementById('customerSelect').addEventListener('change', async function() {
             const customerId = this.value;
             const saleSelect = document.getElementById('saleSelect');
-            saleSelect.innerHTML = '<option value="">-- No Reference Sale --</option>';
+            saleSelect.innerHTML = '<option value="">-- Select Reference Sale --</option>';
             
             if (customerId) {
                 const response = await fetch(`@Url.Action("GetSales")?customerId=${customerId}`);

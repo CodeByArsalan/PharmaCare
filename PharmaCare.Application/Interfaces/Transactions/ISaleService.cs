@@ -29,4 +29,9 @@ public interface ISaleService
     /// Voids a sale.
     /// </summary>
     Task<bool> VoidAsync(int id, string reason, int userId);
+
+    /// <summary>
+    /// Gets outstanding receivable summary for a customer.
+    /// </summary>
+    Task<(decimal OutstandingBalance, int OpenInvoices)> GetCustomerOutstandingSummaryAsync(int customerId);
 }
