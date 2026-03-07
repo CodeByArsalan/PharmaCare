@@ -97,7 +97,7 @@
                 </div>
                 <div class="col-md-3">
                     <label class="form-label">Price Type</label>
-                    <input type="text" id="priceTypeDisplay" class="form-control" value="@(selectedPriceTypeId == 2 ? "Wholesale" : "Sale Price")" readonly />
+                    <input type="text" id="priceTypeDisplay" class="form-control" value="@(selectedPriceTypeId == 2 ? "Whole Sale" : "Retail Sale")" readonly />
                     <input type="hidden" name="PriceTypeId" id="priceTypeHidden" value="@(selectedPriceTypeId ?? 1)" />
                 </div>
                 <div class="col-md-3">
@@ -453,7 +453,7 @@
 
             if (!customerId) {
                 isWholeSaleCustomer = false;
-                priceTypeDisplay.value = 'Sale Price';
+                priceTypeDisplay.value = 'Retail Price';
                 priceTypeHidden.value = '1';
                 cue.textContent = 'No customer selected';
                 fetchProducts();
@@ -464,7 +464,7 @@
                 const response = await fetch(`@Url.Action("GetCustomerInfo")?customerId=${customerId}`);
                 if (!response.ok) {
                     isWholeSaleCustomer = false;
-                    priceTypeDisplay.value = 'Sale Price';
+                    priceTypeDisplay.value = 'Retail Price';
                     priceTypeHidden.value = '1';
                     cue.textContent = 'Unavailable';
                     fetchProducts();
@@ -476,10 +476,10 @@
                 // Wholesale status
                 isWholeSaleCustomer = result.isWholeSale === true;
                 if (isWholeSaleCustomer) {
-                    priceTypeDisplay.value = 'Wholesale';
+                    priceTypeDisplay.value = 'Whole Sale';
                     priceTypeHidden.value = '2';
                 } else {
-                    priceTypeDisplay.value = 'Sale Price';
+                    priceTypeDisplay.value = 'Retail Price';
                     priceTypeHidden.value = '1';
                 }
 
@@ -496,7 +496,7 @@
             } catch (error) {
                 console.error('Failed to load customer info', error);
                 isWholeSaleCustomer = false;
-                priceTypeDisplay.value = 'Sale Price';
+                priceTypeDisplay.value = 'Retail Price';
                 priceTypeHidden.value = '1';
                 cue.textContent = 'Unavailable';
                 fetchProducts();
