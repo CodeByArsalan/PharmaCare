@@ -2,9 +2,9 @@ using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.Mvc.Rendering;
 using Microsoft.Extensions.Logging;
-using PharmaCare.Application.Interfaces.Accounting;
 using PharmaCare.Application.Interfaces.Configuration;
 using PharmaCare.Application.Interfaces.Transactions;
+using PharmaCare.Domain.Entities.Configuration;
 using PharmaCare.Domain.Entities.Transactions;
 using PharmaCare.Web.Filters;
 using PharmaCare.Web.Utilities;
@@ -18,20 +18,17 @@ public class SaleController : BaseController
     private readonly ISaleService _saleService;
     private readonly IPartyService _partyService;
     private readonly IProductService _productService;
-    private readonly IAccountService _accountService;
     private readonly ILogger<SaleController> _logger;
 
     public SaleController(
         ISaleService saleService,
         IPartyService partyService,
         IProductService productService,
-        IAccountService accountService,
         ILogger<SaleController> logger)
     {
         _saleService = saleService;
         _partyService = partyService;
         _productService = productService;
-        _accountService = accountService;
         _logger = logger;
     }
 
@@ -43,11 +40,9 @@ public class SaleController : BaseController
 
     public IActionResult AddSale()
     {
-        // await LoadDropdownsAsync(); // Removed
         return View(new StockMain
         {
-            TransactionDate = DateTime.Now,
-            StockDetails = new List<StockDetail> { new StockDetail() }
+            TransactionDate = DateTime.Now
         });
     }
 
@@ -76,17 +71,49 @@ public class SaleController : BaseController
         sale.PaidAmount = Math.Max(0, tenderedAmount);
 
         var walkInName = request.WalkInCustomerName?.Trim();
-        if (sale.Party_ID.HasValue && sale.Party_ID.Value > 0 && !string.IsNullOrWhiteSpace(walkInName))
+        Party? selectedParty = null;
+        if (sale.Party_ID.HasValue && sale.Party_ID.Value > 0)
         {
-            var selectedParty = await _partyService.GetByIdAsync(sale.Party_ID.Value);
-            if (selectedParty != null
-                && IsWalkingCustomerParty(selectedParty.Name)
+            selectedParty = await _partyService.GetByIdAsync(sale.Party_ID.Value);
+        }
+
+        if (selectedParty != null && !string.IsNullOrWhiteSpace(walkInName))
+        {
+            if (IsWalkingCustomerParty(selectedParty.Name)
                 && !IsDefaultWalkInLabel(walkInName))
             {
                 var walkInTag = $"Walk-in Name: {walkInName}";
                 sale.Remarks = string.IsNullOrWhiteSpace(sale.Remarks)
                     ? walkInTag
                     : $"{sale.Remarks} | {walkInTag}";
+            }
+        }
+
+        // Server-side wholesale: enforce box pricing and convert boxes → units for stock
+        if (selectedParty?.IsWholeSale == true)
+        {
+            var productsWithStock = await _productService.GetProductsWithStockAsync(priceTypeId: 2);
+            var productLookup = productsWithStock.ToDictionary(
+                ps => ps.Product.ProductID,
+                ps => new
+                {
+                    // SpecificPrice from ProductPrice table is already the per-box wholesale price
+                    BoxPrice = ps.SpecificPrice ?? (ps.Product.OpeningPrice * ps.Product.UnitsInPack),
+                    PerUnitPrice = (ps.SpecificPrice ?? (ps.Product.OpeningPrice * ps.Product.UnitsInPack)) / ps.Product.UnitsInPack,
+                    ps.Product.UnitsInPack
+                });
+
+            foreach (var detail in sale.StockDetails)
+            {
+                if (productLookup.TryGetValue(detail.Product_ID, out var info))
+                {
+                    // User entered quantity in boxes — convert to units for stock deduction
+                    var boxesOrdered = detail.Quantity;
+                    detail.Quantity = boxesOrdered * info.UnitsInPack;
+                    detail.UnitPrice = info.PerUnitPrice;
+                    detail.LineTotal = boxesOrdered * info.BoxPrice;
+                    detail.LineCost = detail.Quantity * detail.CostPrice;
+                }
             }
         }
 
@@ -197,6 +224,7 @@ public class SaleController : BaseController
     }
 
     [HttpGet]
+    [LinkedToPage("Sale", "SalesIndex")]
     public async Task<IActionResult> GetProducts(int? priceTypeId)
     {
         var productsWithStock = await _productService.GetProductsWithStockAsync(priceTypeId);
@@ -206,8 +234,10 @@ public class SaleController : BaseController
                 id = ps.Product.ProductID,
                 name = ps.Product.Name,
                 unitPrice = ps.SpecificPrice ?? ps.Product.OpeningPrice,
-                costPrice = ps.Product.OpeningPrice, // Use OpeningPrice as cost (can be enhanced later)
-                stockQuantity = ps.CurrentStock
+                costPrice = ps.Product.OpeningPrice,
+                stockQuantity = ps.CurrentStock,
+                unitsInPack = ps.Product.UnitsInPack,
+                boxPrice = ps.SpecificPrice ?? (ps.Product.OpeningPrice * ps.Product.UnitsInPack)
             })
             .ToList();
 
@@ -215,28 +245,44 @@ public class SaleController : BaseController
     }
 
     [HttpGet]
-    public async Task<IActionResult> GetCustomerCreditStatus(int customerId)
+    [LinkedToPage("Sale", "SalesIndex")]
+    public async Task<IActionResult> GetCustomerInfo(int customerId)
     {
         if (customerId <= 0)
         {
             return Json(new
             {
+                isWholeSale = false,
                 outstandingBalance = 0m,
                 openInvoices = 0,
                 status = "Unknown"
             });
         }
 
-        var summary = await _saleService.GetCustomerOutstandingSummaryAsync(customerId);
-        var outstandingBalance = summary.OutstandingBalance;
-        var openInvoices = summary.OpenInvoices;
-
-        return Json(new
+        try
         {
-            outstandingBalance,
-            openInvoices,
-            status = outstandingBalance > 0 ? "Outstanding" : "Clear"
-        });
+            var party = await _partyService.GetByIdAsync(customerId);
+            var summary = await _saleService.GetCustomerOutstandingSummaryAsync(customerId);
+
+            return Json(new
+            {
+                isWholeSale = party?.IsWholeSale ?? false,
+                outstandingBalance = summary.OutstandingBalance,
+                openInvoices = summary.OpenInvoices,
+                status = summary.OutstandingBalance > 0 ? "Outstanding" : "Clear"
+            });
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Error fetching customer info for customer {CustomerId}", customerId);
+            return Json(new
+            {
+                isWholeSale = false,
+                outstandingBalance = 0m,
+                openInvoices = 0,
+                status = "Unavailable"
+            });
+        }
     }
 
     [LinkedToPage("Sale", "SalesIndex")]

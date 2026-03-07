@@ -91,7 +91,7 @@ public class SaleService : TransactionServiceBase, ISaleService
             .Where(s =>
                 s.TransactionType!.Code == TRANSACTION_TYPE_CODE &&
                 s.Party_ID == customerId &&
-                !string.Equals(s.Status, TransactionStatus.Void.ToString(), StringComparison.OrdinalIgnoreCase))
+                s.Status != TransactionStatus.Void.ToString())
             .Select(s => new
             {
                 s.StockMainID,
@@ -112,7 +112,7 @@ public class SaleService : TransactionServiceBase, ISaleService
                 s.TransactionType!.Code == "SRTN" &&
                 s.ReferenceStockMain_ID.HasValue &&
                 saleIds.Contains(s.ReferenceStockMain_ID.Value) &&
-                !string.Equals(s.Status, TransactionStatus.Void.ToString(), StringComparison.OrdinalIgnoreCase))
+                s.Status != TransactionStatus.Void.ToString())
             .GroupBy(s => s.ReferenceStockMain_ID!.Value)
             .Select(g => new
             {

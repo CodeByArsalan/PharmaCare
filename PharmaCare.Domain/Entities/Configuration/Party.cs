@@ -20,6 +20,8 @@ public class Party : BaseEntityWithStatus
     [StringLength(20)]
     public string PartyType { get; set; } = "Customer";
 
+    public bool IsWholeSale { get; set; }
+
 
     [Required]
     [StringLength(200)]

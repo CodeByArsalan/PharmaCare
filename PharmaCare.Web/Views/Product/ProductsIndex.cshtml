@@ -183,11 +183,15 @@
                             <input asp-for="NewProduct.UnitsInPack" type="number" class="form-control" value="1" min="1" required />
                             <small class="text-muted">Enter 1 for single unit items</small>
                         </div>
-                        <div class="col-md-3">
+                        <div class="col-md-6">
+                            <label class="form-label">Box Cost Price</label>
+                            <input type="number" id="NewProduct_BoxCostPrice" class="form-control bg-light" readonly placeholder="0.00" />
+                        </div>
+                        <div class="col-md-6">
                             <label class="form-label">Opening Boxes</label>
                             <input asp-for="NewProduct.OpeningStockBoxes" type="number" class="form-control" placeholder="0" min="0" />
                         </div>
-                        <div class="col-md-3">
+                        <div class="col-md-6">
                             <label class="form-label">Opening Units</label>
                             <input asp-for="NewProduct.OpeningStockUnits" type="number" class="form-control" placeholder="0" min="0" />
                         </div>
@@ -340,6 +344,17 @@
                     });
                 }
             });
+
+            // Calculate Box Cost Price for Add Product tab
+            function calculateNewProductBoxCostPrice() {
+                var unitPrice = parseFloat($('#NewProduct_OpeningPrice').val()) || 0;
+                var unitsInPack = parseInt($('#NewProduct_UnitsInPack').val()) || 1;
+                var boxPrice = unitPrice * unitsInPack;
+                $('#NewProduct_BoxCostPrice').val(boxPrice.toFixed(2));
+            }
+
+            $('#NewProduct_OpeningPrice, #NewProduct_UnitsInPack').on('input change', calculateNewProductBoxCostPrice);
+            calculateNewProductBoxCostPrice(); // Initial calculation
         });
     </script>
 }

@@ -97,14 +97,8 @@
                 </div>
                 <div class="col-md-3">
                     <label class="form-label">Price Type</label>
-                    <select id="priceTypeSelect" name="PriceTypeId" class="form-select">
-                        @foreach (var type in _combobox.GetPriceTypes())
-                        {
-                            var isSelected = selectedPriceTypeId.HasValue
-                                && selectedPriceTypeId.Value.ToString() == type.Value;
-                            <option value="@type.Value" selected="@(isSelected ? "selected" : null)">@type.Text</option>
-                        }
-                    </select>
+                    <input type="text" id="priceTypeDisplay" class="form-control" value="@(selectedPriceTypeId == 2 ? "Wholesale" : "Sale Price")" readonly />
+                    <input type="hidden" name="PriceTypeId" id="priceTypeHidden" value="@(selectedPriceTypeId ?? 1)" />
                 </div>
                 <div class="col-md-3">
                     <label class="form-label">Remarks</label>
@@ -117,7 +111,9 @@
                 <div class="card-header d-flex justify-content-between align-items-center">
                     <h6 class="mb-0"><i class="fas fa-list me-2"></i>Line Items</h6>
                     <div class="d-flex align-items-center gap-2">
-                        <small class="text-muted d-none d-md-inline">Tab on Line Total adds next row</small>
+                        <small class="text-muted d-none d-md-inline" title="Ctrl+N: Add row, Ctrl+S: Save">
+                            <i class="fas fa-keyboard me-1"></i>Ctrl+N / Ctrl+S
+                        </small>
                         <button type="button" class="btn btn-sm btn-primary" id="addLineBtn">
                             <i class="fas fa-plus me-1"></i>Add Item
                         </button>
@@ -133,7 +129,6 @@
                                     <th class="w-125px">Quantity <span class="text-danger">*</span></th>
                                     <th class="w-140px">Unit Price <span class="text-danger">*</span></th>
                                     <th class="w-140px">Line Total</th>
-                                    <th class="w-100px">Margin %</th>
                                     <th class="w-50px"></th>
                                 </tr>
                             </thead>
@@ -141,7 +136,7 @@
                             </tbody>
                             <tfoot>
                                 <tr>
-                                    <td colspan="5" class="text-end"><strong>Sub Total:</strong></td>
+                                    <td colspan="4" class="text-end"><strong>Sub Total:</strong></td>
                                     <td class="text-end"><strong id="subTotalDisplay">0.00</strong></td>
                                     <td></td>
                                 </tr>
@@ -338,12 +333,12 @@
         const HIGH_DISCOUNT_CONFIRM_THRESHOLD = 10;
         let lastDiscountEdit = 'percent'; // Track which discount field was last edited
         const WALKING_CUSTOMER_PATTERN = /(walk[\s-]?in|counter)/i;
+        let isWholeSaleCustomer = false; // Tracks if current customer is wholesale
 
         document.addEventListener('DOMContentLoaded', function() {
             initializeCustomerSelect();
-            fetchProducts();
 
-            $('#priceTypeSelect').on('change', function() {
+            $('#priceTypeDisplay').on('change', function() {
                 fetchProducts();
             });
 
@@ -416,7 +411,7 @@
 
             customerSelect.on('change', function() {
                 toggleWalkInNameInput();
-                fetchCustomerCreditStatus();
+                fetchCustomerInfo();
             });
 
             if (!customerSelectElement.value) {
@@ -450,39 +445,88 @@
             }
         }
 
-        async function fetchCustomerCreditStatus() {
+        async function fetchCustomerInfo() {
             const customerId = parseInt(document.getElementById('customerSelect').value || '0', 10);
+            const priceTypeDisplay = document.getElementById('priceTypeDisplay');
+            const priceTypeHidden = document.getElementById('priceTypeHidden');
             const cue = document.getElementById('customerOutstandingCue');
 
             if (!customerId) {
+                isWholeSaleCustomer = false;
+                priceTypeDisplay.value = 'Sale Price';
+                priceTypeHidden.value = '1';
                 cue.textContent = 'No customer selected';
+                fetchProducts();
                 return;
             }
 
             try {
-                const response = await fetch(`@Url.Action("GetCustomerCreditStatus")?customerId=${customerId}`);
+                const response = await fetch(`@Url.Action("GetCustomerInfo")?customerId=${customerId}`);
                 if (!response.ok) {
+                    isWholeSaleCustomer = false;
+                    priceTypeDisplay.value = 'Sale Price';
+                    priceTypeHidden.value = '1';
                     cue.textContent = 'Unavailable';
+                    fetchProducts();
                     return;
                 }
 
                 const result = await response.json();
+
+                // Wholesale status
+                isWholeSaleCustomer = result.isWholeSale === true;
+                if (isWholeSaleCustomer) {
+                    priceTypeDisplay.value = 'Wholesale';
+                    priceTypeHidden.value = '2';
+                } else {
+                    priceTypeDisplay.value = 'Sale Price';
+                    priceTypeHidden.value = '1';
+                }
+
+                // Credit status
                 if (result.status === 'Outstanding') {
                     cue.textContent = `Outstanding PKR ${Number(result.outstandingBalance || 0).toFixed(2)} (${result.openInvoices || 0} invoices)`;
+                } else if (result.status === 'Unavailable') {
+                    cue.textContent = 'Unavailable';
                 } else {
                     cue.textContent = 'Clear';
                 }
+
+                fetchProducts();
             } catch (error) {
-                console.error('Failed to load customer status', error);
+                console.error('Failed to load customer info', error);
+                isWholeSaleCustomer = false;
+                priceTypeDisplay.value = 'Sale Price';
+                priceTypeHidden.value = '1';
                 cue.textContent = 'Unavailable';
+                fetchProducts();
             }
         }
 
+        function buildProductOptions(selectedId = null) {
+            let html = '<option value="">-- Select Product --</option>';
+            products.forEach(p => {
+                const selected = selectedId == p.id ? 'selected' : '';
+                const unitsInPack = p.unitsInPack || 1;
+                let stockText = '';
+                if (p.stockQuantity !== undefined) {
+                    if (isWholeSaleCustomer && unitsInPack > 1) {
+                        const boxes = Math.floor(p.stockQuantity / unitsInPack);
+                        stockText = ` (Stock: ${boxes} boxes)`;
+                    } else {
+                        stockText = ` (Stock: ${p.stockQuantity})`;
+                    }
+                }
+                html += `<option value="${p.id}" data-price="${p.unitPrice}" data-cost="${p.costPrice || p.unitPrice}" data-stock="${p.stockQuantity || 0}" data-box-price="${p.boxPrice || 0}" data-units-in-pack="${unitsInPack}" ${selected}>${p.name}${stockText}</option>`;
+            });
+            return html;
+        }
+
         async function fetchProducts() {
-            const priceTypeRaw = document.getElementById('priceTypeSelect').value;
-            const priceTypeId = parseInt(priceTypeRaw, 10);
+            const priceTypeId = parseInt(document.getElementById('priceTypeHidden').value, 10);
             const url = '@Url.Action("GetProducts")' + (Number.isInteger(priceTypeId) ? `?priceTypeId=${priceTypeId}` : '');
-            
+
+            document.getElementById('lineItemsBody').style.opacity = '0.5';
             try {
                 const response = await fetch(url);
                 products = await response.json();
@@ -496,6 +540,8 @@
                 }
             } catch (error) {
                 console.error('Error fetching products:', error);
+            } finally {
+                document.getElementById('lineItemsBody').style.opacity = '1';
             }
         }
         
@@ -508,20 +554,14 @@
                 if (selectedProductId) {
                     const product = products.find(p => p.id == selectedProductId);
                     if (product) {
-                        row.querySelector('.price-input').value = product.unitPrice.toFixed(2);
+                        var displayPrice = isWholeSaleCustomer ? product.boxPrice : product.unitPrice;
+                        row.querySelector('.price-input').value = displayPrice.toFixed(2);
                         row.querySelector('.cost-price-input').value = (product.costPrice || product.unitPrice).toFixed(2);
                     }
                 }
 
                 const currentVal = select.value;
-                let productOptions = '<option value="">-- Select Product --</option>';
-                products.forEach(p => {
-                    const selected = currentVal == p.id ? 'selected' : '';
-                    const stockText = p.stockQuantity !== undefined ? ` (Stock: ${p.stockQuantity})` : '';
-                    productOptions += `<option value="${p.id}" data-price="${p.unitPrice}" data-cost="${p.costPrice || p.unitPrice}" data-stock="${p.stockQuantity || 0}" ${selected}>${p.name}${stockText}</option>`;
-                });
-
-                select.innerHTML = productOptions;
+                select.innerHTML = buildProductOptions(currentVal);
                 $(select).trigger('change.select2');
                 calculateLineTotal({ target: row.querySelector('.quantity-input') });
             });
@@ -533,12 +573,7 @@
             const tbody = document.getElementById('lineItemsBody');
             const row = document.createElement('tr');
             
-            let productOptions = '<option value="">-- Select Product --</option>';
-            products.forEach(p => {
-                const selected = detail && detail.productId === p.id ? 'selected' : '';
-                const stockText = p.stockQuantity !== undefined ? ` (Stock: ${p.stockQuantity})` : '';
-                productOptions += `<option value="${p.id}" data-price="${p.unitPrice}" data-cost="${p.costPrice || p.unitPrice}" data-stock="${p.stockQuantity || 0}" ${selected}>${p.name}${stockText}</option>`;
-            });
+            const productOptions = buildProductOptions(detail ? detail.productId : null);
 
             const quantity = detail ? detail.quantity : 1;
             const unitPrice = detail ? detail.unitPrice : 0;
@@ -560,16 +595,13 @@
                 </td>
                 <td data-label="Unit Price">
                     <input type="number" name="StockDetails[${rowIndex}].UnitPrice" class="form-control price-input"
-                           step="0.01" min="0" value="${unitPrice}" required />
+                           step="0.01" min="0" value="${unitPrice}" required readonly />
                     <input type="hidden" name="StockDetails[${rowIndex}].CostPrice" class="cost-price-input" value="0" />
                 </td>
                 <td data-label="Line Total">
                     <input type="number" name="StockDetails[${rowIndex}].LineTotal" class="form-control line-total"
                            readonly value="${lineTotal}" />
                     <input type="hidden" name="StockDetails[${rowIndex}].LineCost" class="line-cost" value="0" />
-                </td>
-                <td class="text-center align-middle" data-label="Margin">
-                    <span class="badge bg-success margin-display">--%</span>
                 </td>
                 <td class="text-center align-middle" data-label="Remove">
                     <button type="button" class="btn btn-sm btn-outline-danger remove-row-btn">
@@ -625,14 +657,29 @@
             const selectedOption = e.target.options[e.target.selectedIndex];
             const unitPrice = parseFloat(selectedOption.dataset.price) || 0;
             const costPrice = parseFloat(selectedOption.dataset.cost) || 0;
+            const boxPrice = parseFloat(selectedOption.dataset.boxPrice) || 0;
+            const displayPrice = isWholeSaleCustomer ? boxPrice : unitPrice;
             
-            row.querySelector('.price-input').value = unitPrice.toFixed(2);
+            row.querySelector('.price-input').value = displayPrice.toFixed(2);
             row.querySelector('.cost-price-input').value = costPrice.toFixed(2);
             isPaidAmountAuto = true;
             calculateLineTotal({ target: row.querySelector('.quantity-input') });
+
+            // Duplicate product warning
+            if (e.target.value) {
+                const allSelects = document.querySelectorAll('.product-select');
+                let count = 0;
+                allSelects.forEach(s => { if (s.value === e.target.value) count++; });
+                if (count > 1) {
+                    row.querySelector('.product-select').style.borderColor = '#ffc107';
+                    row.querySelector('.product-select').title = 'This product is already added in another row';
+                } else {
+                    row.querySelector('.product-select').style.borderColor = '';
+                    row.querySelector('.product-select').title = '';
+                }
+            }
             
             // Keyboard Optimization: Focus Quantity after selection
-            // Small delay to allow Select2 to close properly
             setTimeout(() => {
                 const qtyInput = row.querySelector('.quantity-input');
                 if(qtyInput) {
@@ -645,19 +692,31 @@
         function calculateLineTotal(e) {
             const row = e.target.closest('tr');
             const quantityInput = row.querySelector('.quantity-input');
-            const quantity = parseFloat(quantityInput.value) || 0;
+            let quantity = parseFloat(quantityInput.value) || 0;
+            if (quantity < 0) { quantity = 0; quantityInput.value = 0; }
             const unitPrice = parseFloat(row.querySelector('.price-input').value) || 0;
             const costPrice = parseFloat(row.querySelector('.cost-price-input').value) || 0;
             
             const select = row.querySelector('.product-select');
             const selectedOption = select.options[select.selectedIndex];
-            const stock = parseFloat(selectedOption.dataset.stock) || 0;
+            const stockUnits = parseFloat(selectedOption.dataset.stock) || 0;
+            const unitsInPack = parseFloat(selectedOption.dataset.unitsInPack) || 1;
             const feedback = row.querySelector('.stock-feedback');
 
-            if (select.value && quantity > stock) {
+            // For wholesale, stock is in units but user enters boxes
+            let availableForUser, unitLabel;
+            if (isWholeSaleCustomer && unitsInPack > 1) {
+                availableForUser = Math.floor(stockUnits / unitsInPack);
+                unitLabel = 'boxes';
+            } else {
+                availableForUser = stockUnits;
+                unitLabel = 'units';
+            }
+
+            if (select.value && quantity > availableForUser) {
                 quantityInput.classList.add('is-invalid');
                 quantityInput.title = '';
-                feedback.textContent = `Insufficient stock. Available: ${stock}`;
+                feedback.textContent = `Insufficient stock. Available: ${availableForUser} ${unitLabel}`;
             } else {
                 quantityInput.classList.remove('is-invalid');
                 quantityInput.title = '';
@@ -669,7 +728,6 @@
             
             row.querySelector('.line-total').value = lineTotal.toFixed(2);
             row.querySelector('.line-cost').value = lineCost.toFixed(2);
-            updateMarginDisplay(row);
             calculateTotals();
             updateSaveButtonState();
         }
@@ -986,26 +1044,6 @@
                 alert('An error occurred while saving. Please try again.');
                 saveBtn.disabled = false;
                 saveBtn.innerHTML = '<i class="fas fa-save me-1"></i>Save Sale';
-            }
-        }
-
-        // Update margin display when price/cost changes
-        function updateMarginDisplay(row) {
-            const unitPrice = parseFloat(row.querySelector('.price-input').value) || 0;
-            const costPrice = parseFloat(row.querySelector('.cost-price-input').value) || 0;
-            const marginDisplay = row.querySelector('.margin-display');
-            
-            if (unitPrice > 0 && costPrice > 0) {
-                const margin = ((unitPrice - costPrice) / unitPrice) * 100;
-                marginDisplay.textContent = margin.toFixed(1) + '%';
-                marginDisplay.className = margin >= 0 ? 'badge bg-success margin-display' : 'badge bg-danger margin-display';
-            } else if (unitPrice > 0) {
-                // No cost price set, show as neutral
-                marginDisplay.textContent = '--%';
-                marginDisplay.className = 'badge bg-secondary margin-display';
-            } else {
-                marginDisplay.textContent = '--%';
-                marginDisplay.className = 'badge bg-secondary margin-display';
             }
         }
     </script>

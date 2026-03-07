@@ -32,6 +32,16 @@
                         <option value="Both">Both</option>
                     </select>
                 </div>
+
+                <div class="col-md-6" id="IsWholeSaleContainer" style="display: none;">
+                    <label class="form-label d-block text-white">Is Wholesale</label>
+                    <div class="form-check mt-2">
+                        <input asp-for="IsWholeSale" class="form-check-input" type="checkbox" />
+                        <label class="form-check-label" asp-for="IsWholeSale">
+                            Is Wholesale Customer?
+                        </label>
+                    </div>
+                </div>
                 
                 <div class="col-md-6">
                     <label class="form-label">Name <span class="text-danger">*</span></label>
@@ -89,3 +99,22 @@
         </form>
     </div>
 </div>
+
+@section Scripts {
+    <script>
+        $(document).ready(function () {
+            function toggleWholeSale() {
+                var partyType = $('#PartyType').val();
+                if (partyType === 'Customer') {
+                    $('#IsWholeSaleContainer').show();
+                } else {
+                    $('#IsWholeSaleContainer').hide();
+                    $('#IsWholeSale').prop('checked', false);
+                }
+            }
+
+            $('#PartyType').change(toggleWholeSale);
+            toggleWholeSale();
+        });
+    </script>
+}

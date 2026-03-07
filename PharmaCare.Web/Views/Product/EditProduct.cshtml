@@ -56,12 +56,17 @@
                      <small class="text-muted">Enter 1 for single unit items</small>
                 </div>
                 
-                <div class="col-md-3">
+                <div class="col-md-6">
+                    <label class="form-label">Box Cost Price</label>
+                    <input type="number" id="BoxCostPrice" class="form-control bg-light" readonly placeholder="0.00" />
+                </div>
+                
+                <div class="col-md-6">
                     <label class="form-label">Opening Boxes</label>
                     <input asp-for="OpeningStockBoxes" type="number" class="form-control" min="0" />
                 </div>
                 
-                <div class="col-md-3">
+                <div class="col-md-6">
                     <label class="form-label">Opening Units</label>
                     <input asp-for="OpeningStockUnits" type="number" class="form-control" min="0" />
                 </div>
@@ -150,6 +155,17 @@
                     });
                 }
             });
+
+            // Calculate Box Cost Price
+            function calculateBoxCostPrice() {
+                var unitPrice = parseFloat($('#OpeningPrice').val()) || 0;
+                var unitsInPack = parseInt($('#UnitsInPack').val()) || 1;
+                var boxPrice = unitPrice * unitsInPack;
+                $('#BoxCostPrice').val(boxPrice.toFixed(2));
+            }
+
+            $('#OpeningPrice, #UnitsInPack').on('input change', calculateBoxCostPrice);
+            calculateBoxCostPrice(); // Initial calculation
         });
     </script>
 }
