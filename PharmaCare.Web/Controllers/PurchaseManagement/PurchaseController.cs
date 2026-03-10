@@ -88,7 +88,87 @@ public class PurchaseController : BaseController
 
         return View(purchase);
     }
+    [LinkedToPage("Purchase", "PurchasesIndex")]
+    public async Task<IActionResult> EditPurchase(string id)
+    {
+        int purchaseId = Utility.DecryptId(id);
+        if (purchaseId == 0)
+        {
+            ShowMessage(MessageType.Error, "Invalid Purchase ID.");
+            return RedirectToAction(nameof(PurchasesIndex));
+        }
 
+        var purchase = await _purchaseService.GetByIdAsync(purchaseId);
+        if (purchase == null)
+        {
+            ShowMessage(MessageType.Error, "Purchase not found.");
+            return RedirectToAction(nameof(PurchasesIndex));
+        }
+
+        if (purchase.Status != "Approved")
+        {
+            ShowMessage(MessageType.Error, "Only approved purchases can be edited.");
+            return RedirectToAction(nameof(PurchasesIndex));
+        }
+
+        var parties = await _partyService.GetAllAsync();
+        ViewBag.Suppliers = new SelectList(
+            parties.Where(p => p.IsActive && (p.PartyType == "Supplier" || p.PartyType == "Both")),
+            "PartyID",
+            "Name",
+            purchase.Party_ID
+        );
+
+        return View(purchase);
+    }
+
+    [HttpPost]
+    [ValidateAntiForgeryToken]
+    public async Task<IActionResult> EditPurchase(PurchaseCreateRequest request)
+    {
+        if (request.StockMainID <= 0)
+        {
+            ShowMessage(MessageType.Error, "Invalid Purchase ID.");
+            return RedirectToAction(nameof(PurchasesIndex));
+        }
+
+        if (!request.Party_ID.HasValue || request.Party_ID.Value <= 0)
+        {
+            ModelState.AddModelError(nameof(request.Party_ID), "Supplier is required.");
+        }
+
+        if (request.StockDetails == null || request.StockDetails.Count == 0)
+        {
+            ModelState.AddModelError(nameof(request.StockDetails), "At least one item is required.");
+        }
+
+        var purchase = MapToStockMain(request);
+        if (!ModelState.IsValid)
+        {
+            var existing = await _purchaseService.GetByIdAsync(request.StockMainID);
+            return View(existing ?? purchase);
+        }
+
+        try
+        {
+            await _purchaseService.UpdateAsync(purchase, CurrentUserId);
+            ShowMessage(MessageType.Success, "Purchase updated successfully!");
+            return RedirectToAction(nameof(PurchasesIndex));
+        }
+        catch (InvalidOperationException ex)
+        {
+            ShowMessage(MessageType.Error, ex.Message);
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Failed to update purchase {PurchaseId} for user {UserId}.", request.StockMainID, CurrentUserId);
+            ModelState.AddModelError("", "An unexpected error occurred while updating the purchase.");
+        }
+
+        var reloadedPurchase = await _purchaseService.GetByIdAsync(request.StockMainID);
+        return View(reloadedPurchase ?? purchase);
+    }
+    [LinkedToPage("Purchase", "PurchasesIndex")]
     public async Task<IActionResult> ViewPurchase(string id)
     {
         int purchaseId = Utility.DecryptId(id);
@@ -186,6 +266,7 @@ public class PurchaseController : BaseController
     {
         return new StockMain
         {
+            StockMainID = request.StockMainID,
             TransactionDate = request.TransactionDate,
             Party_ID = request.Party_ID,
             ReferenceStockMain_ID = request.ReferenceStockMain_ID,

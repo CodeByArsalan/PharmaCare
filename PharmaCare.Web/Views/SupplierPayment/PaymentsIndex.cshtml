@@ -18,6 +18,9 @@
         Supplier Payments
     </h4>
     <div>
+        <a asp-action="SupplierLedger" class="btn btn-outline-info me-2">
+            <i class="fas fa-book me-1"></i>Supplier Ledger
+        </a>
         <a asp-action="AdvancePaymentsIndex" class="btn btn-outline-primary me-2">
             <i class="fas fa-hand-holding-usd me-1"></i>Advance Payments
         </a>
@@ -172,7 +175,6 @@
 @section Scripts {
     <script>
         $(document).ready(function() {
-            // Initialize DataTable
             if (!$.fn.DataTable.isDataTable('#grnsTable')) {
                 $('#grnsTable').DataTable({
                     order: [[2, 'desc']],
@@ -183,7 +185,6 @@
                 });
             }
 
-            // View Payments Modal
             $('.view-payments-btn').on('click', function() {
                 var stockMainId = $(this).data('stock-main-id');
                 var grnNo = $(this).data('grn-no');
@@ -205,16 +206,18 @@
 
                         var tbody = $('#paymentHistoryTable tbody');
                         data.forEach(function(p) {
-                            tbody.append(`
-                                <tr>
-                                    <td>${p.sNo}</td>
-                                    <td><strong>${p.reference}</strong></td>
-                                    <td>${p.date}</td>
-                                    <td><span class="badge bg-${p.method === 'Cash' ? 'success' : 'primary'}">${p.method}</span></td>
-                                    <td>${p.account || '-'}</td>
-                                    <td class="text-end"><strong>${parseFloat(p.amount).toFixed(2)}</strong></td>
-                                </tr>
-                            `);
+                            var voidedClass = p.isVoided ? 'text-decoration-line-through text-muted' : '';
+                            var voidBadge = p.isVoided ? ' <span class="badge bg-danger" title="' + (p.voidReason || '') + '">Voided</span>' : '';
+                            tbody.append(
+                                '<tr class="' + voidedClass + '">' +
+                                    '<td>' + p.sNo + '</td>' +
+                                    '<td><strong>' + p.reference + '</strong>' + voidBadge + '</td>' +
+                                    '<td>' + p.date + '</td>' +
+                                    '<td><span class="badge bg-' + (p.method === 'Cash' ? 'success' : 'primary') + '">' + p.method + '</span></td>' +
+                                    '<td>' + (p.account || '-') + '</td>' +
+                                    '<td class="text-end"><strong>' + parseFloat(p.amount).toFixed(2) + '</strong></td>' +
+                                '</tr>'
+                            );
                         });
                     })
                     .fail(function() {

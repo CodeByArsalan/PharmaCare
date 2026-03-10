@@ -5,6 +5,7 @@ using PharmaCare.Application.Interfaces.Configuration;
 using PharmaCare.Application.Interfaces.Transactions;
 using PharmaCare.Domain.Entities.Transactions;
 using PharmaCare.Web.Utilities;
+using PharmaCare.Web.ViewModels.Transactions;
 
 namespace PharmaCare.Web.Controllers.PurchaseManagement;
 
@@ -24,11 +25,13 @@ public class PurchaseReturnController : BaseController
         _partyService = partyService;
         _productService = productService;
     }
+
     public async Task<IActionResult> PurchaseReturnsIndex()
     {
         var returns = await _purchaseReturnService.GetAllAsync();
         return View(returns);
     }
+
     public async Task<IActionResult> AddPurchaseReturn()
     {
         await LoadDropdownsAsync();
@@ -38,40 +41,16 @@ public class PurchaseReturnController : BaseController
             StockDetails = new List<StockDetail> { new StockDetail() }
         });
     }
+
     [HttpPost]
     [ValidateAntiForgeryToken]
-    public async Task<IActionResult> AddPurchaseReturn(StockMain purchaseReturn)
+    public async Task<IActionResult> AddPurchaseReturn(PurchaseReturnCreateRequest request)
     {
-        purchaseReturn.StockDetails ??= new List<StockDetail>();
-        if (purchaseReturn.StockDetails.Count == 0)
-        {
-            ModelState.AddModelError(nameof(purchaseReturn.StockDetails), "At least one item is required.");
-        }
-
-        // Remove validation for navigation properties
-        ModelState.Remove("TransactionType");
-        ModelState.Remove("Party");
-        ModelState.Remove("Voucher");
-        ModelState.Remove("ReferenceStockMain");
-        
-        // Remove validation for auto-generated/computed fields
-        ModelState.Remove("TransactionNo");
-        ModelState.Remove("Status");
-        ModelState.Remove("PaymentStatus");
-        ModelState.Remove("StockMainID");
-
-        for (int i = 0; i < purchaseReturn.StockDetails.Count; i++)
-        {
-            ModelState.Remove($"StockDetails[{i}].StockMain");
-            ModelState.Remove($"StockDetails[{i}].Product");
-            ModelState.Remove($"StockDetails[{i}].StockDetailID");
-            ModelState.Remove($"StockDetails[{i}].StockMain_ID");
-        }
-
         if (ModelState.IsValid)
         {
             try
             {
+                var purchaseReturn = MapToStockMain(request);
                 await _purchaseReturnService.CreateAsync(purchaseReturn, CurrentUserId);
                 ShowMessage(MessageType.Success, "Purchase Return created successfully!");
                 return RedirectToAction(nameof(PurchaseReturnsIndex));
@@ -83,8 +62,9 @@ public class PurchaseReturnController : BaseController
         }
 
         await LoadDropdownsAsync();
-        return View(purchaseReturn);
+        return View(MapToStockMain(request));
     }
+
     public async Task<IActionResult> ViewPurchaseReturn(string id)
     {
         int purchaseReturnId = Utility.DecryptId(id);
@@ -103,6 +83,7 @@ public class PurchaseReturnController : BaseController
 
         return View(purchaseReturn);
     }
+
     [HttpPost]
     [ValidateAntiForgeryToken]
     public async Task<IActionResult> Void(string id, string voidReason)
@@ -113,6 +94,7 @@ public class PurchaseReturnController : BaseController
              ShowMessage(MessageType.Error, "Invalid Purchase Return ID.");
              return RedirectToAction(nameof(PurchaseReturnsIndex));
         }
+
         if (string.IsNullOrWhiteSpace(voidReason))
         {
             ShowMessage(MessageType.Error, "Void reason is required.");
@@ -131,6 +113,7 @@ public class PurchaseReturnController : BaseController
 
         return RedirectToAction(nameof(PurchaseReturnsIndex));
     }
+
     [HttpGet]
     public async Task<IActionResult> GetGrns(int? supplierId)
     {
@@ -155,6 +138,7 @@ public class PurchaseReturnController : BaseController
 
         return Json(result);
     }
+
     [HttpGet]
     public async Task<IActionResult> GetProducts()
     {
@@ -174,7 +158,6 @@ public class PurchaseReturnController : BaseController
 
     private async Task LoadDropdownsAsync()
     {
-        // Load suppliers
         var parties = await _partyService.GetAllAsync();
         ViewBag.Suppliers = new SelectList(
             parties.Where(p => p.IsActive && (p.PartyType == "Supplier" || p.PartyType == "Both")),
@@ -182,7 +165,6 @@ public class PurchaseReturnController : BaseController
             "Name"
         );
 
-        // Load products
         var products = await _productService.GetAllAsync();
         ViewBag.Products = new SelectList(
             products.Where(p => p.IsActive),
@@ -190,12 +172,37 @@ public class PurchaseReturnController : BaseController
             "Name"
         );
 
-        // Load available GRNs
         var grns = await _purchaseReturnService.GetGrnsForReturnAsync();
         ViewBag.Grns = new SelectList(
             grns,
             "StockMainID",
             "TransactionNo"
         );
+    }
+
+    /// <summary>
+    /// Maps a PurchaseReturnCreateRequest DTO to a StockMain entity.
+    /// </summary>
+    private static StockMain MapToStockMain(PurchaseReturnCreateRequest request)
+    {
+        return new StockMain
+        {
+            TransactionDate = request.TransactionDate,
+            Party_ID = request.Party_ID,
+            ReferenceStockMain_ID = request.ReferenceStockMain_ID,
+            Remarks = request.Remarks,
+            StockDetails = request.StockDetails.Select(d => new StockDetail
+            {
+                Product_ID = d.Product_ID,
+                Quantity = d.Quantity,
+                UnitPrice = d.UnitPrice,
+                CostPrice = d.CostPrice,
+                DiscountPercent = d.DiscountPercent,
+                DiscountAmount = d.DiscountAmount,
+                LineTotal = d.LineTotal,
+                LineCost = d.LineCost,
+                Remarks = d.Remarks
+            }).ToList()
+        };
     }
 }

@@ -1,0 +1,185 @@
+@{
+    ViewData["Title"] = "Supplier Ledger";
+    var entries = ViewBag.LedgerEntries as IEnumerable<PharmaCare.Web.Controllers.PurchaseManagement.LedgerEntry> 
+                  ?? new List<PharmaCare.Web.Controllers.PurchaseManagement.LedgerEntry>();
+    var supplierName = (string?)ViewBag.SupplierName ?? "";
+    var hasEntries = entries.Any();
+}
+
+<!-- Page Header -->
+<div class="page-header d-flex justify-content-between align-items-center">
+    <h4 class="page-title">
+        <i class="fas fa-book"></i>
+        Supplier Ledger
+        @if (!string.IsNullOrEmpty(supplierName))
+        {
+            <span class="text-muted fs-6 ms-2">— @supplierName</span>
+        }
+    </h4>
+    <a asp-action="PaymentsIndex" class="btn btn-outline-secondary">
+        <i class="fas fa-arrow-left me-2"></i>Back to Payments
+    </a>
+</div>
+
+<!-- Filters -->
+<div class="card mb-4">
+    <div class="card-body">
+        <form asp-action="SupplierLedger" method="get">
+            <div class="row g-3 align-items-end">
+                <div class="col-md-3">
+                    <label class="form-label">Supplier <span class="text-danger">*</span></label>
+                    <select name="supplierId" asp-items="ViewBag.Suppliers" class="form-select" required>
+                        <option value="">-- Select Supplier --</option>
+                    </select>
+                </div>
+                <div class="col-md-2">
+                    <label class="form-label">From Date</label>
+                    <input type="date" name="fromDate" class="form-control" 
+                           value="@(ViewBag.FromDate != null ? ((DateTime)ViewBag.FromDate).ToString("yyyy-MM-dd") : "")" />
+                </div>
+                <div class="col-md-2">
+                    <label class="form-label">To Date</label>
+                    <input type="date" name="toDate" class="form-control" 
+                           value="@(((DateTime)ViewBag.ToDate).ToString("yyyy-MM-dd"))" />
+                </div>
+                <div class="col-md-3">
+                    <button type="submit" class="btn btn-primary">
+                        <i class="fas fa-search me-1"></i>View Ledger
+                    </button>
+                    <a asp-action="SupplierLedger" class="btn btn-outline-secondary ms-1">
+                        <i class="fas fa-times me-1"></i>Reset
+                    </a>
+                </div>
+            </div>
+        </form>
+    </div>
+</div>
+
+@if (ViewBag.SelectedSupplier != null)
+{
+    <!-- Summary Cards -->
+    <div class="row g-3 mb-4">
+        <div class="col-md-4">
+            <div class="card border-start border-primary border-3">
+                <div class="card-body text-center">
+                    <div class="text-muted small">Total Purchases (Debit)</div>
+                    <div class="fs-4 fw-bold" style="color: #60a5fa;">@((ViewBag.TotalDebit as decimal?)?.ToString("N2") ?? "0.00")</div>
+                </div>
+            </div>
+        </div>
+        <div class="col-md-4">
+            <div class="card border-start border-success border-3">
+                <div class="card-body text-center">
+                    <div class="text-muted small">Total Payments (Credit)</div>
+                    <div class="fs-4 fw-bold" style="color: #4ade80;">@((ViewBag.TotalCredit as decimal?)?.ToString("N2") ?? "0.00")</div>
+                </div>
+            </div>
+        </div>
+        <div class="col-md-4">
+            @{
+                var closingBalance = ViewBag.ClosingBalance as decimal? ?? 0;
+                var balColor = closingBalance > 0 ? "#f87171" : closingBalance < 0 ? "#4ade80" : "#94a3b8";
+                var balLabel = closingBalance > 0 ? "Payable to Supplier" : closingBalance < 0 ? "Advance Balance" : "Settled";
+            }
+            <div class="card border-start border-danger border-3">
+                <div class="card-body text-center">
+                    <div class="text-muted small">Closing Balance (@balLabel)</div>
+                    <div class="fs-4 fw-bold" style="color: @balColor;">@Math.Abs(closingBalance).ToString("N2")</div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Ledger Table -->
+    <div class="card">
+        <div class="card-body p-0">
+            <div class="table-responsive">
+                <table class="table table-hover mb-0" id="ledgerTable">
+                    <thead>
+                        <tr>
+                            <th style="width: 50px;">S.No</th>
+                            <th>Date</th>
+                            <th>Reference</th>
+                            <th>Type</th>
+                            <th class="text-end">Debit</th>
+                            <th class="text-end">Credit</th>
+                            <th class="text-end">Balance</th>
+                            <th>Remarks</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        @if (hasEntries)
+                        {
+                            var sNo = 1;
+                            foreach (var entry in entries)
+                            {
+                                <tr>
+                                    <td>@(sNo++)</td>
+                                    <td>@entry.Date.ToString("dd/MM/yyyy")</td>
+                                    <td><strong>@entry.Reference</strong></td>
+                                    <td><span class="badge bg-@entry.TypeBadge">@entry.Type</span></td>
+                                    <td class="text-end @(entry.Debit > 0 ? "fw-bold" : "text-muted")">
+                                        @(entry.Debit > 0 ? entry.Debit.ToString("N2") : "-")
+                                    </td>
+                                    <td class="text-end @(entry.Credit > 0 ? "fw-bold text-success" : "text-muted")">
+                                        @(entry.Credit > 0 ? entry.Credit.ToString("N2") : "-")
+                                    </td>
+                                    <td class="text-end fw-bold @(entry.Balance > 0 ? "text-danger" : entry.Balance < 0 ? "text-success" : "")">
+                                        @entry.Balance.ToString("N2")
+                                    </td>
+                                    <td class="text-muted small">@(entry.Remarks ?? "")</td>
+                                </tr>
+                            }
+                        }
+                        else
+                        {
+                            <tr>
+                                <td colspan="8" class="text-center py-4">
+                                    <i class="fas fa-info-circle fa-2x text-muted mb-2"></i>
+                                    <p class="text-muted mb-0">No transactions found for the selected period.</p>
+                                </td>
+                            </tr>
+                        }
+                    </tbody>
+                    @if (hasEntries)
+                    {
+                        <tfoot style="background-color: var(--bg-elevated, #f8f9fa);">
+                            <tr class="fw-bold">
+                                <td colspan="4" class="text-end">Totals:</td>
+                                <td class="text-end">@((ViewBag.TotalDebit as decimal?)?.ToString("N2"))</td>
+                                <td class="text-end text-success">@((ViewBag.TotalCredit as decimal?)?.ToString("N2"))</td>
+                                <td class="text-end @(closingBalance > 0 ? "text-danger" : "text-success")">@closingBalance.ToString("N2")</td>
+                                <td></td>
+                            </tr>
+                        </tfoot>
+                    }
+                </table>
+            </div>
+        </div>
+    </div>
+}
+else
+{
+    <div class="card">
+        <div class="card-body text-center py-5">
+            <i class="fas fa-book fa-3x text-muted mb-3"></i>
+            <h5 class="text-muted">Select a Supplier</h5>
+            <p class="text-muted">Choose a supplier from the dropdown above to view their ledger statement.</p>
+        </div>
+    </div>
+}
+
+@section Scripts {
+    <script>
+        $(document).ready(function() {
+            if ($.fn.DataTable && !$.fn.DataTable.isDataTable('#ledgerTable')) {
+                $('#ledgerTable').DataTable({
+                    paging: false,
+                    ordering: false,
+                    info: false,
+                    searching: true
+                });
+            }
+        });
+    </script>
+}

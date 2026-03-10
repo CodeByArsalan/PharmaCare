@@ -165,9 +165,27 @@ public class PurchaseOrderService : IPurchaseOrderService
         if (purchaseOrder == null)
             return false;
 
-        // Toggle by voiding (can't truly delete)
-        if (purchaseOrder.Status == "Void")
+        if (purchaseOrder.Status == "Void" || purchaseOrder.Status == "Completed")
             return false;
+
+        // Block voiding if non-voided GRNs reference this PO
+        var hasActiveGrns = await _stockMainRepository.Query()
+            .Include(s => s.TransactionType)
+            .AnyAsync(s => s.TransactionType!.Code == GRN_TRANSACTION_TYPE_CODE
+                        && s.Status != "Void"
+                        && s.ReferenceStockMain_ID == id);
+
+        if (hasActiveGrns)
+            throw new InvalidOperationException("Cannot cancel this Purchase Order because it has active GRN(s). Void the linked GRN(s) first.");
+
+        // Block voiding if payments exist against this PO
+        var hasPayments = await _paymentRepository.Query()
+            .AnyAsync(p => p.StockMain_ID == id
+                        && p.PaymentType == SupplierPaymentType
+                        && !p.IsVoided);
+
+        if (hasPayments)
+            throw new InvalidOperationException("Cannot cancel this Purchase Order because it has active payment(s). Void the payment(s) first.");
 
         purchaseOrder.Status = "Void";
         purchaseOrder.VoidedAt = DateTime.Now;
@@ -284,16 +302,17 @@ public class PurchaseOrderService : IPurchaseOrderService
             return;
         }
 
-        var approvedPos = purchaseOrders
-            .Where(po => string.Equals(po.Status, "Approved", StringComparison.OrdinalIgnoreCase))
+        var activePos = purchaseOrders
+            .Where(po => string.Equals(po.Status, "Approved", StringComparison.OrdinalIgnoreCase)
+                      || string.Equals(po.Status, "Completed", StringComparison.OrdinalIgnoreCase))
             .ToList();
 
-        if (approvedPos.Count == 0)
+        if (activePos.Count == 0)
         {
             return;
         }
 
-        var poIds = approvedPos.Select(po => po.StockMainID).ToList();
+        var poIds = activePos.Select(po => po.StockMainID).ToList();
 
         var receivedLines = await _stockMainRepository.Query()
             .AsNoTracking()
@@ -319,6 +338,7 @@ public class PurchaseOrderService : IPurchaseOrderService
         var poPayments = await _paymentRepository.Query()
             .AsNoTracking()
             .Where(p => p.PaymentType == SupplierPaymentType
+                     && !p.IsVoided
                      && p.StockMain_ID.HasValue
                      && poIds.Contains(p.StockMain_ID.Value))
             .GroupBy(p => p.StockMain_ID!.Value)
@@ -331,7 +351,7 @@ public class PurchaseOrderService : IPurchaseOrderService
 
         var paymentLookup = poPayments.ToDictionary(x => x.PoId, x => x.PaidAmount);
 
-        foreach (var po in approvedPos)
+        foreach (var po in activePos)
         {
             var remainingTotal = CalculateRemainingPoTotal(po, receivedLookup);
             paymentLookup.TryGetValue(po.StockMainID, out var paidAmount);
@@ -341,6 +361,12 @@ public class PurchaseOrderService : IPurchaseOrderService
             po.PaymentStatus = po.BalanceAmount <= 0
                 ? PaymentStatus.Paid.ToString()
                 : (po.PaidAmount <= 0 ? PaymentStatus.Unpaid.ToString() : PaymentStatus.Partial.ToString());
+
+            // Auto-mark as Completed if all items are fully received
+            if (po.Status == "Approved" && remainingTotal <= 0)
+            {
+                po.Status = "Completed";
+            }
         }
     }
 

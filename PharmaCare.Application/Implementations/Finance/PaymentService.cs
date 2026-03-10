@@ -526,6 +526,112 @@ public class PaymentService : IPaymentService
             .ToListAsync();
     }
 
+    /// <summary>
+    /// Gets all payments for a specific party/supplier.
+    /// </summary>
+    public async Task<IEnumerable<Payment>> GetPaymentsByPartyAsync(int partyId)
+    {
+        return await _paymentRepository.Query()
+            .Include(p => p.Party)
+            .Include(p => p.Account)
+            .Include(p => p.StockMain)
+            .Where(p => p.PaymentType == SupplierPaymentType && p.Party_ID == partyId)
+            .OrderByDescending(p => p.PaymentDate)
+            .ThenByDescending(p => p.PaymentID)
+            .ToListAsync();
+    }
+
+    /// <summary>
+    /// Voids a supplier payment — reverses accounting and recalculates linked transaction balance.
+    /// </summary>
+    public async Task<bool> VoidPaymentAsync(int paymentId, string reason, int userId)
+    {
+        return await ExecuteInTransactionAsync(async () =>
+        {
+            var payment = await _paymentRepository.Query()
+                .Include(p => p.Voucher)
+                    .ThenInclude(v => v!.VoucherDetails)
+                .Include(p => p.StockMain)
+                .FirstOrDefaultAsync(p => p.PaymentID == paymentId);
+
+            if (payment == null)
+                throw new InvalidOperationException("Payment not found.");
+
+            if (payment.IsVoided)
+                throw new InvalidOperationException("This payment has already been voided.");
+
+            // Mark payment as voided
+            payment.IsVoided = true;
+            payment.VoidReason = reason;
+            payment.VoidedBy = userId;
+            payment.VoidedAt = DateTime.Now;
+            _paymentRepository.Update(payment);
+
+            // Create reversal voucher if original voucher exists
+            if (payment.Voucher != null && !payment.Voucher.IsReversed)
+            {
+                var reversalVoucherNo = $"REV-{payment.Voucher.VoucherNo}";
+                var reversalVoucher = new Voucher
+                {
+                    VoucherType_ID = payment.Voucher.VoucherType_ID,
+                    VoucherNo = reversalVoucherNo,
+                    VoucherDate = DateTime.Now,
+                    TotalDebit = payment.Voucher.TotalCredit,
+                    TotalCredit = payment.Voucher.TotalDebit,
+                    Status = "Posted",
+                    SourceTable = "Payment",
+                    SourceID = payment.PaymentID,
+                    Narration = $"Reversal of {payment.Voucher.VoucherNo} - Void: {reason}",
+                    ReversesVoucher_ID = payment.Voucher.VoucherID,
+                    CreatedAt = DateTime.Now,
+                    CreatedBy = userId
+                };
+
+                foreach (var detail in payment.Voucher.VoucherDetails)
+                {
+                    reversalVoucher.VoucherDetails.Add(new VoucherDetail
+                    {
+                        Account_ID = detail.Account_ID,
+                        DebitAmount = detail.CreditAmount,
+                        CreditAmount = detail.DebitAmount,
+                        Description = $"Reversal - {detail.Description}",
+                        Party_ID = detail.Party_ID,
+                        Product_ID = detail.Product_ID
+                    });
+                }
+
+                await _voucherRepository.AddAsync(reversalVoucher);
+
+                payment.Voucher.IsReversed = true;
+                payment.Voucher.ReversedByVoucher = reversalVoucher;
+                _voucherRepository.Update(payment.Voucher);
+            }
+
+            // Recalculate the linked StockMain's payment balance
+            if (payment.StockMain_ID.HasValue && payment.StockMain != null)
+            {
+                var stockMain = payment.StockMain;
+                var totalPaid = await _paymentRepository.Query()
+                    .Where(p => p.StockMain_ID == stockMain.StockMainID
+                             && p.PaymentType == SupplierPaymentType
+                             && !p.IsVoided
+                             && p.PaymentID != paymentId)
+                    .SumAsync(p => p.Amount);
+
+                stockMain.PaidAmount = Math.Max(0, Math.Round(totalPaid, 2));
+                stockMain.BalanceAmount = Math.Max(0, Math.Round(stockMain.TotalAmount - stockMain.PaidAmount, 2));
+                stockMain.PaymentStatus = stockMain.BalanceAmount <= 0
+                    ? PaymentStatus.Paid.ToString()
+                    : (stockMain.PaidAmount <= 0 ? PaymentStatus.Unpaid.ToString() : PaymentStatus.Partial.ToString());
+
+                _stockMainRepository.Update(stockMain);
+            }
+
+            await _unitOfWork.SaveChangesAsync();
+            return true;
+        });
+    }
+
     private async Task<T> ExecuteInTransactionAsync<T>(Func<Task<T>> operation)
     {
         await _unitOfWork.BeginTransactionAsync();

@@ -26,8 +26,11 @@
                     <th>Supplier</th>
                     <th>Reference PO</th>
                     <th class="text-end">Amount</th>
+                    <th class="text-end">Paid</th>
+                    <th class="text-end">Balance</th>
+                    <th>Payment</th>
                     <th>Status</th>
-                    <th class="text-end" style="width: 150px;">Actions</th>
+                    <th class="text-end" style="width: 200px;">Actions</th>
                 </tr>
             </thead>
             <tbody>
@@ -43,6 +46,22 @@
                             <td>@item.Party?.Name</td>
                             <td>@(item.ReferenceStockMain?.TransactionNo ?? "-")</td>
                             <td class="text-end">@item.TotalAmount.ToString("N2")</td>
+                            <td class="text-end text-success">@item.PaidAmount.ToString("N2")</td>
+                            <td class="text-end @(item.BalanceAmount > 0 ? "text-danger fw-bold" : "text-success")">@item.BalanceAmount.ToString("N2")</td>
+                            <td>
+                                @{
+                                    var payStatusClass = item.PaymentStatus switch
+                                    {
+                                        "Paid" => "success",
+                                        "Partial" => "warning",
+                                        _ => "danger"
+                                    };
+                                }
+                                @if (item.Status == "Approved")
+                                {
+                                    <span class="badge bg-@payStatusClass">@item.PaymentStatus</span>
+                                }
+                            </td>
                             <td>
                                 @if (item.Status == "Approved")
                                 {
@@ -59,6 +78,18 @@
                                 </a>
                                 @if (item.Status == "Approved")
                                 {
+                                    <a asp-action="EditPurchase" asp-route-id="@item.StockMainID.EncryptId()" class="btn btn-sm btn-outline-warning" title="Edit">
+                                        <i class="fas fa-pencil-alt"></i>
+                                    </a>
+                                }
+                                @if (item.Status == "Approved" && item.BalanceAmount > 0)
+                                {
+                                    <a asp-controller="SupplierPayment" asp-action="MakePayment" asp-route-stockMainId="@item.StockMainID.EncryptId()" class="btn btn-sm btn-success" title="Make Payment">
+                                        <i class="fas fa-money-bill"></i>
+                                    </a>
+                                }
+                                @if (item.Status == "Approved")
+                                {
                                     <button type="button" class="btn btn-sm btn-outline-danger btn-void" 
                                             data-id="@item.StockMainID.EncryptId()" data-no="@item.TransactionNo" title="Void">
                                         <i class="fas fa-ban"></i>
@@ -71,7 +102,7 @@
                 else
                 {
                     <tr>
-                        <td colspan="8" class="text-center py-4">
+                        <td colspan="11" class="text-center py-4">
                             <div class="empty-state">
                                 <i class="fas fa-truck-loading fa-3x text-muted mb-3"></i>
                                 <p class="mb-0">No purchases found. Click "Add Purchase" to create one.</p>

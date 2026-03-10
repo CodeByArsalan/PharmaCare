@@ -91,9 +91,54 @@
                 </div>
             </div>
 
+            <!-- Advance Payment Section (Optional) -->
+            <div class="card mb-4">
+                <div class="card-header">
+                    <h6 class="mb-0"><i class="fas fa-money-bill-wave me-2"></i>Advance Payment (Optional)</h6>
+                </div>
+                <div class="card-body" id="paymentSection">
+                    <div class="alert alert-info py-2 mb-3">
+                        <i class="fas fa-info-circle me-1"></i>
+                        If you include a payment, the PO will be <strong>auto-approved</strong> and the advance recorded immediately.
+                    </div>
+                    <div class="row g-3">
+                        <div class="col-md-4">
+                            <label class="form-label">Payment Amount <span class="text-danger">*</span></label>
+                            <div class="input-group">
+                                <span class="input-group-text">PKR</span>
+                                <input type="number" name="PaidAmount" id="paidAmount" class="form-control" step="0.01" min="0.01" value="0" />
+                            </div>
+                            <div class="form-text" id="maxPayableHint">Max: 0.00</div>
+                        </div>
+                        <div class="col-md-4">
+                            <label class="form-label">Payment Method <span class="text-danger">*</span></label>
+                            <select name="PaymentMethod" id="paymentMethod" class="form-select">
+                                <option value="Cash">Cash</option>
+                                <option value="Bank">Bank Transfer</option>
+                                <option value="Cheque">Cheque</option>
+                            </select>
+                        </div>
+                        <div class="col-md-4">
+                            <label class="form-label">Account <span class="text-danger">*</span></label>
+                            <select name="PaymentAccountId" id="paymentAccount" class="form-select">
+                                <option value="">-- Select Account --</option>
+                            </select>
+                        </div>
+                        <div class="col-md-4" id="chequeNoGroup" style="display: none;">
+                            <label class="form-label">Cheque No</label>
+                            <input type="text" name="ChequeNo" class="form-control" placeholder="Enter cheque number" />
+                        </div>
+                        <div class="col-md-4" id="chequeDateGroup" style="display: none;">
+                            <label class="form-label">Cheque Date</label>
+                            <input type="date" name="ChequeDate" class="form-control" />
+                        </div>
+                    </div>
+                </div>
+            </div>
+
             <div class="text-end">
                 <a asp-action="PurchaseOrdersIndex" class="btn btn-outline-secondary me-2">Cancel</a>
-                <button type="submit" class="btn btn-primary">
+                <button type="submit" class="btn btn-primary" id="submitBtn">
                     <i class="fas fa-save me-2"></i>Save Purchase Order
                 </button>
             </div>
@@ -226,6 +271,55 @@
             document.getElementById('subTotal').value = total.toFixed(2);
             document.getElementById('totalAmountDisplay').textContent = total.toFixed(2);
             document.getElementById('totalAmount').value = total.toFixed(2);
+
+            // Update payment max
+            const payAmtEl = document.getElementById('paidAmount');
+            if (payAmtEl) {
+                payAmtEl.max = total.toFixed(2);
+                document.getElementById('maxPayableHint').textContent = 'Max: ' + total.toFixed(2);
+                if (parseFloat(payAmtEl.value) > total) {
+                    payAmtEl.value = total.toFixed(2);
+                }
+            }
         }
+
+        // ----- Payment Section (Select2-compatible) -----
+        const accountsByTypeUrl = '@Url.Action("GetAccountsByType", "SupplierPayment")';
+
+        function loadAccountsByMethod() {
+            const method = $('#paymentMethod').val();
+            const isCheque = method === 'Cheque';
+
+            $('#chequeNoGroup').toggle(isCheque);
+            $('#chequeDateGroup').toggle(isCheque);
+
+            // Load accounts based on method
+            let typeId = 0;
+            if (method === 'Cash') typeId = 1;
+            else if (method === 'Bank' || method === 'Cheque') typeId = 2;
+
+            if (typeId > 0) {
+                $.getJSON(accountsByTypeUrl, { typeId: typeId }, function (data) {
+                    var $account = $('#paymentAccount');
+                    // Destroy Select2 before rebuilding options
+                    if ($account.hasClass('select2-hidden-accessible')) {
+                        $account.select2('destroy');
+                    }
+                    $account.empty().append('<option value="">-- Select Account --</option>');
+                    $.each(data, function (i, item) {
+                        $account.append('<option value="' + item.id + '">' + item.name + '</option>');
+                    });
+                    // Reinitialize Select2
+                    if (window.PharmaCareSelect2) {
+                        window.PharmaCareSelect2.reinit($account[0]);
+                    }
+                });
+            }
+        }
+
+        $('#paymentMethod').on('change', loadAccountsByMethod);
+
+        // Load initial accounts on page load
+        loadAccountsByMethod();
     </script>
 }

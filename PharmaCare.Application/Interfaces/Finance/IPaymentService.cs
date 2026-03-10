@@ -39,6 +39,8 @@ public interface IPaymentService
     Task<decimal> GetSupplierPayableToMeAsync(int supplierId);
 
     /// <summary>
+
+    /// <summary>
     /// Creates an advance payment to a supplier (not linked to any GRN).
     /// DR: Supplier Account (creates debit balance / reduces payable)
     /// CR: Cash/Bank Account
@@ -49,4 +51,14 @@ public interface IPaymentService
     /// Gets all advance payments (payments without a linked transaction).
     /// </summary>
     Task<IEnumerable<Payment>> GetAdvancePaymentsAsync();
+
+    /// <summary>
+    /// Gets all payments for a specific party/supplier.
+    /// </summary>
+    Task<IEnumerable<Payment>> GetPaymentsByPartyAsync(int partyId);
+
+    /// <summary>
+    /// Voids a supplier payment and reverses its accounting entries.
+    /// </summary>
+    Task<bool> VoidPaymentAsync(int paymentId, string reason, int userId);
 }

@@ -806,6 +806,94 @@ public class PurchaseService : TransactionServiceBase, IPurchaseService
         return availablePurchaseOrders;
     }
 
+    public async Task<StockMain> UpdateAsync(StockMain purchase, int userId)
+    {
+        var existing = await _stockMainRepository.Query()
+            .Include(s => s.TransactionType)
+            .Include(s => s.StockDetails)
+            .FirstOrDefaultAsync(s => s.StockMainID == purchase.StockMainID
+                                   && s.TransactionType!.Code == TRANSACTION_TYPE_CODE);
+
+        if (existing == null)
+            throw new InvalidOperationException("Purchase (GRN) not found.");
+
+        if (existing.Status != "Approved")
+            throw new InvalidOperationException("Only approved purchases can be edited.");
+
+        // Block editing if active returns exist
+        var hasActiveReturns = await _stockMainRepository.Query()
+            .Include(s => s.TransactionType)
+            .AnyAsync(s => s.TransactionType!.Code == "PRTN"
+                        && s.Status != "Void"
+                        && s.ReferenceStockMain_ID == purchase.StockMainID);
+
+        if (hasActiveReturns)
+            throw new InvalidOperationException("Cannot edit this purchase — active Purchase Returns reference it. Void the returns first.");
+
+        // Block editing if non-advance payments exist (payments made via PaymentsIndex)
+        var hasDirectPayments = await _paymentRepository.Query()
+            .AnyAsync(p => p.StockMain_ID == purchase.StockMainID
+                        && !p.IsVoided);
+
+        if (hasDirectPayments)
+            throw new InvalidOperationException("Cannot edit this purchase — payments have been made against it. Void the payments first.");
+
+        // Update header fields
+        existing.Party_ID = purchase.Party_ID;
+        existing.TransactionDate = purchase.TransactionDate;
+        existing.Remarks = purchase.Remarks;
+        existing.UpdatedAt = DateTime.Now;
+        existing.UpdatedBy = userId;
+
+        // Normalize and validate lines
+        NormalizePurchaseLines(purchase);
+
+        if (existing.ReferenceStockMain_ID.HasValue)
+        {
+            var po = await _stockMainRepository.Query()
+                .Include(s => s.TransactionType)
+                .Include(s => s.StockDetails)
+                .FirstOrDefaultAsync(s => s.StockMainID == existing.ReferenceStockMain_ID.Value
+                                       && s.TransactionType!.Code == PO_TRANSACTION_TYPE_CODE);
+
+            if (po != null)
+            {
+                await ValidateGrnAgainstPurchaseOrderAsync(purchase, po);
+            }
+        }
+
+        // Clear and re-add details
+        existing.StockDetails.Clear();
+        foreach (var detail in purchase.StockDetails)
+        {
+            existing.StockDetails.Add(new StockDetail
+            {
+                Product_ID = detail.Product_ID,
+                Quantity = detail.Quantity,
+                UnitPrice = detail.UnitPrice,
+                CostPrice = detail.CostPrice,
+                DiscountPercent = detail.DiscountPercent,
+                DiscountAmount = detail.DiscountAmount,
+                LineTotal = detail.LineTotal,
+                LineCost = detail.LineCost,
+                Remarks = detail.Remarks
+            });
+        }
+
+        // Recalculate totals (preserve existing paid/balance)
+        CalculateTotals(existing);
+
+        // Recalculate balance based on current paid amount
+        existing.BalanceAmount = Math.Max(0, existing.TotalAmount - existing.PaidAmount);
+        existing.PaymentStatus = existing.BalanceAmount <= 0 ? "Paid"
+            : existing.PaidAmount > 0 ? "Partial" : "Unpaid";
+
+        _stockMainRepository.Update(existing);
+        await _unitOfWork.SaveChangesAsync();
+
+        return existing;
+    }
+
     public async Task<bool> VoidAsync(int id, string reason, int userId)
     {
         return await ExecuteInTransactionAsync(async () =>
@@ -816,6 +904,16 @@ public class PurchaseService : TransactionServiceBase, IPurchaseService
 
             if (purchase == null || purchase.Status == "Void")
                 return false;
+
+            // Block voiding if non-voided Purchase Returns reference this GRN
+            var hasActiveReturns = await _stockMainRepository.Query()
+                .Include(s => s.TransactionType)
+                .AnyAsync(s => s.TransactionType!.Code == "PRTN"
+                            && s.Status != "Void"
+                            && s.ReferenceStockMain_ID == id);
+
+            if (hasActiveReturns)
+                throw new InvalidOperationException("Cannot void this Purchase because it has active Purchase Return(s). Void the return(s) first.");
 
             purchase.Status = "Void";
             purchase.VoidReason = reason;

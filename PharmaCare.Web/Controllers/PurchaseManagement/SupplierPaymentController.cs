@@ -6,6 +6,7 @@ using PharmaCare.Application.Interfaces.Configuration;
 using PharmaCare.Application.Interfaces.Finance;
 using PharmaCare.Application.Interfaces.Transactions;
 using PharmaCare.Domain.Entities.Finance;
+using PharmaCare.Web.Filters;
 using PharmaCare.Web.Utilities;
 
 namespace PharmaCare.Web.Controllers.PurchaseManagement;
@@ -33,11 +34,9 @@ public class SupplierPaymentController : BaseController
     /// Displays list of GRNs with payment information.
     public async Task<IActionResult> PaymentsIndex(int? supplierId, string? paymentStatus, DateTime? fromDate, DateTime? toDate)
     {
-        // Get only pending GRNs (full payment not done yet)
         var grns = await _paymentService.GetPendingGrnsAsync(supplierId);
         var grnList = grns.ToList();
 
-        // Apply filters
         if (!string.IsNullOrEmpty(paymentStatus) && paymentStatus != "All")
         {
             grnList = grnList.Where(g => g.PaymentStatus == paymentStatus).ToList();
@@ -53,10 +52,6 @@ public class SupplierPaymentController : BaseController
             grnList = grnList.Where(g => g.TransactionDate <= toDate.Value).ToList();
         }
 
-        // ViewBag.Suppliers removed - use IComboboxRepository in View
-        // ViewBag.PaymentStatuses removed - use IComboboxRepository in View
-
-        // Preserve filter values (keep these as they are simple values)
         ViewBag.SelectedSupplier = supplierId;
         ViewBag.SelectedStatus = paymentStatus ?? "All";
         ViewBag.FromDate = fromDate;
@@ -96,7 +91,6 @@ public class SupplierPaymentController : BaseController
             return RedirectToAction("ViewPurchase", "Purchase", new { id = stockMainId });
         }
 
-        // await LoadDropdownsAsync(); // Removed
         ViewBag.GRN = grn;
 
         return View(new Payment
@@ -141,12 +135,10 @@ public class SupplierPaymentController : BaseController
         }
         else
         {
-            // Prevent tampering with hidden fields.
             payment.StockMain_ID = grn.StockMainID;
             payment.Party_ID = grn.Party_ID.Value;
         }
 
-        // Remove validation for navigation properties
         ModelState.Remove("Party");
         ModelState.Remove("StockMain");
         ModelState.Remove("Account");
@@ -168,9 +160,7 @@ public class SupplierPaymentController : BaseController
             }
         }
 
-        // Reload GRN for display
         ViewBag.GRN = grn;
-        // await LoadDropdownsAsync(); // Removed
         return View(payment);
     }
 
@@ -201,7 +191,6 @@ public class SupplierPaymentController : BaseController
         int id = Utility.DecryptId(stockMainId);
         var payments = await _paymentService.GetPaymentsByTransactionAsync(id);
         
-        // Order by PaymentID descending (newest first) and add serial number
         var orderedPayments = payments.OrderByDescending(p => p.PaymentID).ToList();
         int sNo = 1;
         var result = orderedPayments.Select(p => new
@@ -211,7 +200,9 @@ public class SupplierPaymentController : BaseController
             date = p.PaymentDate.ToString("dd/MM/yyyy"),
             amount = p.Amount,
             method = p.PaymentMethod,
-            account = p.Account?.Name
+            account = p.Account?.Name,
+            isVoided = p.IsVoided,
+            voidReason = p.VoidReason
         }).ToList();
 
         return Json(result);
@@ -240,10 +231,6 @@ public class SupplierPaymentController : BaseController
     /// Shows form to make an advance payment to a supplier.
     public IActionResult AdvancePayment()
     {
-        // await LoadDropdownsAsync(); // Removed
-
-        // Supplier dropdown removed - use IComboboxRepository
-
         return View(new Payment
         {
             PaymentDate = DateTime.Now,
@@ -256,7 +243,6 @@ public class SupplierPaymentController : BaseController
     [ValidateAntiForgeryToken]
     public async Task<IActionResult> AdvancePayment(Payment payment)
     {
-        // Remove validation for navigation properties
         ModelState.Remove("Party");
         ModelState.Remove("StockMain");
         ModelState.Remove("Account");
@@ -278,14 +264,33 @@ public class SupplierPaymentController : BaseController
             }
         }
 
-        // await LoadDropdownsAsync(); // Removed
-
-        // Supplier dropdown removed - use IComboboxRepository
-
         return View(payment);
     }
 
-    // private async Task LoadDropdownsAsync() { ... } // Removed
+    /// Voids a supplier payment.
+    [HttpPost]
+    [ValidateAntiForgeryToken]
+    public async Task<IActionResult> VoidPayment(string id, string reason)
+    {
+        int paymentId = Utility.DecryptId(id);
+        if (paymentId == 0)
+        {
+            ShowMessage(MessageType.Error, "Invalid Payment ID.");
+            return RedirectToAction(nameof(PaymentsIndex));
+        }
+
+        try
+        {
+            await _paymentService.VoidPaymentAsync(paymentId, reason ?? "Voided by user", CurrentUserId);
+            ShowMessage(MessageType.Success, "Payment voided successfully!");
+        }
+        catch (Exception ex)
+        {
+            ShowMessage(MessageType.Error, ex.Message);
+        }
+
+        return RedirectToAction(nameof(PaymentsIndex));
+    }
 
     private async Task RefreshGrnOutstandingAsync(Domain.Entities.Transactions.StockMain grn)
     {
@@ -306,4 +311,105 @@ public class SupplierPaymentController : BaseController
         grn.BalanceAmount = refreshedGrn.BalanceAmount;
         grn.PaymentStatus = refreshedGrn.PaymentStatus;
     }
+
+    /// Displays a supplier ledger/statement.
+    [LinkedToPage("SupplierPayment", "PaymentsIndex")]
+    public async Task<IActionResult> SupplierLedger(int? supplierId, DateTime? fromDate, DateTime? toDate)
+    {
+        var parties = await _partyService.GetAllAsync();
+        ViewBag.Suppliers = new SelectList(
+            parties.Where(p => p.IsActive && (p.PartyType == "Supplier" || p.PartyType == "Both")),
+            "PartyID", "Name", supplierId
+        );
+
+        ViewBag.SelectedSupplier = supplierId;
+        ViewBag.FromDate = fromDate;
+        ViewBag.ToDate = toDate ?? DateTime.Now;
+
+        if (!supplierId.HasValue)
+        {
+            ViewBag.LedgerEntries = new List<dynamic>();
+            ViewBag.SupplierName = "";
+            return View();
+        }
+
+        var supplier = parties.FirstOrDefault(p => p.PartyID == supplierId.Value);
+        ViewBag.SupplierName = supplier?.Name ?? "Unknown";
+
+        var allGrns = await _purchaseService.GetAllAsync();
+        var supplierGrns = allGrns
+            .Where(g => g.Party_ID == supplierId.Value && g.Status != "Void")
+            .ToList();
+
+        // Build ledger entries
+        var entries = new List<LedgerEntry>();
+
+        // GRNs → Debit (we owe the supplier)
+        foreach (var grn in supplierGrns)
+        {
+            if (fromDate.HasValue && grn.TransactionDate < fromDate.Value) continue;
+            if (toDate.HasValue && grn.TransactionDate > toDate.Value.AddDays(1)) continue;
+
+            entries.Add(new LedgerEntry
+            {
+                Date = grn.TransactionDate,
+                Reference = grn.TransactionNo,
+                Type = "Purchase (GRN)",
+                TypeBadge = "primary",
+                Debit = grn.TotalAmount,
+                Credit = 0,
+                Remarks = grn.Remarks
+            });
+        }
+
+        // Payments → Credit (we paid the supplier)
+        var payments = await _paymentService.GetPaymentsByPartyAsync(supplierId.Value);
+        foreach (var payment in payments.Where(p => !p.IsVoided))
+        {
+            if (fromDate.HasValue && payment.PaymentDate < fromDate.Value) continue;
+            if (toDate.HasValue && payment.PaymentDate > toDate.Value.AddDays(1)) continue;
+
+            var payType = payment.StockMain_ID.HasValue ? "Payment" : "Advance Payment";
+            entries.Add(new LedgerEntry
+            {
+                Date = payment.PaymentDate,
+                Reference = payment.Reference ?? "-",
+                Type = payType,
+                TypeBadge = "success",
+                Debit = 0,
+                Credit = payment.Amount,
+                Remarks = payment.Remarks
+            });
+        }
+
+        // Sort chronologically
+        var sortedEntries = entries.OrderBy(e => e.Date).ThenBy(e => e.Reference).ToList();
+
+        // Calculate running balance
+        decimal balance = 0;
+        foreach (var entry in sortedEntries)
+        {
+            balance += entry.Debit - entry.Credit;
+            entry.Balance = balance;
+        }
+
+        ViewBag.LedgerEntries = sortedEntries;
+        ViewBag.TotalDebit = sortedEntries.Sum(e => e.Debit);
+        ViewBag.TotalCredit = sortedEntries.Sum(e => e.Credit);
+        ViewBag.ClosingBalance = balance;
+
+        return View();
+    }
+}
+
+public class LedgerEntry
+{
+    public DateTime Date { get; set; }
+    public string Reference { get; set; } = "";
+    public string Type { get; set; } = "";
+    public string TypeBadge { get; set; } = "secondary";
+    public decimal Debit { get; set; }
+    public decimal Credit { get; set; }
+    public decimal Balance { get; set; }
+    public string? Remarks { get; set; }
 }

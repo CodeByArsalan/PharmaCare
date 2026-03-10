@@ -7,6 +7,7 @@ using PharmaCare.Application.Interfaces.Finance;
 using PharmaCare.Domain.Entities.Transactions;
 using PharmaCare.Web.Filters;
 using PharmaCare.Web.Utilities;
+using PharmaCare.Web.ViewModels.Transactions;
 
 namespace PharmaCare.Web.Controllers.PurchaseManagement;
 
@@ -38,6 +39,25 @@ public class PurchaseOrderController : BaseController
         var purchaseOrders = await _purchaseOrderService.GetAllAsync();
         return View(purchaseOrders);
     }
+    [LinkedToPage("PurchaseOrder", "PurchaseOrdersIndex")]
+    public async Task<IActionResult> ViewPurchaseOrder(string id)
+    {
+        int poId = Utility.DecryptId(id);
+        if (poId == 0)
+        {
+            ShowMessage(MessageType.Error, "Invalid Purchase Order ID.");
+            return RedirectToAction(nameof(PurchaseOrdersIndex));
+        }
+
+        var po = await _purchaseOrderService.GetByIdAsync(poId);
+        if (po == null)
+        {
+            ShowMessage(MessageType.Error, "Purchase Order not found.");
+            return RedirectToAction(nameof(PurchaseOrdersIndex));
+        }
+
+        return View(po);
+    }
 
     public async Task<IActionResult> AddPurchaseOrder()
     {
@@ -51,41 +71,39 @@ public class PurchaseOrderController : BaseController
 
     [HttpPost]
     [ValidateAntiForgeryToken]
-    public async Task<IActionResult> AddPurchaseOrder(StockMain purchaseOrder)
+    public async Task<IActionResult> AddPurchaseOrder(PurchaseOrderCreateRequest request, int? PaymentAccountId, string? PaymentMethod)
     {
-        purchaseOrder.StockDetails ??= new List<StockDetail>();
-        if (purchaseOrder.StockDetails.Count == 0)
-        {
-            ModelState.AddModelError(nameof(purchaseOrder.StockDetails), "At least one item is required.");
-        }
-
-        // Remove validation for navigation properties
-        ModelState.Remove("TransactionType");
-        ModelState.Remove("Party");
-        ModelState.Remove("Voucher");
-        ModelState.Remove("ReferenceStockMain");
-        
-        // Remove validation for auto-generated/computed fields
-        ModelState.Remove("TransactionNo");
-        ModelState.Remove("Status");
-        ModelState.Remove("PaymentStatus");
-        ModelState.Remove("StockMainID");
-
-        // Remove validation for detail navigation properties
-        for (int i = 0; i < purchaseOrder.StockDetails.Count; i++)
-        {
-            ModelState.Remove($"StockDetails[{i}].StockMain");
-            ModelState.Remove($"StockDetails[{i}].Product");
-            ModelState.Remove($"StockDetails[{i}].StockDetailID");
-            ModelState.Remove($"StockDetails[{i}].StockMain_ID");
-        }
-
         if (ModelState.IsValid)
         {
             try
             {
+                var purchaseOrder = MapToStockMain(request);
                 await _purchaseOrderService.CreateAsync(purchaseOrder, CurrentUserId);
-                ShowMessage(MessageType.Success, "Purchase Order created as Draft. Approve it when ready.");
+
+                // If advance payment is specified, auto-approve and record payment
+                if (request.PaidAmount > 0 && PaymentAccountId.HasValue && PaymentAccountId.Value > 0)
+                {
+                    await _purchaseOrderService.ApproveAsync(purchaseOrder.StockMainID, CurrentUserId);
+
+                    var payment = new Domain.Entities.Finance.Payment
+                    {
+                        StockMain_ID = purchaseOrder.StockMainID,
+                        Party_ID = purchaseOrder.Party_ID ?? 0,
+                        Amount = Math.Min(request.PaidAmount, purchaseOrder.TotalAmount),
+                        PaymentDate = purchaseOrder.TransactionDate,
+                        PaymentMethod = PaymentMethod ?? "Cash",
+                        Account_ID = PaymentAccountId.Value,
+                        Remarks = $"Advance payment on PO creation ({purchaseOrder.TransactionNo})"
+                    };
+
+                    await _paymentService.CreatePaymentAsync(payment, CurrentUserId);
+                    ShowMessage(MessageType.Success, "Purchase Order created, approved, and advance payment recorded!");
+                }
+                else
+                {
+                    ShowMessage(MessageType.Success, "Purchase Order created as Draft. Approve it when ready.");
+                }
+
                 return RedirectToAction(nameof(PurchaseOrdersIndex));
             }
             catch (Exception ex)
@@ -95,7 +113,8 @@ public class PurchaseOrderController : BaseController
         }
 
         await LoadDropdownsAsync();
-        return View(purchaseOrder);
+        // Re-create StockMain for the view
+        return View(MapToStockMain(request));
     }
 
     public async Task<IActionResult> EditPurchaseOrder(string id)
@@ -126,37 +145,13 @@ public class PurchaseOrderController : BaseController
 
     [HttpPost]
     [ValidateAntiForgeryToken]
-    public async Task<IActionResult> EditPurchaseOrder(StockMain purchaseOrder)
+    public async Task<IActionResult> EditPurchaseOrder(PurchaseOrderCreateRequest request)
     {
-        purchaseOrder.StockDetails ??= new List<StockDetail>();
-        if (purchaseOrder.StockDetails.Count == 0)
-        {
-            ModelState.AddModelError(nameof(purchaseOrder.StockDetails), "At least one item is required.");
-        }
-
-        // Remove validation for navigation properties
-        ModelState.Remove("TransactionType");
-        ModelState.Remove("Party");
-        ModelState.Remove("Voucher");
-        ModelState.Remove("ReferenceStockMain");
-        
-        // Remove validation for auto-generated/computed fields
-        ModelState.Remove("TransactionNo");
-        ModelState.Remove("Status");
-        ModelState.Remove("PaymentStatus");
-
-        for (int i = 0; i < purchaseOrder.StockDetails.Count; i++)
-        {
-            ModelState.Remove($"StockDetails[{i}].StockMain");
-            ModelState.Remove($"StockDetails[{i}].Product");
-            ModelState.Remove($"StockDetails[{i}].StockDetailID");
-            ModelState.Remove($"StockDetails[{i}].StockMain_ID");
-        }
-
         if (ModelState.IsValid)
         {
             try
             {
+                var purchaseOrder = MapToStockMain(request);
                 await _purchaseOrderService.UpdateAsync(purchaseOrder, CurrentUserId);
                 ShowMessage(MessageType.Success, "Purchase Order updated successfully!");
                 return RedirectToAction(nameof(PurchaseOrdersIndex));
@@ -168,7 +163,7 @@ public class PurchaseOrderController : BaseController
         }
 
         await LoadDropdownsAsync();
-        return View(purchaseOrder);
+        return View(MapToStockMain(request));
     }
 
     [HttpPost]
@@ -206,14 +201,21 @@ public class PurchaseOrderController : BaseController
              return RedirectToAction(nameof(PurchaseOrdersIndex));
         }
 
-        var result = await _purchaseOrderService.ToggleStatusAsync(poId, CurrentUserId);
-        if (result)
+        try
         {
-            ShowMessage(MessageType.Success, "Purchase Order cancelled successfully!");
+            var result = await _purchaseOrderService.ToggleStatusAsync(poId, CurrentUserId);
+            if (result)
+            {
+                ShowMessage(MessageType.Success, "Purchase Order cancelled successfully!");
+            }
+            else
+            {
+                ShowMessage(MessageType.Error, "Failed to cancel Purchase Order.");
+            }
         }
-        else
+        catch (InvalidOperationException ex)
         {
-            ShowMessage(MessageType.Error, "Failed to cancel Purchase Order.");
+            ShowMessage(MessageType.Error, ex.Message);
         }
 
         return RedirectToAction(nameof(PurchaseOrdersIndex));
@@ -268,7 +270,6 @@ public class PurchaseOrderController : BaseController
             return RedirectToAction(nameof(PurchaseOrdersIndex));
         }
 
-        // Use IComboboxRepository in View for accounts
         ViewBag.PO = po;
         SetPaymentContextViewData(po.BalanceAmount);
 
@@ -321,9 +322,6 @@ public class PurchaseOrderController : BaseController
         {
             try
             {
-                // We use the existing PaymentService.CreatePaymentAsync
-                // It handles "PAYMENT" type validation against StockMain balance.
-                // Since PO is a StockMain, this works beautifully.
                 await _paymentService.CreatePaymentAsync(payment, CurrentUserId);
                 ShowMessage(MessageType.Success, "Advance Payment recorded successfully!");
                 return RedirectToAction(nameof(PurchaseOrdersIndex));
@@ -341,7 +339,6 @@ public class PurchaseOrderController : BaseController
 
     private async Task LoadDropdownsAsync()
     {
-        // Load suppliers (parties with PartyType = "Supplier")
         var parties = await _partyService.GetAllAsync();
         ViewBag.Suppliers = new SelectList(
             parties.Where(p => p.IsActive && (p.PartyType == "Supplier" || p.PartyType == "Both")),
@@ -349,7 +346,6 @@ public class PurchaseOrderController : BaseController
             "Name"
         );
 
-        // Load products
         var products = await _productService.GetAllAsync();
         ViewBag.Products = new SelectList(
             products.Where(p => p.IsActive),
@@ -361,5 +357,33 @@ public class PurchaseOrderController : BaseController
     private void SetPaymentContextViewData(decimal finalPayableAmount)
     {
         ViewBag.FinalPayableAmount = Math.Max(0, finalPayableAmount);
+    }
+
+    /// <summary>
+    /// Maps a PurchaseOrderCreateRequest DTO to a StockMain entity.
+    /// </summary>
+    private static StockMain MapToStockMain(PurchaseOrderCreateRequest request)
+    {
+        return new StockMain
+        {
+            StockMainID = request.StockMainID,
+            TransactionDate = request.TransactionDate,
+            PaidAmount = request.PaidAmount,
+            Party_ID = request.Party_ID,
+            DiscountPercent = request.DiscountPercent,
+            Remarks = request.Remarks,
+            StockDetails = request.StockDetails.Select(d => new StockDetail
+            {
+                Product_ID = d.Product_ID,
+                Quantity = d.Quantity,
+                UnitPrice = d.UnitPrice,
+                CostPrice = d.CostPrice,
+                DiscountPercent = d.DiscountPercent,
+                DiscountAmount = d.DiscountAmount,
+                LineTotal = d.LineTotal,
+                LineCost = d.LineCost,
+                Remarks = d.Remarks
+            }).ToList()
+        };
     }
 }

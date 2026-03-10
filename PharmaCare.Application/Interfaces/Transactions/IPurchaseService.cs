@@ -31,6 +31,11 @@ public interface IPurchaseService
     Task<IEnumerable<StockMain>> GetPurchaseOrdersForGrnAsync(int? supplierId = null);
 
     /// <summary>
+    /// Updates an existing purchase/GRN. Only allowed if no returns or payments exist.
+    /// </summary>
+    Task<StockMain> UpdateAsync(StockMain purchase, int userId);
+
+    /// <summary>
     /// Voids a purchase/GRN.
     /// </summary>
     Task<bool> VoidAsync(int id, string reason, int userId);

@@ -25,8 +25,11 @@
                     <th>Date</th>
                     <th>Supplier</th>
                     <th class="text-end">Amount</th>
+                    <th class="text-end">Paid</th>
+                    <th class="text-end">Balance</th>
+                    <th>Payment</th>
                     <th>Status</th>
-                    <th class="text-end w-200px">Actions</th>
+                    <th class="text-end w-250px">Actions</th>
                 </tr>
             </thead>
             <tbody>
@@ -41,6 +44,22 @@
                             <td>@item.TransactionDate.ToString("dd/MM/yyyy")</td>
                             <td>@item.Party?.Name</td>
                             <td class="text-end">@item.TotalAmount.ToString("N2")</td>
+                            <td class="text-end text-success">@item.PaidAmount.ToString("N2")</td>
+                            <td class="text-end @(item.BalanceAmount > 0 ? "text-danger fw-bold" : "text-success")">@item.BalanceAmount.ToString("N2")</td>
+                            <td>
+                                @{
+                                    var payStatusClass = item.PaymentStatus switch
+                                    {
+                                        "Paid" => "success",
+                                        "Partial" => "warning",
+                                        _ => "secondary"
+                                    };
+                                }
+                                @if (item.Status != "Draft" && item.Status != "Void")
+                                {
+                                    <span class="badge bg-@payStatusClass">@item.PaymentStatus</span>
+                                }
+                            </td>
                             <td>
                                 @if (item.Status == "Draft")
                                 {
@@ -50,12 +69,19 @@
                                 {
                                     <span class="badge bg-success">Approved</span>
                                 }
+                                else if (item.Status == "Completed")
+                                {
+                                    <span class="badge bg-primary">Completed</span>
+                                }
                                 else if (item.Status == "Void")
                                 {
                                     <span class="badge bg-danger">Void</span>
                                 }
                             </td>
                             <td class="text-end">
+                                <a asp-action="ViewPurchaseOrder" asp-route-id="@item.StockMainID.EncryptId()" class="btn btn-sm btn-outline-info" title="View">
+                                    <i class="fas fa-eye"></i>
+                                </a>
                                 @if (item.Status == "Draft")
                                 {
                                     <a asp-action="EditPurchaseOrder" asp-route-id="@item.StockMainID.EncryptId()" class="btn btn-sm btn-outline-primary" title="Edit">
@@ -70,10 +96,6 @@
                                         <i class="fas fa-times"></i>
                                     </button>
                                 }
-                                else
-                                {
-                                    <span class="text-muted small">No actions</span>
-                                }
                                 @if (item.Status == "Approved" && item.BalanceAmount > 0)
                                 {
                                     <a asp-action="MakePayment" asp-route-id="@item.StockMainID.EncryptId()" class="btn btn-sm btn-success ms-1" title="Pay Advance">
@@ -87,7 +109,7 @@
                 else
                 {
                     <tr>
-                        <td colspan="7" class="text-center py-4">
+                        <td colspan="10" class="text-center py-4">
                             <div class="empty-state">
                                 <i class="fas fa-file-invoice fa-3x text-muted mb-3"></i>
                                 <p class="mb-0">No purchase orders found. Click "Add Purchase Order" to create one.</p>

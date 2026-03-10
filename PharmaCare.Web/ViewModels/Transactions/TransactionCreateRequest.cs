@@ -61,6 +61,10 @@ public class SaleCreateRequest
 
 public class PurchaseCreateRequest
 {
+    /// <summary>
+    /// Used for Edit — 0 for new GRN.
+    /// </summary>
+    public int StockMainID { get; set; }
     [DataType(DataType.Date)]
     public DateTime TransactionDate { get; set; } = DateTime.Now;
 
@@ -80,3 +84,45 @@ public class PurchaseCreateRequest
     [MinLength(1)]
     public List<StockDetailCreateRequest> StockDetails { get; set; } = new();
 }
+
+public class PurchaseOrderCreateRequest
+{
+    /// <summary>
+    /// Used for Edit — 0 for new PO.
+    /// </summary>
+    public int StockMainID { get; set; }
+
+    [DataType(DataType.Date)]
+    public DateTime TransactionDate { get; set; } = DateTime.Now;
+
+    public int? Party_ID { get; set; }
+
+    [Range(typeof(decimal), "0", "100")]
+    public decimal DiscountPercent { get; set; }
+
+    [StringLength(500)]
+    public string? Remarks { get; set; }
+
+    [Range(typeof(decimal), "0", "79228162514264337593543950335")]
+    public decimal PaidAmount { get; set; }
+
+    [MinLength(1)]
+    public List<StockDetailCreateRequest> StockDetails { get; set; } = new();
+}
+
+public class PurchaseReturnCreateRequest
+{
+    [DataType(DataType.Date)]
+    public DateTime TransactionDate { get; set; } = DateTime.Now;
+
+    public int? Party_ID { get; set; }
+
+    public int? ReferenceStockMain_ID { get; set; }
+
+    [StringLength(500)]
+    public string? Remarks { get; set; }
+
+    [MinLength(1)]
+    public List<StockDetailCreateRequest> StockDetails { get; set; } = new();
+}
+
