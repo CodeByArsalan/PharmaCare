@@ -1,0 +1,205 @@
+@model PharmaCare.Domain.Entities.Finance.Expense
+@using PharmaCare.Web.Utilities
+@{
+    ViewData["Title"] = "Expense Details";
+    var isVoided = Model.Voucher != null && Model.Voucher.IsReversed;
+}
+
+<!-- Page Header -->
+<div class="page-header">
+    <h4 class="page-title">
+        <i class="fas fa-file-invoice-dollar"></i>
+        Expense Details
+    </h4>
+    <a asp-action="ExpensesIndex" class="btn btn-outline-secondary">
+        <i class="fas fa-arrow-left me-2"></i>Back to List
+    </a>
+</div>
+
+<!-- Status Banner -->
+@if (isVoided)
+{
+    <div class="alert alert-danger d-flex align-items-center mb-4">
+        <i class="fas fa-ban me-2 fs-5"></i>
+        <div>
+            <strong>This expense has been voided.</strong>
+            @if (Model.Voucher?.VoidReason != null)
+            {
+                <br /><small>Reason: @Model.Voucher.VoidReason</small>
+            }
+        </div>
+    </div>
+}
+
+<div class="row g-4">
+    <!-- Expense Info -->
+    <div class="col-lg-6">
+        <div class="card h-100">
+            <div class="card-header">
+                <h6 class="mb-0"><i class="fas fa-info-circle me-2"></i>Expense Information</h6>
+            </div>
+            <div class="card-body">
+                <table class="table table-borderless mb-0">
+                    <tr>
+                        <td class="text-muted" style="width:40%">Category</td>
+                        <td><strong>@Model.ExpenseCategory?.Name</strong></td>
+                    </tr>
+                    <tr>
+                        <td class="text-muted">Date</td>
+                        <td>@Model.ExpenseDate.ToString("dd MMM yyyy")</td>
+                    </tr>
+                    <tr>
+                        <td class="text-muted">Amount</td>
+                        <td><span class="fs-5 fw-bold text-primary">PKR @Model.Amount.ToString("N2")</span></td>
+                    </tr>
+                    <tr>
+                        <td class="text-muted">Vendor</td>
+                        <td>@(Model.VendorName ?? "—")</td>
+                    </tr>
+                    <tr>
+                        <td class="text-muted">Reference</td>
+                        <td>@(Model.Reference ?? "—")</td>
+                    </tr>
+                    <tr>
+                        <td class="text-muted">Description</td>
+                        <td>@(Model.Description ?? "—")</td>
+                    </tr>
+                    <tr>
+                        <td class="text-muted">Status</td>
+                        <td>
+                            @if (isVoided)
+                            {
+                                <span class="badge bg-danger">Voided</span>
+                            }
+                            else
+                            {
+                                <span class="badge bg-success">Active</span>
+                            }
+                        </td>
+                    </tr>
+                </table>
+            </div>
+        </div>
+    </div>
+
+    <!-- Accounting Info -->
+    <div class="col-lg-6">
+        <div class="card h-100">
+            <div class="card-header">
+                <h6 class="mb-0"><i class="fas fa-landmark me-2"></i>Accounting Details</h6>
+            </div>
+            <div class="card-body">
+                <table class="table table-borderless mb-0">
+                    <tr>
+                        <td class="text-muted" style="width:40%">Source Account</td>
+                        <td>@Model.SourceAccount?.Name</td>
+                    </tr>
+                    <tr>
+                        <td class="text-muted">Expense Account</td>
+                        <td>@Model.ExpenseAccount?.Name</td>
+                    </tr>
+                    @if (Model.Voucher != null)
+                    {
+                        <tr>
+                            <td class="text-muted">Voucher No</td>
+                            <td><code>@Model.Voucher.VoucherNo</code></td>
+                        </tr>
+                        <tr>
+                            <td class="text-muted">Voucher Type</td>
+                            <td>@Model.Voucher.VoucherType?.Name</td>
+                        </tr>
+                        <tr>
+                            <td class="text-muted">Voucher Status</td>
+                            <td>
+                                @if (Model.Voucher.IsReversed)
+                                {
+                                    <span class="badge bg-danger">Reversed</span>
+                                }
+                                else
+                                {
+                                    <span class="badge bg-success">@Model.Voucher.Status</span>
+                                }
+                            </td>
+                        </tr>
+                    }
+                </table>
+
+                @if (Model.Voucher?.VoucherDetails != null && Model.Voucher.VoucherDetails.Any())
+                {
+                    <hr />
+                    <h6 class="mb-3">Journal Entries</h6>
+                    <table class="table table-sm mb-0">
+                        <thead>
+                            <tr>
+                                <th>Account</th>
+                                <th class="text-end">Debit</th>
+                                <th class="text-end">Credit</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            @foreach (var detail in Model.Voucher.VoucherDetails)
+                            {
+                                <tr>
+                                    <td>@detail.Account?.Name</td>
+                                    <td class="text-end">@(detail.DebitAmount > 0 ? detail.DebitAmount.ToString("N2") : "—")</td>
+                                    <td class="text-end">@(detail.CreditAmount > 0 ? detail.CreditAmount.ToString("N2") : "—")</td>
+                                </tr>
+                            }
+                        </tbody>
+                        <tfoot>
+                            <tr class="fw-bold">
+                                <td>Total</td>
+                                <td class="text-end">@Model.Voucher.TotalDebit.ToString("N2")</td>
+                                <td class="text-end">@Model.Voucher.TotalCredit.ToString("N2")</td>
+                            </tr>
+                        </tfoot>
+                    </table>
+                }
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Void Button -->
+@if (!isVoided)
+{
+    <div class="text-end mt-4">
+        <button type="button" class="btn btn-danger" id="btnVoid">
+            <i class="fas fa-ban me-2"></i>Void Expense
+        </button>
+    </div>
+
+    <form id="voidForm" method="post" asp-action="Void" style="display: none;">
+        @Html.AntiForgeryToken()
+        <input type="hidden" name="id" value="@Utility.EncryptId(Model.ExpenseID)" />
+        <input type="hidden" name="voidReason" id="voidReason" />
+    </form>
+
+    @section Scripts {
+        <script>
+            document.getElementById('btnVoid').addEventListener('click', function () {
+                Swal.fire({
+                    title: 'Void this Expense?',
+                    text: 'This will reverse the accounting entries.',
+                    input: 'textarea',
+                    inputPlaceholder: 'Enter reason for voiding...',
+                    inputValidator: (value) => {
+                        if (!value) return 'Void reason is required.';
+                    },
+                    icon: 'warning',
+                    showCancelButton: true,
+                    confirmButtonColor: '#dc2626',
+                    cancelButtonColor: '#64748b',
+                    confirmButtonText: 'Yes, void it!',
+                    background: 'var(--bg-card)',
+                    color: 'var(--text-primary)'
+                }).then((result) => {
+                    if (result.isConfirmed) {
+                        document.getElementById('voidReason').value = result.value;
+                        document.getElementById('voidForm').submit();
+                    }
+                });
+            });
+        </script>
+    }
+}

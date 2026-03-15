@@ -1,0 +1,59 @@
+@model PharmaCare.Domain.Entities.Finance.ExpenseCategory
+@using PharmaCare.Web.Utilities
+@{
+    ViewData["Title"] = "Edit Expense Category";
+}
+
+<!-- Page Header -->
+<div class="page-header">
+    <h4 class="page-title">
+        <i class="fas fa-edit"></i>
+        Edit Expense Category
+    </h4>
+    <a asp-action="ExpenseCategoriesIndex" class="btn btn-outline-secondary">
+        <i class="fas fa-arrow-left me-2"></i>Back to List
+    </a>
+</div>
+
+<div class="card">
+    <div class="card-body">
+        <form asp-action="EditExpenseCategory" asp-route-id="@Utility.EncryptId(Model.ExpenseCategoryID)" method="post">
+            <input type="hidden" asp-for="ExpenseCategoryID" />
+            <input type="hidden" asp-for="CreatedAt" />
+            <input type="hidden" asp-for="CreatedBy" />
+            <input type="hidden" asp-for="IsActive" />
+
+            <div class="row g-3">
+                <div class="col-md-6">
+                    <label class="form-label">Category Name <span class="text-danger">*</span></label>
+                    <input asp-for="Name" class="form-control" placeholder="e.g., Utilities, Rent, Supplies" required />
+                    <span asp-validation-for="Name" class="text-danger small"></span>
+                </div>
+
+                <div class="col-md-6">
+                    <label class="form-label">Parent Category</label>
+                    <select asp-for="Parent_ID" asp-items="ViewBag.ParentCategories" class="form-select">
+                        <option value="">-- None (Top Level) --</option>
+                    </select>
+                </div>
+
+                <div class="col-md-6">
+                    <label class="form-label">Default Expense Account</label>
+                    <select asp-for="DefaultExpenseAccount_ID" asp-items="ViewBag.ExpenseAccounts" class="form-select">
+                        <option value="">-- Select Account --</option>
+                    </select>
+                    <small class="text-muted">Auto-fills the expense account when this category is selected.</small>
+                </div>
+            </div>
+
+            <div asp-validation-summary="All" class="text-danger mt-3"></div>
+
+            <div class="text-end mt-4">
+                <a asp-action="ExpenseCategoriesIndex" class="btn btn-outline-secondary me-2">Cancel</a>
+                <button type="submit" class="btn btn-primary">
+                    <i class="fas fa-save me-2"></i>Update Category
+                </button>
+            </div>
+        </form>
+    </div>
+</div>

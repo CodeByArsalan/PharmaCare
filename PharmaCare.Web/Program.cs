@@ -103,6 +103,7 @@ builder.Services.AddScoped<ISaleReturnService, SaleReturnService>();
 // Finance Services
 builder.Services.AddScoped<IPaymentService, PaymentService>();
 builder.Services.AddScoped<ICustomerPaymentService, CustomerPaymentService>();
+builder.Services.AddScoped<IExpenseService, ExpenseService>();
 
 // Reporting Services
 builder.Services.AddScoped<PharmaCare.Application.Interfaces.Reports.ISalesReportService, PharmaCare.Infrastructure.Implementations.Reports.SalesReportService>();

@@ -5,6 +5,7 @@ using PharmaCare.Application.Interfaces.Transactions;
 using PharmaCare.Web.ViewModels.Accounting;
 using PharmaCare.Domain.Entities.Transactions;
 using PharmaCare.Application.Interfaces; // For IRepository
+using PharmaCare.Web.Utilities;
 
 namespace PharmaCare.Web.Controllers.Accounting;
 
@@ -31,13 +32,67 @@ public class JournalVoucherController : BaseController
         return View(vouchers);
     }
 
+    /// <summary>
+    /// Displays detailed view of a journal voucher.
+    /// </summary>
+    public async Task<IActionResult> ViewJournalVoucher(string id)
+    {
+        int voucherId = Utility.DecryptId(id);
+        if (voucherId == 0)
+        {
+            ShowMessage(MessageType.Error, "Invalid Voucher ID.");
+            return RedirectToAction(nameof(JournalVoucherIndex));
+        }
+
+        var voucher = await _jvService.GetByIdAsync(voucherId);
+        if (voucher == null)
+        {
+            ShowMessage(MessageType.Error, "Voucher not found.");
+            return RedirectToAction(nameof(JournalVoucherIndex));
+        }
+
+        return View(voucher);
+    }
+
+    /// <summary>
+    /// Reverses (voids) a journal voucher.
+    /// </summary>
+    [HttpPost]
+    [ValidateAntiForgeryToken]
+    public async Task<IActionResult> ReverseJournalVoucher(string id, string voidReason)
+    {
+        int voucherId = Utility.DecryptId(id);
+        if (voucherId == 0)
+        {
+            ShowMessage(MessageType.Error, "Invalid Voucher ID.");
+            return RedirectToAction(nameof(JournalVoucherIndex));
+        }
+
+        if (string.IsNullOrWhiteSpace(voidReason))
+        {
+            ShowMessage(MessageType.Error, "Reversal reason is required.");
+            return RedirectToAction(nameof(ViewJournalVoucher), new { id });
+        }
+
+        var result = await _jvService.VoidVoucherAsync(voucherId, voidReason, CurrentUserId);
+        if (result)
+        {
+            ShowMessage(MessageType.Success, "Journal Voucher reversed successfully!");
+        }
+        else
+        {
+            ShowMessage(MessageType.Error, "Failed to reverse voucher.");
+        }
+
+        return RedirectToAction(nameof(JournalVoucherIndex));
+    }
+
     public IActionResult AddJournalVoucher()
     {
-        // Pre-populate with one empty line?
+        // Pre-populate with one empty line
         var vm = new JournalVoucherViewModel();
         vm.VoucherDetails.Add(new JournalVoucherDetailViewModel());
         
-        // await LoadDropdowns(); // REMOVED
         return View(vm);
     }
 
@@ -45,11 +100,7 @@ public class JournalVoucherController : BaseController
     [ValidateAntiForgeryToken]
     public async Task<IActionResult> AddJournalVoucher(JournalVoucherViewModel vm)
     {
-        // 1. Clean up empty lines? Or rely on validation?
-        // Let's filter out lines with no account selected or zero amounts if desired.
-        // For now, strict validation.
-         
-        // 2. Validate Totals
+        // Validate Totals
         if (vm.TotalDebit != vm.TotalCredit)
         {
             ModelState.AddModelError("", $"Total Debit ({vm.TotalDebit}) must equal Total Credit ({vm.TotalCredit}).");
@@ -81,7 +132,7 @@ public class JournalVoucherController : BaseController
                     }).ToList()
                 };
 
-                await _jvService.CreateJournalVoucherAsync(dto, CurrentUserId); // Pass DTO, not ViewModel
+                await _jvService.CreateJournalVoucherAsync(dto, CurrentUserId);
                 ShowMessage(MessageType.Success, "Journal Voucher created successfully!");
                 return RedirectToAction(nameof(JournalVoucherIndex));
             }

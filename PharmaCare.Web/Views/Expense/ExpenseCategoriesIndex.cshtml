@@ -1,0 +1,116 @@
+@model IEnumerable<PharmaCare.Domain.Entities.Finance.ExpenseCategory>
+@using PharmaCare.Web.Utilities
+@{
+    ViewData["Title"] = "Expense Categories";
+}
+
+<!-- Page Header -->
+<div class="page-header">
+    <h4 class="page-title">
+        <i class="fas fa-tags"></i>
+        Expense Categories
+    </h4>
+    <div>
+        <a asp-action="ExpensesIndex" class="btn btn-outline-secondary me-2">
+            <i class="fas fa-arrow-left me-2"></i>Back to Expenses
+        </a>
+        <a asp-action="AddExpenseCategory" class="btn btn-primary">
+            <i class="fas fa-plus me-2"></i>Add Category
+        </a>
+    </div>
+</div>
+
+<div class="card">
+    <div class="card-body p-0">
+        <table class="table mb-0">
+            <thead>
+                <tr>
+                    <th>Name</th>
+                    <th>Parent Category</th>
+                    <th>Default Account</th>
+                    <th>Status</th>
+                    <th class="text-end">Actions</th>
+                </tr>
+            </thead>
+            <tbody>
+                @if (Model.Any())
+                {
+                    @foreach (var item in Model)
+                    {
+                        <tr>
+                            <td><strong>@item.Name</strong></td>
+                            <td>@(item.ParentCategory?.Name ?? "—")</td>
+                            <td>@(item.DefaultExpenseAccount?.Name ?? "—")</td>
+                            <td>
+                                @if (item.IsActive)
+                                {
+                                    <span class="badge bg-success">Active</span>
+                                }
+                                else
+                                {
+                                    <span class="badge bg-danger">Inactive</span>
+                                }
+                            </td>
+                            <td class="text-end">
+                                <a asp-action="EditExpenseCategory" asp-route-id="@Utility.EncryptId(item.ExpenseCategoryID)"
+                                   class="btn btn-sm btn-outline-primary">
+                                    <i class="fas fa-edit"></i>
+                                </a>
+                                <button type="button" class="btn btn-sm btn-outline-danger btn-delete"
+                                        data-id="@Utility.EncryptId(item.ExpenseCategoryID)" data-name="@item.Name">
+                                    <i class="fas fa-trash"></i>
+                                </button>
+                            </td>
+                        </tr>
+                    }
+                }
+                else
+                {
+                    <tr>
+                        <td colspan="5" class="text-center py-4">
+                            <div class="empty-state">
+                                <i class="fas fa-tags"></i>
+                                <p class="mb-0">No expense categories found. Click "Add Category" to create one.</p>
+                            </div>
+                        </td>
+                    </tr>
+                }
+            </tbody>
+        </table>
+    </div>
+</div>
+
+<!-- Hidden form for delete -->
+<form id="deleteForm" method="post" asp-action="DeleteExpenseCategory" style="display: none;">
+    @Html.AntiForgeryToken()
+    <input type="hidden" name="id" id="deleteId" />
+</form>
+
+@section Scripts {
+    <script>
+        document.querySelectorAll('.btn-delete').forEach(function (btn) {
+            btn.addEventListener('click', function () {
+                const id = this.getAttribute('data-id');
+                const name = this.getAttribute('data-name');
+
+                Swal.fire({
+                    title: 'Toggle Status?',
+                    text: `Are you sure you want to toggle the status of "${name}"?`,
+                    icon: 'warning',
+                    showCancelButton: true,
+                    confirmButtonColor: '#dc2626',
+                    cancelButtonColor: '#64748b',
+                    confirmButtonText: 'Yes, toggle it!',
+                    cancelButtonText: 'Cancel',
+                    background: 'var(--bg-card)',
+                    color: 'var(--text-primary)'
+                }).then((result) => {
+                    if (result.isConfirmed) {
+                        document.getElementById('deleteId').value = id;
+                        document.getElementById('deleteForm').submit();
+                    }
+                });
+            });
+        });
+    </script>
+}

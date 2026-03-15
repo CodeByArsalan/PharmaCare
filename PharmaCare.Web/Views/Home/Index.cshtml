@@ -5,7 +5,7 @@
 <style>
     .quick-actions {
         display: grid;
-        grid-template-columns: repeat(4, 1fr);
+        grid-template-columns: repeat(3, 1fr);
         gap: 1rem;
         margin-bottom: 2rem;
     }
@@ -161,9 +161,9 @@
                 <i class="fas fa-shopping-cart"></i>
             </div>
             <div class="stat-label">Today's Sales</div>
-            <div class="stat-value">PKR 0</div>
+            <div class="stat-value">PKR @(((decimal)(ViewBag.TodaySales ?? 0m)).ToString("N0"))</div>
             <div class="stat-change positive">
-                <i class="fas fa-arrow-up"></i>Start selling
+                <i class="fas fa-coins"></i>@(((decimal)(ViewBag.CashCollected ?? 0m)).ToString("N0")) cash collected
             </div>
         </div>
     </div>
@@ -173,10 +173,10 @@
             <div class="stat-icon">
                 <i class="fas fa-receipt"></i>
             </div>
-            <div class="stat-label">Total Orders</div>
-            <div class="stat-value">0</div>
+            <div class="stat-label">Today's Orders</div>
+            <div class="stat-value">@(ViewBag.TodayOrders ?? 0)</div>
             <div class="stat-change positive">
-                <i class="fas fa-arrow-up"></i>Today
+                <i class="fas fa-box"></i>@(ViewBag.ItemsSold ?? 0) items sold
             </div>
         </div>
     </div>
@@ -187,9 +187,9 @@
                 <i class="fas fa-pills"></i>
             </div>
             <div class="stat-label">Products</div>
-            <div class="stat-value">0</div>
-            <div class="stat-change negative">
-                <i class="fas fa-plus"></i>Add products
+            <div class="stat-value">@(ViewBag.TotalProducts ?? 0)</div>
+            <div class="stat-change positive">
+                <i class="fas fa-cubes"></i>In catalog
             </div>
         </div>
     </div>
@@ -200,9 +200,9 @@
                 <i class="fas fa-exclamation-triangle"></i>
             </div>
             <div class="stat-label">Low Stock</div>
-            <div class="stat-value">0</div>
-            <div class="stat-change positive">
-                <i class="fas fa-check"></i>All stocked
+            <div class="stat-value">@(ViewBag.LowStockCount ?? 0)</div>
+            <div class="stat-change @((int)(ViewBag.LowStockCount ?? 0) > 0 ? "negative" : "positive")">
+                <i class="fas @((int)(ViewBag.LowStockCount ?? 0) > 0 ? "fa-exclamation" : "fa-check")"></i>@((int)(ViewBag.LowStockCount ?? 0) > 0 ? "Need reorder" : "All stocked")
             </div>
         </div>
     </div>
@@ -211,7 +211,7 @@
 <!-- Quick Actions -->
 <h5 class="text-primary mb-3"><i class="fas fa-bolt me-2" style="color: var(--warning-500);"></i>Quick Actions</h5>
 <div class="quick-actions">
-    <a href="/Product/AddProduct" class="action-btn">
+    <a href="/Product/ProductsIndex" class="action-btn">
         <i class="fas fa-pills"></i>
         <span>Add Product</span>
     </a>
@@ -219,11 +219,7 @@
         <i class="fas fa-user-plus"></i>
         <span>Add Party</span>
     </a>
-    <a href="/Store" class="action-btn">
-        <i class="fas fa-store"></i>
-        <span>Manage Stores</span>
-    </a>
-    <a href="/Category" class="action-btn">
+    <a href="/Category/AddCategory" class="action-btn">
         <i class="fas fa-tags"></i>
         <span>Categories</span>
     </a>
