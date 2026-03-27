@@ -22,7 +22,7 @@ public class SaleReturnService : TransactionServiceBase, ISaleReturnService
     private const string TRANSACTION_TYPE_CODE = "SRTN";
     private const string SALE_TRANSACTION_TYPE_CODE = "SALE";
     private const string PREFIX = "SRTN";
-    private const string SALE_RETURN_VOUCHER_CODE = "SV"; // We typically use Sales Voucher type but effectively reverse it, OR a specific SRV type. 
+    private const string SALE_RETURN_VOUCHER_CODE = "SRT"; // Sale Return Voucher
 
     public SaleReturnService(
         IRepository<StockMain> stockMainRepository,
@@ -156,19 +156,16 @@ public class SaleReturnService : TransactionServiceBase, ISaleReturnService
         // Credit: Customer Account (Receivable decreases)
 
         var voucherType = await _voucherTypeRepository.Query()
-            .FirstOrDefaultAsync(vt => vt.Code == SALE_RETURN_VOUCHER_CODE || vt.Code == "JV");
+            .FirstOrDefaultAsync(vt => vt.Code == SALE_RETURN_VOUCHER_CODE);
 
         if (voucherType == null)
-             throw new InvalidOperationException($"Voucher type '{SALE_RETURN_VOUCHER_CODE}' or 'JV' not found.");
+             throw new InvalidOperationException($"Voucher type '{SALE_RETURN_VOUCHER_CODE}' not found.");
 
         var customerParty = await ResolveCustomerPartyWithAccountAsync(saleReturn.Party_ID);
         var customerAccount = customerParty.Account!;
         var customerName = customerParty.Name;
 
-        // Generate Voucher No
-        // Use SRV- instead of SV? Or just SV?
-        // Let's use SRV- for Returns to distinguish
-        var voucherNo = await GenerateVoucherNoAsync("SRV");
+        var voucherNo = await GenerateVoucherNoAsync(SALE_RETURN_VOUCHER_CODE);
 
         var voucherDetails = new List<VoucherDetail>();
 

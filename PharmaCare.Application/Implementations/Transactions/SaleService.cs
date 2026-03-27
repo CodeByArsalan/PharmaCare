@@ -31,7 +31,9 @@ public class SaleService : TransactionServiceBase, ISaleService
     private const string TRANSACTION_TYPE_CODE = "SALE";
     private const string PREFIX = "SALE";
     private const string VOUCHER_TYPE_CODE = "SV"; // Sales Voucher
-    private const string PAYMENT_VOUCHER_TYPE_CODE = "RV"; // Receipt Voucher
+    private const string CASH_RECEIPT_VOUCHER_CODE = "CR"; // Cash Receipt
+    private const string BANK_RECEIPT_VOUCHER_CODE = "BR"; // Bank Receipt
+    private const string DISCOUNT_SUBHEAD_NAME = "Discount Allowed";
 
     public SaleService(
         IRepository<StockMain> stockMainRepository,
@@ -215,11 +217,12 @@ public class SaleService : TransactionServiceBase, ISaleService
 
     /// <summary>
     /// Creates a sales voucher with double-entry accounting using category-specific accounts.
-    /// Sale Voucher:
-    ///   Debit: Customer Account (AR) - what they owe us
-    ///   Credit: Sales Account (per category) - income
-    ///   Debit: COGS Account (per category) - cost of goods sold
-    ///   Credit: Stock Account (per category) - inventory reduction
+    /// Sale Voucher (Gross Method):
+    ///   Debit:  Customer Account (AR)          – net amount (what they owe us)
+    ///   Debit:  Discount Allowed (Expense)     – header discount amount (if any)
+    ///   Credit: Sales Account (per category)   – gross revenue (SubTotal)
+    ///   Debit:  COGS Account (per category)    – cost of goods sold
+    ///   Credit: Stock Account (per category)   – inventory reduction
     /// </summary>
     private async Task<Voucher> CreateSaleVoucherAsync(StockMain sale, int userId)
     {
@@ -234,6 +237,24 @@ public class SaleService : TransactionServiceBase, ISaleService
         var customerAccount = customerParty.Account!;
         var customerName = customerParty.Name;
 
+        // Resolve Discount Allowed account when the sale has a header-level discount
+        Account? discountAccount = null;
+        if (sale.DiscountAmount > 0)
+        {
+            discountAccount = await _accountRepository.Query()
+                .Include(a => a.AccountSubhead)
+                .FirstOrDefaultAsync(a => a.AccountSubhead != null
+                    && a.AccountSubhead.SubheadName == DISCOUNT_SUBHEAD_NAME
+                    && a.IsActive);
+
+            if (discountAccount == null)
+            {
+                throw new InvalidOperationException(
+                    $"No active account found under the '{DISCOUNT_SUBHEAD_NAME}' subhead. " +
+                    "Please create an account under Expense > Operational Expense > Discount Allowed.");
+            }
+        }
+
         // Load products with categories for each detail line
         var productIds = sale.StockDetails.Select(d => d.Product_ID).Distinct().ToList();
         var products = await _productRepository.Query()
@@ -244,7 +265,7 @@ public class SaleService : TransactionServiceBase, ISaleService
         var voucherNo = await GenerateVoucherNoAsync(VOUCHER_TYPE_CODE);
         var voucherDetails = new List<VoucherDetail>();
 
-        // 1. Debit: Customer Account (total sale amount)
+        // 1. Debit: Customer Account (net sale amount — what they actually owe)
         voucherDetails.Add(new VoucherDetail
         {
             Account_ID = customerAccount.AccountID,
@@ -253,6 +274,18 @@ public class SaleService : TransactionServiceBase, ISaleService
             Description = $"Sale to {customerName}",
             Party_ID = sale.Party_ID
         });
+
+        // 2. Debit: Discount Allowed (header-level discount)
+        if (sale.DiscountAmount > 0 && discountAccount != null)
+        {
+            voucherDetails.Add(new VoucherDetail
+            {
+                Account_ID = discountAccount.AccountID,
+                DebitAmount = sale.DiscountAmount,
+                CreditAmount = 0,
+                Description = $"Discount allowed on sale to {customerName}"
+            });
+        }
 
         // Validate all products have categories
         var productDetailsMap = sale.StockDetails
@@ -276,19 +309,17 @@ public class SaleService : TransactionServiceBase, ISaleService
         }
 
         // Build aggregated entries by account ID
-        // Dictionary to aggregate amounts by account ID
-        var salesByAccount = new Dictionary<int, decimal>();   // Sales Account -> Credit Amount
+        // Sales are now credited at GROSS (each line's LineTotal, which already includes line-level discounts)
+        var salesByAccount = new Dictionary<int, decimal>();   // Sales Account -> Credit Amount (gross)
         var cogsByAccount = new Dictionary<int, decimal>();    // COGS Account -> Debit Amount
         var stockByAccount = new Dictionary<int, decimal>();   // Stock Account -> Credit Amount
 
         decimal totalCOGS = 0;
-        var netLineAmounts = AllocateNetSalesByLine(sale);
-        var detailIndex = 0;
 
         foreach (var item in productDetailsMap)
         {
             var category = item.Product!.Category!;
-            var lineTotal = netLineAmounts[detailIndex++];
+            var lineTotal = item.Detail.LineTotal;  // Gross line amount (already has line-level discount applied)
             var lineCost = item.Detail.LineCost;
 
             // Validate category has Sales Account configured
@@ -299,7 +330,7 @@ public class SaleService : TransactionServiceBase, ISaleService
                     "Please configure the Sales Account in Category settings.");
             }
 
-            // Aggregate Sales by account
+            // Aggregate Sales by account (gross amounts)
             if (salesByAccount.ContainsKey(category.SaleAccount_ID.Value))
                 salesByAccount[category.SaleAccount_ID.Value] += lineTotal;
             else
@@ -338,7 +369,7 @@ public class SaleService : TransactionServiceBase, ISaleService
             }
         }
 
-        // 2. Credit: Sales Account(s) - aggregated
+        // 3. Credit: Sales Account(s) - aggregated at gross amounts (SubTotal)
         foreach (var (accountId, amount) in salesByAccount)
         {
             voucherDetails.Add(new VoucherDetail
@@ -350,7 +381,7 @@ public class SaleService : TransactionServiceBase, ISaleService
             });
         }
 
-        // 3. Debit: COGS Account(s) - aggregated
+        // 4. Debit: COGS Account(s) - aggregated
         foreach (var (accountId, amount) in cogsByAccount)
         {
             voucherDetails.Add(new VoucherDetail
@@ -362,7 +393,7 @@ public class SaleService : TransactionServiceBase, ISaleService
             });
         }
 
-        // 4. Credit: Stock Account(s) - aggregated (reduces inventory)
+        // 5. Credit: Stock Account(s) - aggregated (reduces inventory)
         foreach (var (accountId, amount) in stockByAccount)
         {
             voucherDetails.Add(new VoucherDetail
@@ -374,9 +405,12 @@ public class SaleService : TransactionServiceBase, ISaleService
             });
         }
 
-        // Calculate voucher totals (Customer DR + COGS DR = Sales CR + Stock CR)
-        var totalDebit = sale.TotalAmount + totalCOGS;
-        var totalCredit = sale.TotalAmount + totalCOGS;
+        // Calculate voucher totals
+        // DR: Customer (TotalAmount) + Discount (DiscountAmount) + COGS
+        // CR: Sales (SubTotal) + Stock (totalCOGS)
+        // SubTotal = TotalAmount + DiscountAmount, so debits = credits
+        var totalDebit = sale.TotalAmount + sale.DiscountAmount + totalCOGS;
+        var totalCredit = sale.SubTotal + totalCOGS;
 
         var voucher = new Voucher
         {
@@ -387,7 +421,7 @@ public class SaleService : TransactionServiceBase, ISaleService
             TotalCredit = totalCredit,
             Status = "Posted",
             SourceTable = "StockMain",
-            SourceID = sale.StockMainID, // Now available since StockMain is saved first
+            SourceID = sale.StockMainID,
             Narration = $"Sale to {customerName}. Invoice: {sale.TransactionNo}",
             CreatedAt = DateTime.Now,
             CreatedBy = userId,
@@ -406,17 +440,11 @@ public class SaleService : TransactionServiceBase, ISaleService
     /// </summary>
     private async Task<Voucher> CreatePaymentVoucherAsync(StockMain sale, int paymentAccountId, int userId)
     {
-        var voucherType = await _voucherTypeRepository.Query()
-            .FirstOrDefaultAsync(vt => vt.Code == PAYMENT_VOUCHER_TYPE_CODE || vt.Code == "JV");
-
-        if (voucherType == null)
-            throw new InvalidOperationException($"Voucher type '{PAYMENT_VOUCHER_TYPE_CODE}' or 'JV' not found.");
-
         var customerParty = await ResolveCustomerPartyWithAccountAsync(sale);
         var customerAccount = customerParty.Account!;
         var customerName = customerParty.Name;
 
-        // Get payment account to determine voucher prefix (CR for Cash, BR for Bank)
+        // Get payment account to determine voucher type (CR for Cash, BR for Bank)
         var paymentAccount = await _accountRepository.GetByIdAsync(paymentAccountId);
         if (paymentAccount == null)
             throw new InvalidOperationException($"Payment account ID {paymentAccountId} not found.");
@@ -426,18 +454,19 @@ public class SaleService : TransactionServiceBase, ISaleService
             throw new InvalidOperationException("Payment account must be a Cash or Bank account.");
         }
 
-        string voucherPrefix = "RV";
-        if (paymentAccount.AccountType_ID == CashAccountTypeId) // Cash
-        {
-            voucherPrefix = "CR";
-        }
-        else if (paymentAccount.AccountType_ID == BankAccountTypeId) // Bank
-        {
-            voucherPrefix = "BR";
-        }
+        // Look up the correct VoucherType based on account type
+        string receiptVoucherCode = paymentAccount.AccountType_ID == CashAccountTypeId
+            ? CASH_RECEIPT_VOUCHER_CODE   // CR - Cash Receipt
+            : BANK_RECEIPT_VOUCHER_CODE;  // BR - Bank Receipt
+
+        var voucherType = await _voucherTypeRepository.Query()
+            .FirstOrDefaultAsync(vt => vt.Code == receiptVoucherCode);
+
+        if (voucherType == null)
+            throw new InvalidOperationException($"Voucher type '{receiptVoucherCode}' not found.");
 
         // Use base class method but we need to pass custom prefix
-        var voucherNo = await GenerateVoucherNoAsync(voucherPrefix);
+        var voucherNo = await GenerateVoucherNoAsync(receiptVoucherCode);
 
         var voucherDetails = new List<VoucherDetail>
         {

@@ -27,7 +27,7 @@ public class PartyService : IPartyService
     public async Task<IEnumerable<Party>> GetAllAsync()
     {
         var parties = await _repository.GetAllAsync();
-        return parties.OrderByDescending(p => p.IsActive).ThenBy(p => p.Name);
+        return parties.OrderByDescending(p => p.PartyID);
     }
 
     public async Task<Party?> GetByIdAsync(int id)

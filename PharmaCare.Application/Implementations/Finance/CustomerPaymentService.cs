@@ -32,7 +32,10 @@ public class CustomerPaymentService : ICustomerPaymentService
     private const string SALE_TRANSACTION_TYPE_CODE = "SALE";
     private const string SALE_RETURN_TRANSACTION_TYPE_CODE = "SRTN";
     private const string PREFIX = "REC";
-    private const string VOUCHER_TYPE_CODE = "RV"; // Receipt Voucher
+    private const string CASH_RECEIPT_VOUCHER_CODE = "CR"; // Cash Receipt
+    private const string BANK_RECEIPT_VOUCHER_CODE = "BR"; // Bank Receipt
+    private const string CASH_PAYMENT_VOUCHER_CODE = "CP"; // Cash Payment (for refunds)
+    private const string BANK_PAYMENT_VOUCHER_CODE = "BP"; // Bank Payment (for refunds)
     private static readonly string CustomerReceiptPaymentType = PaymentType.RECEIPT.ToString();
     private static readonly string RefundPaymentType = PaymentType.REFUND.ToString();
 
@@ -270,25 +273,18 @@ public class CustomerPaymentService : ICustomerPaymentService
         string customerName,
         int userId)
     {
-        // Get Receipt Voucher type (fallback to JV if RV not found)
+        // Determine voucher type code based on account type (CR for Cash, BR for Bank)
+        string receiptVoucherCode = cashBankAccount.AccountType_ID == CashAccountTypeId
+            ? CASH_RECEIPT_VOUCHER_CODE
+            : BANK_RECEIPT_VOUCHER_CODE;
+
         var voucherType = await _voucherTypeRepository.Query()
-            .FirstOrDefaultAsync(vt => vt.Code == VOUCHER_TYPE_CODE || vt.Code == "JV");
+            .FirstOrDefaultAsync(vt => vt.Code == receiptVoucherCode);
 
         if (voucherType == null)
-            throw new InvalidOperationException($"Voucher type '{VOUCHER_TYPE_CODE}' or 'JV' not found. Please ensure it exists in the database.");
+            throw new InvalidOperationException($"Voucher type '{receiptVoucherCode}' not found. Please ensure it exists in the database.");
 
-        // Determine voucher prefix based on account type (CR for Cash, BR for Bank)
-        string voucherPrefix = "RV";
-        if (cashBankAccount.AccountType_ID == 1) // Cash
-        {
-            voucherPrefix = "CR";
-        }
-        else if (cashBankAccount.AccountType_ID == 2) // Bank
-        {
-            voucherPrefix = "BR";
-        }
-
-        var voucherNo = await GenerateVoucherNoAsync(voucherPrefix);
+        var voucherNo = await GenerateVoucherNoAsync(receiptVoucherCode);
 
         var voucher = new Voucher
         {
@@ -421,14 +417,18 @@ public class CustomerPaymentService : ICustomerPaymentService
             payment.CreatedAt = DateTime.Now;
             payment.CreatedBy = userId;
 
+            // Look up correct VoucherType based on account type
+            string refundVoucherCode = refundAccount.AccountType_ID == CashAccountTypeId
+                ? CASH_PAYMENT_VOUCHER_CODE
+                : BANK_PAYMENT_VOUCHER_CODE;
+
             var voucherType = await _voucherTypeRepository.Query()
-                .FirstOrDefaultAsync(vt => vt.Code == VOUCHER_TYPE_CODE || vt.Code == "JV");
+                .FirstOrDefaultAsync(vt => vt.Code == refundVoucherCode);
 
             if (voucherType == null)
-                throw new InvalidOperationException("Voucher type not found.");
+                throw new InvalidOperationException($"Voucher type '{refundVoucherCode}' not found.");
 
-            string voucherPrefix = refundAccount.AccountType_ID == 1 ? "CP" : "BP";
-            var voucherNo = await GenerateVoucherNoAsync(voucherPrefix);
+            var voucherNo = await GenerateVoucherNoAsync(refundVoucherCode);
 
             var voucher = new Voucher
             {
