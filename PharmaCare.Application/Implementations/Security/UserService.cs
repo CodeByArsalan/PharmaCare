@@ -36,7 +36,7 @@ public class UserService : IUserService
             .Include(u => u.UserRoles)
             .ThenInclude(ur => ur.Role)
             .ToListAsync();
-        return users.OrderBy(u => u.FullName).ToList();
+        return users.ToList();
     }
 
     public async Task<User?> GetUserByIdAsync(int id)

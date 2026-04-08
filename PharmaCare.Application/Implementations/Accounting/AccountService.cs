@@ -33,7 +33,7 @@ public class AccountService : IAccountService
             .Include(a => a.AccountSubhead)
             .Include(a => a.AccountHead)
             .Include(a => a.AccountType)
-            .OrderBy(a => a.Name)
+            .OrderBy(a => a.AccountID)
             .ToListAsync();
     }
 

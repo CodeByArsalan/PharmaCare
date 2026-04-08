@@ -5,9 +5,6 @@ using PharmaCare.Domain.Entities.Configuration;
 
 namespace PharmaCare.Application.Implementations.Configuration;
 
-/// <summary>
-/// Service implementation for Party entity operations
-/// </summary>
 public class PartyService : IPartyService
 {
     private readonly IRepository<Party> _repository;
@@ -27,7 +24,7 @@ public class PartyService : IPartyService
     public async Task<IEnumerable<Party>> GetAllAsync()
     {
         var parties = await _repository.GetAllAsync();
-        return parties.OrderByDescending(p => p.PartyID);
+        return parties.OrderByDescending(p => p.IsActive);
     }
 
     public async Task<Party?> GetByIdAsync(int id)

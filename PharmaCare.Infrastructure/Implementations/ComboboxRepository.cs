@@ -187,7 +187,7 @@ public class ComboboxRepository : IComboboxRepository
     {
         return _context.Accounts
             .Where(a => a.IsActive)
-            .OrderBy(a => a.Name)
+            .OrderBy(a => a.AccountID)
             .Select(a => new SelectListItem
             {
                 Value = a.AccountID.ToString(),
@@ -201,7 +201,7 @@ public class ComboboxRepository : IComboboxRepository
     {
         return _context.Accounts
             .Where(a => a.IsActive && a.AccountType_ID == accountTypeId)
-            .OrderBy(a => a.Name)
+            .OrderBy(a => a.AccountID)
             .Select(a => new SelectListItem
             {
                 Value = a.AccountID.ToString(),

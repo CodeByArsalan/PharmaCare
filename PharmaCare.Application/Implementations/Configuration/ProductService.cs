@@ -74,7 +74,7 @@ public class ProductService : IProductService
         }
 
         // Apply sorting: Order by ProductID descending (newest first)
-        query = query.OrderByDescending(p => p.ProductID);
+        query = query.OrderByDescending(p => p.IsActive);
 
         // Limit results if no search/filter to verify "Top 50" requirement for default view
         // But users might want to see all filtered results. 

@@ -18,8 +18,6 @@ public class ProductController : BaseController
 
     public async Task<IActionResult> ProductsIndex(int? categoryId, int? subCategoryId, int? status, string? searchTerm, string? activeTab)
     {
-        // ViewBag.Categories and ViewBag.SubCategories logic removed - moved to View using IComboboxRepository
-
         // Status Logic: 1 = Active, 0 = Inactive, null = All
         bool? isActive = status.HasValue ? (status.Value == 1) : null;
         ViewBag.CurrentStatus = status;

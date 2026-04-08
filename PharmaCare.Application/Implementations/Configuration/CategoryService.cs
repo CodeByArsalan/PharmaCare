@@ -33,7 +33,6 @@ public class CategoryService : ICategoryService
             .Include(c => c.COGSAccount)
             .Include(c => c.DamageAccount)
             .OrderByDescending(c => c.IsActive)
-            .ThenBy(c => c.Name)
             .ToListAsync();
     }
 

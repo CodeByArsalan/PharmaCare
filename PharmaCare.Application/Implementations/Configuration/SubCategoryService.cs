@@ -29,7 +29,6 @@ public class SubCategoryService : ISubCategoryService
         return await _repository.Query()
             .Include(s => s.Category)
             .OrderByDescending(s => s.IsActive)
-            .ThenBy(s => s.Name)
             .ToListAsync();
     }
 
