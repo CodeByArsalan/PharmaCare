@@ -121,6 +121,17 @@
         $(document).ready(function() {
             calcTotals(); // Initial calc
 
+            // Handle Enter key on debit and credit inputs
+            $(document).on('keydown', '.debit-input, .credit-input', function(e) {
+                if (e.which === 13) {
+                    e.preventDefault();
+                    $('#addRowBtn').click();
+                    setTimeout(function() {
+                        $('#detailsTable tbody tr:last').find('.account-select').focus();
+                    }, 50);
+                }
+            });
+
             $('#addRowBtn').click(function() {
                 var index = $('#detailsTable tbody tr').length;
                 var newRow = `

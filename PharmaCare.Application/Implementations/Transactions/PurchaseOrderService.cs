@@ -357,7 +357,7 @@ public class PurchaseOrderService : IPurchaseOrderService
             paymentLookup.TryGetValue(po.StockMainID, out var paidAmount);
 
             po.PaidAmount = Math.Max(0, Math.Round(paidAmount, 2));
-            po.BalanceAmount = Math.Max(0, Math.Round(remainingTotal - po.PaidAmount, 2));
+            po.BalanceAmount = Math.Max(0, Math.Round(po.TotalAmount - po.PaidAmount, 2));
             po.PaymentStatus = po.BalanceAmount <= 0
                 ? PaymentStatus.Paid.ToString()
                 : (po.PaidAmount <= 0 ? PaymentStatus.Unpaid.ToString() : PaymentStatus.Partial.ToString());

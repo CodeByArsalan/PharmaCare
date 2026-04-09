@@ -148,6 +148,18 @@
             const response = await fetch('@Url.Action("GetProducts")');
             products = await response.json();
             addLineItem();
+            
+            // Handle Enter key on line total to add new row and open Select2 dropdown
+            $(document).on('keydown', '.line-total', function(e) {
+                if (e.which === 13) {
+                    e.preventDefault();
+                    $('#addLineBtn').click();
+                    setTimeout(function() {
+                        var $sel = $('#lineItemsBody tr:last').find('.product-select');
+                        if ($sel.length) { $sel.select2('open'); }
+                    }, 150);
+                }
+            });
         });
 
         // Supplier change - load POs and reset payment context (Select2-compatible)
@@ -251,6 +263,9 @@
             const costPrice = detail ? detail.costPrice : 0;
             const lineTotal = detail ? detail.lineTotal : 0;
 
+            // Flag pre-filled rows so the auto-fired Select2 'change' doesn't override the PO cost price
+            if (detail) row.dataset.poRow = 'true';
+
             row.innerHTML = `
                 <td class="align-middle">${rowIndex + 1}</td>
                 <td>
@@ -280,8 +295,17 @@
             `;
 
             tbody.appendChild(row);
-            
-            row.querySelector('.product-select').addEventListener('change', onProductChange);
+
+            // Initialize Select2 on the product dropdown
+            var $productSelect = $(row.querySelector('.product-select'));
+            $productSelect.select2({
+                theme: 'bootstrap-5',
+                placeholder: '-- Select Product --',
+                allowClear: true,
+                width: '100%'
+            });
+            $productSelect.on('change', onProductChange);
+
             row.querySelector('.quantity-input').addEventListener('input', calculateLineTotal);
             row.querySelector('.cost-input').addEventListener('input', calculateLineTotal);
             row.querySelector('.remove-row-btn').addEventListener('click', removeRow);
@@ -291,6 +315,13 @@
 
         function onProductChange(e) {
             const row = e.target.closest('tr');
+
+            // Skip the initial auto-fired change from Select2 when pre-filling from a PO
+            if (row.dataset.poRow === 'true') {
+                delete row.dataset.poRow;
+                return;
+            }
+
             const selectedOption = e.target.options[e.target.selectedIndex];
             const costPrice = parseFloat(selectedOption.dataset.cost) || 0;
             

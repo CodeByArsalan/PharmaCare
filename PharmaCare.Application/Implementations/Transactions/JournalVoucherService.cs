@@ -31,8 +31,7 @@ public class JournalVoucherService : IJournalVoucherService
         return await _voucherRepository.Query()
             .Include(v => v.VoucherType)
             .Where(v => v.VoucherType.Code == "JV")
-            .OrderByDescending(v => v.VoucherDate)
-            .ThenByDescending(v => v.CreatedBy) // approximate order
+            .OrderByDescending(v=>v.VoucherID)
             .ToListAsync();
     }
 
@@ -93,7 +92,8 @@ public class JournalVoucherService : IJournalVoucherService
     {
         var original = await GetByIdAsync(voucherId);
         if (original == null) return false;
-        if (original.IsReversed) return false; // Already reversed
+        if (original.IsReversed || original.ReversesVoucher_ID != null)
+            throw new Exception("Reversal not allowed. This voucher is already reversed or is itself a reversal entry.");
 
         // 1. Mark Original as Reversed
         original.IsReversed = true;
@@ -104,7 +104,7 @@ public class JournalVoucherService : IJournalVoucherService
         var reversal = new Voucher
         {
             VoucherType_ID = original.VoucherType_ID,
-            VoucherNo = (await GenerateVoucherNoAsync()) + "-R", // or generate new sequence
+            VoucherNo = await GenerateVoucherNoAsync(),
             VoucherDate = DateTime.Now, // Reversal date is NOW
             Narration = $"Reversal of {original.VoucherNo} - {reason}",
             Status = "Posted", // The reversal itself is a valid posted transaction

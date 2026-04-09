@@ -1,11 +1,14 @@
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
-using PharmaCare.Application.Interfaces.Accounting;
-using PharmaCare.Application.Interfaces.Transactions;
-using PharmaCare.Web.ViewModels.Accounting;
-using PharmaCare.Domain.Entities.Transactions;
 using PharmaCare.Application.Interfaces; // For IRepository
+using PharmaCare.Application.Interfaces.Accounting;
+using PharmaCare.Application.Interfaces.Security;
+using PharmaCare.Application.Interfaces.Transactions;
+using PharmaCare.Domain.Entities.Transactions;
+using PharmaCare.Web.Filters;
 using PharmaCare.Web.Utilities;
+using PharmaCare.Web.ViewModels.Accounting;
+using XAct;
 
 namespace PharmaCare.Web.Controllers.Accounting;
 
@@ -15,20 +18,25 @@ public class JournalVoucherController : BaseController
     private readonly IJournalVoucherService _jvService;
     private readonly IAccountService _accountService;
     private readonly IRepository<VoucherType> _voucherTypeRepo;
+    private readonly IUserService _userService;
 
     public JournalVoucherController(
         IJournalVoucherService jvService,
         IAccountService accountService,
-        IRepository<VoucherType> voucherTypeRepo)
+        IRepository<VoucherType> voucherTypeRepo,
+        IUserService userService)
     {
         _jvService = jvService;
         _accountService = accountService;
         _voucherTypeRepo = voucherTypeRepo;
+        _userService = userService;
     }
 
     public async Task<IActionResult> JournalVoucherIndex()
     {
         var vouchers = await _jvService.GetAllJournalVouchersAsync();
+        var users = await _userService.GetAllUsersAsync();
+        ViewBag.UserNames = users.ToDictionary(u => u.Id, u => u.FullName);
         return View(vouchers);
     }
 
@@ -59,9 +67,11 @@ public class JournalVoucherController : BaseController
     /// </summary>
     [HttpPost]
     [ValidateAntiForgeryToken]
+    [LinkedToPage("JournalVoucher", "JournalVoucherIndex")]
     public async Task<IActionResult> ReverseJournalVoucher(string id, string voidReason)
     {
-        int voucherId = Utility.DecryptId(id);
+        //int voucherId = Utility.DecryptId(id);
+        int voucherId = id.ToInt32();
         if (voucherId == 0)
         {
             ShowMessage(MessageType.Error, "Invalid Voucher ID.");

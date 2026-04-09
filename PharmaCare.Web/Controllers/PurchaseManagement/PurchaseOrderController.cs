@@ -73,15 +73,26 @@ public class PurchaseOrderController : BaseController
     [ValidateAntiForgeryToken]
     public async Task<IActionResult> AddPurchaseOrder(PurchaseOrderCreateRequest request, int? PaymentAccountId, string? PaymentMethod)
     {
+        if (request.PaidAmount > 0 && (!PaymentAccountId.HasValue || PaymentAccountId.Value <= 0))
+        {
+            ModelState.AddModelError("PaymentAccountId", "Please select a payment account for the advance payment.");
+        }
+
         if (ModelState.IsValid)
         {
             try
             {
                 var purchaseOrder = MapToStockMain(request);
+                
+                // Keep the input advance amount but force the PO model to 0
+                // The actual payment creation will increase PaidAmount correctly in the DB
+                var advanceAmount = purchaseOrder.PaidAmount;
+                purchaseOrder.PaidAmount = 0;
+
                 await _purchaseOrderService.CreateAsync(purchaseOrder, CurrentUserId);
 
                 // If advance payment is specified, auto-approve and record payment
-                if (request.PaidAmount > 0 && PaymentAccountId.HasValue && PaymentAccountId.Value > 0)
+                if (advanceAmount > 0 && PaymentAccountId.HasValue && PaymentAccountId.Value > 0)
                 {
                     await _purchaseOrderService.ApproveAsync(purchaseOrder.StockMainID, CurrentUserId);
 
@@ -89,7 +100,7 @@ public class PurchaseOrderController : BaseController
                     {
                         StockMain_ID = purchaseOrder.StockMainID,
                         Party_ID = purchaseOrder.Party_ID ?? 0,
-                        Amount = Math.Min(request.PaidAmount, purchaseOrder.TotalAmount),
+                        Amount = Math.Min(advanceAmount, purchaseOrder.TotalAmount),
                         PaymentDate = purchaseOrder.TransactionDate,
                         PaymentMethod = PaymentMethod ?? "Cash",
                         Account_ID = PaymentAccountId.Value,

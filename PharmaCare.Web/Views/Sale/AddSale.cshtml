@@ -342,6 +342,18 @@
                 fetchProducts();
             });
 
+            // Handle Enter key on line total to add new row and open Select2 dropdown
+            $(document).on('keydown', '.line-total', function(e) {
+                if (e.which === 13) {
+                    e.preventDefault();
+                    $('#addLineBtn').click();
+                    setTimeout(function() {
+                        var $sel = $('#lineItemsBody tr:last').find('.product-select');
+                        if ($sel.length) { $sel.select2('open'); }
+                    }, 150);
+                }
+            });
+
             document.getElementById('discountPercent').addEventListener('input', function() {
                 lastDiscountEdit = 'percent';
                 calculateTotals();

@@ -45,9 +45,13 @@
                                     <span class="badge bg-success">Posted</span>
                                 }
                             </td>
-                            <td class="text-center">User @item.CreatedBy</td>
                             <td class="text-center">
-                                @if (item.Status == "Posted")
+                                @(ViewBag.UserNames != null && ViewBag.UserNames.ContainsKey(item.CreatedBy) 
+                                    ? ViewBag.UserNames[item.CreatedBy] 
+                                    : $"User {item.CreatedBy}")
+                            </td>
+                            <td class="text-center">
+                                @if (item.Status == "Posted" && item.ReversedByVoucher_ID == null && item.ReversesVoucher_ID == null)
                                 {
                                     <button type="button" class="btn btn-sm btn-outline-danger" 
                                             onclick="openVoidModal(@item.VoucherID, '@item.VoucherNo')">
@@ -71,7 +75,7 @@
 <div class="modal fade" id="voidModal" tabindex="-1">
     <div class="modal-dialog">
         <div class="modal-content">
-            <form asp-action="Void" method="post">
+            <form asp-action="ReverseJournalVoucher" method="post">
                 <div class="modal-header">
                     <h5 class="modal-title">Void Voucher</h5>
                     <button type="button" class="btn-close" data-bs-dismiss="modal"></button>

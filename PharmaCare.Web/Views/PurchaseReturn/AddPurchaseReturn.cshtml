@@ -101,6 +101,18 @@
         document.addEventListener('DOMContentLoaded', async function() {
             const response = await fetch('@Url.Action("GetProducts")');
             products = await response.json();
+            
+            // Handle Enter key on line total to add new row and open Select2 dropdown
+            $(document).on('keydown', '.line-total', function(e) {
+                if (e.which === 13) {
+                    e.preventDefault();
+                    $('#addLineBtn').click();
+                    setTimeout(function() {
+                        var $sel = $('#lineItemsBody tr:last').find('.product-select');
+                        if ($sel.length) { $sel.select2('open'); }
+                    }, 150);
+                }
+            });
         });
 
         // Supplier change - load GRNs
@@ -181,8 +193,17 @@
             `;
 
             tbody.appendChild(row);
-            
-            row.querySelector('.product-select').addEventListener('change', onProductChange);
+
+            // Initialize Select2 on the product dropdown
+            var $productSelect = $(row.querySelector('.product-select'));
+            $productSelect.select2({
+                theme: 'bootstrap-5',
+                placeholder: '-- Select Product --',
+                allowClear: true,
+                width: '100%'
+            });
+            $productSelect.on('change', onProductChange);
+
             row.querySelector('.quantity-input').addEventListener('input', calculateLineTotal);
             row.querySelector('.remove-row-btn').addEventListener('click', removeRow);
 

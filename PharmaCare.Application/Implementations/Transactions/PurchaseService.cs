@@ -780,15 +780,16 @@ public class PurchaseService : TransactionServiceBase, IPurchaseService
                 }
 
                 var firstDetail = group.First();
+                var unitRate = firstDetail.UnitPrice > 0 ? firstDetail.UnitPrice : firstDetail.CostPrice;
                 remainingDetails.Add(new StockDetail
                 {
                     Product_ID = firstDetail.Product_ID,
                     Product = firstDetail.Product,
                     Quantity = remainingQty,
-                    CostPrice = firstDetail.CostPrice,
-                    UnitPrice = firstDetail.CostPrice,
-                    LineTotal = Math.Round(remainingQty * firstDetail.CostPrice, 2),
-                    LineCost = Math.Round(remainingQty * firstDetail.CostPrice, 2)
+                    CostPrice = unitRate,
+                    UnitPrice = unitRate,
+                    LineTotal = Math.Round(remainingQty * unitRate, 2),
+                    LineCost = Math.Round(remainingQty * unitRate, 2)
                 });
             }
 
@@ -1006,6 +1007,11 @@ public class PurchaseService : TransactionServiceBase, IPurchaseService
             }))
             .ToListAsync();
 
+        var productIds = requestedByProduct.Keys.Union(orderedByProduct.Keys).ToList();
+        var products = await _productRepository.Query()
+            .Where(p => productIds.Contains(p.ProductID))
+            .ToDictionaryAsync(p => p.ProductID, p => p.Name);
+
         var alreadyReceivedByProduct = receivedLines
             .GroupBy(x => x.Product_ID)
             .ToDictionary(g => g.Key, g => g.Sum(x => x.Quantity));
@@ -1019,8 +1025,10 @@ public class PurchaseService : TransactionServiceBase, IPurchaseService
 
             if (alreadyReceivedQty + requestedQty > orderedQty)
             {
+                products.TryGetValue(productId, out var productName);
+                productName ??= $"Product ID {productId}";
                 throw new InvalidOperationException(
-                    $"GRN quantity for product ID {productId} exceeds PO quantity. " +
+                    $"GRN quantity for ({productName}) exceeds PO quantity. " +
                     $"Ordered: {orderedQty:N4}, Already Received: {alreadyReceivedQty:N4}, Current GRN: {requestedQty:N4}.");
             }
         }

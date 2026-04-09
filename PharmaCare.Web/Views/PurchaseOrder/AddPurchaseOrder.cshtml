@@ -94,43 +94,47 @@
             <!-- Advance Payment Section (Optional) -->
             <div class="card mb-4">
                 <div class="card-header">
-                    <h6 class="mb-0"><i class="fas fa-money-bill-wave me-2"></i>Advance Payment (Optional)</h6>
+                    <h6 class="mb-0"><i class="fas fa-money-bill-wave me-2"></i>Advance Payment <span class="text-muted small">(Optional)</span></h6>
                 </div>
                 <div class="card-body" id="paymentSection">
                     <div class="alert alert-info py-2 mb-3">
                         <i class="fas fa-info-circle me-1"></i>
-                        If you include a payment, the PO will be <strong>auto-approved</strong> and the advance recorded immediately.
+                        Leave amount at <strong>0</strong> to save without payment. If you enter a payment amount, the PO will be <strong>auto-approved</strong> and the advance recorded immediately.
                     </div>
                     <div class="row g-3">
                         <div class="col-md-4">
-                            <label class="form-label">Payment Amount <span class="text-danger">*</span></label>
+                            <label class="form-label">Payment Amount</label>
                             <div class="input-group">
                                 <span class="input-group-text">PKR</span>
-                                <input type="number" name="PaidAmount" id="paidAmount" class="form-control" step="0.01" min="0.01" value="0" />
+                                <input type="number" name="PaidAmount" id="paidAmount" class="form-control" step="0.01" min="0" value="0" onchange="togglePaymentDetails()" />
                             </div>
                             <div class="form-text" id="maxPayableHint">Max: 0.00</div>
                         </div>
-                        <div class="col-md-4">
-                            <label class="form-label">Payment Method <span class="text-danger">*</span></label>
-                            <select name="PaymentMethod" id="paymentMethod" class="form-select">
-                                <option value="Cash">Cash</option>
-                                <option value="Bank">Bank Transfer</option>
-                                <option value="Cheque">Cheque</option>
-                            </select>
-                        </div>
-                        <div class="col-md-4">
-                            <label class="form-label">Account <span class="text-danger">*</span></label>
-                            <select name="PaymentAccountId" id="paymentAccount" class="form-select">
-                                <option value="">-- Select Account --</option>
-                            </select>
-                        </div>
-                        <div class="col-md-4" id="chequeNoGroup" style="display: none;">
-                            <label class="form-label">Cheque No</label>
-                            <input type="text" name="ChequeNo" class="form-control" placeholder="Enter cheque number" />
-                        </div>
-                        <div class="col-md-4" id="chequeDateGroup" style="display: none;">
-                            <label class="form-label">Cheque Date</label>
-                            <input type="date" name="ChequeDate" class="form-control" />
+                    </div>
+                    <div id="paymentDetailsSection" style="display:none;">
+                        <div class="row g-3 mt-1">
+                            <div class="col-md-4">
+                                <label class="form-label">Payment Method <span class="text-danger">*</span></label>
+                                <select name="PaymentMethod" id="paymentMethod" class="form-select">
+                                    <option value="Cash">Cash</option>
+                                    <option value="Bank">Bank Transfer</option>
+                                    <option value="Cheque">Cheque</option>
+                                </select>
+                            </div>
+                            <div class="col-md-4">
+                                <label class="form-label">Account <span class="text-danger">*</span></label>
+                                <select name="PaymentAccountId" id="paymentAccount" class="form-select">
+                                    <option value="">-- Select Account --</option>
+                                </select>
+                            </div>
+                            <div class="col-md-4" id="chequeNoGroup" style="display: none;">
+                                <label class="form-label">Cheque No</label>
+                                <input type="text" name="ChequeNo" class="form-control" placeholder="Enter cheque number" />
+                            </div>
+                            <div class="col-md-4" id="chequeDateGroup" style="display: none;">
+                                <label class="form-label">Cheque Date</label>
+                                <input type="date" name="ChequeDate" class="form-control" />
+                            </div>
                         </div>
                     </div>
                 </div>
@@ -156,6 +160,18 @@
             const response = await fetch('@Url.Action("GetProducts")');
             products = await response.json();
             addLineItem(); // Add initial row
+            
+            // Handle Enter key on line total to add new row and open product Select2 dropdown
+            $(document).on('keydown', '.line-total', function(e) {
+                if (e.which === 13) {
+                    e.preventDefault();
+                    $('#addLineBtn').click();
+                    setTimeout(function() {
+                        var $sel = $('#lineItemsBody tr:last').find('.product-select');
+                        if ($sel.length) { $sel.select2('open'); }
+                    }, 150);
+                }
+            });
         });
 
         // Add line item button
@@ -199,9 +215,18 @@
             `;
 
             tbody.appendChild(row);
-            
+
+            // Initialize Select2 on the product dropdown
+            var $productSelect = $(row.querySelector('.product-select'));
+            $productSelect.select2({
+                theme: 'bootstrap-5',
+                placeholder: '-- Select Product --',
+                allowClear: true,
+                width: '100%'
+            });
+            $productSelect.on('change', onProductChange);
+
             // Add event listeners
-            row.querySelector('.product-select').addEventListener('change', onProductChange);
             row.querySelector('.quantity-input').addEventListener('input', calculateLineTotal);
             row.querySelector('.price-input').addEventListener('input', calculateLineTotal);
             row.querySelector('.remove-row-btn').addEventListener('click', removeRow);
@@ -318,6 +343,21 @@
         }
 
         $('#paymentMethod').on('change', loadAccountsByMethod);
+
+        // Toggle payment details based on amount
+        function togglePaymentDetails() {
+            const amount = parseFloat(document.getElementById('paidAmount').value) || 0;
+            const section = document.getElementById('paymentDetailsSection');
+            const accountSelect = document.getElementById('paymentAccount');
+            if (amount > 0) {
+                section.style.display = 'block';
+                accountSelect.setAttribute('required', 'required');
+                loadAccountsByMethod();
+            } else {
+                section.style.display = 'none';
+                accountSelect.removeAttribute('required');
+            }
+        }
 
         // Load initial accounts on page load
         loadAccountsByMethod();

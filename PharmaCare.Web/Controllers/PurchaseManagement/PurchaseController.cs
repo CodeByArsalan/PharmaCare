@@ -60,12 +60,12 @@ public class PurchaseController : BaseController
     {
         if (!request.Party_ID.HasValue || request.Party_ID.Value <= 0)
         {
-            ModelState.AddModelError(nameof(request.Party_ID), "Supplier is required.");
+            ShowMessage(MessageType.Error, "Supplier is required.");
         }
 
         if (request.StockDetails == null || request.StockDetails.Count == 0)
         {
-            ModelState.AddModelError(nameof(request.StockDetails), "At least one item is required.");
+            ShowMessage(MessageType.Error, "At least one item is required.");
         }
 
         var purchase = MapToStockMain(request);
@@ -80,10 +80,14 @@ public class PurchaseController : BaseController
             ShowMessage(MessageType.Success, "Purchase created successfully!");
             return RedirectToAction(nameof(PurchasesIndex));
         }
+        catch (InvalidOperationException ex)
+        {
+            ShowMessage(MessageType.Error, ex.Message);
+        }
         catch (Exception ex)
         {
             _logger.LogError(ex, "Failed to create purchase for user {UserId}.", CurrentUserId);
-            ModelState.AddModelError("", "An unexpected error occurred while creating the purchase.");
+            ShowMessage(MessageType.Error, "An unexpected error occurred while creating the purchase.");
         }
 
         return View(purchase);
@@ -236,7 +240,7 @@ public class PurchaseController : BaseController
             {
                 productId = d.Product_ID,
                 quantity = d.Quantity,
-                costPrice = d.CostPrice,
+                costPrice = d.UnitPrice > 0 ? d.UnitPrice : d.CostPrice,
                 lineTotal = d.LineTotal
             })
         });
