@@ -481,3 +481,35 @@ table.dataTable tbody .dataTables_empty {
         font-size: 0.8125rem;
     }
 }
+
+/* ===== Premium Sidebar Sub-menu Enhancements ===== */
+.nav-link-child {
+    padding-left: 2.5rem !important;
+    font-size: 0.85rem;
+    opacity: 0.8;
+    transition: all 0.2s ease;
+    border-left: 1px solid rgba(14, 165, 233, 0.2);
+    margin-left: 1.25rem;
+}
+
+.nav-link-child:hover {
+    opacity: 1;
+    background: rgba(14, 165, 233, 0.08) !important;
+    border-left-color: var(--pharma-primary);
+}
+
+.nav-link-child.active {
+    opacity: 1;
+    background: rgba(14, 165, 233, 0.12) !important;
+    border-left-color: var(--pharma-primary);
+    font-weight: 500;
+}
+
+.nav-section-title {
+    transition: color 0.2s ease;
+}
+
+.nav-section.active .nav-section-title {
+    color: var(--pharma-primary);
+    font-weight: 600;
+}

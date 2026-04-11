@@ -1,0 +1,56 @@
+@{
+    ViewData["Title"] = "Party Reports";
+}
+
+<div class="container-fluid p-0">
+    <div class="d-flex align-items-center mb-4">
+        <a asp-controller="Report" asp-action="Index" class="btn btn-outline-secondary me-3">
+            <i class="fas fa-arrow-left"></i>
+        </a>
+        <h3 class="mb-0">Party Reports</h3>
+    </div>
+
+    <div class="row">
+        <div class="col-md-6 mb-4">
+            <div class="card h-100 shadow-sm">
+                <div class="card-header bg-white py-3">
+                    <h5 class="card-title mb-0"><i class="fas fa-user-tag me-2 text-primary"></i> Customer Reports</h5>
+                </div>
+                <div class="card-body">
+                    <div class="list-group list-group-flush">
+                        <a asp-action="CustomerLedger" class="list-group-item list-group-item-action py-3 px-0">
+                            <div class="d-flex w-100 justify-content-between align-items-center">
+                                <div>
+                                    <h6 class="mb-1">Customer Ledger</h6>
+                                    <p class="text-muted small mb-0">Complete transaction history and statement for customers.</p>
+                                </div>
+                                <i class="fas fa-chevron-right text-muted"></i>
+                            </div>
+                        </a>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <div class="col-md-6 mb-4">
+            <div class="card h-100 shadow-sm">
+                <div class="card-header bg-white py-3">
+                    <h5 class="card-title mb-0"><i class="fas fa-truck-loading me-2 text-success"></i> Supplier Reports</h5>
+                </div>
+                <div class="card-body">
+                    <div class="list-group list-group-flush">
+                        <a asp-action="SupplierLedger" class="list-group-item list-group-item-action py-3 px-0">
+                            <div class="d-flex w-100 justify-content-between align-items-center">
+                                <div>
+                                    <h6 class="mb-1">Supplier Ledger</h6>
+                                    <p class="text-muted small mb-0">Complete transaction history and statement for suppliers.</p>
+                                </div>
+                                <i class="fas fa-chevron-right text-muted"></i>
+                            </div>
+                        </a>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>

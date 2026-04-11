@@ -1,0 +1,113 @@
+@{
+    ViewData["Title"] = "Financial Reports";
+}
+
+<div class="container-fluid p-0">
+    <div class="d-flex align-items-center mb-4">
+        <a asp-controller="Report" asp-action="Index" class="btn btn-outline-secondary me-3">
+            <i class="fas fa-arrow-left"></i>
+        </a>
+        <h3 class="mb-0">Financial Reports</h3>
+    </div>
+
+    <div class="row">
+        <div class="col-md-6 mb-4">
+            <div class="card h-100 shadow-sm">
+                <div class="card-header bg-white py-3">
+                    <h5 class="card-title mb-0"><i class="fas fa-chart-line me-2 text-primary"></i> Performance Reports</h5>
+                </div>
+                <div class="card-body">
+                    <div class="list-group list-group-flush">
+                        <a asp-action="ProfitLoss" class="list-group-item list-group-item-action py-3 px-0">
+                            <div class="d-flex w-100 justify-content-between align-items-center">
+                                <div>
+                                    <h6 class="mb-1">Profit & Loss</h6>
+                                    <p class="text-muted small mb-0">Revenue, COGS, and Net Profit analysis.</p>
+                                </div>
+                                <i class="fas fa-chevron-right text-muted"></i>
+                            </div>
+                        </a>
+                        <a asp-action="CashFlow" class="list-group-item list-group-item-action py-3 px-0">
+                            <div class="d-flex w-100 justify-content-between align-items-center">
+                                <div>
+                                    <h6 class="mb-1">Cash Flow</h6>
+                                    <p class="text-muted small mb-0">Detailed tracking of money in and money out.</p>
+                                </div>
+                                <i class="fas fa-chevron-right text-muted"></i>
+                            </div>
+                        </a>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <div class="col-md-6 mb-4">
+            <div class="card h-100 shadow-sm">
+                <div class="card-header bg-white py-3">
+                    <h5 class="card-title mb-0"><i class="fas fa-hourglass-half me-2 text-warning"></i> Aging Reports</h5>
+                </div>
+                <div class="card-body">
+                    <div class="list-group list-group-flush">
+                        <a asp-action="ReceivablesAging" class="list-group-item list-group-item-action py-3 px-0">
+                            <div class="d-flex w-100 justify-content-between align-items-center">
+                                <div>
+                                    <h6 class="mb-1">Receivables Aging</h6>
+                                    <p class="text-muted small mb-0">Analysis of unpaid customer invoices.</p>
+                                </div>
+                                <i class="fas fa-chevron-right text-muted"></i>
+                            </div>
+                        </a>
+                        <a asp-action="PayablesAging" class="list-group-item list-group-item-action py-3 px-0">
+                            <div class="d-flex w-100 justify-content-between align-items-center">
+                                <div>
+                                    <h6 class="mb-1">Payables Aging</h6>
+                                    <p class="text-muted small mb-0">Analysis of unpaid supplier bills.</p>
+                                </div>
+                                <i class="fas fa-chevron-right text-muted"></i>
+                            </div>
+                        </a>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <div class="col-md-6 mb-4">
+            <div class="card h-100 shadow-sm">
+                <div class="card-header bg-white py-3">
+                    <h5 class="card-title mb-0"><i class="fas fa-book me-2 text-info"></i> Accounting Reports</h5>
+                </div>
+                <div class="card-body">
+                    <div class="list-group list-group-flush">
+                        <a asp-action="TrialBalance" class="list-group-item list-group-item-action py-3 px-0">
+                            <div class="d-flex w-100 justify-content-between align-items-center">
+                                <div>
+                                    <h6 class="mb-1">Trial Balance</h6>
+                                    <p class="text-muted small mb-0">Debit vs Credit verification for all accounts.</p>
+                                </div>
+                                <i class="fas fa-chevron-right text-muted"></i>
+                            </div>
+                        </a>
+                        <a asp-action="GeneralLedger" class="list-group-item list-group-item-action py-3 px-0">
+                            <div class="d-flex w-100 justify-content-between align-items-center">
+                                <div>
+                                    <h6 class="mb-1">General Ledger</h6>
+                                    <p class="text-muted small mb-0">Complete transaction history for all accounts.</p>
+                                </div>
+                                <i class="fas fa-chevron-right text-muted"></i>
+                            </div>
+                        </a>
+                        <a asp-action="ExpenseReport" class="list-group-item list-group-item-action py-3 px-0">
+                            <div class="d-flex w-100 justify-content-between align-items-center">
+                                <div>
+                                    <h6 class="mb-1">Expense Report</h6>
+                                    <p class="text-muted small mb-0">Detailed spending categorized by type.</p>
+                                </div>
+                                <i class="fas fa-chevron-right text-muted"></i>
+                            </div>
+                        </a>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>

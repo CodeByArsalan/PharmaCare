@@ -1,0 +1,74 @@
+@{
+    ViewData["Title"] = "Inventory Reports";
+}
+
+<div class="container-fluid p-0">
+    <div class="d-flex align-items-center mb-4">
+        <a asp-controller="Report" asp-action="Index" class="btn btn-outline-secondary me-3">
+            <i class="fas fa-arrow-left"></i>
+        </a>
+        <h3 class="mb-0">Inventory Reports</h3>
+    </div>
+
+    <div class="row">
+        <div class="col-md-6 mb-4">
+            <div class="card h-100 shadow-sm">
+                <div class="card-header bg-white py-3">
+                    <h5 class="card-title mb-0"><i class="fas fa-cubes me-2 text-primary"></i> Stock Status</h5>
+                </div>
+                <div class="card-body">
+                    <div class="list-group list-group-flush">
+                        <a asp-action="CurrentStock" class="list-group-item list-group-item-action py-3 px-0">
+                            <div class="d-flex w-100 justify-content-between align-items-center">
+                                <div>
+                                    <h6 class="mb-1">Current Stock</h6>
+                                    <p class="text-muted small mb-0">Real-time inventory position and valuation.</p>
+                                </div>
+                                <i class="fas fa-chevron-right text-muted"></i>
+                            </div>
+                        </a>
+                        <a asp-action="LowStock" class="list-group-item list-group-item-action py-3 px-0">
+                            <div class="d-flex w-100 justify-content-between align-items-center">
+                                <div>
+                                    <h6 class="mb-1">Low Stock Alert</h6>
+                                    <p class="text-muted small mb-0">Products below their safety reorder levels.</p>
+                                </div>
+                                <i class="fas fa-chevron-right text-muted"></i>
+                            </div>
+                        </a>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <div class="col-md-6 mb-4">
+            <div class="card h-100 shadow-sm">
+                <div class="card-header bg-white py-3">
+                    <h5 class="card-title mb-0"><i class="fas fa-exchange-alt me-2 text-info"></i> Movement Analysis</h5>
+                </div>
+                <div class="card-body">
+                    <div class="list-group list-group-flush">
+                        <a asp-action="ProductMovement" class="list-group-item list-group-item-action py-3 px-0">
+                            <div class="d-flex w-100 justify-content-between align-items-center">
+                                <div>
+                                    <h6 class="mb-1">Product Movement</h6>
+                                    <p class="text-muted small mb-0">Detailed transaction history per product.</p>
+                                </div>
+                                <i class="fas fa-chevron-right text-muted"></i>
+                            </div>
+                        </a>
+                        <a asp-action="DeadStock" class="list-group-item list-group-item-action py-3 px-0">
+                            <div class="d-flex w-100 justify-content-between align-items-center">
+                                <div>
+                                    <h6 class="mb-1">Dead / Slow-Moving Stock</h6>
+                                    <p class="text-muted small mb-0">Products with no recent sales activity.</p>
+                                </div>
+                                <i class="fas fa-chevron-right text-muted"></i>
+                            </div>
+                        </a>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>

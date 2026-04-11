@@ -117,7 +117,7 @@ public class SalesReportService : ISalesReportService
             .AsNoTracking()
             .Include(s => s.TransactionType)
             .Include(s => s.Party)
-            .Where(s => SaleCodes.Contains(s.TransactionType!.Code)
+            .Where(s => (SaleCodes.Contains(s.TransactionType!.Code) || SaleReturnCodes.Contains(s.TransactionType!.Code))
                         && s.TransactionDate >= filter.FromDate
                         && s.TransactionDate < filter.ToDate.AddDays(1)
                         && s.Status != "Void");
@@ -125,30 +125,40 @@ public class SalesReportService : ISalesReportService
         if (filter.PartyId.HasValue)
             query = query.Where(s => s.Party_ID == filter.PartyId.Value);
 
-        var data = await query.OrderByDescending(s => s.TransactionDate).ToListAsync();
+        var data = await query.ToListAsync();
 
-        var vm = new SalesReportVM
+        var rows = data.Select(s =>
         {
-            Filter = filter,
-            Rows = data.Select(s => new SalesReportRow
+            var isReturn = SaleReturnCodes.Contains(s.TransactionType!.Code);
+            var multiplier = isReturn ? -1 : 1;
+
+            return new SalesReportRow
             {
                 StockMainId = s.StockMainID,
                 TransactionNo = s.TransactionNo,
                 TransactionDate = s.TransactionDate,
                 CustomerName = s.Party?.Name ?? "Walk-in Customer",
-                SubTotal = s.SubTotal,
-                Discount = s.DiscountAmount,
-                TotalAmount = s.TotalAmount,
-                PaidAmount = s.PaidAmount,
-                BalanceAmount = s.BalanceAmount,
-                Status = s.Status
-            }).ToList()
+                SubTotal = s.SubTotal * multiplier,
+                Discount = s.DiscountAmount * multiplier,
+                TotalAmount = s.TotalAmount * multiplier,
+                PaidAmount = s.PaidAmount * multiplier,
+                BalanceAmount = s.BalanceAmount * multiplier,
+                Status = isReturn ? "Return" : s.Status
+            };
+        })
+        .OrderByDescending(s => s.TransactionDate)
+        .ToList();
+
+        var vm = new SalesReportVM
+        {
+            Filter = filter,
+            Rows = rows,
+            GrandTotal = rows.Sum(r => r.TotalAmount),
+            GrandDiscount = rows.Sum(r => r.Discount),
+            GrandPaid = rows.Sum(r => r.PaidAmount),
+            GrandBalance = rows.Sum(r => r.BalanceAmount)
         };
 
-        vm.GrandTotal = vm.Rows.Sum(r => r.TotalAmount);
-        vm.GrandDiscount = vm.Rows.Sum(r => r.Discount);
-        vm.GrandPaid = vm.Rows.Sum(r => r.PaidAmount);
-        vm.GrandBalance = vm.Rows.Sum(r => r.BalanceAmount);
         return vm;
     }
 
@@ -156,7 +166,7 @@ public class SalesReportService : ISalesReportService
     {
         var query = _db.StockDetails
             .AsNoTracking()
-            .Where(d => SaleCodes.Contains(d.StockMain!.TransactionType!.Code)
+            .Where(d => (SaleCodes.Contains(d.StockMain!.TransactionType!.Code) || SaleReturnCodes.Contains(d.StockMain.TransactionType!.Code))
                         && d.StockMain.TransactionDate >= filter.FromDate
                         && d.StockMain.TransactionDate < filter.ToDate.AddDays(1)
                         && d.StockMain.Status != "Void");
@@ -169,36 +179,43 @@ public class SalesReportService : ISalesReportService
             {
                 d.Product_ID,
                 ProductName = d.Product!.Name,
-                CategoryName = d.Product.Category != null ? d.Product.Category.Name : ""
+                CategoryName = d.Product.Category != null ? d.Product.Category.Name : "",
+                TransactionCode = d.StockMain!.TransactionType!.Code
             })
             .Select(g => new
             {
                 ProductId = g.Key.Product_ID,
                 ProductName = g.Key.ProductName,
                 CategoryName = g.Key.CategoryName,
-                QuantitySold = g.Sum(d => d.Quantity),
+                Code = g.Key.TransactionCode,
+                Quantity = g.Sum(d => d.Quantity),
                 Revenue = g.Sum(d => d.LineTotal),
                 Cost = g.Sum(d => d.LineCost)
             })
-            .OrderByDescending(r => r.Revenue)
             .ToListAsync();
 
         var rows = groupedRows
-            .Select(r =>
+            .GroupBy(r => new { r.ProductId, r.ProductName, r.CategoryName })
+            .Select(g =>
             {
-                var profit = r.Revenue - r.Cost;
+                var netQuantity = g.Sum(x => SaleReturnCodes.Contains(x.Code) ? -x.Quantity : x.Quantity);
+                var netRevenue = g.Sum(x => SaleReturnCodes.Contains(x.Code) ? -x.Revenue : x.Revenue);
+                var netCost = g.Sum(x => SaleReturnCodes.Contains(x.Code) ? -x.Cost : x.Cost);
+                var profit = netRevenue - netCost;
+
                 return new SalesByProductRow
                 {
-                    ProductId = r.ProductId,
-                    ProductName = r.ProductName,
-                    CategoryName = r.CategoryName,
-                    QuantitySold = r.QuantitySold,
-                    Revenue = r.Revenue,
-                    Cost = r.Cost,
+                    ProductId = g.Key.ProductId,
+                    ProductName = g.Key.ProductName,
+                    CategoryName = g.Key.CategoryName,
+                    QuantitySold = netQuantity,
+                    Revenue = netRevenue,
+                    Cost = netCost,
                     GrossProfit = profit,
-                    ProfitMarginPercent = r.Revenue == 0 ? 0 : Math.Round(profit / r.Revenue * 100, 2)
+                    ProfitMarginPercent = netRevenue == 0 ? 0 : Math.Round(profit / netRevenue * 100, 2)
                 };
             })
+            .OrderByDescending(r => r.Revenue)
             .ToList();
 
         return new SalesByProductVM
@@ -213,30 +230,42 @@ public class SalesReportService : ISalesReportService
 
     public async Task<SalesByCustomerVM> GetSalesByCustomerAsync(DateRangeFilter filter)
     {
-        var rows = await _db.StockMains
+        var transactions = await _db.StockMains
             .AsNoTracking()
-            .Where(s => SaleCodes.Contains(s.TransactionType!.Code)
+            .Include(s => s.TransactionType)
+            .Include(s => s.Party)
+            .Where(s => (SaleCodes.Contains(s.TransactionType!.Code) || SaleReturnCodes.Contains(s.TransactionType!.Code))
                         && s.TransactionDate >= filter.FromDate
                         && s.TransactionDate < filter.ToDate.AddDays(1)
                         && s.Status != "Void"
                         && s.Party_ID != null)
+            .ToListAsync();
+
+        var rows = transactions
             .GroupBy(s => new
             {
                 PartyId = s.Party_ID!.Value,
                 CustomerName = s.Party != null ? s.Party.Name : "Unknown"
             })
-            .Select(g => new SalesByCustomerRow
+            .Select(g =>
             {
-                PartyId = g.Key.PartyId,
-                CustomerName = g.Key.CustomerName,
-                PurchaseCount = g.Count(),
-                TotalPurchases = g.Sum(s => s.TotalAmount),
-                TotalPaid = g.Sum(s => s.PaidAmount),
-                BalanceDue = g.Sum(s => s.BalanceAmount),
-                LastPurchaseDate = g.Max(s => s.TransactionDate)
+                var totalSales = g.Sum(s => SaleReturnCodes.Contains(s.TransactionType!.Code) ? -s.TotalAmount : s.TotalAmount);
+                var totalPaid = g.Sum(s => SaleReturnCodes.Contains(s.TransactionType!.Code) ? -s.PaidAmount : s.PaidAmount);
+                var balanceDue = g.Sum(s => SaleReturnCodes.Contains(s.TransactionType!.Code) ? -s.BalanceAmount : s.BalanceAmount);
+
+                return new SalesByCustomerRow
+                {
+                    PartyId = g.Key.PartyId,
+                    CustomerName = g.Key.CustomerName,
+                    PurchaseCount = g.Count(s => SaleCodes.Contains(s.TransactionType!.Code)),
+                    TotalPurchases = totalSales,
+                    TotalPaid = totalPaid,
+                    BalanceDue = balanceDue,
+                    LastPurchaseDate = g.Where(s => SaleCodes.Contains(s.TransactionType!.Code)).Max(s => (DateTime?)s.TransactionDate)
+                };
             })
             .OrderByDescending(r => r.TotalPurchases)
-            .ToListAsync();
+            .ToList();
 
         return new SalesByCustomerVM
         {
