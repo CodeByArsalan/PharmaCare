@@ -3,93 +3,98 @@
 }
 
 <div class="container-fluid p-0">
-    <div class="d-flex align-items-center mb-4">
-        <a asp-controller="Report" asp-action="Index" class="btn btn-outline-secondary me-3">
-            <i class="fas fa-arrow-left"></i>
-        </a>
-        <h3 class="mb-0">Sales Reports</h3>
+    <!-- Premium Header -->
+    <div class="report-gateway-header d-flex justify-content-between align-items-center">
+        <div>
+            <div class="d-flex align-items-center mb-2">
+                <a asp-controller="Report" asp-action="Index" class="btn btn-white btn-sm shadow-sm rounded-circle me-3" style="width: 32px; height: 32px; display: flex; align-items: center; justify-content: center;">
+                    <i class="fas fa-arrow-left text-muted" style="font-size: 0.875rem;"></i>
+                </a>
+                <span class="text-primary fw-semibold small text-uppercase tracking-wider">Report Center</span>
+            </div>
+            <h2 class="report-category-title mb-1">Sales Reports</h2>
+            <p class="text-muted mb-0">Monitor your revenue, analyze customer behavior, and track sales performance.</p>
+        </div>
+        <div class="d-none d-md-block">
+            <i class="fas fa-chart-pie fa-4x text-primary opacity-10"></i>
+        </div>
     </div>
 
-    <div class="row">
-        <div class="col-md-6 mb-4">
-            <div class="card h-100 shadow-sm">
-                <div class="card-header bg-white py-3">
-                    <h5 class="card-title mb-0"><i class="fas fa-calendar-day me-2 text-primary"></i> Daily Reports</h5>
-                </div>
-                <div class="card-body">
-                    <div class="list-group list-group-flush">
-                        <a asp-action="DailySalesSummary" class="list-group-item list-group-item-action py-3 px-0">
-                            <div class="d-flex w-100 justify-content-between align-items-center">
-                                <div>
-                                    <h6 class="mb-1">Daily Sales Summary</h6>
-                                    <p class="text-muted small mb-0">Today's sales snapshot with charts and totals.</p>
-                                </div>
-                                <i class="fas fa-chevron-right text-muted"></i>
-                            </div>
-                        </a>
-                    </div>
-                </div>
+    <!-- Report Grid -->
+    <div class="report-grid">
+        <!-- Daily Sales Summary -->
+        <a asp-action="DailySalesSummary" class="premium-report-card">
+            <div class="report-card-icon icon-blue">
+                <i class="fas fa-calendar-day"></i>
             </div>
-        </div>
+            <div class="report-card-content">
+                <h6>Daily Sales Summary</h6>
+                <p>Get a snapshot of today's sales performance including charts, category totals, and payment methods.</p>
+            </div>
+            <div class="report-card-footer">
+                <span>View Summary</span>
+                <i class="fas fa-arrow-right ms-2"></i>
+            </div>
+        </a>
 
-        <div class="col-md-6 mb-4">
-            <div class="card h-100 shadow-sm">
-                <div class="card-header bg-white py-3">
-                    <h5 class="card-title mb-0"><i class="fas fa-file-invoice-dollar me-2 text-success"></i> Transactional Reports</h5>
-                </div>
-                <div class="card-body">
-                    <div class="list-group list-group-flush">
-                        <a asp-action="SalesReport" class="list-group-item list-group-item-action py-3 px-0">
-                            <div class="d-flex w-100 justify-content-between align-items-center">
-                                <div>
-                                    <h6 class="mb-1">Detailed Sales Report</h6>
-                                    <p class="text-muted small mb-0">List of all sales transactions within a date range.</p>
-                                </div>
-                                <i class="fas fa-chevron-right text-muted"></i>
-                            </div>
-                        </a>
-                        <a asp-action="CustomerBalanceSummary" class="list-group-item list-group-item-action py-3 px-0">
-                            <div class="d-flex w-100 justify-content-between align-items-center">
-                                <div>
-                                    <h6 class="mb-1">Customer Balance Summary</h6>
-                                    <p class="text-muted small mb-0">Current outstanding balances for all customers.</p>
-                                </div>
-                                <i class="fas fa-chevron-right text-muted"></i>
-                            </div>
-                        </a>
-                    </div>
-                </div>
+        <!-- Detailed Sales Report -->
+        <a asp-action="SalesReport" class="premium-report-card">
+            <div class="report-card-icon icon-green">
+                <i class="fas fa-file-invoice-dollar"></i>
             </div>
-        </div>
+            <div class="report-card-content">
+                <h6>Detailed Sales Report</h6>
+                <p>Fully filterable list of all sales transactions. Export data by date range, customer, or transaction status.</p>
+            </div>
+            <div class="report-card-footer">
+                <span>Access Report</span>
+                <i class="fas fa-arrow-right ms-2"></i>
+            </div>
+        </a>
 
-        <div class="col-md-6 mb-4">
-            <div class="card h-100 shadow-sm">
-                <div class="card-header bg-white py-3">
-                    <h5 class="card-title mb-0"><i class="fas fa-boxes me-2 text-info"></i> Analytical Reports</h5>
-                </div>
-                <div class="card-body">
-                    <div class="list-group list-group-flush">
-                        <a asp-action="SalesByProduct" class="list-group-item list-group-item-action py-3 px-0">
-                            <div class="d-flex w-100 justify-content-between align-items-center">
-                                <div>
-                                    <h6 class="mb-1">Sales by Product</h6>
-                                    <p class="text-muted small mb-0">Product-wise revenue and profit analysis.</p>
-                                </div>
-                                <i class="fas fa-chevron-right text-muted"></i>
-                            </div>
-                        </a>
-                        <a asp-action="SalesByCustomer" class="list-group-item list-group-item-action py-3 px-0">
-                            <div class="d-flex w-100 justify-content-between align-items-center">
-                                <div>
-                                    <h6 class="mb-1">Sales by Customer</h6>
-                                    <p class="text-muted small mb-0">Revenue contribution per customer analysis.</p>
-                                </div>
-                                <i class="fas fa-chevron-right text-muted"></i>
-                            </div>
-                        </a>
-                    </div>
-                </div>
+        <!-- Sales by Product -->
+        <a asp-action="SalesByProduct" class="premium-report-card">
+            <div class="report-card-icon icon-indigo">
+                <i class="fas fa-boxes"></i>
             </div>
-        </div>
+            <div class="report-card-content">
+                <h6>Sales by Product</h6>
+                <p>Identify your top-selling items and analyze product-wise revenue contribution and profit margins.</p>
+            </div>
+            <div class="report-card-footer">
+                <span>Explore Data</span>
+                <i class="fas fa-arrow-right ms-2"></i>
+            </div>
+        </a>
+
+        <!-- Sales by Customer -->
+        <a asp-action="SalesByCustomer" class="premium-report-card">
+            <div class="report-card-icon icon-purple">
+                <i class="fas fa-users"></i>
+            </div>
+            <div class="report-card-content">
+                <h6>Sales by Customer</h6>
+                <p>Understand your customer demographics and identify your high-value loyal customer segments.</p>
+            </div>
+            <div class="report-card-footer">
+                <span>Analyze Customers</span>
+                <i class="fas fa-arrow-right ms-2"></i>
+            </div>
+        </a>
+
+        <!-- Customer Balance Summary -->
+        <a asp-action="CustomerBalanceSummary" class="premium-report-card">
+            <div class="report-card-icon icon-orange">
+                <i class="fas fa-user-clock"></i>
+            </div>
+            <div class="report-card-content">
+                <h6>Customer Balance Summary</h6>
+                <p>Quick overview of all outstanding balances. Track receivables and manage credit limits effectively.</p>
+            </div>
+            <div class="report-card-footer">
+                <span>Manage Receivables</span>
+                <i class="fas fa-arrow-right ms-2"></i>
+            </div>
+        </a>
     </div>
 </div>

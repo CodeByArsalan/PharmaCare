@@ -3,54 +3,53 @@
 }
 
 <div class="container-fluid p-0">
-    <div class="d-flex align-items-center mb-4">
-        <a asp-controller="Report" asp-action="Index" class="btn btn-outline-secondary me-3">
-            <i class="fas fa-arrow-left"></i>
-        </a>
-        <h3 class="mb-0">Purchase Reports</h3>
+    <!-- Premium Header -->
+    <div class="report-gateway-header d-flex justify-content-between align-items-center">
+        <div>
+            <div class="d-flex align-items-center mb-2">
+                <a asp-controller="Report" asp-action="Index" class="btn btn-white btn-sm shadow-sm rounded-circle me-3" style="width: 32px; height: 32px; display: flex; align-items: center; justify-content: center;">
+                    <i class="fas fa-arrow-left text-muted" style="font-size: 0.875rem;"></i>
+                </a>
+                <span class="text-primary fw-semibold small text-uppercase tracking-wider">Report Center</span>
+            </div>
+            <h2 class="report-category-title mb-1">Purchase Reports</h2>
+            <p class="text-muted mb-0">Track your procurement, manage supplier relationships, and analyze spending patterns.</p>
+        </div>
+        <div class="d-none d-md-block">
+            <i class="fas fa-shopping-cart fa-4x text-primary opacity-10"></i>
+        </div>
     </div>
 
-    <div class="row">
-        <div class="col-md-6 mb-4">
-            <div class="card h-100 shadow-sm">
-                <div class="card-header bg-white py-3">
-                    <h5 class="card-title mb-0"><i class="fas fa-file-invoice me-2 text-primary"></i> Transactional Reports</h5>
-                </div>
-                <div class="card-body">
-                    <div class="list-group list-group-flush">
-                        <a asp-action="PurchaseReport" class="list-group-item list-group-item-action py-3 px-0">
-                            <div class="d-flex w-100 justify-content-between align-items-center">
-                                <div>
-                                    <h6 class="mb-1">Purchase Report</h6>
-                                    <p class="text-muted small mb-0">Detailed list of purchases and returns by date range.</p>
-                                </div>
-                                <i class="fas fa-chevron-right text-muted"></i>
-                            </div>
-                        </a>
-                    </div>
-                </div>
+    <!-- Report Grid -->
+    <div class="report-grid">
+        <!-- Purchase Report -->
+        <a asp-action="PurchaseReport" class="premium-report-card">
+            <div class="report-card-icon icon-blue">
+                <i class="fas fa-file-invoice"></i>
             </div>
-        </div>
+            <div class="report-card-content">
+                <h6>Purchase Report</h6>
+                <p>Detailed list of all purchase transactions and returns. Filter by date, supplier, or transaction status.</p>
+            </div>
+            <div class="report-card-footer">
+                <span>Access Report</span>
+                <i class="fas fa-arrow-right ms-2"></i>
+            </div>
+        </a>
 
-        <div class="col-md-6 mb-4">
-            <div class="card h-100 shadow-sm">
-                <div class="card-header bg-white py-3">
-                    <h5 class="card-title mb-0"><i class="fas fa-industry me-2 text-info"></i> Analytical Reports</h5>
-                </div>
-                <div class="card-body">
-                    <div class="list-group list-group-flush">
-                        <a asp-action="PurchaseBySupplier" class="list-group-item list-group-item-action py-3 px-0">
-                            <div class="d-flex w-100 justify-content-between align-items-center">
-                                <div>
-                                    <h6 class="mb-1">Purchase by Supplier</h6>
-                                    <p class="text-muted small mb-0">Detailed spending analysis per supplier.</p>
-                                </div>
-                                <i class="fas fa-chevron-right text-muted"></i>
-                            </div>
-                        </a>
-                    </div>
-                </div>
+        <!-- Purchase by Supplier -->
+        <a asp-action="PurchaseBySupplier" class="premium-report-card">
+            <div class="report-card-icon icon-indigo">
+                <i class="fas fa-industry"></i>
             </div>
-        </div>
+            <div class="report-card-content">
+                <h6>Purchase by Supplier</h6>
+                <p>Analyze your spending per supplier. Identify your primary vendors and track procurement volumes.</p>
+            </div>
+            <div class="report-card-footer">
+                <span>Explore Data</span>
+                <i class="fas fa-arrow-right ms-2"></i>
+            </div>
+        </a>
     </div>
 </div>

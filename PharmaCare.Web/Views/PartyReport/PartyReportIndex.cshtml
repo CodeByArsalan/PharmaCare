@@ -3,54 +3,53 @@
 }
 
 <div class="container-fluid p-0">
-    <div class="d-flex align-items-center mb-4">
-        <a asp-controller="Report" asp-action="Index" class="btn btn-outline-secondary me-3">
-            <i class="fas fa-arrow-left"></i>
-        </a>
-        <h3 class="mb-0">Party Reports</h3>
+    <!-- Premium Header -->
+    <div class="report-gateway-header d-flex justify-content-between align-items-center">
+        <div>
+            <div class="d-flex align-items-center mb-2">
+                <a asp-controller="Report" asp-action="Index" class="btn btn-white btn-sm shadow-sm rounded-circle me-3" style="width: 32px; height: 32px; display: flex; align-items: center; justify-content: center;">
+                    <i class="fas fa-arrow-left text-muted" style="font-size: 0.875rem;"></i>
+                </a>
+                <span class="text-primary fw-semibold small text-uppercase tracking-wider">Report Center</span>
+            </div>
+            <h2 class="report-category-title mb-1">Party Reports</h2>
+            <p class="text-muted mb-0">Detailed ledgers and transaction statements for your customers and suppliers.</p>
+        </div>
+        <div class="d-none d-md-block">
+            <i class="fas fa-user-friends fa-4x text-primary opacity-10"></i>
+        </div>
     </div>
 
-    <div class="row">
-        <div class="col-md-6 mb-4">
-            <div class="card h-100 shadow-sm">
-                <div class="card-header bg-white py-3">
-                    <h5 class="card-title mb-0"><i class="fas fa-user-tag me-2 text-primary"></i> Customer Reports</h5>
-                </div>
-                <div class="card-body">
-                    <div class="list-group list-group-flush">
-                        <a asp-action="CustomerLedger" class="list-group-item list-group-item-action py-3 px-0">
-                            <div class="d-flex w-100 justify-content-between align-items-center">
-                                <div>
-                                    <h6 class="mb-1">Customer Ledger</h6>
-                                    <p class="text-muted small mb-0">Complete transaction history and statement for customers.</p>
-                                </div>
-                                <i class="fas fa-chevron-right text-muted"></i>
-                            </div>
-                        </a>
-                    </div>
-                </div>
+    <!-- Report Grid -->
+    <div class="report-grid">
+        <!-- Customer Ledger -->
+        <a asp-action="CustomerLedger" class="premium-report-card">
+            <div class="report-card-icon icon-purple">
+                <i class="fas fa-user-tag"></i>
             </div>
-        </div>
+            <div class="report-card-content">
+                <h6>Customer Ledger</h6>
+                <p>Generate detailed statements for customers. Track every sale, payment, and credit note chronologically.</p>
+            </div>
+            <div class="report-card-footer">
+                <span>View Ledger</span>
+                <i class="fas fa-arrow-right ms-2"></i>
+            </div>
+        </a>
 
-        <div class="col-md-6 mb-4">
-            <div class="card h-100 shadow-sm">
-                <div class="card-header bg-white py-3">
-                    <h5 class="card-title mb-0"><i class="fas fa-truck-loading me-2 text-success"></i> Supplier Reports</h5>
-                </div>
-                <div class="card-body">
-                    <div class="list-group list-group-flush">
-                        <a asp-action="SupplierLedger" class="list-group-item list-group-item-action py-3 px-0">
-                            <div class="d-flex w-100 justify-content-between align-items-center">
-                                <div>
-                                    <h6 class="mb-1">Supplier Ledger</h6>
-                                    <p class="text-muted small mb-0">Complete transaction history and statement for suppliers.</p>
-                                </div>
-                                <i class="fas fa-chevron-right text-muted"></i>
-                            </div>
-                        </a>
-                    </div>
-                </div>
+        <!-- Supplier Ledger -->
+        <a asp-action="SupplierLedger" class="premium-report-card">
+            <div class="report-card-icon icon-indigo">
+                <i class="fas fa-truck-loading"></i>
             </div>
-        </div>
+            <div class="report-card-content">
+                <h6>Supplier Ledger</h6>
+                <p>Monitor your financial standing with vendors. Track all purchases and payments in a unified statement.</p>
+            </div>
+            <div class="report-card-footer">
+                <span>Access Ledger</span>
+                <i class="fas fa-arrow-right ms-2"></i>
+            </div>
+        </a>
     </div>
 </div>

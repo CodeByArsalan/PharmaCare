@@ -3,111 +3,128 @@
 }
 
 <div class="container-fluid p-0">
-    <div class="d-flex align-items-center mb-4">
-        <a asp-controller="Report" asp-action="Index" class="btn btn-outline-secondary me-3">
-            <i class="fas fa-arrow-left"></i>
-        </a>
-        <h3 class="mb-0">Financial Reports</h3>
+    <!-- Premium Header -->
+    <div class="report-gateway-header d-flex justify-content-between align-items-center">
+        <div>
+            <div class="d-flex align-items-center mb-2">
+                <a asp-controller="Report" asp-action="Index" class="btn btn-white btn-sm shadow-sm rounded-circle me-3" style="width: 32px; height: 32px; display: flex; align-items: center; justify-content: center;">
+                    <i class="fas fa-arrow-left text-muted" style="font-size: 0.875rem;"></i>
+                </a>
+                <span class="text-primary fw-semibold small text-uppercase tracking-wider">Report Center</span>
+            </div>
+            <h2 class="report-category-title mb-1">Financial Reports</h2>
+            <p class="text-muted mb-0">Analyze business health, track profitability, and maintain accurate accounting balances.</p>
+        </div>
+        <div class="d-none d-md-block">
+            <i class="fas fa-university fa-4x text-primary opacity-10"></i>
+        </div>
     </div>
 
-    <div class="row">
-        <div class="col-md-6 mb-4">
-            <div class="card h-100 shadow-sm">
-                <div class="card-header bg-white py-3">
-                    <h5 class="card-title mb-0"><i class="fas fa-chart-line me-2 text-primary"></i> Performance Reports</h5>
-                </div>
-                <div class="card-body">
-                    <div class="list-group list-group-flush">
-                        <a asp-action="ProfitLoss" class="list-group-item list-group-item-action py-3 px-0">
-                            <div class="d-flex w-100 justify-content-between align-items-center">
-                                <div>
-                                    <h6 class="mb-1">Profit & Loss</h6>
-                                    <p class="text-muted small mb-0">Revenue, COGS, and Net Profit analysis.</p>
-                                </div>
-                                <i class="fas fa-chevron-right text-muted"></i>
-                            </div>
-                        </a>
-                        <a asp-action="CashFlow" class="list-group-item list-group-item-action py-3 px-0">
-                            <div class="d-flex w-100 justify-content-between align-items-center">
-                                <div>
-                                    <h6 class="mb-1">Cash Flow</h6>
-                                    <p class="text-muted small mb-0">Detailed tracking of money in and money out.</p>
-                                </div>
-                                <i class="fas fa-chevron-right text-muted"></i>
-                            </div>
-                        </a>
-                    </div>
-                </div>
+    <!-- Report Grid -->
+    <div class="report-grid">
+        <!-- Profit & Loss -->
+        <a asp-action="ProfitLoss" class="premium-report-card">
+            <div class="report-card-icon icon-green">
+                <i class="fas fa-chart-line"></i>
             </div>
-        </div>
+            <div class="report-card-content">
+                <h6>Profit & Loss</h6>
+                <p>Comprehensive statement of revenue, costs, and expenses category-wise for any date range.</p>
+            </div>
+            <div class="report-card-footer">
+                <span>View Statement</span>
+                <i class="fas fa-arrow-right ms-2"></i>
+            </div>
+        </a>
 
-        <div class="col-md-6 mb-4">
-            <div class="card h-100 shadow-sm">
-                <div class="card-header bg-white py-3">
-                    <h5 class="card-title mb-0"><i class="fas fa-hourglass-half me-2 text-warning"></i> Aging Reports</h5>
-                </div>
-                <div class="card-body">
-                    <div class="list-group list-group-flush">
-                        <a asp-action="ReceivablesAging" class="list-group-item list-group-item-action py-3 px-0">
-                            <div class="d-flex w-100 justify-content-between align-items-center">
-                                <div>
-                                    <h6 class="mb-1">Receivables Aging</h6>
-                                    <p class="text-muted small mb-0">Analysis of unpaid customer invoices.</p>
-                                </div>
-                                <i class="fas fa-chevron-right text-muted"></i>
-                            </div>
-                        </a>
-                        <a asp-action="PayablesAging" class="list-group-item list-group-item-action py-3 px-0">
-                            <div class="d-flex w-100 justify-content-between align-items-center">
-                                <div>
-                                    <h6 class="mb-1">Payables Aging</h6>
-                                    <p class="text-muted small mb-0">Analysis of unpaid supplier bills.</p>
-                                </div>
-                                <i class="fas fa-chevron-right text-muted"></i>
-                            </div>
-                        </a>
-                    </div>
-                </div>
+        <!-- Cash Flow -->
+        <a asp-action="CashFlow" class="premium-report-card">
+            <div class="report-card-icon icon-blue">
+                <i class="fas fa-money-bill-wave"></i>
             </div>
-        </div>
+            <div class="report-card-content">
+                <h6>Cash Flow</h6>
+                <p>Track cash inflows and outflows. Maintain visibility on your liquid assets and transactional liquidity.</p>
+            </div>
+            <div class="report-card-footer">
+                <span>Access Report</span>
+                <i class="fas fa-arrow-right ms-2"></i>
+            </div>
+        </a>
 
-        <div class="col-md-6 mb-4">
-            <div class="card h-100 shadow-sm">
-                <div class="card-header bg-white py-3">
-                    <h5 class="card-title mb-0"><i class="fas fa-book me-2 text-info"></i> Accounting Reports</h5>
-                </div>
-                <div class="card-body">
-                    <div class="list-group list-group-flush">
-                        <a asp-action="TrialBalance" class="list-group-item list-group-item-action py-3 px-0">
-                            <div class="d-flex w-100 justify-content-between align-items-center">
-                                <div>
-                                    <h6 class="mb-1">Trial Balance</h6>
-                                    <p class="text-muted small mb-0">Debit vs Credit verification for all accounts.</p>
-                                </div>
-                                <i class="fas fa-chevron-right text-muted"></i>
-                            </div>
-                        </a>
-                        <a asp-action="GeneralLedger" class="list-group-item list-group-item-action py-3 px-0">
-                            <div class="d-flex w-100 justify-content-between align-items-center">
-                                <div>
-                                    <h6 class="mb-1">General Ledger</h6>
-                                    <p class="text-muted small mb-0">Complete transaction history for all accounts.</p>
-                                </div>
-                                <i class="fas fa-chevron-right text-muted"></i>
-                            </div>
-                        </a>
-                        <a asp-action="ExpenseReport" class="list-group-item list-group-item-action py-3 px-0">
-                            <div class="d-flex w-100 justify-content-between align-items-center">
-                                <div>
-                                    <h6 class="mb-1">Expense Report</h6>
-                                    <p class="text-muted small mb-0">Detailed spending categorized by type.</p>
-                                </div>
-                                <i class="fas fa-chevron-right text-muted"></i>
-                            </div>
-                        </a>
-                    </div>
-                </div>
+        <!-- Receivables Aging -->
+        <a asp-action="ReceivablesAging" class="premium-report-card">
+            <div class="report-card-icon icon-orange">
+                <i class="fas fa-hand-holding-usd"></i>
             </div>
-        </div>
+            <div class="report-card-content">
+                <h6>Receivables Aging</h6>
+                <p>Analyze unpaid customer invoices categorized by age. Critical for credit control and recovery.</p>
+            </div>
+            <div class="report-card-footer">
+                <span>Manage Receivables</span>
+                <i class="fas fa-arrow-right ms-2"></i>
+            </div>
+        </a>
+
+        <!-- Payables Aging -->
+        <a asp-action="PayablesAging" class="premium-report-card">
+            <div class="report-card-icon icon-rose">
+                <i class="fas fa-file-invoice-dollar"></i>
+            </div>
+            <div class="report-card-content">
+                <h6>Payables Aging</h6>
+                <p>Track outstanding supplier obligations. Manage payment schedules and vendor relations.</p>
+            </div>
+            <div class="report-card-footer">
+                <span>Review Payables</span>
+                <i class="fas fa-arrow-right ms-2"></i>
+            </div>
+        </a>
+
+        <!-- Trial Balance -->
+        <a asp-action="TrialBalance" class="premium-report-card">
+            <div class="report-card-icon icon-indigo">
+                <i class="fas fa-balance-scale"></i>
+            </div>
+            <div class="report-card-content">
+                <h6>Trial Balance</h6>
+                <p>Verify that total debits equal total credits. Ensure the mathematical accuracy of your bookkeeping.</p>
+            </div>
+            <div class="report-card-footer">
+                <span>Check Balance</span>
+                <i class="fas fa-arrow-right ms-2"></i>
+            </div>
+        </a>
+
+        <!-- General Ledger -->
+        <a asp-action="GeneralLedger" class="premium-report-card">
+            <div class="report-card-icon icon-purple">
+                <i class="fas fa-book"></i>
+            </div>
+            <div class="report-card-content">
+                <h6>General Ledger</h6>
+                <p>Detailed view of every transaction impacting your chart of accounts. Essential for internal auditing.</p>
+            </div>
+            <div class="report-card-footer">
+                <span>Explore Ledger</span>
+                <i class="fas fa-arrow-right ms-2"></i>
+            </div>
+        </a>
+
+        <!-- Expense Report -->
+        <a asp-action="ExpenseReport" class="premium-report-card">
+            <div class="report-card-icon icon-rose">
+                <i class="fas fa-receipt"></i>
+            </div>
+            <div class="report-card-content">
+                <h6>Expense Report</h6>
+                <p>Categorized spending analysis. Monitor operational overheads and identify cost-saving opportunities.</p>
+            </div>
+            <div class="report-card-footer">
+                <span>Analyze Expenses</span>
+                <i class="fas fa-arrow-right ms-2"></i>
+            </div>
+        </a>
     </div>
 </div>

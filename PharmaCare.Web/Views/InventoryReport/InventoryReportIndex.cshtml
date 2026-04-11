@@ -3,72 +3,83 @@
 }
 
 <div class="container-fluid p-0">
-    <div class="d-flex align-items-center mb-4">
-        <a asp-controller="Report" asp-action="Index" class="btn btn-outline-secondary me-3">
-            <i class="fas fa-arrow-left"></i>
-        </a>
-        <h3 class="mb-0">Inventory Reports</h3>
+    <!-- Premium Header -->
+    <div class="report-gateway-header d-flex justify-content-between align-items-center">
+        <div>
+            <div class="d-flex align-items-center mb-2">
+                <a asp-controller="Report" asp-action="Index" class="btn btn-white btn-sm shadow-sm rounded-circle me-3" style="width: 32px; height: 32px; display: flex; align-items: center; justify-content: center;">
+                    <i class="fas fa-arrow-left text-muted" style="font-size: 0.875rem;"></i>
+                </a>
+                <span class="text-primary fw-semibold small text-uppercase tracking-wider">Report Center</span>
+            </div>
+            <h2 class="report-category-title mb-1">Inventory Reports</h2>
+            <p class="text-muted mb-0">Monitor stock levels, track product movement, and optimize your inventory turnover.</p>
+        </div>
+        <div class="d-none d-md-block">
+            <i class="fas fa-boxes fa-4x text-primary opacity-10"></i>
+        </div>
     </div>
 
-    <div class="row">
-        <div class="col-md-6 mb-4">
-            <div class="card h-100 shadow-sm">
-                <div class="card-header bg-white py-3">
-                    <h5 class="card-title mb-0"><i class="fas fa-cubes me-2 text-primary"></i> Stock Status</h5>
-                </div>
-                <div class="card-body">
-                    <div class="list-group list-group-flush">
-                        <a asp-action="CurrentStock" class="list-group-item list-group-item-action py-3 px-0">
-                            <div class="d-flex w-100 justify-content-between align-items-center">
-                                <div>
-                                    <h6 class="mb-1">Current Stock</h6>
-                                    <p class="text-muted small mb-0">Real-time inventory position and valuation.</p>
-                                </div>
-                                <i class="fas fa-chevron-right text-muted"></i>
-                            </div>
-                        </a>
-                        <a asp-action="LowStock" class="list-group-item list-group-item-action py-3 px-0">
-                            <div class="d-flex w-100 justify-content-between align-items-center">
-                                <div>
-                                    <h6 class="mb-1">Low Stock Alert</h6>
-                                    <p class="text-muted small mb-0">Products below their safety reorder levels.</p>
-                                </div>
-                                <i class="fas fa-chevron-right text-muted"></i>
-                            </div>
-                        </a>
-                    </div>
-                </div>
+    <!-- Report Grid -->
+    <div class="report-grid">
+        <!-- Current Stock -->
+        <a asp-action="CurrentStock" class="premium-report-card">
+            <div class="report-card-icon icon-green">
+                <i class="fas fa-cubes"></i>
             </div>
-        </div>
+            <div class="report-card-content">
+                <h6>Current Stock</h6>
+                <p>Real-time inventory position and valuation. Monitor quantities on hand across all categories.</p>
+            </div>
+            <div class="report-card-footer">
+                <span>Check Stock</span>
+                <i class="fas fa-arrow-right ms-2"></i>
+            </div>
+        </a>
 
-        <div class="col-md-6 mb-4">
-            <div class="card h-100 shadow-sm">
-                <div class="card-header bg-white py-3">
-                    <h5 class="card-title mb-0"><i class="fas fa-exchange-alt me-2 text-info"></i> Movement Analysis</h5>
-                </div>
-                <div class="card-body">
-                    <div class="list-group list-group-flush">
-                        <a asp-action="ProductMovement" class="list-group-item list-group-item-action py-3 px-0">
-                            <div class="d-flex w-100 justify-content-between align-items-center">
-                                <div>
-                                    <h6 class="mb-1">Product Movement</h6>
-                                    <p class="text-muted small mb-0">Detailed transaction history per product.</p>
-                                </div>
-                                <i class="fas fa-chevron-right text-muted"></i>
-                            </div>
-                        </a>
-                        <a asp-action="DeadStock" class="list-group-item list-group-item-action py-3 px-0">
-                            <div class="d-flex w-100 justify-content-between align-items-center">
-                                <div>
-                                    <h6 class="mb-1">Dead / Slow-Moving Stock</h6>
-                                    <p class="text-muted small mb-0">Products with no recent sales activity.</p>
-                                </div>
-                                <i class="fas fa-chevron-right text-muted"></i>
-                            </div>
-                        </a>
-                    </div>
-                </div>
+        <!-- Low Stock Alert -->
+        <a asp-action="LowStock" class="premium-report-card">
+            <div class="report-card-icon icon-orange">
+                <i class="fas fa-exclamation-triangle"></i>
             </div>
-        </div>
+            <div class="report-card-content">
+                <h6>Low Stock Alert</h6>
+                <p>Identify products that have fallen below their safety levels. Essential for procurement planning.</p>
+            </div>
+            <div class="report-card-footer">
+                <span>View Alerts</span>
+                <i class="fas fa-arrow-right ms-2"></i>
+            </div>
+        </a>
+
+        <!-- Product Movement -->
+        <a asp-action="ProductMovement" class="premium-report-card">
+            <div class="report-card-icon icon-blue">
+                <i class="fas fa-exchange-alt"></i>
+            </div>
+            <div class="report-card-content">
+                <h6>Product Movement</h6>
+                <p>Track the full lifecycle of a product. See every purchase, sale, and adjustment in a timeline.</p>
+            </div>
+            <div class="report-card-footer">
+                <span>Track Movement</span>
+                <i class="fas fa-arrow-right ms-2"></i>
+            </div>
+        </a>
+
+        <!-- Dead Stock -->
+        <a asp-action="DeadStock" class="premium-report-card">
+            <div class="report-card-icon icon-rose">
+                <i class="fas fa-archive"></i>
+            </div>
+            <div class="report-card-content">
+                <h6>Dead / Slow Stock</h6>
+                <p>Identify non-moving inventory to optimize storage and free up capital through promotions.</p>
+            </div>
+            <div class="report-card-footer">
+                <span>Analyze Stock</span>
+                <i class="fas fa-arrow-right ms-2"></i>
+            </div>
+        </a>
     </div>
 </div>
