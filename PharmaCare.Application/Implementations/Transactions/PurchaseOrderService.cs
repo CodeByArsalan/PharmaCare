@@ -391,8 +391,13 @@ public class PurchaseOrderService : IPurchaseOrderService
             }
 
             var sourceLine = detailGroup.First();
-            var unitRate = sourceLine.CostPrice > 0 ? sourceLine.CostPrice : sourceLine.UnitPrice;
+            var unitRate = sourceLine.Quantity > 0 ? (sourceLine.LineTotal / sourceLine.Quantity) : sourceLine.UnitPrice;
             remainingTotal += Math.Round(remainingQty * unitRate, 2);
+        }
+
+        if (purchaseOrder.DiscountPercent > 0)
+        {
+            remainingTotal -= Math.Round(remainingTotal * purchaseOrder.DiscountPercent / 100, 2);
         }
 
         return Math.Round(remainingTotal, 2);

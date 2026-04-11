@@ -45,10 +45,26 @@ document.addEventListener('DOMContentLoaded', () => {
         });
     }
 
-    // 2. Entrance Animation
+    // 2. Theme Toggle Logic
+    const themeToggle = document.getElementById('themeToggle');
+    if (themeToggle) {
+        // Initialize theme: Default to 'dark'
+        const savedTheme = localStorage.getItem('theme') || 'dark';
+        html.setAttribute('data-theme', savedTheme);
+
+        themeToggle.addEventListener('click', () => {
+            const currentTheme = html.getAttribute('data-theme') || 'dark';
+            const newTheme = currentTheme === 'dark' ? 'light' : 'dark';
+
+            html.setAttribute('data-theme', newTheme);
+            localStorage.setItem('theme', newTheme);
+        });
+    }
+
+    // 3. Entrance Animation
     document.body.classList.add('page-loaded');
 
-    // 3. Hover effects for stat cards to create a subtle glow tracking mouse (optional micro-interaction)
+    // 4. Hover effects for stat cards to create a subtle glow tracking mouse (optional micro-interaction)
     const cards = document.querySelectorAll('.stat-card-modern, .premium-report-card');
     cards.forEach(card => {
         card.addEventListener('mousemove', e => {
@@ -60,7 +76,7 @@ document.addEventListener('DOMContentLoaded', () => {
         });
     });
 
-    // 4. Scroll to Top Logic
+    // 5. Scroll to Top Logic
     const scrollToTopBtn = document.getElementById('scrollToTopBtn');
     if (scrollToTopBtn) {
         window.addEventListener('scroll', () => {

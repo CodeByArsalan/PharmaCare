@@ -180,11 +180,13 @@ public class PaymentService : IPaymentService
     {
         return await ExecuteInTransactionAsync(async () =>
         {
-            // Validate the transaction exists (include type + party + linked account)
+            // The StockMain might already be tracked in the same DbContext scope (e.g. by ApproveAsync)
+            // so we do NOT use AsNoTracking() here, to avoid key collision when calling Update().
             var stockMain = await _stockMainRepository.Query()
                 .Include(s => s.TransactionType)
                 .Include(s => s.Party)
                     .ThenInclude(p => p!.Account)
+                .Include(s => s.StockDetails)
                 .FirstOrDefaultAsync(s => s.StockMainID == payment.StockMain_ID);
 
             if (stockMain == null)
@@ -253,7 +255,7 @@ public class PaymentService : IPaymentService
 
             payment.Voucher = voucher;
 
-            // Update transaction balance
+            // Update transaction balance and re-attach for write
             stockMain.PaidAmount += payment.Amount;
             stockMain.BalanceAmount = await CalculateOutstandingAmountAsync(stockMain, stockMain.PaidAmount);
             stockMain.PaymentStatus = stockMain.BalanceAmount <= 0
@@ -263,6 +265,7 @@ public class PaymentService : IPaymentService
             stockMain.UpdatedBy = userId;
 
             await _paymentRepository.AddAsync(payment);
+            // Explicitly attach the AsNoTracking entity before updating
             _stockMainRepository.Update(stockMain);
             await _unitOfWork.SaveChangesAsync();
 
@@ -302,6 +305,7 @@ public class PaymentService : IPaymentService
     {
         if (purchaseOrder.StockDetails == null || purchaseOrder.StockDetails.Count == 0)
         {
+            // Fallback: re-fetch with StockDetails if not already loaded
             purchaseOrder = await _stockMainRepository.Query()
                 .AsNoTracking()
                 .Include(s => s.StockDetails)
@@ -337,8 +341,13 @@ public class PaymentService : IPaymentService
             }
 
             var sourceLine = detailGroup.First();
-            var unitRate = sourceLine.CostPrice > 0 ? sourceLine.CostPrice : sourceLine.UnitPrice;
+            var unitRate = sourceLine.Quantity > 0 ? (sourceLine.LineTotal / sourceLine.Quantity) : sourceLine.UnitPrice;
             remainingTotal += Math.Round(remainingQty * unitRate, 2);
+        }
+
+        if (purchaseOrder.DiscountPercent > 0)
+        {
+            remainingTotal -= Math.Round(remainingTotal * purchaseOrder.DiscountPercent / 100, 2);
         }
 
         return Math.Max(0, Math.Round(remainingTotal - paidAmount, 2));
