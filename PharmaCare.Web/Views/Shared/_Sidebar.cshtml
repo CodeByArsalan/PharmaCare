@@ -7,12 +7,16 @@
     var currentController = ViewContext.RouteData.Values["controller"]?.ToString() ?? "";
 }
 
-<aside class="sidebar">
+<div class="sidebar-overlay" id="sidebarOverlay"></div>
+<aside class="sidebar" id="sidebar">
     <div class="sidebar-brand">
         <div class="sidebar-brand-icon">
             <i class="fas fa-pills"></i>
         </div>
         <span class="sidebar-brand-text">PharmaCare</span>
+        <button class="btn btn-sm btn-ghost d-lg-none ms-auto" id="closeSidebarBtn">
+            <i class="fas fa-times"></i>
+        </button>
     </div>
     
     <nav>

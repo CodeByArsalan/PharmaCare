@@ -7,10 +7,15 @@
 }
 
 <header class="header">
-    <div class="header-left">
+    <div class="header-left d-flex align-items-center">
         <button class="sidebar-toggle" id="sidebarToggle">
             <i class="fas fa-bars"></i>
         </button>
+        <div class="header-breadcrumb ms-3 d-none d-md-flex align-items-center text-muted animate-on-load">
+            <i class="fas fa-home me-2"></i> 
+            <span class="mx-2">/</span> 
+            <span class="fw-medium" style="color: var(--text-primary);">@ViewData["Title"]</span>
+        </div>
     </div>
     
     <div class="header-right">
@@ -23,7 +28,9 @@
         <div class="dropdown">
             <button class="user-menu-btn dropdown-toggle" type="button" id="userMenuDropdown" 
                     data-bs-toggle="dropdown" aria-expanded="false">
-                <i class="fas fa-user-circle me-2"></i>
+                <div class="avatar-circle">
+                    @(string.IsNullOrEmpty(userName) ? "U" : userName.Substring(0, 1).ToUpper())
+                </div>
                 <span>@userName</span>
             </button>
             <ul class="dropdown-menu dropdown-menu-end" aria-labelledby="userMenuDropdown">
@@ -217,5 +224,29 @@
     
     .header-right .dropdown-item.text-danger:hover {
         background: rgba(220, 53, 69, 0.1);
+    }
+    
+    /* Avatar Circle */
+    .avatar-circle {
+        width: 32px;
+        height: 32px;
+        border-radius: 50%;
+        background: var(--gradient-primary);
+        color: white;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        font-weight: 600;
+        font-size: 0.9rem;
+        box-shadow: var(--shadow-sm);
+    }
+    
+    /* Breadcrumb Animation */
+    .animate-on-load {
+        animation: slideInLeft 0.5s ease-out forwards;
+    }
+    @@keyframes slideInLeft {
+        from { opacity: 0; transform: translateX(-15px); }
+        to { opacity: 1; transform: translateX(0); }
     }
 </style>

@@ -13,6 +13,10 @@
                 showConfirmButton: false,
                 timer: 3000,
                 timerProgressBar: true,
+                customClass: {
+                    popup: 'premium-toast',
+                    title: 'premium-toast-title'
+                },
                 didOpen: (toast) => {
                     toast.addEventListener('mouseenter', Swal.stopTimer);
                     toast.addEventListener('mouseleave', Swal.resumeTimer);

@@ -62,6 +62,9 @@
     <h4 class="page-title">
         <i class="fas fa-plus-circle"></i>
         Add Sale
+        <span class="badge bg-light text-dark border ms-3 fw-normal align-middle" style="font-size: 12px; transform: translateY(-3px);">
+            <kbd class="bg-secondary">Ctrl+N</kbd> Row | <kbd class="bg-primary">Ctrl+S</kbd> Save
+        </span>
     </h4>
     <a asp-action="SalesIndex" class="btn btn-outline-secondary">
         <i class="fas fa-arrow-left me-2"></i>Back to List
@@ -121,23 +124,23 @@
                 </div>
                 <div class="card-body p-0">
                     <div class="table-responsive">
-                        <table class="table table-bordered mb-0">
-                            <thead>
+                        <table class="table table-bordered table-striped table-hover mb-0 align-middle">
+                            <thead class="table-light">
                                 <tr>
-                                    <th class="w-50px">#</th>
-                                    <th class="w-min-150px">Product <span class="text-danger">*</span></th>
-                                    <th class="w-125px">Quantity <span class="text-danger">*</span></th>
-                                    <th class="w-140px">Unit Price <span class="text-danger">*</span></th>
-                                    <th class="w-140px">Line Total</th>
-                                    <th class="w-50px"></th>
+                                    <th class="w-50px text-center">#</th>
+                                    <th class="w-min-150px"><i class="fas fa-barcode me-2 text-muted"></i>Product <span class="text-danger">*</span></th>
+                                    <th class="w-125px text-center">Quantity <span class="text-danger">*</span></th>
+                                    <th class="w-140px text-end">Unit Price <span class="text-danger">*</span></th>
+                                    <th class="w-140px text-end">Line Total</th>
+                                    <th class="w-50px text-center"></th>
                                 </tr>
                             </thead>
                             <tbody id="lineItemsBody">
                             </tbody>
-                            <tfoot>
+                            <tfoot class="bg-light">
                                 <tr>
                                     <td colspan="4" class="text-end"><strong>Sub Total:</strong></td>
-                                    <td class="text-end"><strong id="subTotalDisplay">0.00</strong></td>
+                                    <td class="text-end"><strong id="subTotalDisplay" class="fs-6 text-primary">0.00</strong></td>
                                     <td></td>
                                 </tr>
                             </tfoot>
@@ -149,7 +152,7 @@
             <!-- Totals & Payment Section -->
             <div class="row g-3 mb-4">
                 <div class="col-md-6 offset-md-6">
-                    <div class="card sale-summary-sticky">
+                    <div class="card sale-summary-sticky" style="border-left: 4px solid var(--primary-500); border-radius: var(--radius-xl); box-shadow: var(--shadow-lg);">
                         <div class="card-body">
                             <div class="row g-2">
                                 <div class="col-6">
@@ -164,9 +167,9 @@
                                 </div>
                                 <div class="col-12">
                                     <hr class="my-2" />
-                                    <div class="d-flex justify-content-between mb-2">
-                                        <strong>Total Amount:</strong>
-                                        <strong class="text-info fs-5" id="totalAmountDisplay">0.00</strong>
+                                    <div class="d-flex justify-content-between mb-2 align-items-center">
+                                        <strong class="fs-5">Total Amount:</strong>
+                                        <strong class="text-info fs-3 fw-bold" id="totalAmountDisplay" style="background: var(--gradient-primary); -webkit-background-clip: text; -webkit-text-fill-color: transparent;">0.00</strong>
                                     </div>
                                     <input type="hidden" asp-for="SubTotal" id="subTotal" />
                                     <input type="hidden" asp-for="TotalAmount" id="totalAmount" />
@@ -177,9 +180,10 @@
                                 </div>
                                 <div class="col-5">
                                     <label class="form-label">Paid Amount</label>
-                                    <div class="input-group">
+                                    <div class="input-group input-group-lg">
+                                        <span class="input-group-text bg-light border-end-0">PKR</span>
                                         <input type="number" step="0.01" min="0"
-                                               class="form-control" id="tenderedAmount" name="TenderedAmount"
+                                               class="form-control border-start-0 fw-bold text-success" id="tenderedAmount" name="TenderedAmount"
                                                value="@tenderedAmountValue.ToString("0.##")" />
                                         <button type="button" class="btn btn-outline-success" id="payFullBtn" title="Pay Full Amount">
                                             <i class="fas fa-check"></i>
@@ -237,9 +241,16 @@
 
             <div class="text-end">
                 <a asp-action="SalesIndex" class="btn btn-outline-secondary me-2">Cancel</a>
-                <button type="button" class="btn btn-primary" id="confirmSaveBtn">
+                <button type="button" class="btn btn-primary btn-premium btn-lg shadow-sm" style="animation: pulse 2s infinite;" id="confirmSaveBtn">
                     <i class="fas fa-save me-2"></i>Save Sale
                 </button>
+                <style>
+                    @@keyframes pulse {
+                        0% { box-shadow: 0 0 0 0 rgba(14, 165, 233, 0.4); }
+                        70% { box-shadow: 0 0 0 10px rgba(14, 165, 233, 0); }
+                        100% { box-shadow: 0 0 0 0 rgba(14, 165, 233, 0); }
+                    }
+                </style>
                 <div class="text-danger small mt-2 d-none-soft" id="stockErrorHint">
                     Please resolve stock quantity issues before saving.
                 </div>
@@ -598,15 +609,15 @@
                         ${productOptions}
                     </select>
                 </td>
-                <td data-label="Quantity">
+                <td data-label="Quantity" class="text-center">
                     <div class="w-100">
-                        <input type="number" name="StockDetails[${rowIndex}].Quantity" class="form-control quantity-input"
-                               step="1" min="1" value="${quantity}" required />
+                        <input type="number" name="StockDetails[${rowIndex}].Quantity" class="form-control quantity-input text-center fw-bold form-control-lg fs-5"
+                               style="height: 44px;" step="1" min="1" value="${quantity}" required />
                         <div class="invalid-feedback stock-feedback"></div>
                     </div>
                 </td>
-                <td data-label="Unit Price">
-                    <input type="number" name="StockDetails[${rowIndex}].UnitPrice" class="form-control price-input"
+                <td data-label="Unit Price" class="text-end">
+                    <input type="number" name="StockDetails[${rowIndex}].UnitPrice" class="form-control price-input text-end"
                            step="0.01" min="0" value="${unitPrice}" required readonly />
                     <input type="hidden" name="StockDetails[${rowIndex}].CostPrice" class="cost-price-input" value="0" />
                 </td>
