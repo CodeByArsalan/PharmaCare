@@ -1,4 +1,5 @@
 @model PharmaCare.Domain.Entities.Transactions.StockMain
+@inject PharmaCare.Infrastructure.Interfaces.IComboboxRepository _combobox
 @{
     ViewData["Title"] = "Add Purchase Return";
 }
@@ -21,7 +22,7 @@
             <div class="row g-3 mb-4">
                 <div class="col-md-3">
                     <label class="form-label">Supplier <span class="text-danger">*</span></label>
-                    <select asp-for="Party_ID" asp-items="ViewBag.Suppliers" class="form-select" id="supplierSelect" required>
+                    <select asp-for="Party_ID" asp-items="@_combobox.GetActivePartiesByType("Supplier")" class="form-select" id="supplierSelect" required>
                         <option value="">-- Select Supplier --</option>
                     </select>
                     <span asp-validation-for="Party_ID" class="text-danger small"></span>
@@ -102,6 +103,22 @@
             const response = await fetch('@Url.Action("GetProducts")');
             products = await response.json();
             
+            // Initialize Supplier Select2
+            $('#supplierSelect').select2({
+                theme: 'bootstrap-5',
+                placeholder: '-- Select Supplier --',
+                allowClear: true,
+                width: '100%'
+            });
+
+            // Initialize GRN Select2
+            $('#grnSelect').select2({
+                theme: 'bootstrap-5',
+                placeholder: '-- Select GRN --',
+                allowClear: true,
+                width: '100%'
+            });
+
             // Handle Enter key on line total to add new row and open Select2 dropdown
             $(document).on('keydown', '.line-total', function(e) {
                 if (e.which === 13) {
@@ -113,37 +130,47 @@
                     }, 150);
                 }
             });
-        });
 
-        // Supplier change - load GRNs
-        document.getElementById('supplierSelect').addEventListener('change', async function() {
-            const supplierId = this.value;
-            const grnSelect = document.getElementById('grnSelect');
-            grnSelect.innerHTML = '<option value="">-- Select GRN --</option>';
-            document.getElementById('lineItemsBody').innerHTML = '';
-            rowIndex = 0;
-            calculateTotals();
-            
-            if (supplierId) {
-                const response = await fetch(`@Url.Action("GetGrns")?supplierId=${supplierId}`);
-                const grns = await response.json();
-                grns.forEach(grn => {
-                    grnSelect.innerHTML += `<option value="${grn.id}" data-details='${JSON.stringify(grn.details)}'>${grn.transactionNo} - ${grn.date} (Balance: ${grn.balance.toFixed(2)})</option>`;
-                });
-            }
-        });
+            // Supplier change - load GRNs
+            $('#supplierSelect').on('change', async function() {
+                const supplierId = $(this).val();
+                const $grnSelect = $('#grnSelect');
+                $grnSelect.empty().append('<option value="">-- Select GRN --</option>');
+                $('#lineItemsBody').empty();
+                rowIndex = 0;
+                calculateTotals();
+                
+                if (supplierId) {
+                    try {
+                        const response = await fetch(`@Url.Action("GetGrns")?supplierId=${supplierId}`);
+                        const grns = await response.json();
+                        grns.forEach(grn => {
+                            $grnSelect.append(`<option value="${grn.id}" data-details='${JSON.stringify(grn.details)}'>${grn.transactionNo} - ${grn.date} (Balance: ${grn.balance.toFixed(2)})</option>`);
+                        });
+                        $grnSelect.trigger('change');
+                    } catch (error) {
+                        console.error('Error loading GRNs:', error);
+                    }
+                }
+            });
 
-        // GRN change - load details
-        document.getElementById('grnSelect').addEventListener('change', function() {
-            const selectedOption = this.options[this.selectedIndex];
-            document.getElementById('lineItemsBody').innerHTML = '';
-            rowIndex = 0;
-            
-            if (selectedOption.value && selectedOption.dataset.details) {
-                const details = JSON.parse(selectedOption.dataset.details);
-                details.forEach(d => addLineItem(d));
-            }
-            calculateTotals();
+            // GRN change - load details
+            $('#grnSelect').on('change', function() {
+                const $selected = $(this).find('option:selected');
+                $('#lineItemsBody').empty();
+                rowIndex = 0;
+                
+                const detailsStr = $selected.attr('data-details');
+                if ($selected.val() && detailsStr) {
+                    try {
+                        const details = JSON.parse(detailsStr);
+                        details.forEach(d => addLineItem(d));
+                    } catch (e) {
+                        console.error('Error parsing GRN details:', e);
+                    }
+                }
+                calculateTotals();
+            });
         });
 
         document.getElementById('addLineBtn').addEventListener('click', function() { addLineItem(); });

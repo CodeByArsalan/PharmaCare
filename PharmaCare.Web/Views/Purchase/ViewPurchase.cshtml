@@ -237,19 +237,27 @@
                                 <th>Method</th>
                                 <th>Account</th>
                                 <th class="text-end">Amount</th>
+                                <th class="text-center">Action</th>
                             </tr>
                         </thead>
-                        <tbody>
-                `;
+                        <tbody>`;
                 
                 payments.forEach(p => {
+                    const voidedClass = p.isVoided ? 'text-decoration-line-through text-muted' : '';
+                    const voidBadge = p.isVoided ? ' <span class="badge bg-danger">Voided</span>' : '';
+                    
                     html += `
-                        <tr>
-                            <td>${p.reference}</td>
+                        <tr class="${voidedClass}">
+                            <td>${p.reference}${voidBadge}</td>
                             <td>${p.date}</td>
                             <td><span class="badge bg-${p.method === 'Cash' ? 'success' : p.method === 'Bank' ? 'primary' : 'warning'}">${p.method}</span></td>
                             <td>${p.account || '-'}</td>
                             <td class="text-end"><strong>${parseFloat(p.amount).toFixed(2)}</strong></td>
+                            <td class="text-center">
+                                <a href="@Url.Action("ViewPayment", "SupplierPayment")/${p.id}" class="btn btn-xs btn-outline-info" title="View Details">
+                                    <i class="fas fa-search me-1"></i>View
+                                </a>
+                            </td>
                         </tr>
                     `;
                 });

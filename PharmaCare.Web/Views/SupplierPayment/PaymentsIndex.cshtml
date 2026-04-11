@@ -6,8 +6,6 @@
     var selectedStatus = (string?)ViewBag.SelectedStatus ?? "All";
     var paymentStatuses = _combobox
         .GetPaymentStatuses(selectedStatus)
-        .Where(s => !string.Equals(s.Value, "Paid", StringComparison.OrdinalIgnoreCase)
-                 && !string.Equals(s.Text, "Paid", StringComparison.OrdinalIgnoreCase))
         .ToList();
 }
 
@@ -158,6 +156,7 @@
                                 <th>Method</th>
                                 <th>Account</th>
                                 <th class="text-end">Amount</th>
+                                <th class="text-center">Action</th>
                             </tr>
                         </thead>
                         <tbody></tbody>
@@ -216,6 +215,11 @@
                                     '<td><span class="badge bg-' + (p.method === 'Cash' ? 'success' : 'primary') + '">' + p.method + '</span></td>' +
                                     '<td>' + (p.account || '-') + '</td>' +
                                     '<td class="text-end"><strong>' + parseFloat(p.amount).toFixed(2) + '</strong></td>' +
+                                    '<td class="text-center">' +
+                                        '<a href="@Url.Action("ViewPayment")/' + p.id + '" class="btn btn-xs btn-outline-info" title="View Details">' +
+                                            '<i class="fas fa-search me-1"></i>View' +
+                                        '</a>' +
+                                    '</td>' +
                                 '</tr>'
                             );
                         });

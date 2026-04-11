@@ -34,7 +34,8 @@ public class SupplierPaymentController : BaseController
     /// Displays list of GRNs with payment information.
     public async Task<IActionResult> PaymentsIndex(int? supplierId, string? paymentStatus, DateTime? fromDate, DateTime? toDate)
     {
-        var grns = await _paymentService.GetPendingGrnsAsync(supplierId);
+        bool includePaid = paymentStatus == "Paid" || paymentStatus == "All";
+        var grns = await _paymentService.GetPendingGrnsAsync(supplierId, includePaid);
         var grnList = grns.ToList();
 
         if (!string.IsNullOrEmpty(paymentStatus) && paymentStatus != "All")
@@ -196,6 +197,7 @@ public class SupplierPaymentController : BaseController
         var result = orderedPayments.Select(p => new
         {
             sNo = sNo++,
+            id = p.PaymentID.EncryptId(),
             reference = p.Reference,
             date = p.PaymentDate.ToString("dd/MM/yyyy"),
             amount = p.Amount,
@@ -270,6 +272,7 @@ public class SupplierPaymentController : BaseController
     /// Voids a supplier payment.
     [HttpPost]
     [ValidateAntiForgeryToken]
+    [LinkedToPage("SupplierPayment", "PaymentsIndex")]
     public async Task<IActionResult> VoidPayment(string id, string reason)
     {
         int paymentId = Utility.DecryptId(id);
@@ -358,7 +361,9 @@ public class SupplierPaymentController : BaseController
                 TypeBadge = "primary",
                 Debit = grn.TotalAmount,
                 Credit = 0,
-                Remarks = grn.Remarks
+                Remarks = grn.Remarks,
+                EncryptedId = grn.StockMainID.EncryptId(),
+                Source = "Purchase"
             });
         }
 
@@ -378,7 +383,9 @@ public class SupplierPaymentController : BaseController
                 TypeBadge = "success",
                 Debit = 0,
                 Credit = payment.Amount,
-                Remarks = payment.Remarks
+                Remarks = payment.Remarks,
+                EncryptedId = payment.PaymentID.EncryptId(),
+                Source = "Payment"
             });
         }
 
@@ -412,4 +419,6 @@ public class LedgerEntry
     public decimal Credit { get; set; }
     public decimal Balance { get; set; }
     public string? Remarks { get; set; }
+    public string? EncryptedId { get; set; }
+    public string? Source { get; set; }
 }

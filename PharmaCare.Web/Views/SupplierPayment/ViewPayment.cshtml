@@ -4,152 +4,297 @@
     ViewData["Title"] = "Payment Details";
 }
 
+<style>
+    :root {
+        --premium-primary: #6366f1;
+        --premium-secondary: #4f46e5;
+        --premium-success: #10b981;
+        --premium-danger: #ef4444;
+        --premium-warning: #f59e0b;
+        --glass-bg: rgba(30, 41, 59, 0.7);
+        --glass-border: rgba(255, 255, 255, 0.1);
+    }
+
+    .page-header {
+        background: linear-gradient(135deg, rgba(99, 102, 241, 0.1), rgba(16, 185, 129, 0.1));
+        padding: 1.5rem;
+        border-radius: 1rem;
+        margin-bottom: 2rem;
+        border: 1px solid var(--glass-border);
+        backdrop-filter: blur(10px);
+    }
+
+    .premium-card {
+        background: var(--glass-bg);
+        border: 1px solid var(--glass-border);
+        backdrop-filter: blur(12px);
+        border-radius: 1.25rem;
+        box-shadow: 0 8px 32px 0 rgba(0, 0, 0, 0.3);
+        transition: transform 0.3s ease, box-shadow 0.3s ease;
+        overflow: hidden;
+    }
+
+    .amount-hero {
+        background: linear-gradient(135deg, #1e293b 0%, #0f172a 100%);
+        padding: 2.5rem;
+        border-radius: 1.25rem;
+        position: relative;
+        border: 1px solid var(--glass-border);
+        margin-bottom: 2rem;
+    }
+
+    .amount-label {
+        font-size: 0.875rem;
+        text-transform: uppercase;
+        letter-spacing: 0.1em;
+        color: #94a3b8;
+        margin-bottom: 0.5rem;
+    }
+
+    .amount-value {
+        font-size: 3rem;
+        font-weight: 800;
+        background: linear-gradient(to right, #4ade80, #10b981);
+        -webkit-background-clip: text;
+        -webkit-text-fill-color: transparent;
+        margin-bottom: 0;
+    }
+
+    .data-label {
+        font-size: 0.75rem;
+        font-weight: 600;
+        color: #64748b;
+        text-transform: uppercase;
+        margin-bottom: 0.25rem;
+    }
+
+    .data-value {
+        font-size: 1rem;
+        font-weight: 500;
+        color: #f1f5f9;
+        margin-bottom: 1.25rem;
+    }
+
+    .void-banner {
+        background: linear-gradient(90deg, #ef4444 0%, #991b1b 100%);
+        padding: 1rem 1.5rem;
+        border-radius: 0.75rem;
+        margin-bottom: 2rem;
+        display: flex;
+        align-items: center;
+        gap: 1rem;
+        color: white;
+        animation: slideIn 0.5s ease-out;
+    }
+
+    @@keyframes slideIn {
+        from { transform: translateY(-20px); opacity: 0; }
+        to { transform: translateY(0); opacity: 1; }
+    }
+
+    .badge-premium {
+        padding: 0.5em 1em;
+        border-radius: 2rem;
+        font-weight: 600;
+        font-size: 0.75rem;
+        letter-spacing: 0.05em;
+    }
+
+    .btn-premium-void {
+        background: linear-gradient(135deg, #ef4444, #dc2626);
+        border: none;
+        padding: 0.75rem 2rem;
+        border-radius: 0.75rem;
+        color: white;
+        font-weight: 600;
+        transition: all 0.3s ease;
+        box-shadow: 0 4px 15px rgba(239, 68, 68, 0.3);
+    }
+
+    .btn-premium-void:hover {
+        transform: translateY(-2px);
+        box-shadow: 0 6px 20px rgba(239, 68, 68, 0.4);
+        color: white;
+    }
+
+    .purchase-link {
+        color: #6366f1;
+        text-decoration: none;
+        display: inline-flex;
+        align-items: center;
+        gap: 0.5rem;
+        transition: color 0.2s;
+    }
+
+    .purchase-link:hover {
+        color: #818cf8;
+    }
+</style>
+
 <!-- Page Header -->
-<div class="page-header">
-    <h4 class="page-title">
-        <i class="fas fa-receipt"></i>
-        Payment Details - @Model.Reference
-        @if (Model.IsVoided)
-        {
-            <span class="badge bg-danger ms-2">VOIDED</span>
-        }
-    </h4>
-    <a asp-action="PaymentsIndex" class="btn btn-outline-secondary">
+<div class="page-header d-flex justify-content-between align-items-center">
+    <div>
+        <h4 class="mb-1 fw-bold text-white">
+            <i class="fas fa-receipt me-2 text-primary"></i>Payment Details
+        </h4>
+        <div class="text-muted small">Reference: <span class="text-info fw-bold">@Model.Reference</span></div>
+    </div>
+    <a asp-action="PaymentsIndex" class="btn btn-outline-light rounded-pill px-4 btn-sm">
         <i class="fas fa-arrow-left me-2"></i>Back to List
     </a>
 </div>
 
 @if (Model.IsVoided)
 {
-    <div class="card border-danger mb-4">
-        <div class="card-header bg-danger text-white">
-            <h6 class="mb-0"><i class="fas fa-ban me-2"></i>Void Information</h6>
-        </div>
-        <div class="card-body">
-            <div class="row">
-                <div class="col-md-4">
-                    <label class="form-label text-muted small">Voided At</label>
-                    <p class="mb-0">@Model.VoidedAt?.ToString("dd/MM/yyyy HH:mm")</p>
-                </div>
-                <div class="col-md-8">
-                    <label class="form-label text-muted small">Reason</label>
-                    <p class="mb-0">@Model.VoidReason</p>
-                </div>
-            </div>
+    <div class="void-banner">
+        <i class="fas fa-exclamation-triangle fa-lg"></i>
+        <div>
+            <div class="fw-bold">PAYMENT VOIDED</div>
+            <div class="small opacity-75">Reason: @Model.VoidReason — @Model.VoidedAt?.ToString("dd MMM yyyy HH:mm")</div>
         </div>
     </div>
 }
 
-<div class="row">
-    <div class="col-md-8">
-        <div class="card">
-            <div class="card-header">
-                <h6 class="mb-0"><i class="fas fa-info-circle me-2"></i>Payment Information</h6>
+<div class="row g-4">
+    <!-- Hero amount section -->
+    <div class="col-12">
+        <div class="amount-hero text-center">
+            <div class="amount-label">Amount Paid</div>
+            <h1 class="amount-value @(Model.IsVoided ? "text-decoration-line-through opacity-50" : "")">
+                <span class="fs-4 fw-normal opacity-50 me-1">PKR</span>@Model.Amount.ToString("N2")
+            </h1>
+            @if (Model.IsVoided)
+            {
+                <div class="badge bg-danger badge-premium mt-2">VOIDED</div>
+            }
+        </div>
+    </div>
+
+    <!-- Details grid -->
+    <div class="col-md-7">
+        <div class="premium-card h-100">
+            <div class="card-header border-bottom border-secondary bg-transparent py-3">
+                <h6 class="mb-0 fw-bold"><i class="fas fa-info-circle me-2 text-primary"></i>Information</h6>
             </div>
             <div class="card-body">
-                <div class="row">
-                    <div class="col-md-6">
-                        <table class="table table-sm table-borderless">
-                            <tr>
-                                <td class="text-muted w-40pct">Reference:</td>
-                                <td><strong>@Model.Reference</strong></td>
-                            </tr>
-                            <tr>
-                                <td class="text-muted">Payment Date:</td>
-                                <td>@Model.PaymentDate.ToString("dd/MM/yyyy")</td>
-                            </tr>
-                            <tr>
-                                <td class="text-muted">Supplier:</td>
-                                <td>@Model.Party?.Name</td>
-                            </tr>
-                            <tr>
-                                <td class="text-muted">Payment Method:</td>
-                                <td>
-                                    <span class="badge bg-@(Model.PaymentMethod == "Cash" ? "success" : Model.PaymentMethod == "Bank" ? "primary" : "warning")">
-                                        @Model.PaymentMethod
-                                    </span>
-                                </td>
-                            </tr>
-                        </table>
-                    </div>
-                    <div class="col-md-6">
-                        <table class="table table-sm table-borderless">
-                            <tr>
-                                <td class="text-muted w-40pct">Account:</td>
-                                <td>@Model.Account?.Name</td>
-                            </tr>
-                            @if (Model.PaymentMethod == "Cheque")
+                <div class="row g-3">
+                    <div class="col-sm-6">
+                        <div class="data-label">Supplier</div>
+                        <div class="data-value">@Model.Party?.Name</div>
+
+                        <div class="data-label">Payment Date</div>
+                        <div class="data-value">@Model.PaymentDate.ToString("dd MMMM, yyyy")</div>
+                        
+                        <div class="data-label">Linked Purchase</div>
+                        <div class="data-value">
+                            @if (Model.StockMain != null)
                             {
-                                <tr>
-                                    <td class="text-muted">Cheque No:</td>
-                                    <td>@Model.ChequeNo</td>
-                                </tr>
-                                <tr>
-                                    <td class="text-muted">Cheque Date:</td>
-                                    <td>@Model.ChequeDate?.ToString("dd/MM/yyyy")</td>
-                                </tr>
+                                string controller = Model.StockMain.TransactionType?.Code == "PO" ? "PurchaseOrder" : "Purchase";
+                                string action = Model.StockMain.TransactionType?.Code == "PO" ? "ViewPurchaseOrder" : "ViewPurchase";
+                                <a asp-controller="@controller" asp-action="@action" asp-route-id="@Model.StockMain.StockMainID.EncryptId()" class="purchase-link">
+                                    <i class="fas fa-external-link-alt small"></i>@Model.StockMain.TransactionNo
+                                </a>
                             }
-                            <tr>
-                                <td class="text-muted">Purchase Ref:</td>
-                                <td>
-                                    @if (Model.StockMain != null)
-                                    {
-                                        if (Model.StockMain.TransactionType?.Code == "GRN")
-                                        {
-                                            <a asp-controller="Purchase" asp-action="ViewPurchase" asp-route-id="@Model.StockMain.StockMainID.EncryptId()">
-                                                @Model.StockMain.TransactionNo
-                                            </a>
-                                        }
-                                        else if (Model.StockMain.TransactionType?.Code == "PO")
-                                        {
-                                            <a asp-controller="PurchaseOrder" asp-action="ViewPurchaseOrder" asp-route-id="@Model.StockMain.StockMainID.EncryptId()">
-                                                @Model.StockMain.TransactionNo
-                                            </a>
-                                        }
-                                        else
-                                        {
-                                            @Model.StockMain.TransactionNo
-                                        }
-                                    }
-                                </td>
-                            </tr>
-                        </table>
+                            else
+                            {
+                                <span class="text-muted italic">Advance Payment</span>
+                            }
+                        </div>
+                    </div>
+                    <div class="col-sm-6">
+                        <div class="data-label">Account</div>
+                        <div class="data-value">@Model.Account?.Name</div>
+
+                        <div class="data-label">Payment Method</div>
+                        <div class="data-value">
+                            @{
+                                var methodClass = Model.PaymentMethod switch {
+                                    "Cash" => "success",
+                                    "Bank" => "primary",
+                                    "Cheque" => "warning",
+                                    _ => "secondary"
+                                };
+                            }
+                            <span class="badge bg-@methodClass badge-premium">@Model.PaymentMethod</span>
+                        </div>
+
+                        @if (Model.PaymentMethod == "Cheque")
+                        {
+                            <div class="data-label">Cheque Details</div>
+                            <div class="data-value">@Model.ChequeNo (@Model.ChequeDate?.ToString("dd/MM/yyyy"))</div>
+                        }
+                    </div>
+                    
+                    @if (!string.IsNullOrEmpty(Model.Remarks))
+                    {
+                        <div class="col-12 mt-2">
+                            <div class="data-label">Remarks</div>
+                            <div class="data-value mb-0 text-muted italic">@Model.Remarks</div>
+                        </div>
+                    }
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Statistics/Timeline side -->
+    <div class="col-md-5">
+        <div class="premium-card h-100">
+             <div class="card-header border-bottom border-secondary bg-transparent py-3">
+                <h6 class="mb-0 fw-bold"><i class="fas fa-layer-group me-2 text-primary"></i>Summary</h6>
+            </div>
+            <div class="card-body">
+                <div class="mb-4">
+                    <div class="d-flex justify-content-between align-items-center mb-2">
+                        <div class="small text-muted">Transaction Status</div>
+                        <span class="badge @(Model.IsVoided ? "bg-danger" : "bg-success") badge-premium">@(Model.IsVoided ? "Cancelled" : "Completed")</span>
+                    </div>
+                    <div class="progress" style="height: 6px;">
+                        @if (Model.IsVoided)
+                        {
+                            <div class="progress-bar bg-danger" style="width: 100%"></div>
+                        }
+                        else
+                        {
+                            <div class="progress-bar bg-success" style="width: 100%"></div>
+                        }
                     </div>
                 </div>
 
-                @if (!string.IsNullOrEmpty(Model.Remarks))
-                {
-                    <div class="mt-3">
-                        <label class="text-muted">Remarks:</label>
-                        <p class="mb-0">@Model.Remarks</p>
+                <div class="border rounded p-3 mb-3 border-secondary">
+                    <div class="row align-items-center">
+                        <div class="col-auto">
+                            <div class="bg-primary bg-opacity-10 p-2 rounded text-primary">
+                                <i class="fas fa-fingerprint fa-lg"></i>
+                            </div>
+                        </div>
+                        <div class="col">
+                            <div class="data-label mb-0">System Ref</div>
+                            <div class="fw-bold fs-6">#@Model.PaymentID.ToString("D5")</div>
+                        </div>
                     </div>
-                }
+                </div>
+
+                <div class="text-center mt-auto py-3">
+                    @if (!Model.IsVoided)
+                    {
+                        <button type="button" class="btn btn-premium-void w-100" id="btnVoidPayment">
+                            <i class="fas fa-ban me-2"></i>Void This Payment
+                        </button>
+                    }
+                    else
+                    {
+                        <button disabled class="btn btn-outline-secondary w-100 rounded-pill">
+                            <i class="fas fa-check-circle me-2"></i>Permanently Voided
+                        </button>
+                    }
+                </div>
             </div>
         </div>
     </div>
-
-    <div class="col-md-12 mt-2">
-        <div class="card">
-            <div class="card-body text-center">
-                <h6 class="text-muted mb-2">Payment Amount</h6>
-                <h2 class="@(Model.IsVoided ? "text-danger text-decoration-line-through" : "text-success") mb-0">PKR @Model.Amount.ToString("N2")</h2>
-            </div>
-        </div>
-    </div>
-
-    @if (!Model.IsVoided)
-    {
-        <div class="col-md-12 mt-3">
-            <div class="text-end">
-                <button type="button" class="btn btn-danger" id="btnVoidPayment">
-                    <i class="fas fa-ban me-2"></i>Void Payment
-                </button>
-            </div>
-        </div>
-    }
 </div>
 
-<!-- Void Confirmation Form -->
+<!-- Void Form -->
 <form id="voidForm" method="post" asp-action="VoidPayment" class="d-none">
     @Html.AntiForgeryToken()
     <input type="hidden" name="id" value="@Model.PaymentID.EncryptId()" />
@@ -158,42 +303,45 @@
 
 @section Scripts {
     <script>
-        var voidBtn = document.getElementById('btnVoidPayment');
-        if (voidBtn) {
-            voidBtn.addEventListener('click', function() {
-                Swal.fire({
-                    title: 'Void Payment?',
-                    html: `
-                        <p>Are you sure you want to void payment <strong>@Model.Reference</strong>?</p>
-                        <p class="text-danger small">This will reverse the accounting entries and recalculate the transaction balance.</p>
-                        <div class="mt-3">
-                            <label class="form-label text-start d-block">Reason:</label>
-                            <input type="text" id="swalReason" class="form-control" placeholder="Enter void reason" required>
+        document.getElementById('btnVoidPayment')?.addEventListener('click', function() {
+            Swal.fire({
+                title: 'Void Payment?',
+                html: `
+                    <div class="text-start">
+                        <p>Are you sure you want to void payment <strong class="text-info">@Model.Reference</strong>?</p>
+                        <p class="text-danger small"><i class="fas fa-info-circle me-1"></i>This will reverse all accounting entries and update balances.</p>
+                        <div class="mt-4">
+                            <label class="form-label small fw-bold">Reason for Voiding</label>
+                            <input type="text" id="swalReason" class="form-control form-control-lg bg-dark text-white border-secondary" placeholder="e.g. Returned check, Data entry error" required>
                         </div>
-                    `,
-                    icon: 'warning',
-                    showCancelButton: true,
-                    confirmButtonColor: '#dc2626',
-                    cancelButtonColor: '#64748b',
-                    confirmButtonText: 'Yes, void it!',
-                    cancelButtonText: 'Cancel',
-                    background: '#1e293b',
-                    color: '#f1f5f9',
-                    preConfirm: () => {
-                        const reason = document.getElementById('swalReason').value;
-                        if (!reason) {
-                            Swal.showValidationMessage('Please enter a reason');
-                            return false;
-                        }
-                        return reason;
+                    </div>
+                `,
+                icon: 'warning',
+                showCancelButton: true,
+                confirmButtonColor: '#ef4444',
+                cancelButtonColor: '#64748b',
+                confirmButtonText: 'Void Payment Now',
+                cancelButtonText: 'Keep Payment',
+                background: '#1e293b',
+                color: '#f1f5f9',
+                customClass: {
+                    title: 'text-white fw-bold',
+                    popup: 'premium-swal shadow-lg'
+                },
+                preConfirm: () => {
+                    const reason = document.getElementById('swalReason').value;
+                    if (!reason) {
+                        Swal.showValidationMessage('A reason is required to void the payment');
+                        return false;
                     }
-                }).then((result) => {
-                    if (result.isConfirmed) {
-                        document.getElementById('voidReason').value = result.value;
-                        document.getElementById('voidForm').submit();
-                    }
-                });
+                    return reason;
+                }
+            }).then((result) => {
+                if (result.isConfirmed) {
+                    document.getElementById('voidReason').value = result.value;
+                    document.getElementById('voidForm').submit();
+                }
             });
-        }
+        });
     </script>
 }

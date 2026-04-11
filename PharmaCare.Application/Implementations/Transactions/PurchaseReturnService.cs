@@ -254,7 +254,7 @@ public class PurchaseReturnService : TransactionServiceBase, IPurchaseReturnServ
 
         var returnedLookup = returnedLines
             .GroupBy(x => new { x.GrnId, x.Product_ID })
-            .ToDictionary(g => (g.Key.GrnId, g.Key.Product_ID), g => g.Sum(x => x.Quantity));
+            .ToDictionary(g => (g.Key.GrnId, g.Key.Product_ID), g => g.Sum(x => Math.Abs(x.Quantity)));
 
         var availableGrns = new List<StockMain>();
         foreach (var grn in grns)
@@ -382,9 +382,9 @@ public class PurchaseReturnService : TransactionServiceBase, IPurchaseReturnServ
             foreach (var detail in ret.StockDetails)
             {
                 if (alreadyReturned.ContainsKey(detail.Product_ID))
-                    alreadyReturned[detail.Product_ID] += detail.Quantity;
+                    alreadyReturned[detail.Product_ID] += Math.Abs(detail.Quantity);
                 else
-                    alreadyReturned[detail.Product_ID] = detail.Quantity;
+                    alreadyReturned[detail.Product_ID] = Math.Abs(detail.Quantity);
             }
         }
 
@@ -448,8 +448,9 @@ public class PurchaseReturnService : TransactionServiceBase, IPurchaseReturnServ
             detail.UnitPrice = rate;
             detail.DiscountPercent = 0;
             detail.DiscountAmount = 0;
-            detail.LineTotal = Math.Round(detail.Quantity * rate, 2);
-            detail.LineCost = Math.Round(detail.Quantity * rate, 2);
+            detail.Quantity = -Math.Abs(detail.Quantity); // Store as negative for stock reduction
+            detail.LineTotal = Math.Round(Math.Abs(detail.Quantity) * rate, 2);
+            detail.LineCost = Math.Round(Math.Abs(detail.Quantity) * rate, 2);
         }
     }
 

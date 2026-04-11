@@ -131,7 +131,7 @@ public class PurchaseReturnController : BaseController
                 productName = d.Product?.Name,
                 quantity = d.Quantity,
                 unitPrice = d.UnitPrice,
-                costPrice = d.CostPrice,
+                costPrice = d.CostPrice > 0 ? d.CostPrice : d.UnitPrice,
                 lineTotal = d.LineTotal
             })
         }).ToList();
@@ -158,13 +158,6 @@ public class PurchaseReturnController : BaseController
 
     private async Task LoadDropdownsAsync()
     {
-        var parties = await _partyService.GetAllAsync();
-        ViewBag.Suppliers = new SelectList(
-            parties.Where(p => p.IsActive && (p.PartyType == "Supplier" || p.PartyType == "Both")),
-            "PartyID",
-            "Name"
-        );
-
         var products = await _productService.GetAllAsync();
         ViewBag.Products = new SelectList(
             products.Where(p => p.IsActive),

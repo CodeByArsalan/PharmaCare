@@ -39,7 +39,7 @@
                 <thead>
                     <tr>
                         <th>S.No</th><th>Product</th><th>Category</th><th>Opening</th>
-                        <th>Purchased</th><th>Sold</th><th>Current Stock</th>
+                        <th>Purchased</th><th>Ret. Out</th><th>Sold</th><th>Ret. In</th><th>Current Stock</th>
                         <th>Cost Price</th><th>Stock Value</th><th>Status</th>
                     </tr>
                 </thead>
@@ -53,7 +53,9 @@
                             <td>@row.CategoryName</td>
                             <td class="text-end">@row.OpeningQty.ToString("N0")</td>
                             <td class="text-end">@row.PurchasedQty.ToString("N0")</td>
+                            <td class="text-end text-danger">@row.ReturnedOutQty.ToString("N0")</td>
                             <td class="text-end">@row.SoldQty.ToString("N0")</td>
+                            <td class="text-end text-info">@row.ReturnedInQty.ToString("N0")</td>
                             <td class="text-end fw-bold">@row.CurrentStock.ToString("N0")</td>
                             <td class="text-end">@row.CostPrice.ToString("N2")</td>
                             <td class="text-end">@row.StockValue.ToString("N2")</td>

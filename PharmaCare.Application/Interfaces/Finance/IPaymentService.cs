@@ -26,7 +26,7 @@ public interface IPaymentService
     /// <summary>
     /// Gets GRNs with outstanding balance for payment.
     /// </summary>
-    Task<IEnumerable<StockMain>> GetPendingGrnsAsync(int? supplierId = null);
+    Task<IEnumerable<StockMain>> GetPendingGrnsAsync(int? supplierId = null, bool includePaid = false);
 
     /// <summary>
     /// Creates a new payment and updates transaction balance.

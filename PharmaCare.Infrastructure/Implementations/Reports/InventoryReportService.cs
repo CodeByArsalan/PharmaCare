@@ -50,7 +50,8 @@ public class InventoryReportService : IInventoryReportService
             .Select(g => new
             {
                 ProductId = g.Key,
-                PurchasedQty = g.Where(d => d.StockMain!.TransactionType!.StockDirection == 1)
+                PurchasedQty = g.Where(d => d.StockMain!.TransactionType!.StockDirection == 1 
+                                           && PurchaseCodes.Contains(d.StockMain.TransactionType!.Code))
                     .Sum(d => (decimal?)d.Quantity) ?? 0,
                 SoldQty = g.Where(d => d.StockMain!.TransactionType!.StockDirection == -1
                                        && SaleCodes.Contains(d.StockMain.TransactionType!.Code))
@@ -60,7 +61,7 @@ public class InventoryReportService : IInventoryReportService
                     .Sum(d => (decimal?)d.Quantity) ?? 0,
                 ReturnedOutQty = g.Where(d => d.StockMain!.TransactionType!.StockDirection == -1
                                               && PurchaseReturnCodes.Contains(d.StockMain.TransactionType!.Code))
-                    .Sum(d => (decimal?)d.Quantity) ?? 0
+                    .Sum(d => (decimal?)Math.Abs(d.Quantity)) ?? 0
             })
             .ToListAsync();
 
@@ -164,7 +165,7 @@ public class InventoryReportService : IInventoryReportService
         foreach (var d in priorDetails)
         {
             var dir = d.StockMain!.TransactionType!.StockDirection;
-            openingBalance += d.Quantity * dir;
+            openingBalance += Math.Abs(d.Quantity) * dir;
         }
 
         var runningBalance = openingBalance;
@@ -172,9 +173,9 @@ public class InventoryReportService : IInventoryReportService
         foreach (var d in details)
         {
             var dir = d.StockMain!.TransactionType!.StockDirection;
-            var qtyIn = dir > 0 ? d.Quantity : 0;
-            var qtyOut = dir < 0 ? d.Quantity : 0;
-            runningBalance += d.Quantity * dir;
+            var qtyIn = dir > 0 ? Math.Abs(d.Quantity) : 0;
+            var qtyOut = dir < 0 ? Math.Abs(d.Quantity) : 0;
+            runningBalance += Math.Abs(d.Quantity) * dir;
 
             rows.Add(new ProductMovementRow
             {

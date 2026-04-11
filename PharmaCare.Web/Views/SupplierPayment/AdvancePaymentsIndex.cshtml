@@ -1,3 +1,4 @@
+@using PharmaCare.Web.Utilities
 @model IEnumerable<PharmaCare.Domain.Entities.Finance.Payment>
 @{
     ViewData["Title"] = "Advance Payments";
@@ -34,6 +35,7 @@
                         <th>Account</th>
                         <th class="text-end">Amount</th>
                         <th>Remarks</th>
+                        <th class="text-center">Action</th>
                     </tr>
                 </thead>
                 <tbody>
@@ -53,6 +55,11 @@
                             <td>@payment.Account?.Name</td>
                             <td class="text-end"><strong>@payment.Amount.ToString("N2")</strong></td>
                             <td>@payment.Remarks</td>
+                            <td class="text-center">
+                                <a asp-action="ViewPayment" asp-route-id="@payment.PaymentID.EncryptId()" class="btn btn-sm btn-outline-info">
+                                    <i class="fas fa-search me-1"></i>View
+                                </a>
+                            </td>
                         </tr>
                     }
                 </tbody>

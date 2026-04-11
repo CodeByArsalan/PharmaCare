@@ -116,7 +116,27 @@
                                 <tr>
                                     <td>@(sNo++)</td>
                                     <td>@entry.Date.ToString("dd/MM/yyyy")</td>
-                                    <td><strong>@entry.Reference</strong></td>
+                                    <td>
+                                        @if (!string.IsNullOrEmpty(entry.EncryptedId))
+                                        {
+                                            if (entry.Source == "Purchase")
+                                            {
+                                                <a asp-controller="Purchase" asp-action="ViewPurchase" asp-route-id="@entry.EncryptedId" class="text-decoration-none">
+                                                    <strong>@entry.Reference</strong>
+                                                </a>
+                                            }
+                                            else
+                                            {
+                                                <a asp-action="ViewPayment" asp-route-id="@entry.EncryptedId" class="text-decoration-none">
+                                                    <strong>@entry.Reference</strong>
+                                                </a>
+                                            }
+                                        }
+                                        else
+                                        {
+                                            <strong>@entry.Reference</strong>
+                                        }
+                                    </td>
                                     <td><span class="badge bg-@entry.TypeBadge">@entry.Type</span></td>
                                     <td class="text-end @(entry.Debit > 0 ? "fw-bold" : "text-muted")">
                                         @(entry.Debit > 0 ? entry.Debit.ToString("N2") : "-")

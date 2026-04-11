@@ -82,7 +82,7 @@ public class PaymentService : IPaymentService
             .ToListAsync();
     }
 
-    public async Task<IEnumerable<StockMain>> GetPendingGrnsAsync(int? supplierId = null)
+    public async Task<IEnumerable<StockMain>> GetPendingGrnsAsync(int? supplierId = null, bool includePaid = false)
     {
         var query = _stockMainRepository.Query()
             .AsNoTracking()
@@ -128,6 +128,11 @@ public class PaymentService : IPaymentService
             grn.PaymentStatus = grn.BalanceAmount <= 0
                 ? PaymentStatus.Paid.ToString()
                 : (grn.PaidAmount <= 0 ? PaymentStatus.Unpaid.ToString() : PaymentStatus.Partial.ToString());
+        }
+
+        if (includePaid)
+        {
+            return grns;
         }
 
         return grns.Where(g => g.BalanceAmount > 0).ToList();
@@ -613,7 +618,6 @@ public class PaymentService : IPaymentService
                 var stockMain = payment.StockMain;
                 var totalPaid = await _paymentRepository.Query()
                     .Where(p => p.StockMain_ID == stockMain.StockMainID
-                             && p.PaymentType == SupplierPaymentType
                              && !p.IsVoided
                              && p.PaymentID != paymentId)
                     .SumAsync(p => p.Amount);
