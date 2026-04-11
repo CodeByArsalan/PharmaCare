@@ -51,7 +51,13 @@
                     </thead>
                     <tbody>
                         <tr class="table-info">
-                            <td></td><td colspan="4" class="fw-bold">Opening Balance</td><td></td><td class="text-end fw-bold">@Model.OpeningBalance.ToString("N2")</td>
+                            <td></td>
+                            <td></td>
+                            <td></td>
+                            <td class="fw-bold">Opening Balance</td>
+                            <td></td>
+                            <td></td>
+                            <td class="text-end fw-bold">@Model.OpeningBalance.ToString("N2")</td>
                         </tr>
                         @{ int sno = 1; }
                         @foreach (var row in Model.Rows)
