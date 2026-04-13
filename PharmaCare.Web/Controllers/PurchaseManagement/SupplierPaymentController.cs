@@ -213,17 +213,38 @@ public class SupplierPaymentController : BaseController
         return Json(result);
     }
 
-    /// Gets accounts by type ID (AJAX).
+    /// Gets accounts by payment method (AJAX).
     [HttpGet]
-    public async Task<IActionResult> GetAccountsByType(int typeId)
+    [LinkedToPage("SupplierPayment", "PaymentsIndex")]
+    public async Task<IActionResult> GetAccountsByMethod(string method)
     {
-        var accounts = await _accountService.GetAllAsync();
-        var filteredAccounts = accounts
-            .Where(a => a.IsActive && a.AccountType_ID == typeId)
+        var accounts = await _accountService.GetAccountsByMethodAsync(method);
+        var result = accounts
             .Select(a => new { id = a.AccountID, name = a.Name })
             .ToList();
 
-        return Json(filteredAccounts);
+        return Json(result);
+    }
+
+    /// Legacy alias for GetAccountsByMethod.
+    [HttpGet]
+    [LinkedToPage("SupplierPayment", "PaymentsIndex")]
+    public async Task<IActionResult> GetAccountsByType(string method, int? typeId)
+    {
+        // If method is provided, use it. Otherwise fall back to typeId mapping for legacy support.
+        if (string.IsNullOrEmpty(method) && typeId.HasValue)
+        {
+            method = typeId == 1 ? "Cash" : "Bank";
+        }
+        return await GetAccountsByMethod(method ?? "Cash");
+    }
+
+    /// Singular alias to handle potential typos in views.
+    [HttpGet]
+    [LinkedToPage("SupplierPayment", "PaymentsIndex")]
+    public async Task<IActionResult> GetAccountByType(string method, int? typeId)
+    {
+        return await GetAccountsByType(method, typeId);
     }
 
     /// Displays list of advance payments.

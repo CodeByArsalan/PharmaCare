@@ -58,8 +58,8 @@
                                 <tr>
                                     <th style="width: 50px;">#</th>
                                     <th style="min-width: 250px;">Product <span class="text-danger">*</span></th>
-                                    <th style="width: 120px;">Quantity <span class="text-danger">*</span></th>
-                                    <th style="width: 140px;">Cost Price <span class="text-danger">*</span></th>
+                                    <th style="width: 120px;">Boxes Recv <span class="text-danger">*</span></th>
+                                    <th style="width: 140px;">Box Cost <span class="text-danger">*</span></th>
                                     <th style="width: 140px;">Line Total</th>
                                     <th style="width: 60px;"></th>
                                 </tr>
@@ -254,9 +254,22 @@
             const row = document.createElement('tr');
             
             let productOptions = '<option value="">-- Select Product --</option>';
+            let unitsInPack = 1;
+            let displayQuantity = 1;
+            let displayCostPrice = 0;
+            
+            if (detail) {
+                const prod = products.find(p => p.id == detail.productId);
+                if (prod) {
+                    unitsInPack = prod.unitsInPack || 1;
+                }
+                displayQuantity = detail.quantity / unitsInPack;
+                displayCostPrice = detail.costPrice * unitsInPack;
+            }
+
             products.forEach(p => {
                 const selected = detail && detail.productId === p.id ? 'selected' : '';
-                productOptions += `<option value="${p.id}" data-cost="${p.costPrice}" ${selected}>${p.name}</option>`;
+                productOptions += `<option value="${p.id}" data-cost="${p.boxPrice}" data-units="${p.unitsInPack}" ${selected}>${p.name}</option>`;
             });
 
             const quantity = detail ? detail.quantity : 1;
@@ -274,12 +287,12 @@
                     </select>
                 </td>
                 <td>
-                    <input type="number" name="StockDetails[${rowIndex}].Quantity" class="form-control quantity-input" 
-                           step="0.0001" min="0.0001" value="${quantity}" required />
+                    <input type="number" class="form-control box-quantity-input" step="0.0001" min="0.0001" value="${displayQuantity}" required />
+                    <input type="hidden" name="StockDetails[${rowIndex}].Quantity" class="quantity-input" value="${quantity}" />
                 </td>
                 <td>
-                    <input type="number" name="StockDetails[${rowIndex}].CostPrice" class="form-control cost-input" 
-                           step="0.01" min="0" value="${costPrice}" required />
+                    <input type="number" class="form-control box-cost-input" step="0.01" min="0" value="${displayCostPrice}" required />
+                    <input type="hidden" name="StockDetails[${rowIndex}].CostPrice" class="cost-input" value="${costPrice}" />
                     <input type="hidden" name="StockDetails[${rowIndex}].UnitPrice" class="unit-price-input" value="${costPrice}" />
                 </td>
                 <td>
@@ -306,8 +319,8 @@
             });
             $productSelect.on('change', onProductChange);
 
-            row.querySelector('.quantity-input').addEventListener('input', calculateLineTotal);
-            row.querySelector('.cost-input').addEventListener('input', calculateLineTotal);
+            row.querySelector('.box-quantity-input').addEventListener('input', calculateLineTotal);
+            row.querySelector('.box-cost-input').addEventListener('input', calculateLineTotal);
             row.querySelector('.remove-row-btn').addEventListener('click', removeRow);
 
             rowIndex++;
@@ -323,22 +336,35 @@
             }
 
             const selectedOption = e.target.options[e.target.selectedIndex];
-            const costPrice = parseFloat(selectedOption.dataset.cost) || 0;
+            const boxPrice = parseFloat(selectedOption.dataset.cost) || 0;
             
-            row.querySelector('.cost-input').value = costPrice.toFixed(2);
-            row.querySelector('.unit-price-input').value = costPrice.toFixed(2);
-            calculateLineTotal({ target: row.querySelector('.quantity-input') });
+            row.querySelector('.box-cost-input').value = boxPrice.toFixed(2);
+            calculateLineTotal({ target: row.querySelector('.box-quantity-input') });
         }
 
         function calculateLineTotal(e) {
             const row = e.target.closest('tr');
-            const quantity = parseFloat(row.querySelector('.quantity-input').value) || 0;
-            const costPrice = parseFloat(row.querySelector('.cost-input').value) || 0;
-            const lineTotal = quantity * costPrice;
+            
+            const productSelect = row.querySelector('.product-select');
+            const selectedOption = productSelect.options[productSelect.selectedIndex];
+            let unitsInPack = 1;
+            if (selectedOption && selectedOption.dataset.units) {
+                 unitsInPack = parseInt(selectedOption.dataset.units) || 1;
+            }
+            
+            const boxes = parseFloat(row.querySelector('.box-quantity-input').value) || 0;
+            const boxCost = parseFloat(row.querySelector('.box-cost-input').value) || 0;
+            const lineTotal = boxes * boxCost;
+            
+            const internalQuantity = boxes * unitsInPack;
+            const internalCostPrice = boxCost / unitsInPack;
             
             row.querySelector('.line-total').value = lineTotal.toFixed(2);
             row.querySelector('.line-cost').value = lineTotal.toFixed(2);
-            row.querySelector('.unit-price-input').value = costPrice.toFixed(2);
+            
+            row.querySelector('.quantity-input').value = internalQuantity;
+            row.querySelector('.cost-input').value = internalCostPrice.toFixed(2);
+            row.querySelector('.unit-price-input').value = internalCostPrice.toFixed(2);
             calculateTotals();
         }
 

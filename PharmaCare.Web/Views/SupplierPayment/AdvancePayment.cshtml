@@ -61,13 +61,17 @@
                             </select>
                             <span asp-validation-for="Account_ID" class="text-danger small"></span>
                         </div>
-                        <div class="col-md-6" id="chequeNoGroup" style="display: none;">
-                            <label class="form-label">Cheque No</label>
-                            <input asp-for="ChequeNo" class="form-control" placeholder="Enter cheque number" />
-                        </div>
-                        <div class="col-md-6" id="chequeDateGroup" style="display: none;">
-                            <label class="form-label">Cheque Date</label>
-                            <input asp-for="ChequeDate" type="date" class="form-control" />
+                        <div id="chequeDetails" style="display: none;">
+                            <div class="row g-3">
+                                <div class="col-md-6">
+                                    <label class="form-label">Cheque No <span class="text-danger">*</span></label>
+                                    <input asp-for="ChequeNo" class="form-control" placeholder="Enter cheque number" />
+                                </div>
+                                <div class="col-md-6">
+                                    <label class="form-label">Cheque Date <span class="text-danger">*</span></label>
+                                    <input asp-for="ChequeDate" type="date" class="form-control" />
+                                </div>
+                            </div>
                         </div>
                         <div class="col-12">
                             <label class="form-label">Remarks</label>
@@ -122,44 +126,53 @@
 
 @section Scripts {
     <script>
-        document.getElementById('paymentMethod').addEventListener('change', function() {
-            const method = this.value;
-            const isCheque = method === 'Cheque';
-            
-            // Toggle cheque fields
-            document.getElementById('chequeNoGroup').style.display = isCheque ? 'block' : 'none';
-            document.getElementById('chequeDateGroup').style.display = isCheque ? 'block' : 'none';
+        $(document).ready(function() {
+            const $paymentMethod = $('#paymentMethod');
+            const $accountSelect = $('#Account_ID');
+            const $chequeDetails = $('#chequeDetails');
 
-            // Load accounts based on method
-            const accountSelect = document.getElementById('Account_ID');
-            accountSelect.innerHTML = '<option value="">Loading...</option>';
+            $paymentMethod.on('change', function() {
+                const method = $(this).val();
+                
+                // Show/hide cheque details
+                if (method === 'Cheque') {
+                    $chequeDetails.slideDown();
+                    $chequeDetails.find('input').prop('required', true);
+                } else {
+                    $chequeDetails.slideUp();
+                    $chequeDetails.find('input').prop('required', false);
+                    $chequeDetails.find('input').val(''); // Clear values when hidden
+                }
 
-            let typeId = 0;
-            if (method === 'Cash') typeId = 1;
-            else if (method === 'Bank') typeId = 2;
-            else if (method === 'Cheque') typeId = 2;
+                // Load accounts based on method
+                $accountSelect.html('<option value="">Loading...</option>');
+                if ($accountSelect.hasClass('select2-hidden-accessible')) {
+                    $accountSelect.trigger('change');
+                }
 
-            if (typeId > 0) {
-                fetch(`@Url.Action("GetAccountsByType")?typeId=${typeId}`)
+                fetch(`@Url.Action("GetAccountsByMethod")?method=${method}`)
                     .then(response => response.json())
                     .then(data => {
-                        accountSelect.innerHTML = '<option value="">-- Select Account --</option>';
+                        $accountSelect.html('<option value="">-- Select Account --</option>');
                         data.forEach(account => {
-                            accountSelect.innerHTML += `<option value="${account.id}">${account.name}</option>`;
+                            $accountSelect.append(`<option value="${account.id}">${account.name}</option>`);
                         });
+                        
+                        // Refresh Select2 if initialized
+                        if ($accountSelect.hasClass('select2-hidden-accessible')) {
+                            $accountSelect.trigger('change');
+                        }
                     })
                     .catch(error => {
-                        console.error('Error loading accounts:', error);
-                        accountSelect.innerHTML = '<option value="">Error loading accounts</option>';
+                        console.error('Error fetching accounts:', error);
+                        $accountSelect.html('<option value="">Error loading accounts</option>');
                     });
-            } else {
-                accountSelect.innerHTML = '<option value="">-- Select Method First --</option>';
+            });
+
+            // Trigger initial load if value exists
+            if ($paymentMethod.val()) {
+                $paymentMethod.trigger('change');
             }
         });
-
-        // Trigger change to load initial accounts
-        if(document.getElementById('paymentMethod').value) {
-            document.getElementById('paymentMethod').dispatchEvent(new Event('change'));
-        }
     </script>
 }

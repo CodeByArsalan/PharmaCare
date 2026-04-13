@@ -124,10 +124,46 @@ public class AccountService : IAccountService
 
     public async Task<IEnumerable<Account>> GetCashBankAccountsAsync()
     {
-        return await _repository.Query()
-            .Include(a => a.AccountType)
-            .Where(a => a.IsActive && (a.AccountType_ID == 1 || a.AccountType_ID == 2))
+        // Combined list of Cash and Bank accounts for initial load or general selection
+        var cashAccounts = await GetAccountsByMethodAsync("Cash");
+        var bankAccounts = await GetAccountsByMethodAsync("Bank");
+        
+        return cashAccounts.Concat(bankAccounts)
             .OrderBy(a => a.Name)
-            .ToListAsync();
+            .ToList();
+    }
+
+    public async Task<IEnumerable<Account>> GetAccountsByMethodAsync(string method)
+    {
+        var accounts = await GetAllAsync();
+        
+        if (string.IsNullOrWhiteSpace(method))
+            return Enumerable.Empty<Account>();
+
+        return accounts.Where(a => 
+        {
+            if (a.AccountType == null) return false;
+
+            var typeName = a.AccountType.Name.ToLower();
+            var typeCode = a.AccountType.Code.ToLower();
+            var methodLower = method.ToLower();
+
+            // Unified logic for Bank/Cheque
+            if (methodLower == "bank" || methodLower == "cheque")
+            {
+                return typeName.Contains("bank") || typeCode.Contains("bank") || a.AccountType_ID == 2;
+            }
+            
+            // Logic for Cash
+            if (methodLower == "cash")
+            {
+                return typeName.Contains("cash") || typeCode.Contains("cash") || a.AccountType_ID == 1;
+            }
+
+            return false;
+        })
+        .Where(a => a.IsActive)
+        .OrderBy(a => a.Name)
+        .ToList();
     }
 }

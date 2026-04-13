@@ -100,7 +100,17 @@
             {
                 <tr>
                     <td>@item.Product?.Name</td>
-                    <td class="text-end">@item.Quantity</td>
+                    <td class="text-end">
+                        @if (Model.Party != null && Model.Party.IsWholeSale && item.Product != null && item.Product.UnitsInPack > 1)
+                        {
+                            var boxes = item.Quantity / item.Product.UnitsInPack;
+                            <span>@boxes.ToString("0.##") (Boxes)</span>
+                        }
+                        else
+                        {
+                            @item.Quantity
+                        }
+                    </td>
                     <td class="text-end">@item.LineTotal.ToString("N2")</td>
                 </tr>
             }

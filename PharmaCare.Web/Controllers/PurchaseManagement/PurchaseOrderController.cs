@@ -242,7 +242,9 @@ public class PurchaseOrderController : BaseController
             {
                 id = p.ProductID,
                 name = p.Name,
-                costPrice = p.OpeningPrice
+                costPrice = p.OpeningPrice,
+                unitsInPack = p.UnitsInPack,
+                boxPrice = p.OpeningPrice * p.UnitsInPack
             })
             .ToList();
 

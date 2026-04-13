@@ -18,4 +18,9 @@ public interface IAccountService
     /// Gets accounts with AccountType_ID 1 (Cash) or 2 (Bank) for payment selection.
     /// </summary>
     Task<IEnumerable<Account>> GetCashBankAccountsAsync();
+
+    /// <summary>
+    /// Gets accounts filtered by payment method type (Cash, Bank, or Cheque).
+    /// </summary>
+    Task<IEnumerable<Account>> GetAccountsByMethodAsync(string method);
 }
