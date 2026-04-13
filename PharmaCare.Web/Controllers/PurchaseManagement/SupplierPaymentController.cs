@@ -18,21 +18,24 @@ public class SupplierPaymentController : BaseController
     private readonly IPurchaseService _purchaseService;
     private readonly IAccountService _accountService;
     private readonly IPartyService _partyService;
+    private readonly IPurchaseReturnService _purchaseReturnService;
 
     public SupplierPaymentController(
         IPaymentService paymentService,
         IPurchaseService purchaseService,
         IAccountService accountService,
-        IPartyService partyService)
+        IPartyService partyService,
+        IPurchaseReturnService purchaseReturnService)
     {
         _paymentService = paymentService;
         _purchaseService = purchaseService;
         _accountService = accountService;
         _partyService = partyService;
+        _purchaseReturnService = purchaseReturnService;
     }
 
     /// Displays list of GRNs with payment information.
-    public async Task<IActionResult> PaymentsIndex(int? supplierId, string? paymentStatus, DateTime? fromDate, DateTime? toDate)
+    public async Task<IActionResult> PaymentsIndex(int? supplierId, string? paymentStatus, DateTime? fromDate, DateTime? toDate) 
     {
         bool includePaid = paymentStatus == "Paid" || paymentStatus == "All";
         var grns = await _paymentService.GetPendingGrnsAsync(supplierId, includePaid);
@@ -55,7 +58,7 @@ public class SupplierPaymentController : BaseController
 
         ViewBag.SelectedSupplier = supplierId;
         ViewBag.SelectedStatus = paymentStatus ?? "All";
-        ViewBag.FromDate = fromDate;
+        ViewBag.FromDate = fromDate ?? DateTime.Today;
         ViewBag.ToDate = toDate ?? DateTime.Today;
 
         return View(grnList);
@@ -344,10 +347,48 @@ public class SupplierPaymentController : BaseController
             .Where(g => g.Party_ID == supplierId.Value && g.Status != "Void")
             .ToList();
 
-        // Build ledger entries
+        var allReturns = await _purchaseReturnService.GetAllAsync();
+        var supplierReturns = allReturns
+            .Where(r => r.Party_ID == supplierId.Value && r.Status != "Void")
+            .ToList();
+
+        var allPayments = await _paymentService.GetPaymentsByPartyAsync(supplierId.Value);
+        var supplierPayments = allPayments.Where(p => !p.IsVoided).ToList();
+
+        // Calculate opening balance if fromDate is specified
+        decimal openingBalance = supplier?.OpeningBalance ?? 0;
+        if (fromDate.HasValue)
+        {
+            decimal priorPurchases = supplierGrns.Where(g => g.TransactionDate < fromDate.Value).Sum(g => g.TotalAmount);
+            decimal priorReturns = supplierReturns.Where(r => r.TransactionDate < fromDate.Value).Sum(r => r.TotalAmount);
+            decimal priorPayments = supplierPayments.Where(p => p.PaymentDate < fromDate.Value).Sum(p => p.Amount);
+            
+            // For supplier: Purchases increase payable (Credit). Returns/Payments decrease payable (Debit).
+            // Opening Balance = Base Opening + Prior Purchases - Prior Returns - Prior Payments
+            openingBalance += priorPurchases - priorReturns - priorPayments;
+        }
+
+        // Build ledger entries for the period
         var entries = new List<LedgerEntry>();
 
-        // GRNs → Debit (we owe the supplier)
+        if (fromDate.HasValue || openingBalance != 0)
+        {
+            entries.Add(new LedgerEntry
+            {
+                Date = fromDate ?? DateTime.MinValue,
+                Reference = "Opening Balance",
+                Type = "-",
+                TypeBadge = "secondary",
+                Debit = 0,
+                Credit = 0,
+                Balance = openingBalance,
+                Remarks = "Balance carried forward",
+                EncryptedId = "",
+                Source = "OpeningBalance"
+            });
+        }
+
+        // GRNs → Credit (increase payable to supplier)
         foreach (var grn in supplierGrns)
         {
             if (fromDate.HasValue && grn.TransactionDate < fromDate.Value) continue;
@@ -359,17 +400,36 @@ public class SupplierPaymentController : BaseController
                 Reference = grn.TransactionNo,
                 Type = "Purchase (GRN)",
                 TypeBadge = "primary",
-                Debit = grn.TotalAmount,
-                Credit = 0,
+                Debit = 0,               // Changed: Purchases are Credit to Supplier Payable
+                Credit = grn.TotalAmount,
                 Remarks = grn.Remarks,
                 EncryptedId = grn.StockMainID.EncryptId(),
                 Source = "Purchase"
             });
         }
 
-        // Payments → Credit (we paid the supplier)
-        var payments = await _paymentService.GetPaymentsByPartyAsync(supplierId.Value);
-        foreach (var payment in payments.Where(p => !p.IsVoided))
+        // Purchase Returns → Debit (reduces payable to supplier) 
+        foreach (var prtn in supplierReturns)
+        {
+            if (fromDate.HasValue && prtn.TransactionDate < fromDate.Value) continue;
+            if (toDate.HasValue && prtn.TransactionDate > toDate.Value.AddDays(1)) continue;
+
+            entries.Add(new LedgerEntry
+            {
+                Date = prtn.TransactionDate,
+                Reference = prtn.TransactionNo,
+                Type = "Purchase Return",
+                TypeBadge = "warning",
+                Debit = prtn.TotalAmount, // Returns reduce what we owe
+                Credit = 0,               
+                Remarks = prtn.Remarks,
+                EncryptedId = prtn.StockMainID.EncryptId(),
+                Source = "PurchaseReturn"
+            });
+        }
+
+        // Payments → Debit (reduces payable to supplier)
+        foreach (var payment in supplierPayments)
         {
             if (fromDate.HasValue && payment.PaymentDate < fromDate.Value) continue;
             if (toDate.HasValue && payment.PaymentDate > toDate.Value.AddDays(1)) continue;
@@ -381,28 +441,42 @@ public class SupplierPaymentController : BaseController
                 Reference = payment.Reference ?? "-",
                 Type = payType,
                 TypeBadge = "success",
-                Debit = 0,
-                Credit = payment.Amount,
+                Debit = payment.Amount,  // Payments reduce what we owe
+                Credit = 0,              
                 Remarks = payment.Remarks,
                 EncryptedId = payment.PaymentID.EncryptId(),
                 Source = "Payment"
             });
         }
 
-        // Sort chronologically
-        var sortedEntries = entries.OrderBy(e => e.Date).ThenBy(e => e.Reference).ToList();
+        // Separate opening balance from period transactions so we sort them correctly
+        var openingEntry = entries.FirstOrDefault(e => e.Source == "OpeningBalance");
+        var periodEntries = entries.Where(e => e.Source != "OpeningBalance")
+                                   .OrderBy(e => e.Date)
+                                   .ThenBy(e => e.Reference)
+                                   .ToList();
 
-        // Calculate running balance
-        decimal balance = 0;
-        foreach (var entry in sortedEntries)
+        // Calculate running balance using Payable Logic (Credit increases Payable, Debit reduces it)
+        decimal balance = openingBalance;
+        if (openingEntry != null)
         {
-            balance += entry.Debit - entry.Credit;
+            openingEntry.Balance = balance;
+        }
+
+        foreach (var entry in periodEntries)
+        {
+            balance += entry.Credit - entry.Debit;
             entry.Balance = balance;
         }
 
-        ViewBag.LedgerEntries = sortedEntries;
-        ViewBag.TotalDebit = sortedEntries.Sum(e => e.Debit);
-        ViewBag.TotalCredit = sortedEntries.Sum(e => e.Credit);
+        var finalEntries = new List<LedgerEntry>();
+        if (openingEntry != null) finalEntries.Add(openingEntry);
+        finalEntries.AddRange(periodEntries);
+
+        ViewBag.LedgerEntries = finalEntries;
+        // Total Debit and Credit calculation for the period (excludes Opening Balance)
+        ViewBag.TotalDebit = periodEntries.Sum(e => e.Debit);
+        ViewBag.TotalCredit = periodEntries.Sum(e => e.Credit);
         ViewBag.ClosingBalance = balance;
 
         return View();

@@ -1146,6 +1146,12 @@ pre {
 .main-content {
     padding: 2rem;
     flex: 1;
+}
+
+/* Apply animation to cards and headers instead of the wrapper to prevent z-index issues with modals */
+.main-content > .page-header,
+.main-content > .card,
+.main-content > .row {
     animation: fadeIn 0.4s ease-out forwards;
 }
 

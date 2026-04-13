@@ -32,9 +32,9 @@ public class PurchaseReturnController : BaseController
         return View(returns);
     }
 
-    public async Task<IActionResult> AddPurchaseReturn()
+    public  IActionResult AddPurchaseReturn()
     {
-        await LoadDropdownsAsync();
+        //await LoadDropdownsAsync();
         return View(new StockMain
         {
             TransactionDate = DateTime.Now,

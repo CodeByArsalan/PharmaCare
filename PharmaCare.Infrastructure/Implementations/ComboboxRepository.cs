@@ -207,7 +207,7 @@ public class ComboboxRepository : IComboboxRepository
                 Value = a.AccountID.ToString(),
                 Text = a.Name,
                 Selected = selectedValue.HasValue && a.AccountID == selectedValue.Value
-            })
+            }) 
             .ToList();
     }
 
