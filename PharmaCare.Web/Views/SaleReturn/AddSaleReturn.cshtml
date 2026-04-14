@@ -122,12 +122,33 @@
 @section Scripts {
     <script>
         let products = [];
+        let salesMap = new Map(); // Store sales data in memory to avoid HTML attribute escaping issues
         let rowIndex = 0;
 
         document.addEventListener('DOMContentLoaded', async function() {
-            const response = await fetch('@Url.Action("GetProducts")');
-            products = await response.json();
-            addLineItem();
+            // Initialize main dropdowns with Select2
+            $('#customerSelect').select2({
+                theme: 'bootstrap-5',
+                placeholder: '-- Select Customer --',
+                allowClear: true,
+                width: '100%'
+            });
+
+            $('#saleSelect').select2({
+                theme: 'bootstrap-5',
+                placeholder: '-- Select Reference Sale --',
+                allowClear: true,
+                width: '100%'
+            });
+
+            // Fetch products
+            try {
+                const response = await fetch('@Url.Action("GetProducts")');
+                products = await response.json();
+                addLineItem();
+            } catch (err) {
+                console.error("Failed to fetch products:", err);
+            }
 
             // Handle Enter key on line total to add new row and open Select2 dropdown
             $(document).on('keydown', '.line-total', function(e) {
@@ -140,33 +161,41 @@
                     }, 150);
                 }
             });
-        });
 
-        // Customer change - load sales
-        document.getElementById('customerSelect').addEventListener('change', async function() {
-            const customerId = this.value;
-            const saleSelect = document.getElementById('saleSelect');
-            saleSelect.innerHTML = '<option value="">-- Select Reference Sale --</option>';
-            
-            if (customerId) {
-                const response = await fetch(`@Url.Action("GetSales")?customerId=${customerId}`);
-                const sales = await response.json();
-                sales.forEach(s => {
-                    saleSelect.innerHTML += `<option value="${s.id}" data-details='${JSON.stringify(s.details)}'>${s.transactionNo} - ${s.date} (Balance: ${s.balance.toFixed(2)})</option>`;
-                });
-            }
-        });
+            // Customer change - load sales
+            $('#customerSelect').on('change', async function() {
+                const customerId = this.value;
+                const saleSelect = $('#saleSelect');
+                saleSelect.empty().append('<option value="">-- Select Reference Sale --</option>');
+                salesMap.clear();
+                
+                if (customerId) {
+                    try {
+                        const response = await fetch(`@Url.Action("GetSales")?customerId=${customerId}`);
+                        const sales = await response.json();
+                        sales.forEach(s => {
+                            salesMap.set(s.id.toString(), s);
+                            saleSelect.append(`<option value="${s.id}">${s.transactionNo} - ${s.date} (Balance: ${s.balance.toFixed(2)})</option>`);
+                        });
+                        saleSelect.trigger('change');
+                    } catch (err) {
+                        console.error("Failed to fetch sales:", err);
+                    }
+                }
+            });
 
-        // Sale change - load details
-        document.getElementById('saleSelect').addEventListener('change', function() {
-            const selectedOption = this.options[this.selectedIndex];
-            if (selectedOption.value && selectedOption.dataset.details) {
-                const details = JSON.parse(selectedOption.dataset.details);
-                document.getElementById('lineItemsBody').innerHTML = '';
-                rowIndex = 0;
-                details.forEach(d => addLineItem(d));
-                calculateTotals();
-            }
+            // Sale change - load details
+            $('#saleSelect').on('change', function() {
+                const saleId = this.value;
+                const sale = salesMap.get(saleId);
+                if (sale && sale.details) {
+                    const tbody = document.getElementById('lineItemsBody');
+                    tbody.innerHTML = '';
+                    rowIndex = 0;
+                    sale.details.forEach(d => addLineItem(d));
+                    calculateTotals();
+                }
+            });
         });
 
         document.getElementById('addLineBtn').addEventListener('click', function() { addLineItem(); });
@@ -178,15 +207,16 @@
             let productOptions = '<option value="">-- Select Product --</option>';
             products.forEach(p => {
                 const selected = detail && detail.productId === p.id ? 'selected' : '';
-                const costPrice = p.costPrice ?? p.unitPrice;
-                productOptions += `<option value="${p.id}" data-price="${p.unitPrice}" data-cost="${costPrice}" ${selected}>${p.name}</option>`;
+                const unitPrice = p.unitPrice || 0;
+                const costPrice = p.costPrice || unitPrice;
+                productOptions += `<option value="${p.id}" data-price="${unitPrice}" data-cost="${costPrice}" ${selected}>${p.name}</option>`;
             });
 
             const quantity = detail ? detail.quantity : 1;
             const unitPrice = detail ? detail.unitPrice : 0;
             const costPrice = detail ? (detail.costPrice ?? detail.unitPrice) : 0;
-            const lineTotal = detail ? detail.lineTotal : 0;
-            const lineCost = detail ? (detail.lineCost ?? (quantity * costPrice)) : 0;
+            const lineTotal = detail ? detail.lineTotal : (quantity * unitPrice);
+            const lineCost = detail ? (detail.lineCost ?? (quantity * costPrice)) : (quantity * costPrice);
 
             row.innerHTML = `
                 <td class="align-middle">${rowIndex + 1}</td>
@@ -201,13 +231,13 @@
                 </td>
                 <td>
                     <input type="number" name="StockDetails[${rowIndex}].UnitPrice" class="form-control price-input" 
-                           step="0.01" min="0" value="${unitPrice}" required />
-                    <input type="hidden" name="StockDetails[${rowIndex}].CostPrice" class="cost-price-input" value="${costPrice}" />
+                           step="0.01" min="0" value="${unitPrice.toFixed(2)}" required />
+                    <input type="hidden" name="StockDetails[${rowIndex}].CostPrice" class="cost-price-input" value="${costPrice.toFixed(2)}" />
                 </td>
                 <td>
                     <input type="number" name="StockDetails[${rowIndex}].LineTotal" class="form-control line-total" 
-                           readonly value="${lineTotal}" />
-                    <input type="hidden" name="StockDetails[${rowIndex}].LineCost" class="line-cost" value="${lineCost}" />
+                           readonly value="${lineTotal.toFixed(2)}" />
+                    <input type="hidden" name="StockDetails[${rowIndex}].LineCost" class="line-cost" value="${lineCost.toFixed(2)}" />
                 </td>
                 <td class="text-center align-middle">
                     <button type="button" class="btn btn-sm btn-outline-danger remove-row-btn">
@@ -238,6 +268,8 @@
         function onProductChange(e) {
             const row = e.target.closest('tr');
             const selectedOption = e.target.options[e.target.selectedIndex];
+            if (!selectedOption || !selectedOption.value) return;
+
             const unitPrice = parseFloat(selectedOption.dataset.price) || 0;
             const costPrice = parseFloat(selectedOption.dataset.cost) || unitPrice;
             

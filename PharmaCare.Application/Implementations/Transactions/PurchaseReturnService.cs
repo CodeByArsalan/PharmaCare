@@ -107,7 +107,7 @@ public class PurchaseReturnService : TransactionServiceBase, IPurchaseReturnServ
         var voucher = await CreatePurchaseReturnVoucherAsync(purchaseReturn, userId);
 
         // Link voucher to the purchase return
-        purchaseReturn.Voucher_ID = voucher.VoucherID;
+        purchaseReturn.Voucher = voucher;
         _stockMainRepository.Update(purchaseReturn);
 
         // Recalculate the reference GRN's balance/status if linked

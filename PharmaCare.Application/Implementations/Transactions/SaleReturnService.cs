@@ -120,9 +120,9 @@ public class SaleReturnService : TransactionServiceBase, ISaleReturnService
 
             // 4. Create Accounting Voucher
             var voucher = await CreateSaleReturnVoucherAsync(saleReturn, userId);
-            saleReturn.Voucher_ID = voucher.VoucherID;
+            saleReturn.Voucher = voucher;
 
-            // 5. Update Sale Return with Voucher ID
+            // 5. Update Sale Return
             _stockMainRepository.Update(saleReturn);
             
             // Update the reference Sale's balance if linked

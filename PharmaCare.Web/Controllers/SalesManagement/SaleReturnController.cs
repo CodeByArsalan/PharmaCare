@@ -219,7 +219,7 @@ public class SaleReturnController : BaseController
         // Load customers
         var parties = await _partyService.GetAllAsync();
         ViewBag.Customers = new SelectList(
-            parties.Where(p => p.IsActive && p.PartyType == "Customer"),
+            parties.Where(p => p.IsActive && (p.PartyType == "Customer" || p.PartyType == "Both")),
             "PartyID",
             "Name"
         );

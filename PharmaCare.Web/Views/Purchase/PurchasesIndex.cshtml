@@ -76,7 +76,7 @@
                                 <a asp-action="ViewPurchase" asp-route-id="@item.StockMainID.EncryptId()" class="btn btn-sm btn-outline-info" title="View">
                                     <i class="fas fa-eye"></i>
                                 </a>
-                                @if (item.Status == "Approved")
+                                @if (item.Status == "Approved" && item.PaymentStatus != "Paid")
                                 {
                                     <a asp-action="EditPurchase" asp-route-id="@item.StockMainID.EncryptId()" class="btn btn-sm btn-outline-warning" title="Edit">
                                         <i class="fas fa-pencil-alt"></i>

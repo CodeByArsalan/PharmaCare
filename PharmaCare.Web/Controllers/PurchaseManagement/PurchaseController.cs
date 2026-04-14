@@ -115,6 +115,12 @@ public class PurchaseController : BaseController
             return RedirectToAction(nameof(PurchasesIndex));
         }
 
+        if (purchase.PaymentStatus == "Paid")
+        {
+            ShowMessage(MessageType.Error, "Fully paid purchases cannot be edited.");
+            return RedirectToAction(nameof(PurchasesIndex));
+        }
+
         var parties = await _partyService.GetAllAsync();
         ViewBag.Suppliers = new SelectList(
             parties.Where(p => p.IsActive && (p.PartyType == "Supplier" || p.PartyType == "Both")),
@@ -136,6 +142,19 @@ public class PurchaseController : BaseController
             return RedirectToAction(nameof(PurchasesIndex));
         }
 
+        var existing = await _purchaseService.GetByIdAsync(request.StockMainID);
+        if (existing == null)
+        {
+            ShowMessage(MessageType.Error, "Purchase not found.");
+            return RedirectToAction(nameof(PurchasesIndex));
+        }
+
+        if (existing.PaymentStatus == "Paid")
+        {
+            ShowMessage(MessageType.Error, "Fully paid purchases cannot be edited.");
+            return RedirectToAction(nameof(PurchasesIndex));
+        }
+
         if (!request.Party_ID.HasValue || request.Party_ID.Value <= 0)
         {
             ModelState.AddModelError(nameof(request.Party_ID), "Supplier is required.");
@@ -149,8 +168,7 @@ public class PurchaseController : BaseController
         var purchase = MapToStockMain(request);
         if (!ModelState.IsValid)
         {
-            var existing = await _purchaseService.GetByIdAsync(request.StockMainID);
-            return View(existing ?? purchase);
+            return View(existing);
         }
 
         try
