@@ -36,4 +36,9 @@ public interface IProductService
     /// efficient stock retrieval for validation
     /// </summary>
     Task<Dictionary<int, decimal>> GetStockStatusAsync(List<int> productIds);
+    
+    /// <summary>
+    /// Gets the most recent GRN cost price for each product. Falls back to OpeningPrice if no GRN exists.
+    /// </summary>
+    Task<Dictionary<int, decimal>> GetLastGrnCostPricesAsync();
 }

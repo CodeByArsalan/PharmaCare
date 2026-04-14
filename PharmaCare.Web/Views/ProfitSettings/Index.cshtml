@@ -1,0 +1,68 @@
+@model PharmaCare.Domain.Entities.Configuration.ProfitSettings
+@{
+    ViewData["Title"] = "Profit Settings";
+}
+
+<div class="page-header">
+    <h4 class="page-title"><i class="fas fa-percent me-2"></i>Profit Margin Settings</h4>
+</div>
+
+<div class="row">
+    <div class="col-md-6 col-lg-5 col-xl-4 mx-auto">
+        <div class="card card-outline card-primary shadow-sm">
+            <div class="card-header border-bottom">
+                <h5 class="card-title mb-0"><i class="fas fa-cog me-2"></i>Global Pricing Configuration</h5>
+            </div>
+            <div class="card-body">
+                <div asp-validation-summary="All" class="text-danger mb-3"></div>
+
+                <form asp-action="Index" method="post" id="profitSettingsForm">
+                    <div class="mb-4">
+                        <label asp-for="RetailProfitPercent" class="form-label fw-bold">
+                            Retail Profit Margin (%) <span class="text-danger">*</span>
+                        </label>
+                        <div class="input-group">
+                            <input asp-for="RetailProfitPercent" type="number" step="0.01" min="0" max="100" class="form-control form-control-lg text-end fs-4 text-primary fw-bold" required />
+                            <span class="input-group-text bg-light text-muted"><i class="fas fa-percent"></i></span>
+                        </div>
+                        <span asp-validation-for="RetailProfitPercent" class="text-danger small"></span>
+                        <div class="form-text mt-2"><i class="fas fa-info-circle text-info me-1"></i>Percentage added to the unit cost for retail customers.</div>
+                    </div>
+
+                    <div class="mb-4">
+                        <label asp-for="WholesaleProfitPercent" class="form-label fw-bold">
+                            Wholesale Profit Margin (%) <span class="text-danger">*</span>
+                        </label>
+                        <div class="input-group">
+                            <input asp-for="WholesaleProfitPercent" type="number" step="0.01" min="0" max="100" class="form-control form-control-lg text-end fs-4 text-success fw-bold" required />
+                            <span class="input-group-text bg-light text-muted"><i class="fas fa-percent"></i></span>
+                        </div>
+                        <span asp-validation-for="WholesaleProfitPercent" class="text-danger small"></span>
+                        <div class="form-text mt-2"><i class="fas fa-info-circle text-info me-1"></i>Percentage added to the average cost for wholesale (box) pricing.</div>
+                    </div>
+
+                    <div class="d-grid mt-5">
+                        <button type="submit" class="btn btn-primary btn-lg" id="btnSave">
+                            <i class="fas fa-save me-2"></i>Save Configuration
+                        </button>
+                    </div>
+                </form>
+            </div>
+            <div class="card-footer bg-light text-muted small py-3">
+                <i class="fas fa-clock me-1"></i>Last updated: @Model.UpdatedAt.ToString("dd MMM yyyy, hh:mm tt")
+            </div>
+        </div>
+    </div>
+</div>
+
+@section Scripts {
+    @* <partial name="_ValidationScriptsPartial" /> *@
+    <script>
+        $(document).ready(function() {
+            $('#profitSettingsForm').on('submit', function(e) {
+                var btn = $('#btnSave');
+                btn.prop('disabled', true).html('<i class="fas fa-spinner fa-spin me-2"></i>Saving...');
+            });
+        });
+    </script>
+}

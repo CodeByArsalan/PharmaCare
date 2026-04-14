@@ -18,17 +18,20 @@ public class SaleController : BaseController
     private readonly ISaleService _saleService;
     private readonly IPartyService _partyService;
     private readonly IProductService _productService;
+    private readonly IProfitSettingsService _profitSettingsService;
     private readonly ILogger<SaleController> _logger;
 
     public SaleController(
         ISaleService saleService,
         IPartyService partyService,
         IProductService productService,
+        IProfitSettingsService profitSettingsService,
         ILogger<SaleController> logger)
     {
         _saleService = saleService;
         _partyService = partyService;
         _productService = productService;
+        _profitSettingsService = profitSettingsService;
         _logger = logger;
     }
 
@@ -228,16 +231,30 @@ public class SaleController : BaseController
     public async Task<IActionResult> GetProducts(int? priceTypeId)
     {
         var productsWithStock = await _productService.GetProductsWithStockAsync(priceTypeId);
+        var lastGrnCosts = await _productService.GetLastGrnCostPricesAsync();
+        var profitSettings = await _profitSettingsService.GetAsync();
+
         var result = productsWithStock
-            .Select(ps => new
+            .Select(ps => 
             {
-                id = ps.Product.ProductID,
-                name = ps.Product.Name,
-                unitPrice = ps.SpecificPrice ?? ps.Product.OpeningPrice,
-                costPrice = ps.Product.OpeningPrice,
-                stockQuantity = ps.CurrentStock,
-                unitsInPack = ps.Product.UnitsInPack,
-                boxPrice = ps.SpecificPrice ?? (ps.Product.OpeningPrice * ps.Product.UnitsInPack)
+                var costPrice = lastGrnCosts.TryGetValue(ps.Product.ProductID, out var c) ? c : ps.Product.OpeningPrice;
+                var retailPrice = costPrice * (1 + profitSettings.RetailProfitPercent / 100);
+                var wholesaleBoxPrice = costPrice * (1 + profitSettings.WholesaleProfitPercent / 100) * ps.Product.UnitsInPack;
+
+                // Fall back to SpecificPrice from ProductPrice table if it exists, otherwise use ProfitSettings formula
+                var finalUnitPrice = ps.SpecificPrice ?? retailPrice;
+                var finalBoxPrice = ps.SpecificPrice ?? wholesaleBoxPrice;
+
+                return new
+                {
+                    id = ps.Product.ProductID,
+                    name = ps.Product.Name,
+                    unitPrice = finalUnitPrice,
+                    costPrice = costPrice,
+                    stockQuantity = ps.CurrentStock,
+                    unitsInPack = ps.Product.UnitsInPack,
+                    boxPrice = finalBoxPrice
+                };
             })
             .ToList();
 

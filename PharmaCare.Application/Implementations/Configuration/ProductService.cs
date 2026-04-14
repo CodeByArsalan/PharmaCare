@@ -323,4 +323,36 @@ public class ProductService : IProductService
 
         return result;
     }
+
+    public async Task<Dictionary<int, decimal>> GetLastGrnCostPricesAsync()
+    {
+        var products = await _repository.Query()
+            .Select(p => new { p.ProductID, p.OpeningPrice })
+            .ToListAsync();
+
+        // Get the latest GRN cost price for each product
+        var latestGrnCosts = await _stockDetailRepository.Query()
+            .Include(sd => sd.StockMain)
+                .ThenInclude(sm => sm!.TransactionType)
+            .Where(sd => sd.StockMain!.Status == "Approved" && sd.StockMain.TransactionType!.Code == "GRN")
+            .GroupBy(sd => sd.Product_ID)
+            .Select(g => new
+            {
+                ProductId = g.Key,
+                // Using Max(StockMainID) as chronological order of GRNs
+                LatestGrnCost = g.OrderByDescending(x => x.StockMain_ID).FirstOrDefault()!.CostPrice
+            })
+            .ToListAsync();
+
+        var grnDict = latestGrnCosts.ToDictionary(x => x.ProductId, x => x.LatestGrnCost);
+
+        var result = new Dictionary<int, decimal>();
+        foreach (var p in products)
+        {
+            // Fallback to opening price if no GRN exists
+            result[p.ProductID] = grnDict.TryGetValue(p.ProductID, out var grnCost) ? grnCost : p.OpeningPrice;
+        }
+
+        return result;
+    }
 }

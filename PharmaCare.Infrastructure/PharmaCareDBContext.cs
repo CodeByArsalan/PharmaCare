@@ -34,6 +34,7 @@ public class PharmaCareDBContext : IdentityUserContext<User, int>
     public DbSet<Party> Parties { get; set; } = null!;
     public DbSet<PriceType> PriceTypes { get; set; } = null!;
     public DbSet<ProductPrice> ProductPrices { get; set; } = null!;
+    public DbSet<ProfitSettings> ProfitSettings { get; set; } = null!;
 
     // ========== ACCOUNTING ==========
     public DbSet<AccountFamily> AccountFamilies { get; set; } = null!;
@@ -239,6 +240,22 @@ public class PharmaCareDBContext : IdentityUserContext<User, int>
                 .WithMany()
                 .HasForeignKey(e => e.PriceType_ID)
                 .OnDelete(DeleteBehavior.Restrict);
+        });
+
+        builder.Entity<ProfitSettings>(entity =>
+        {
+            entity.ToTable("ProfitSettings");
+            entity.HasKey(e => e.SettingsID);
+            
+            // Seed a single default row
+            entity.HasData(new ProfitSettings 
+            { 
+                SettingsID = 1, 
+                RetailProfitPercent = 20m, 
+                WholesaleProfitPercent = 10m,
+                UpdatedAt = new DateTime(2024, 1, 1),
+                UpdatedBy = 1
+            });
         });
 
         // ========== ACCOUNTING ==========
