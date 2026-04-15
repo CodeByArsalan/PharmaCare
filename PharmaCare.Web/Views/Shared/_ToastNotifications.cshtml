@@ -1,6 +1,6 @@
 @{
-    var toastType = TempData["ToastType"] as string;
-    var toastMessage = TempData["ToastMessage"] as string;
+    var toastType = (TempData["ToastType"] as string) ?? (ViewData["ToastType"] as string);
+    var toastMessage = (TempData["ToastMessage"] as string) ?? (ViewData["ToastMessage"] as string);
 }
 
 @if (!string.IsNullOrEmpty(toastMessage))

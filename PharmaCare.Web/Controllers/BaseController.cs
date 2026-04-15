@@ -70,6 +70,8 @@ public abstract class BaseController : Controller
     {
         TempData["ToastType"] = type.ToString().ToLower();
         TempData["ToastMessage"] = message;
+        ViewData["ToastType"] = type.ToString().ToLower();
+        ViewData["ToastMessage"] = message;
     }
 }
 

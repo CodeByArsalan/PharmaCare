@@ -102,7 +102,7 @@ public class SaleReturnController : BaseController
             }
             catch (Exception ex)
             {
-                ModelState.AddModelError("", "Error creating sale return: " + ex.Message);
+                ShowMessage(MessageType.Error, "Validation Error: " + ex.Message);
             }
         }
 
