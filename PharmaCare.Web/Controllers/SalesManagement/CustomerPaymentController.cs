@@ -160,6 +160,25 @@ public class CustomerPaymentController : BaseController
         return Json(filteredAccounts);
     }
 
+    /// Gets accounts by payment method (AJAX).
+    [HttpGet]
+    public async Task<IActionResult> GetAccountsByPaymentMethod(string method)
+    {
+        var accounts = await _accountService.GetAllAsync();
+        var isCash = string.Equals(method, "Cash", StringComparison.OrdinalIgnoreCase);
+        
+        // Use logic aligned with ComboboxRepository.GetCashBankAccounts
+        // type 1 = Cash, type 2 = Bank
+        var targetType = isCash ? 1 : 2;
+
+        var filteredAccounts = accounts
+            .Where(a => a.IsActive && a.AccountType_ID == targetType)
+            .Select(a => new { id = a.AccountID, name = a.Name })
+            .ToList();
+
+        return Json(filteredAccounts);
+    }
+
     /// Displays list of all customer refunds.
     [LinkedToPage("CustomerPayment", "ReceiptsIndex")]
     public async Task<IActionResult> RefundsIndex()

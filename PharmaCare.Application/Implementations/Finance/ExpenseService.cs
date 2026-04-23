@@ -75,6 +75,19 @@ public class ExpenseService : IExpenseService
     {
         return await ExecuteInTransactionAsync(async () =>
         {
+            // Fetch category to get its default expense account
+            var category = await _categoryRepository.Query()
+                .FirstOrDefaultAsync(c => c.ExpenseCategoryID == expense.ExpenseCategory_ID);
+
+            if (category == null)
+                throw new InvalidOperationException("Expense category not found.");
+
+            if (category.DefaultExpenseAccount_ID == null || category.DefaultExpenseAccount_ID == 0)
+                throw new InvalidOperationException($"Expense category '{category.Name}' does not have a default expense account configured. Please configure it first.");
+
+            // Automatically set the expense account based on the category
+            expense.ExpenseAccount_ID = category.DefaultExpenseAccount_ID.Value;
+
             // Validate accounts
             var sourceAccount = await _accountRepository.Query()
                 .Include(a => a.AccountType)

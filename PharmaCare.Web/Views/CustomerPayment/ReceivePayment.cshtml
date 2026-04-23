@@ -80,7 +80,7 @@
                         </div>
                         <div class="col-md-6">
                             <label asp-for="PaymentMethod" class="form-label">Payment Method <span class="text-danger">*</span></label>
-                            <select asp-for="PaymentMethod" asp-items="_combobox.GetPaymentMethods(Model.PaymentMethod)" class="form-select" required>
+                            <select asp-for="PaymentMethod" asp-items="_combobox.GetPaymentMethods(Model.PaymentMethod)" class="form-select" id="PaymentMethod" required>
                             </select>
                             <span asp-validation-for="PaymentMethod" class="text-danger"></span>
                         </div>
@@ -89,7 +89,7 @@
                     <div class="row mb-3">
                         <div class="col-md-6">
                             <label asp-for="Account_ID" class="form-label">Receive Into Account <span class="text-danger">*</span></label>
-                            <select asp-for="Account_ID" asp-items="_combobox.GetCashBankAccounts()" class="form-select" required>
+                            <select asp-for="Account_ID" asp-items="_combobox.GetCashBankAccounts()" class="form-select" id="Account_ID" required>
                                 <option value="">-- Select Account --</option>
                             </select>
                             <span asp-validation-for="Account_ID" class="text-danger"></span>
@@ -126,7 +126,6 @@
 </div>
 
 @section Scripts {
-    @* <partial name="_ValidationScriptsPartial" /> *@
     <script>
         $(document).ready(function() {
             // Set max amount based on balance
@@ -140,6 +139,36 @@
                     $(this).val(maxAmount);
                 }
             });
+
+            // Dynamic account loading
+            $('#PaymentMethod').on('change', function() {
+                loadAccounts(this.value);
+            });
+
+            // Initial load
+            loadAccounts($('#PaymentMethod').val());
+
+            function loadAccounts(method) {
+                if (!method) return;
+
+                var $accountSelect = $('#Account_ID');
+                var currentSelection = $accountSelect.val();
+
+                $.getJSON('@Url.Action("GetAccountsByPaymentMethod")?method=' + method, function(data) {
+                    $accountSelect.empty().append('<option value="">-- Select Account --</option>');
+                    $.each(data, function(i, item) {
+                        $accountSelect.append($('<option>', {
+                            value: item.id,
+                            text: item.name
+                        }));
+                    });
+
+                    // Restore selection if still available
+                    if (currentSelection) {
+                        $accountSelect.val(currentSelection);
+                    }
+                });
+            }
         });
     </script>
 }

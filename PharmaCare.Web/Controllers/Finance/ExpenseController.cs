@@ -8,9 +8,6 @@ using PharmaCare.Web.Utilities;
 
 namespace PharmaCare.Web.Controllers.Finance;
 
-/// <summary>
-/// Controller for managing Expenses and Expense Categories.
-/// </summary>
 [Authorize]
 public class ExpenseController : BaseController
 {
@@ -25,22 +22,12 @@ public class ExpenseController : BaseController
         _accountService = accountService;
     }
 
-    // ========================================================================
-    //  EXPENSE ACTIONS
-    // ========================================================================
-
-    /// <summary>
-    /// Displays list of all expenses.
-    /// </summary>
     public async Task<IActionResult> ExpensesIndex()
     {
         var expenses = await _expenseService.GetAllAsync();
         return View(expenses);
     }
 
-    /// <summary>
-    /// Shows form to record a new expense.
-    /// </summary>
     public async Task<IActionResult> AddExpense()
     {
         await LoadExpenseDropdownsAsync();
@@ -50,9 +37,6 @@ public class ExpenseController : BaseController
         });
     }
 
-    /// <summary>
-    /// Creates a new expense.
-    /// </summary>
     [HttpPost]
     [ValidateAntiForgeryToken]
     public async Task<IActionResult> AddExpense(Expense expense)
@@ -61,6 +45,7 @@ public class ExpenseController : BaseController
         ModelState.Remove("ExpenseCategory");
         ModelState.Remove("SourceAccount");
         ModelState.Remove("ExpenseAccount");
+        ModelState.Remove("ExpenseAccount_ID");
         ModelState.Remove("Voucher");
         ModelState.Remove("ExpenseID");
 
@@ -82,9 +67,6 @@ public class ExpenseController : BaseController
         return View(expense);
     }
 
-    /// <summary>
-    /// Shows expense details.
-    /// </summary>
     public async Task<IActionResult> ViewExpense(string id)
     {
         int expenseId = Utility.DecryptId(id);
@@ -104,9 +86,6 @@ public class ExpenseController : BaseController
         return View(expense);
     }
 
-    /// <summary>
-    /// Voids an expense.
-    /// </summary>
     [HttpPost]
     [ValidateAntiForgeryToken]
     public async Task<IActionResult> Void(string id, string voidReason)
@@ -163,10 +142,6 @@ public class ExpenseController : BaseController
             defaultExpenseAccountId = category.DefaultExpenseAccount_ID
         });
     }
-
-    // ========================================================================
-    //  EXPENSE CATEGORY ACTIONS
-    // ========================================================================
 
     /// <summary>
     /// Displays list of expense categories.
@@ -288,10 +263,11 @@ public class ExpenseController : BaseController
             "Name"
         );
 
-        // Accounts (all active for expense account selection)
+        // Accounts (exclude Cash/Bank for proper expense account selection)
         var accounts = await _accountService.GetAllAsync();
         ViewBag.ExpenseAccounts = new SelectList(
-            accounts.Where(a => a.IsActive),
+            accounts.Where(a => a.IsActive && 
+                               (a.AccountType == null || (a.AccountType.Code != "CASH" && a.AccountType.Code != "BANK"))),
             "AccountID",
             "Name"
         );
@@ -319,10 +295,11 @@ public class ExpenseController : BaseController
             "Name"
         );
 
-        // Expense accounts
+        // Expense accounts (exclude Cash/Bank)
         var accounts = await _accountService.GetAllAsync();
         ViewBag.ExpenseAccounts = new SelectList(
-            accounts.Where(a => a.IsActive),
+            accounts.Where(a => a.IsActive && 
+                               (a.AccountType == null || (a.AccountType.Code != "CASH" && a.AccountType.Code != "BANK"))),
             "AccountID",
             "Name"
         );

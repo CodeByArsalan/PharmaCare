@@ -18,13 +18,12 @@ public class ProfitSettingsService : IProfitSettingsService
 
     public async Task<ProfitSettings> GetAsync()
     {
-        var settings = await _repository.Query().FirstOrDefaultAsync(s => s.SettingsID == 1);
+        var settings = await _repository.Query().FirstOrDefaultAsync();
         
         if (settings == null)
         {
             settings = new ProfitSettings
             {
-                SettingsID = 1,
                 RetailProfitPercent = 20,
                 WholesaleProfitPercent = 10,
                 UpdatedAt = DateTime.Now,

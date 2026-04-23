@@ -42,12 +42,7 @@
                     </select>
                 </div>
 
-                <div class="col-md-6">
-                    <label class="form-label">Expense Account <span class="text-danger">*</span></label>
-                    <select asp-for="ExpenseAccount_ID" asp-items="ViewBag.ExpenseAccounts" class="form-select" id="expenseAccountSelect" required>
-                        <option value="">-- Select Account --</option>
-                    </select>
-                </div>
+                <!-- Expense Account is now automatically determined by the backend based on selected Category -->
 
                 <div class="col-md-6">
                     <label class="form-label">Vendor Name</label>
@@ -79,18 +74,6 @@
 
 @section Scripts {
     <script>
-        // Auto-fill expense account when category changes
-        document.getElementById('categorySelect').addEventListener('change', function () {
-            const categoryId = this.value;
-            if (!categoryId) return;
-
-            fetch(`/Expense/GetCategoryDefaults?categoryId=${categoryId}`)
-                .then(r => r.json())
-                .then(data => {
-                    if (data.defaultExpenseAccountId) {
-                        document.getElementById('expenseAccountSelect').value = data.defaultExpenseAccountId;
-                    }
-                });
-        });
+        // Any future script can go here. Category's expense account is handled by the backend.
     </script>
 }
