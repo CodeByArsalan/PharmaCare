@@ -37,6 +37,7 @@ public class CreditNote : BaseEntity
     public decimal AppliedAmount { get; set; }
 
     [Column(TypeName = "decimal(18,2)")]
+    [ConcurrencyCheck]
     public decimal BalanceAmount { get; set; }
 
     public DateTime CreditDate { get; set; } = DateTime.Now;

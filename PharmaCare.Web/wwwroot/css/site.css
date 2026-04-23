@@ -798,6 +798,28 @@ pre {
     color: var(--danger-400) !important;
 }
 
+/* ========================================
+   CHART TOOLTIPS / RESPONSIVENESS FIX
+   ======================================== */
+.apexcharts-tooltip, #chartjs-tooltip {
+    max-width: 90vw !important;
+    white-space: normal !important;
+    word-wrap: break-word !important;
+}
+
+@media (max-width: 576px) {
+    .apexcharts-tooltip {
+        left: 5px !important;
+        right: auto !important;
+        transform: none !important;
+    }
+    
+    #chartjs-tooltip {
+        max-width: 95vw !important;
+        left: 0 !important;
+    }
+}
+
 .badge.bg-warning,
 .badge-warning {
     background: rgba(245, 158, 11, 0.15) !important;

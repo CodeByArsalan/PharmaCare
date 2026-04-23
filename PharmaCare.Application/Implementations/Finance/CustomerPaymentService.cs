@@ -630,7 +630,14 @@ public class CustomerPaymentService : ICustomerPaymentService
                 CreatedBy = userId
             });
 
-            await _unitOfWork.SaveChangesAsync();
+            try
+            {
+                await _unitOfWork.SaveChangesAsync();
+            }
+            catch (DbUpdateConcurrencyException)
+            {
+                throw new InvalidOperationException("The credit note or target sale was modified concurrently by another transaction. Please try again.");
+            }
             return true;
         });
     }

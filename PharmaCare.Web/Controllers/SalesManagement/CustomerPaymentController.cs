@@ -210,10 +210,20 @@ public class CustomerPaymentController : BaseController
         try
         {
             await _customerPaymentService.ApplyCreditNoteAsync(creditNoteId, saleId, amount, CurrentUserId);
+
+            if (Request.Headers["X-Requested-With"] == "XMLHttpRequest")
+            {
+                return Json(new { success = true, message = "Credit note applied successfully." });
+            }
+
             ShowMessage(MessageType.Success, "Credit note applied successfully.");
         }
         catch (Exception ex)
         {
+            if (Request.Headers["X-Requested-With"] == "XMLHttpRequest")
+            {
+                return Json(new { success = false, message = ex.Message });
+            }
             ShowMessage(MessageType.Error, ex.Message);
         }
 

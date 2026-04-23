@@ -192,6 +192,12 @@ public class PaymentService : IPaymentService
             if (stockMain == null)
                 throw new InvalidOperationException("Transaction not found.");
 
+            if (string.Equals(payment.PaymentMethod, "Cheque", StringComparison.OrdinalIgnoreCase) && payment.ChequeDate.HasValue)
+            {
+                if (payment.ChequeDate.Value > DateTime.Now.AddMonths(6))
+                    throw new InvalidOperationException("Cheque date cannot be more than 6 months in the future.");
+            }
+
             if (!string.Equals(stockMain.Status, "Approved", StringComparison.OrdinalIgnoreCase))
                 throw new InvalidOperationException("Payments can only be made against approved transactions.");
 
