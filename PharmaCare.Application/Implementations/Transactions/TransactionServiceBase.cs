@@ -1,7 +1,9 @@
 using Microsoft.EntityFrameworkCore;
 using PharmaCare.Application.Interfaces;
+using PharmaCare.Application.Interfaces.Accounting;
 using PharmaCare.Domain.Entities.Accounting;
 using PharmaCare.Domain.Entities.Transactions;
+using PharmaCare.Application.Utilities;
 
 namespace PharmaCare.Application.Implementations.Transactions;
 
@@ -14,15 +16,29 @@ public abstract class TransactionServiceBase
     protected readonly IRepository<StockMain> _stockMainRepository;
     protected readonly IRepository<Voucher> _voucherRepository;
     protected readonly IUnitOfWork _unitOfWork;
+    protected readonly IFinancialPeriodService _financialPeriodService;
 
     protected TransactionServiceBase(
         IRepository<StockMain> stockMainRepository,
         IRepository<Voucher> voucherRepository,
-        IUnitOfWork unitOfWork)
+        IUnitOfWork unitOfWork,
+        IFinancialPeriodService financialPeriodService)
     {
         _stockMainRepository = stockMainRepository;
         _voucherRepository = voucherRepository;
         _unitOfWork = unitOfWork;
+        _financialPeriodService = financialPeriodService;
+    }
+
+    /// <summary>
+    /// Validates that the transaction date is not within a closed financial period.
+    /// </summary>
+    protected async Task ValidatePeriodAsync(DateTime date)
+    {
+        if (await _financialPeriodService.IsPeriodLockedAsync(date))
+        {
+            throw new InvalidOperationException($"The date {date:dd/MM/yyyy} falls within a closed financial period. Transactions are locked.");
+        }
     }
 
     /// <summary>
@@ -92,24 +108,7 @@ public abstract class TransactionServiceBase
     /// </summary>
     protected async Task<string> GenerateVoucherNoAsync(string prefix)
     {
-        var datePrefix = $"{prefix}-{DateTime.Now:yyyyMMdd}-";
-
-        var lastVoucher = await _voucherRepository.Query()
-            .Where(v => v.VoucherNo.StartsWith(datePrefix))
-            .OrderByDescending(v => v.VoucherNo)
-            .FirstOrDefaultAsync();
-
-        int nextNum = 1;
-        if (lastVoucher != null)
-        {
-            var parts = lastVoucher.VoucherNo.Split('-');
-            if (parts.Length > 2 && int.TryParse(parts.Last(), out int lastNum))
-            {
-                nextNum = lastNum + 1;
-            }
-        }
-
-        return $"{datePrefix}{nextNum:D4}";
+        return await _voucherRepository.GenerateVoucherNoAsync(prefix);
     }
 
     /// <summary>
@@ -134,68 +133,13 @@ public abstract class TransactionServiceBase
     /// </summary>
     protected async Task<Voucher?> CreateReversalVoucherAsync(int? originalVoucherId, int userId, string voidReason, string stockMainIdSource = "StockMain", int? stockMainId = null)
     {
-        if (!originalVoucherId.HasValue)
-            return null;
-
-        var originalVoucher = await _voucherRepository.Query()
-            .Include(v => v.VoucherDetails)
-            .FirstOrDefaultAsync(v => v.VoucherID == originalVoucherId.Value);
-
-        if (originalVoucher == null || originalVoucher.IsReversed)
-            return null;
-
-        // Use the same prefix as the original but maybe ensure uniqueness if needed, 
-        // OR simply reuse the logic. Usually Reversal Vouchers might have a specific prefix purely for ID,
-        // but often we just use the same series or a specific "REV" prefix.
-        // Looking at SaleService: "REV-{originalVoucher.VoucherNo}"
-        // Looking at ReturnServices: New number with same prefix.
-        
-        // Let's stick to the styling found in SaleService ("REV-...") as it's clearer
-        // OR standard new number. 
-        // SaleService uses: `var voucherNo = $"REV-{originalVoucher.VoucherNo}";`
-        // SaleReturnService uses: `GenerateVoucherNoAsync(SALE_RETURN_VOUCHER_CODE)`
-        
-        // I will use REV- prefix for clarity and to avoid burning sequence numbers if not needed.
-        var voucherNo = $"REV-{originalVoucher.VoucherNo}";
-
-        var reversalVoucher = new Voucher
+        if (!originalVoucherId.HasValue) return null;
+        var reversal = await _voucherRepository.CreateReversalVoucherAsync(originalVoucherId.Value, userId, voidReason, stockMainIdSource, stockMainId);
+        if (reversal != null)
         {
-            VoucherType_ID = originalVoucher.VoucherType_ID,
-            VoucherNo = voucherNo,
-            VoucherDate = DateTime.Now,
-            TotalDebit = originalVoucher.TotalCredit, // Swapped
-            TotalCredit = originalVoucher.TotalDebit, // Swapped
-            Status = "Posted",
-            SourceTable = stockMainIdSource,
-            SourceID = stockMainId ?? originalVoucher.SourceID,
-            Narration = $"Reversal of {originalVoucher.VoucherNo} - Void: {voidReason}",
-            ReversesVoucher_ID = originalVoucher.VoucherID,
-            CreatedAt = DateTime.Now,
-            CreatedBy = userId
-        };
-
-        foreach (var detail in originalVoucher.VoucherDetails)
-        {
-            reversalVoucher.VoucherDetails.Add(new VoucherDetail
-            {
-                Account_ID = detail.Account_ID,
-                DebitAmount = detail.CreditAmount,   // Swap: original credit becomes debit
-                CreditAmount = detail.DebitAmount,   // Swap: original debit becomes credit
-                Description = $"Reversal - {detail.Description}",
-                Party_ID = detail.Party_ID,
-                Product_ID = detail.Product_ID
-            });
+            await _unitOfWork.SaveChangesAsync();
         }
-
-        await _voucherRepository.AddAsync(reversalVoucher);
-
-        // Mark original voucher as reversed and link it to the generated reversal voucher.
-        originalVoucher.IsReversed = true;
-        originalVoucher.ReversedByVoucher = reversalVoucher;
-        _voucherRepository.Update(originalVoucher);
-        await _unitOfWork.SaveChangesAsync();
-
-        return reversalVoucher;
+        return reversal;
     }
 
     /// <summary>

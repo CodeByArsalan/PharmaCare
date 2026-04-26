@@ -53,8 +53,14 @@ public class HomeController : BaseController
         return View();
     }
 
-    public IActionResult Error()
+    [ResponseCache(Duration = 0, Location = ResponseCacheLocation.None, NoStore = true)]
+    [AllowAnonymous]
+    public IActionResult Error(int? statusCode = null)
     {
+        if (statusCode.HasValue && statusCode.Value == 404)
+        {
+            return View("NotFound");
+        }
         return View();
     }
 }

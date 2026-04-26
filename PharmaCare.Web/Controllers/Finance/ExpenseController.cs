@@ -22,10 +22,19 @@ public class ExpenseController : BaseController
         _accountService = accountService;
     }
 
-    public async Task<IActionResult> ExpensesIndex()
+    public async Task<IActionResult> ExpensesIndex(int? categoryId, DateTime? fromDate, DateTime? toDate, int page = 1)
     {
-        var expenses = await _expenseService.GetAllAsync();
-        return View(expenses);
+        int pageSize = 15;
+        var pagedResult = await _expenseService.GetPagedAsync(categoryId, fromDate, toDate, page, pageSize);
+
+        var categories = await _expenseService.GetCategoriesAsync();
+        ViewBag.Categories = new SelectList(categories.Where(c => c.IsActive), "ExpenseCategoryID", "Name", categoryId);
+        
+        ViewBag.SelectedCategory = categoryId;
+        ViewBag.FromDate = fromDate;
+        ViewBag.ToDate = toDate;
+
+        return View(pagedResult);
     }
 
     public async Task<IActionResult> AddExpense()
@@ -88,6 +97,37 @@ public class ExpenseController : BaseController
 
     [HttpPost]
     [ValidateAntiForgeryToken]
+    public async Task<IActionResult> Approve(string id)
+    {
+        int expenseId = Utility.DecryptId(id);
+        if (expenseId == 0)
+        {
+            ShowMessage(MessageType.Error, "Invalid Expense ID.");
+            return RedirectToAction(nameof(ExpensesIndex));
+        }
+
+        try
+        {
+            var result = await _expenseService.ApproveAsync(expenseId, CurrentUserId);
+            if (result)
+            {
+                ShowMessage(MessageType.Success, "Expense approved and posted to accounting!");
+            }
+            else
+            {
+                ShowMessage(MessageType.Error, "Failed to approve expense.");
+            }
+        }
+        catch (Exception ex)
+        {
+            ShowMessage(MessageType.Error, "Error approving expense: " + ex.Message);
+        }
+
+        return RedirectToAction(nameof(ExpensesIndex));
+    }
+
+    [HttpPost]
+    [ValidateAntiForgeryToken]
     public async Task<IActionResult> Void(string id, string voidReason)
     {
         int expenseId = Utility.DecryptId(id);
@@ -103,14 +143,21 @@ public class ExpenseController : BaseController
             return RedirectToAction(nameof(ExpensesIndex));
         }
 
-        var result = await _expenseService.VoidAsync(expenseId, voidReason, CurrentUserId);
-        if (result)
+        try
         {
-            ShowMessage(MessageType.Success, "Expense voided successfully!");
+            var result = await _expenseService.VoidAsync(expenseId, voidReason, CurrentUserId);
+            if (result)
+            {
+                ShowMessage(MessageType.Success, "Expense voided successfully!");
+            }
+            else
+            {
+                ShowMessage(MessageType.Error, "Failed to void expense.");
+            }
         }
-        else
+        catch (Exception ex)
         {
-            ShowMessage(MessageType.Error, "Failed to void expense.");
+            ShowMessage(MessageType.Error, "Error voiding expense: " + ex.Message);
         }
 
         return RedirectToAction(nameof(ExpensesIndex));
@@ -247,6 +294,43 @@ public class ExpenseController : BaseController
         await _expenseService.ToggleCategoryStatusAsync(categoryId, CurrentUserId);
         ShowMessage(MessageType.Success, "Category status updated successfully!");
         return RedirectToAction(nameof(ExpenseCategoriesIndex));
+    }
+
+    // ========================================================================
+    //  EXPENSE BUDGETS
+    // ========================================================================
+
+    [HttpGet]
+    public async Task<IActionResult> BudgetManagement(int? year, int? month)
+    {
+        var targetYear = year ?? DateTime.Now.Year;
+        var targetMonth = month ?? DateTime.Now.Month;
+
+        var budgets = await _expenseService.GetBudgetsAsync(targetYear, targetMonth);
+        
+        ViewBag.Year = targetYear;
+        ViewBag.Month = targetMonth;
+
+        return View(budgets);
+    }
+
+    [HttpPost]
+    [ValidateAntiForgeryToken]
+    public async Task<IActionResult> BudgetManagement(int year, int month, List<PharmaCare.Application.ViewModels.Report.ExpenseBudgetVM> budgets)
+    {
+        try
+        {
+            await _expenseService.SaveBudgetsAsync(year, month, budgets, CurrentUserId);
+            ShowMessage(MessageType.Success, "Budgets saved successfully!");
+            return RedirectToAction(nameof(BudgetManagement), new { year, month });
+        }
+        catch (Exception ex)
+        {
+            ShowMessage(MessageType.Error, "Error saving budgets: " + ex.Message);
+            ViewBag.Year = year;
+            ViewBag.Month = month;
+            return View(budgets);
+        }
     }
 
     // ========================================================================

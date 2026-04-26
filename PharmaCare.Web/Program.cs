@@ -100,11 +100,14 @@ builder.Services.AddScoped<IPurchaseReturnService, PurchaseReturnService>();
 // Sales Management Services
 builder.Services.AddScoped<ISaleService, SaleService>();
 builder.Services.AddScoped<ISaleReturnService, SaleReturnService>();
+builder.Services.AddScoped<IStockAdjustmentService, StockAdjustmentService>();
 
 // Finance Services
 builder.Services.AddScoped<IPaymentService, PaymentService>();
 builder.Services.AddScoped<ICustomerPaymentService, CustomerPaymentService>();
+builder.Services.AddScoped<ISupplierCreditNoteService, SupplierCreditNoteService>();
 builder.Services.AddScoped<IExpenseService, ExpenseService>();
+builder.Services.AddScoped<IFinancialPeriodService, FinancialPeriodService>();
 
 // Reporting Services
 builder.Services.AddScoped<PharmaCare.Application.Interfaces.Reports.ISalesReportService, PharmaCare.Infrastructure.Implementations.Reports.SalesReportService>();
@@ -147,6 +150,8 @@ if (!app.Environment.IsDevelopment())
     app.UseExceptionHandler("/Home/Error");
     app.UseHsts();
 }
+
+app.UseStatusCodePagesWithReExecute("/Home/Error", "?statusCode={0}");
 
 // Set global culture to use PKR
 var defaultCulture = new System.Globalization.CultureInfo("en-US");

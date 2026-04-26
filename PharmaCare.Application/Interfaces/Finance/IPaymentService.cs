@@ -28,6 +28,14 @@ public interface IPaymentService
     /// </summary>
     Task<IEnumerable<StockMain>> GetPendingGrnsAsync(int? supplierId = null, bool includePaid = false);
 
+    Task<PharmaCare.Application.DTOs.PagedResult<StockMain>> GetPagedPendingGrnsAsync(
+        int? supplierId, 
+        DateTime? fromDate, 
+        DateTime? toDate, 
+        string? status, 
+        int page, 
+        int pageSize);
+
     /// <summary>
     /// Creates a new payment and updates transaction balance.
     /// </summary>
@@ -40,17 +48,6 @@ public interface IPaymentService
 
     /// <summary>
 
-    /// <summary>
-    /// Creates an advance payment to a supplier (not linked to any GRN).
-    /// DR: Supplier Account (creates debit balance / reduces payable)
-    /// CR: Cash/Bank Account
-    /// </summary>
-    Task<Payment> CreateAdvancePaymentAsync(Payment payment, int userId);
-
-    /// <summary>
-    /// Gets all advance payments (payments without a linked transaction).
-    /// </summary>
-    Task<IEnumerable<Payment>> GetAdvancePaymentsAsync();
 
     /// <summary>
     /// Gets all payments for a specific party/supplier.
@@ -61,4 +58,5 @@ public interface IPaymentService
     /// Voids a supplier payment and reverses its accounting entries.
     /// </summary>
     Task<bool> VoidPaymentAsync(int paymentId, string reason, int userId);
+
 }

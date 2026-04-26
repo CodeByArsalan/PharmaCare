@@ -1,0 +1,194 @@
+@model PharmaCare.Domain.Entities.Transactions.StockMain
+@inject PharmaCare.Infrastructure.Interfaces.IComboboxRepository _combobox
+@{
+    ViewData["Title"] = "Add Stock Adjustment";
+    var adjustmentReasons = new[] { "Damaged", "Expired", "Lost / Theft", "Bonus Stock", "Opening Stock Correction", "Other" };
+}
+
+<div class="page-header d-flex justify-content-between align-items-center mb-4">
+    <h4 class="page-title"><i class="fas fa-balance-scale text-primary me-2"></i>New Stock Adjustment</h4>
+    <a asp-action="AdjustmentIndex" class="btn btn-outline-secondary">
+        <i class="fas fa-arrow-left me-2"></i>Back to List
+    </a>
+</div>
+
+<form asp-action="AddAdjustment" method="post" id="adjForm">
+    <div asp-validation-summary="All" class="text-danger mb-3"></div>
+    <input type="hidden" name="detailsJson" id="detailsJson" />
+    
+    <div class="row g-4 mb-4">
+        <div class="col-md-9">
+            <div class="card h-100">
+                <div class="card-header"><h6 class="mb-0">Adjustment Header</h6></div>
+                <div class="card-body">
+                    <div class="row g-3">
+                        <div class="col-md-4">
+                            <label class="form-label">Date <span class="text-danger">*</span></label>
+                            <input asp-for="TransactionDate" type="date" class="form-control" required />
+                        </div>
+                        <div class="col-md-4">
+                            <label class="form-label">Type <span class="text-danger">*</span></label>
+                            <select asp-for="AdjustmentType" class="form-select" id="adjType" required>
+                                <option value="">-- Select Type --</option>
+                                <option value="Write-off">Write-off (Decrease Stock)</option>
+                                <option value="Write-in">Write-in (Increase Stock)</option>
+                            </select>
+                        </div>
+                        <div class="col-md-4">
+                            <label class="form-label">Reason <span class="text-danger">*</span></label>
+                            <select asp-for="AdjustmentReason" class="form-select" required>
+                                <option value="">-- Select Reason --</option>
+                                @foreach (var r in adjustmentReasons)
+                                {
+                                    <option value="@r">@r</option>
+                                }
+                            </select>
+                        </div>
+                        <div class="col-12">
+                            <label class="form-label">Remarks</label>
+                            <textarea asp-for="Remarks" class="form-control" rows="2" placeholder="Optional notes..."></textarea>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+        
+        <div class="col-md-3">
+            <div class="card h-100 bg-light">
+                <div class="card-body">
+                    <h6><i class="fas fa-info-circle text-info me-2"></i>Accounting Rules</h6>
+                    <ul class="small ps-3 text-muted mb-0">
+                        <li class="mb-2"><strong>Write-off:</strong> Expensed at Product's Average Cost.</li>
+                        <li><strong>Write-in:</strong> Recorded as Stock Income at Average Cost.</li>
+                    </ul>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Product Selection (Dynamic) -->
+    <div class="card mb-4">
+        <div class="card-header d-flex justify-content-between align-items-center">
+            <h6 class="mb-0">Products to Adjust</h6>
+        </div>
+        <div class="card-body bg-light pb-2">
+            <div class="row g-2 align-items-end">
+                <div class="col-md-5">
+                    <label class="form-label small mb-1">Product</label>
+                    <select id="productSelect" class="form-select select2" asp-items='_combobox.GetActiveProducts()'>
+                        <option value="">-- Select Product --</option>
+                    </select>
+                </div>
+                <div class="col-md-2">
+                    <label class="form-label small mb-1">Units to Adjust</label>
+                    <input type="number" id="qtyInput" class="form-control" min="1" placeholder="Qty" />
+                </div>
+                <div class="col-md-2">
+                    <button type="button" class="btn btn-primary w-100" id="btnAddItem">
+                        <i class="fas fa-plus me-1"></i> Add
+                    </button>
+                </div>
+            </div>
+        </div>
+        <div class="card-body p-0">
+            <div class="table-responsive">
+                <table class="table table-hover mb-0" id="linesTable">
+                    <thead class="table-light">
+                        <tr>
+                            <th>Product Name</th>
+                            <th class="text-end" width="150">Quantity</th>
+                            <th class="text-center" width="80">Action</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        <!-- Dynamic rows here -->
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    </div>
+
+    <div class="text-end">
+        <button type="submit" class="btn btn-success px-4" id="btnSave">
+            <i class="fas fa-check me-2"></i>Record Adjustment
+        </button>
+    </div>
+</form>
+
+@section Scripts {
+    <script>
+        var lines = [];
+
+        $(document).ready(function() {
+            $('.select2').select2({ theme: 'bootstrap-5' });
+
+            $('#btnAddItem').click(function() {
+                var pid = $('#productSelect').val();
+                var pname = $('#productSelect option:selected').text();
+                var qty = parseInt($('#qtyInput').val());
+
+                if (!pid || isNaN(qty) || qty <= 0) {
+                    alert('Please select a product and enter a valid positive quantity.');
+                    return;
+                }
+
+                if (lines.some(x => x.Product_ID == pid)) {
+                    alert('Product already added to adjustment. Increase the quantity instead.');
+                    return;
+                }
+
+                lines.push({
+                    Product_ID: parseInt(pid),
+                    ProductName: pname,
+                    Quantity: qty
+                });
+
+                renderTable();
+                
+                // reset
+                $('#productSelect').val('').trigger('change');
+                $('#qtyInput').val('');
+            });
+
+            $(document).on('click', '.btn-remove', function() {
+                var pid = $(this).data('pid');
+                lines = lines.filter(x => x.Product_ID != pid);
+                renderTable();
+            });
+
+            $('#adjForm').submit(function(e) {
+                if (lines.length === 0) {
+                    e.preventDefault();
+                    alert('Please add at least one product to adjust.');
+                    return false;
+                }
+                
+                $('#detailsJson').val(JSON.stringify(lines));
+            });
+        });
+
+        function renderTable() {
+            var tbody = $('#linesTable tbody');
+            tbody.empty();
+            
+            if (lines.length === 0) {
+                tbody.append('<tr><td colspan="3" class="text-center text-muted py-3">No products added yet.</td></tr>');
+                return;
+            }
+
+            lines.forEach(function(item) {
+                tbody.append(`
+                    <tr>
+                        <td>${item.ProductName}</td>
+                        <td class="text-end">${item.Quantity}</td>
+                        <td class="text-center">
+                            <button type="button" class="btn btn-sm btn-outline-danger btn-remove" data-pid="${item.Product_ID}">
+                                <i class="fas fa-times"></i>
+                            </button>
+                        </td>
+                    </tr>
+                `);
+            });
+        }
+    </script>
+}

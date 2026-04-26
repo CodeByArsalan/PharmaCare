@@ -1,5 +1,5 @@
 @using PharmaCare.Web.Utilities
-@model IEnumerable<PharmaCare.Domain.Entities.Transactions.StockMain>
+@model PharmaCare.Application.DTOs.PagedResult<PharmaCare.Domain.Entities.Transactions.StockMain>
 @inject PharmaCare.Infrastructure.Interfaces.IComboboxRepository _combobox
 @{
     ViewData["Title"] = "Supplier Payments";
@@ -49,7 +49,7 @@
                 <div class="col-md-2">
                     <label class="form-label">To Date</label>
                     <input type="date" name="toDate" id="toDate" class="form-control" 
-                           value="@(((DateTime)ViewBag.ToDate).ToString("yyyy-MM-dd"))" />
+                           value="@(ViewBag.ToDate != null ? ((DateTime)ViewBag.ToDate).ToString("yyyy-MM-dd") : "")" />
                 </div>
                 <div class="col-md-3">
                     <button type="submit" class="btn btn-primary">
@@ -83,8 +83,8 @@
                     </tr>
                 </thead>
                 <tbody>
-                    @{int sNo = 1;}
-                    @foreach (var grn in Model)
+                    @{int sNo = ((Model.CurrentPage - 1) * Model.PageSize) + 1;}
+                    @foreach (var grn in Model.Items)
                     {
                         <tr>
                             <td>@(sNo++)</td>
@@ -127,6 +127,32 @@
                 </tbody>
             </table>
         </div>
+
+        @if (Model.TotalPages > 1)
+        {
+            <div class="card-footer bg-white py-3">
+                <div class="d-flex align-items-center justify-content-between">
+                    <div class="text-muted small">
+                        Showing <strong>@(((Model.CurrentPage - 1) * Model.PageSize) + 1)</strong> to 
+                        <strong>@(Math.Min(Model.CurrentPage * Model.PageSize, Model.TotalCount))</strong> of 
+                        <strong>@Model.TotalCount</strong> entries
+                    </div>
+                    <nav>
+                        <ul class="pagination pagination-sm mb-0">
+                            <li class="page-item @(Model.CurrentPage == 1 ? "disabled" : "")">
+                                <a class="page-link" href="?page=@(Model.CurrentPage - 1)&supplierId=@ViewBag.SelectedSupplier&fromDate=@(ViewBag.FromDate != null ? ((DateTime)ViewBag.FromDate).ToString("yyyy-MM-dd") : "")&toDate=@(ViewBag.ToDate != null ? ((DateTime)ViewBag.ToDate).ToString("yyyy-MM-dd") : "")&paymentStatus=@ViewBag.SelectedStatus">Previous</a>
+                            </li>
+                            <li class="page-item disabled">
+                                <span class="page-link">Page @Model.CurrentPage of @Model.TotalPages</span>
+                            </li>
+                            <li class="page-item @(Model.CurrentPage == Model.TotalPages ? "disabled" : "")">
+                                <a class="page-link" href="?page=@(Model.CurrentPage + 1)&supplierId=@ViewBag.SelectedSupplier&fromDate=@(ViewBag.FromDate != null ? ((DateTime)ViewBag.FromDate).ToString("yyyy-MM-dd") : "")&toDate=@(ViewBag.ToDate != null ? ((DateTime)ViewBag.ToDate).ToString("yyyy-MM-dd") : "")&paymentStatus=@ViewBag.SelectedStatus">Next</a>
+                            </li>
+                        </ul>
+                    </nav>
+                </div>
+            </div>
+        }
     </div>
 </div>
 
@@ -180,7 +206,9 @@
             if (!$.fn.DataTable.isDataTable('#grnsTable')) {
                 $('#grnsTable').DataTable({
                     order: [[2, 'desc']],
-                    pageLength: 25,
+                    paging: false,
+                    info: false,
+                    searching: false,
                     columnDefs: [
                         { orderable: false, targets: [8] }
                     ]

@@ -24,6 +24,8 @@ public class DateRangeFilter
     public int? AccountId { get; set; }
     public int? ExpenseCategoryId { get; set; }
     public int? ThresholdDays { get; set; }
+    public int? Year { get; set; }
+    public int? Month { get; set; }
 }
 
 // ===================== 1. SALES REPORTS =====================
@@ -301,8 +303,11 @@ public class ProfitLossVM
 
 public class ExpenseCategoryTotal
 {
+    public int CategoryID { get; set; }
     public string CategoryName { get; set; } = string.Empty;
     public decimal Amount { get; set; }
+    public decimal BudgetAmount { get; set; }
+    public decimal Variance => BudgetAmount - Amount;
 }
 
 /// <summary>
@@ -385,6 +390,7 @@ public class ExpenseReportVM
 public class ExpenseReportRow
 {
     public int ExpenseId { get; set; }
+    public int CategoryId { get; set; }
     public DateTime ExpenseDate { get; set; }
     public string CategoryName { get; set; } = string.Empty;
     public string Description { get; set; } = string.Empty;
@@ -489,4 +495,33 @@ public class CustomerBalanceRow
     public decimal BalanceDue { get; set; }
     public decimal CreditLimit { get; set; }
     public bool IsOverLimit { get; set; }
+}
+
+// ===================== 6. SEARCH MODELS =====================
+
+public class GlobalSearchResultVM
+{
+    public string Query { get; set; } = string.Empty;
+    public List<SearchResultItem> Products { get; set; } = new();
+    public List<SearchResultItem> Parties { get; set; } = new();
+    public List<SearchResultItem> Transactions { get; set; } = new();
+
+    public int TotalResults => Products.Count + Parties.Count + Transactions.Count;
+}
+
+public class SearchResultItem
+{
+    public string Title { get; set; } = string.Empty;
+    public string Subtitle { get; set; } = string.Empty;
+    public string Url { get; set; } = string.Empty;
+    public string Type { get; set; } = string.Empty;
+    public string BadgeClass { get; set; } = "bg-secondary";
+}
+
+public class ExpenseBudgetVM
+{
+    public int CategoryId { get; set; }
+    public string CategoryName { get; set; } = string.Empty;
+    public decimal BudgetAmount { get; set; }
+    public string? Remarks { get; set; }
 }

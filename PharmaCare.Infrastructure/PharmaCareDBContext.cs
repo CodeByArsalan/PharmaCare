@@ -42,6 +42,7 @@ public class PharmaCareDBContext : IdentityUserContext<User, int>
     public DbSet<AccountSubhead> AccountSubheads { get; set; } = null!;
     public DbSet<Account> Accounts { get; set; } = null!;
     public DbSet<AccountType> AccountTypes { get; set; } = null!;
+    public DbSet<FinancialPeriod> FinancialPeriods { get; set; } = null!;
 
     // ========== TRANSACTIONS ==========
     public DbSet<TransactionType> TransactionTypes { get; set; } = null!;
@@ -58,7 +59,9 @@ public class PharmaCareDBContext : IdentityUserContext<User, int>
     public DbSet<Expense> Expenses { get; set; } = null!;
     public DbSet<Payment> Payments { get; set; } = null!;
     public DbSet<CreditNote> CreditNotes { get; set; } = null!;
+    public DbSet<SupplierCreditNote> SupplierCreditNotes { get; set; } = null!;
     public DbSet<PaymentAllocation> PaymentAllocations { get; set; } = null!;
+    public DbSet<ExpenseBudget> ExpenseBudgets { get; set; } = null!;
 
     protected override void OnModelCreating(ModelBuilder builder)
     {
@@ -529,6 +532,34 @@ public class PharmaCareDBContext : IdentityUserContext<User, int>
                 .OnDelete(DeleteBehavior.SetNull);
         });
 
+        builder.Entity<SupplierCreditNote>(entity =>
+        {
+            entity.ToTable("SupplierCreditNotes");
+            entity.HasKey(e => e.SupplierCreditNoteID);
+            entity.Property(e => e.CreditNoteNo).IsRequired().HasMaxLength(50);
+            entity.HasIndex(e => e.CreditNoteNo).IsUnique();
+            entity.Property(e => e.Status).HasMaxLength(20);
+            entity.ToTable(t =>
+            {
+                t.HasCheckConstraint("CK_SupplierCreditNotes_Status_Valid", "[Status] IN ('Open','Applied','Void')");
+            });
+
+            entity.HasOne(e => e.Party)
+                .WithMany()
+                .HasForeignKey(e => e.Party_ID)
+                .OnDelete(DeleteBehavior.Restrict);
+
+            entity.HasOne(e => e.SourceStockMain)
+                .WithMany()
+                .HasForeignKey(e => e.SourceStockMain_ID)
+                .OnDelete(DeleteBehavior.SetNull);
+
+            entity.HasOne(e => e.Voucher)
+                .WithMany()
+                .HasForeignKey(e => e.Voucher_ID)
+                .OnDelete(DeleteBehavior.SetNull);
+        });
+
         builder.Entity<PaymentAllocation>(entity =>
         {
             entity.ToTable("PaymentAllocations");
@@ -554,6 +585,17 @@ public class PharmaCareDBContext : IdentityUserContext<User, int>
                 .WithMany()
                 .HasForeignKey(e => e.StockMain_ID)
                 .OnDelete(DeleteBehavior.Restrict);
+        });
+
+        builder.Entity<ExpenseBudget>(entity =>
+        {
+            entity.ToTable("ExpenseBudgets");
+            entity.HasKey(e => e.ExpenseBudgetID);
+            entity.HasOne(e => e.ExpenseCategory)
+                .WithMany()
+                .HasForeignKey(e => e.ExpenseCategory_ID)
+                .OnDelete(DeleteBehavior.Cascade);
+            entity.HasIndex(e => new { e.ExpenseCategory_ID, e.Year, e.Month }).IsUnique();
         });
     }
 }

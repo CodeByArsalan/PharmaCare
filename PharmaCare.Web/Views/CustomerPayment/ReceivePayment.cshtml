@@ -154,7 +154,7 @@
                 var $accountSelect = $('#Account_ID');
                 var currentSelection = $accountSelect.val();
 
-                $.getJSON('@Url.Action("GetAccountsByPaymentMethod")?method=' + method, function(data) {
+                $.getJSON('@Url.Action("GetAccountsByMethod")?method=' + method, function(data) {
                     $accountSelect.empty().append('<option value="">-- Select Account --</option>');
                     $.each(data, function(i, item) {
                         $accountSelect.append($('<option>', {

@@ -1,5 +1,5 @@
 @using PharmaCare.Web.Utilities
-@model IEnumerable<PharmaCare.Domain.Entities.Transactions.StockMain>
+@model PharmaCare.Application.DTOs.PagedResult<PharmaCare.Domain.Entities.Transactions.StockMain>
 @{
     ViewData["Title"] = "Sales";
 }
@@ -15,10 +15,42 @@
     </a>
 </div>
 
+<div class="card mb-4 shadow-sm border-0">
+    <div class="card-body bg-light">
+        <form method="get" asp-action="SalesIndex" class="row gx-3 gy-2 align-items-end">
+            <div class="col-md-3">
+                <label class="form-label small fw-bold text-muted">Customer</label>
+                <select name="customerId" class="form-select select2" asp-items="ViewBag.Customers">
+                    <option value="">-- All Customers --</option>
+                </select>
+            </div>
+            <div class="col-md-3">
+                <label class="form-label small fw-bold text-muted">From Date</label>
+                <input type="date" name="fromDate" class="form-control" value="@(ViewBag.FromDate != null ? ((DateTime)ViewBag.FromDate).ToString("yyyy-MM-dd") : "")" />
+            </div>
+            <div class="col-md-3">
+                <label class="form-label small fw-bold text-muted">To Date</label>
+                <input type="date" name="toDate" class="form-control" value="@(ViewBag.ToDate != null ? ((DateTime)ViewBag.ToDate).ToString("yyyy-MM-dd") : "")" />
+            </div>
+            <div class="col-md-2">
+                <label class="form-label small fw-bold text-muted">Status</label>
+                <select name="status" class="form-select">
+                    <option value="All" selected="@(ViewBag.SelectedStatus == "All" ? "selected" : null)">All</option>
+                    <option value="Approved" selected="@(ViewBag.SelectedStatus == "Approved" ? "selected" : null)">Approved</option>
+                    <option value="Void" selected="@(ViewBag.SelectedStatus == "Void" ? "selected" : null)">Void</option>
+                </select>
+            </div>
+            <div class="col-md-1">
+                <button type="submit" class="btn btn-primary w-100"><i class="fas fa-search"></i></button>
+            </div>
+        </form>
+    </div>
+</div>
+
 <div class="card">
     <div class="card-body">
         <div class="table-responsive">
-            <table id="salesTable" class="table table-striped table-hover">
+            <table class="table table-striped table-hover align-middle">
                 <thead>
                     <tr>
                         <th>S.No</th>
@@ -34,13 +66,17 @@
                 </thead>
                 <tbody>
                     @{
-                        int serialNo = 1;
+                        int serialNo = ((Model.CurrentPage - 1) * Model.PageSize) + 1;
                     }
-                    @foreach (var item in Model)
+                    @if (!Model.Items.Any())
+                    {
+                        <tr><td colspan="9" class="text-center text-muted py-4">No sales found matching your criteria.</td></tr>
+                    }
+                    @foreach (var item in Model.Items)
                     {
                         <tr>
-                            <td>@(serialNo++)</td>
-                            <td>@item.TransactionNo</td>
+                            <td class="text-muted">@(serialNo++)</td>
+                            <td><strong>@item.TransactionNo</strong></td>
                             <td>@item.TransactionDate.ToString("dd/MM/yyyy")</td>
                             <td>@(item.Party?.Name ?? "Walk-in Customer")</td>
                             <td class="text-end">@item.TotalAmount.ToString("N2")</td>
@@ -49,7 +85,7 @@
                             <td>
                                 @if (item.Status == "Void")
                                 {
-                                    <span class="badge bg-danger">Void</span>
+                                    <span class="badge bg-danger cursor-pointer" data-bs-toggle="tooltip" title="Reason: @item.VoidReason">Void</span>
                                 }
                                 else if (item.Status == "Approved")
                                 {
@@ -85,6 +121,32 @@
             </table>
         </div>
     </div>
+    
+    @if (Model.TotalPages > 1)
+    {
+        <div class="card-footer bg-theme-footer py-3">
+            <div class="d-flex align-items-center justify-content-between">
+                <div class="text-muted small">
+                    Showing <strong>@(((Model.CurrentPage - 1) * Model.PageSize) + 1)</strong> to 
+                    <strong>@(Math.Min(Model.CurrentPage * Model.PageSize, Model.TotalCount))</strong> of 
+                    <strong>@Model.TotalCount</strong> entries
+                </div>
+                <nav>
+                    <ul class="pagination pagination-sm mb-0">
+                        <li class="page-item @(Model.CurrentPage == 1 ? "disabled" : "")">
+                            <a class="page-link" href="?page=@(Model.CurrentPage - 1)&customerId=@ViewBag.SelectedCustomer&fromDate=@(ViewBag.FromDate != null ? ((DateTime)ViewBag.FromDate).ToString("yyyy-MM-dd") : "")&toDate=@(ViewBag.ToDate != null ? ((DateTime)ViewBag.ToDate).ToString("yyyy-MM-dd") : "")&status=@ViewBag.SelectedStatus">Previous</a>
+                        </li>
+                        <li class="page-item disabled">
+                            <span class="page-link">Page @Model.CurrentPage of @Model.TotalPages</span>
+                        </li>
+                        <li class="page-item @(Model.CurrentPage == Model.TotalPages ? "disabled" : "")">
+                            <a class="page-link" href="?page=@(Model.CurrentPage + 1)&customerId=@ViewBag.SelectedCustomer&fromDate=@(ViewBag.FromDate != null ? ((DateTime)ViewBag.FromDate).ToString("yyyy-MM-dd") : "")&toDate=@(ViewBag.ToDate != null ? ((DateTime)ViewBag.ToDate).ToString("yyyy-MM-dd") : "")&status=@ViewBag.SelectedStatus">Next</a>
+                        </li>
+                    </ul>
+                </nav>
+            </div>
+        </div>
+    }
 </div>
 
 <!-- Void Modal -->
@@ -116,11 +178,7 @@
 @section Scripts {
     <script>
         document.addEventListener('DOMContentLoaded', function() {
-            // Initialize DataTable
-            new DataTable('#salesTable', {
-                order: [[0, 'asc']],
-                pageLength: 25
-            });
+            $('.select2').select2({ theme: 'bootstrap-5' });
 
             // Void button click
             document.querySelectorAll('.void-btn').forEach(btn => {

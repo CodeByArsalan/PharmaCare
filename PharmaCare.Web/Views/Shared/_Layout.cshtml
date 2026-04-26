@@ -44,5 +44,22 @@
     <script src="~/js/premium-interactions.js" asp-append-version="true"></script>
     @await Html.PartialAsync("_ToastNotifications")
     @await RenderSectionAsync("Scripts", required: false)
+    
+    <!-- BUG-009 Fix: Core Application Form submit interceptor to prevent rapid double-clicks -->
+    <script>
+        $(document).ready(function() {
+            $('form').on('submit', function() {
+                var $form = $(this);
+                if ($form[0].checkValidity && !$form[0].checkValidity()) {
+                    return true;
+                }
+                var $btn = $form.find('button[type="submit"]');
+                if ($btn.length > 0 && !$btn.prop('disabled')) {
+                    $btn.prop('disabled', true);
+                    $btn.html('<span class="spinner-border spinner-border-sm" aria-hidden="true"></span> Processing...');
+                }
+            });
+        });
+    </script>
 </body>
 </html>

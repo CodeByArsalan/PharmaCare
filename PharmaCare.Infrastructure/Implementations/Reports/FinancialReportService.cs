@@ -57,17 +57,32 @@ public class FinancialReportService : IFinancialReportService
 
         var grossProfit = netRevenue - cogs;
 
-        var expensesByCategory = await _db.Expenses
+        var budgetEntries = await _db.ExpenseBudgets
+            .AsNoTracking()
+            .Where(b => b.Year == fromDate.Year && b.Month == fromDate.Month)
+            .ToListAsync();
+
+        var expenseTotals = await _db.Expenses
             .AsNoTracking()
             .Where(e => e.ExpenseDate >= fromDate && e.ExpenseDate < toDate)
-            .GroupBy(e => e.ExpenseCategory != null ? e.ExpenseCategory.Name : "Uncategorized")
-            .Select(g => new ExpenseCategoryTotal
+            .GroupBy(e => new { Id = e.ExpenseCategory_ID, Name = e.ExpenseCategory != null ? e.ExpenseCategory.Name : "Uncategorized" })
+            .Select(g => new
             {
-                CategoryName = g.Key,
+                CategoryID = g.Key.Id,
+                CategoryName = g.Key.Name,
                 Amount = g.Sum(e => e.Amount)
             })
-            .OrderByDescending(e => e.Amount)
             .ToListAsync();
+
+        var expensesByCategory = expenseTotals.Select(g => new ExpenseCategoryTotal
+        {
+            CategoryID = g.CategoryID,
+            CategoryName = g.CategoryName,
+            Amount = g.Amount,
+            BudgetAmount = budgetEntries.FirstOrDefault(b => b.ExpenseCategory_ID == g.CategoryID)?.BudgetAmount ?? 0
+        })
+        .OrderByDescending(e => e.Amount)
+        .ToList();
 
         var totalExpenses = expensesByCategory.Sum(e => e.Amount);
 
@@ -282,6 +297,7 @@ public class FinancialReportService : IFinancialReportService
         var rows = expenses.Select(e => new ExpenseReportRow
         {
             ExpenseId = e.ExpenseID,
+            CategoryId = e.ExpenseCategory_ID,
             ExpenseDate = e.ExpenseDate,
             CategoryName = e.ExpenseCategory?.Name ?? "",
             Description = e.Description ?? "",
@@ -290,12 +306,27 @@ public class FinancialReportService : IFinancialReportService
             Reference = e.Reference
         }).ToList();
 
-        var categoryTotals = rows
-            .GroupBy(r => r.CategoryName)
+        var budgetEntries = await _db.ExpenseBudgets
+            .AsNoTracking()
+            .Where(b => b.Year == filter.FromDate.Year && b.Month == filter.FromDate.Month)
+            .ToListAsync();
+
+        var categoryTotalsQuery = rows
+            .GroupBy(r => new { r.CategoryId, r.CategoryName })
+            .Select(g => new
+            {
+                CategoryId = g.Key.CategoryId,
+                CategoryName = g.Key.CategoryName,
+                Amount = g.Sum(r => r.Amount)
+            }).ToList();
+
+        var categoryTotals = categoryTotalsQuery
             .Select(g => new ExpenseCategoryTotal
             {
-                CategoryName = g.Key,
-                Amount = g.Sum(r => r.Amount)
+                CategoryID = g.CategoryId,
+                CategoryName = g.CategoryName,
+                Amount = g.Amount,
+                BudgetAmount = budgetEntries.FirstOrDefault(b => b.ExpenseCategory_ID == g.CategoryId)?.BudgetAmount ?? 0
             })
             .OrderByDescending(c => c.Amount)
             .ToList();
@@ -545,5 +576,70 @@ public class FinancialReportService : IFinancialReportService
             TotalCredit = rows.Sum(r => r.Credit),
             ClosingBalance = runningBalance
         };
+    }
+
+    public async Task<GlobalSearchResultVM> GlobalSearchAsync(string query)
+    {
+        if (string.IsNullOrWhiteSpace(query))
+            return new GlobalSearchResultVM { Query = query };
+
+        var vm = new GlobalSearchResultVM { Query = query };
+        var q = query.ToLower();
+
+        // 1. Products
+        var products = await _db.Products
+            .AsNoTracking()
+            .Where(p => p.Name.ToLower().Contains(q) || (p.ShortCode != null && p.ShortCode.ToLower().Contains(q)))
+            .Take(10)
+            .ToListAsync();
+
+        vm.Products = products.Select(p => new SearchResultItem
+        {
+            Type = "Product",
+            Title = p.Name,
+            Subtitle = $"Code: {p.ShortCode}",
+            Url = $"/Product/ViewProduct/{Convert.ToBase64String(System.Text.Encoding.ASCII.GetBytes(p.ProductID.ToString()))}",
+            BadgeClass = "bg-info"
+        }).ToList();
+
+        // 2. Parties
+        var parties = await _db.Parties
+            .AsNoTracking()
+            .Where(p => p.Name.ToLower().Contains(q) || (p.Phone != null && p.Phone.Contains(q)))
+            .Take(10)
+            .ToListAsync();
+
+        vm.Parties = parties.Select(p => new SearchResultItem
+        {
+            Type = p.PartyType,
+            Title = p.Name,
+            Subtitle = $"{p.PartyType} | {p.Phone}",
+            Url = p.PartyType == "Customer"
+                ? $"/CustomerPayment/CustomerLedger?customerId={p.PartyID}"
+                : $"/SupplierPayment/SupplierLedger?supplierId={p.PartyID}",
+            BadgeClass = p.PartyType == "Customer" ? "bg-primary" : "bg-warning text-dark"
+        }).ToList();
+
+        // 3. Transactions
+        var transactions = await _db.StockMains
+            .AsNoTracking()
+            .Include(s => s.TransactionType)
+            .Include(s => s.Party)
+            .Where(s => s.TransactionNo.ToLower().Contains(q))
+            .Take(10)
+            .ToListAsync();
+
+        vm.Transactions = transactions.Select(s => new SearchResultItem
+        {
+            Type = s.TransactionType != null ? s.TransactionType.Name : "Transaction",
+            Title = s.TransactionNo,
+            Subtitle = $"{s.TransactionDate:dd/MM/yyyy} | {s.Party?.Name} | {s.TotalAmount:N2}",
+            Url = s.TransactionType!.Code == "SALE"
+                ? $"/Sale/ViewSale/{Convert.ToBase64String(System.Text.Encoding.ASCII.GetBytes(s.StockMainID.ToString()))}"
+                : $"/Purchase/ViewPurchase/{Convert.ToBase64String(System.Text.Encoding.ASCII.GetBytes(s.StockMainID.ToString()))}",
+            BadgeClass = "bg-success"
+        }).ToList();
+
+        return vm;
     }
 }

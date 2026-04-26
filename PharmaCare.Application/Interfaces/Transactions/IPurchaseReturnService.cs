@@ -12,6 +12,9 @@ public interface IPurchaseReturnService
     /// </summary>
     Task<IEnumerable<StockMain>> GetAllAsync();
 
+    Task<PharmaCare.Application.DTOs.PagedResult<StockMain>> GetPagedAsync(
+        int? partyId, DateTime? from, DateTime? to, string? status, int page, int pageSize);
+
     /// <summary>
     /// Gets a purchase return with its details.
     /// </summary>

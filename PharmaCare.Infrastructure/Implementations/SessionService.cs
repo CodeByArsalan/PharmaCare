@@ -232,6 +232,19 @@ public class SessionService : ISessionService
             })
             .ToList();
 
+        // --- Sidebar Refinement ---
+        // 1. Remove "Customer Ledger" and "Advance Receipts" (already covered by unified reports)
+        menuItems.RemoveAll(m => m.Title == "Customer Ledger" || m.Title == "Advance Receipts");
+
+        // 2. Move "Financial Periods" under "Configuration" header
+        var configMenu = menuItems.FirstOrDefault(m => m.Title == "Configuration" && m.ParentId == null);
+        var financialPeriodMenu = menuItems.FirstOrDefault(m => m.Title == "Financial Periods");
+        if (configMenu != null && financialPeriodMenu != null)
+        {
+            financialPeriodMenu.ParentId = configMenu.PageId;
+        }
+        // --------------------------
+
         // Build hierarchy
         var menuDict = menuItems.ToDictionary(m => m.PageId);
         foreach (var item in menuItems)

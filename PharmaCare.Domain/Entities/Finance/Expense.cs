@@ -3,6 +3,7 @@ using System.ComponentModel.DataAnnotations.Schema;
 using PharmaCare.Domain.Entities.Base;
 using PharmaCare.Domain.Entities.Accounting;
 using PharmaCare.Domain.Entities.Transactions;
+using PharmaCare.Domain.Enums;
 
 namespace PharmaCare.Domain.Entities.Finance;
 
@@ -53,4 +54,13 @@ public class Expense : BaseEntity
     [ForeignKey("Voucher")]
     public int? Voucher_ID { get; set; }
     public Voucher? Voucher { get; set; }
+
+    // Approval Info
+    public TransactionStatus Status { get; set; } = TransactionStatus.Draft;
+
+    public int? ApprovedBy_ID { get; set; }
+    public DateTime? ApprovedAt { get; set; }
+
+    [StringLength(250)]
+    public string? VoidReason { get; set; }
 }

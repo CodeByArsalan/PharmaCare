@@ -235,6 +235,55 @@ namespace PharmaCare.Infrastructure.Migrations
                     b.ToTable("AccountTypes", (string)null);
                 });
 
+            modelBuilder.Entity("PharmaCare.Domain.Entities.Accounting.FinancialPeriod", b =>
+                {
+                    b.Property<int>("PeriodID")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("int");
+
+                    SqlServerPropertyBuilderExtensions.UseIdentityColumn(b.Property<int>("PeriodID"));
+
+                    b.Property<DateTime?>("ClosedAt")
+                        .HasColumnType("datetime2");
+
+                    b.Property<int?>("ClosedBy")
+                        .HasColumnType("int");
+
+                    b.Property<DateTime>("CreatedAt")
+                        .HasColumnType("datetime2");
+
+                    b.Property<int>("CreatedBy")
+                        .HasColumnType("int");
+
+                    b.Property<DateTime>("EndDate")
+                        .HasColumnType("datetime2");
+
+                    b.Property<bool>("IsClosed")
+                        .HasColumnType("bit");
+
+                    b.Property<string>("Name")
+                        .IsRequired()
+                        .HasMaxLength(50)
+                        .HasColumnType("nvarchar(50)");
+
+                    b.Property<string>("Remarks")
+                        .HasMaxLength(500)
+                        .HasColumnType("nvarchar(500)");
+
+                    b.Property<DateTime>("StartDate")
+                        .HasColumnType("datetime2");
+
+                    b.Property<DateTime?>("UpdatedAt")
+                        .HasColumnType("datetime2");
+
+                    b.Property<int?>("UpdatedBy")
+                        .HasColumnType("int");
+
+                    b.HasKey("PeriodID");
+
+                    b.ToTable("FinancialPeriods");
+                });
+
             modelBuilder.Entity("PharmaCare.Domain.Entities.Configuration.Category", b =>
                 {
                     b.Property<int>("CategoryID")
@@ -593,6 +642,7 @@ namespace PharmaCare.Infrastructure.Migrations
                         .HasColumnType("decimal(18,2)");
 
                     b.Property<decimal>("BalanceAmount")
+                        .IsConcurrencyToken()
                         .HasColumnType("decimal(18,2)");
 
                     b.Property<DateTime>("CreatedAt")
@@ -674,6 +724,12 @@ namespace PharmaCare.Infrastructure.Migrations
                     b.Property<decimal>("Amount")
                         .HasColumnType("decimal(18,2)");
 
+                    b.Property<DateTime?>("ApprovedAt")
+                        .HasColumnType("datetime2");
+
+                    b.Property<int?>("ApprovedBy_ID")
+                        .HasColumnType("int");
+
                     b.Property<DateTime>("CreatedAt")
                         .HasColumnType("datetime2");
 
@@ -700,6 +756,9 @@ namespace PharmaCare.Infrastructure.Migrations
                     b.Property<int>("SourceAccount_ID")
                         .HasColumnType("int");
 
+                    b.Property<int>("Status")
+                        .HasColumnType("int");
+
                     b.Property<DateTime?>("UpdatedAt")
                         .HasColumnType("datetime2");
 
@@ -709,6 +768,10 @@ namespace PharmaCare.Infrastructure.Migrations
                     b.Property<string>("VendorName")
                         .HasMaxLength(200)
                         .HasColumnType("nvarchar(200)");
+
+                    b.Property<string>("VoidReason")
+                        .HasMaxLength(250)
+                        .HasColumnType("nvarchar(250)");
 
                     b.Property<int?>("Voucher_ID")
                         .HasColumnType("int");
@@ -724,6 +787,49 @@ namespace PharmaCare.Infrastructure.Migrations
                     b.HasIndex("Voucher_ID");
 
                     b.ToTable("Expenses", (string)null);
+                });
+
+            modelBuilder.Entity("PharmaCare.Domain.Entities.Finance.ExpenseBudget", b =>
+                {
+                    b.Property<int>("ExpenseBudgetID")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("int");
+
+                    SqlServerPropertyBuilderExtensions.UseIdentityColumn(b.Property<int>("ExpenseBudgetID"));
+
+                    b.Property<decimal>("BudgetAmount")
+                        .HasColumnType("decimal(18,2)");
+
+                    b.Property<DateTime>("CreatedAt")
+                        .HasColumnType("datetime2");
+
+                    b.Property<int>("CreatedBy")
+                        .HasColumnType("int");
+
+                    b.Property<int>("ExpenseCategory_ID")
+                        .HasColumnType("int");
+
+                    b.Property<int>("Month")
+                        .HasColumnType("int");
+
+                    b.Property<string>("Remarks")
+                        .HasColumnType("nvarchar(max)");
+
+                    b.Property<DateTime?>("UpdatedAt")
+                        .HasColumnType("datetime2");
+
+                    b.Property<int?>("UpdatedBy")
+                        .HasColumnType("int");
+
+                    b.Property<int>("Year")
+                        .HasColumnType("int");
+
+                    b.HasKey("ExpenseBudgetID");
+
+                    b.HasIndex("ExpenseCategory_ID", "Year", "Month")
+                        .IsUnique();
+
+                    b.ToTable("ExpenseBudgets", (string)null);
                 });
 
             modelBuilder.Entity("PharmaCare.Domain.Entities.Finance.ExpenseCategory", b =>
@@ -920,6 +1026,89 @@ namespace PharmaCare.Infrastructure.Migrations
                             t.HasCheckConstraint("CK_PaymentAllocations_Source_NotNull", "[Payment_ID] IS NOT NULL OR [CreditNote_ID] IS NOT NULL");
 
                             t.HasCheckConstraint("CK_PaymentAllocations_Source_Valid", "[SourceType] IN ('Receipt','CreditNote')");
+                        });
+                });
+
+            modelBuilder.Entity("PharmaCare.Domain.Entities.Finance.SupplierCreditNote", b =>
+                {
+                    b.Property<int>("SupplierCreditNoteID")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("int");
+
+                    SqlServerPropertyBuilderExtensions.UseIdentityColumn(b.Property<int>("SupplierCreditNoteID"));
+
+                    b.Property<decimal>("AppliedAmount")
+                        .HasColumnType("decimal(18,2)");
+
+                    b.Property<decimal>("BalanceAmount")
+                        .IsConcurrencyToken()
+                        .HasColumnType("decimal(18,2)");
+
+                    b.Property<DateTime>("CreatedAt")
+                        .HasColumnType("datetime2");
+
+                    b.Property<int>("CreatedBy")
+                        .HasColumnType("int");
+
+                    b.Property<DateTime>("CreditDate")
+                        .HasColumnType("datetime2");
+
+                    b.Property<string>("CreditNoteNo")
+                        .IsRequired()
+                        .HasMaxLength(50)
+                        .HasColumnType("nvarchar(50)");
+
+                    b.Property<int>("Party_ID")
+                        .HasColumnType("int");
+
+                    b.Property<string>("Remarks")
+                        .HasMaxLength(500)
+                        .HasColumnType("nvarchar(500)");
+
+                    b.Property<int?>("SourceStockMain_ID")
+                        .HasColumnType("int");
+
+                    b.Property<string>("Status")
+                        .IsRequired()
+                        .HasMaxLength(20)
+                        .HasColumnType("nvarchar(20)");
+
+                    b.Property<decimal>("TotalAmount")
+                        .HasColumnType("decimal(18,2)");
+
+                    b.Property<DateTime?>("UpdatedAt")
+                        .HasColumnType("datetime2");
+
+                    b.Property<int?>("UpdatedBy")
+                        .HasColumnType("int");
+
+                    b.Property<string>("VoidReason")
+                        .HasMaxLength(500)
+                        .HasColumnType("nvarchar(500)");
+
+                    b.Property<DateTime?>("VoidedAt")
+                        .HasColumnType("datetime2");
+
+                    b.Property<int?>("VoidedBy")
+                        .HasColumnType("int");
+
+                    b.Property<int?>("Voucher_ID")
+                        .HasColumnType("int");
+
+                    b.HasKey("SupplierCreditNoteID");
+
+                    b.HasIndex("CreditNoteNo")
+                        .IsUnique();
+
+                    b.HasIndex("Party_ID");
+
+                    b.HasIndex("SourceStockMain_ID");
+
+                    b.HasIndex("Voucher_ID");
+
+                    b.ToTable("SupplierCreditNotes", null, t =>
+                        {
+                            t.HasCheckConstraint("CK_SupplierCreditNotes_Status_Valid", "[Status] IN ('Open','Applied','Void')");
                         });
                 });
 
@@ -1255,6 +1444,14 @@ namespace PharmaCare.Infrastructure.Migrations
                         .HasColumnType("int");
 
                     SqlServerPropertyBuilderExtensions.UseIdentityColumn(b.Property<int>("StockMainID"));
+
+                    b.Property<string>("AdjustmentReason")
+                        .HasMaxLength(50)
+                        .HasColumnType("nvarchar(50)");
+
+                    b.Property<string>("AdjustmentType")
+                        .HasMaxLength(20)
+                        .HasColumnType("nvarchar(20)");
 
                     b.Property<decimal>("BalanceAmount")
                         .HasColumnType("decimal(18,2)");
@@ -1773,6 +1970,17 @@ namespace PharmaCare.Infrastructure.Migrations
                     b.Navigation("Voucher");
                 });
 
+            modelBuilder.Entity("PharmaCare.Domain.Entities.Finance.ExpenseBudget", b =>
+                {
+                    b.HasOne("PharmaCare.Domain.Entities.Finance.ExpenseCategory", "ExpenseCategory")
+                        .WithMany()
+                        .HasForeignKey("ExpenseCategory_ID")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.Navigation("ExpenseCategory");
+                });
+
             modelBuilder.Entity("PharmaCare.Domain.Entities.Finance.ExpenseCategory", b =>
                 {
                     b.HasOne("PharmaCare.Domain.Entities.Accounting.Account", "DefaultExpenseAccount")
@@ -1846,6 +2054,31 @@ namespace PharmaCare.Infrastructure.Migrations
                     b.Navigation("Payment");
 
                     b.Navigation("StockMain");
+                });
+
+            modelBuilder.Entity("PharmaCare.Domain.Entities.Finance.SupplierCreditNote", b =>
+                {
+                    b.HasOne("PharmaCare.Domain.Entities.Configuration.Party", "Party")
+                        .WithMany()
+                        .HasForeignKey("Party_ID")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.HasOne("PharmaCare.Domain.Entities.Transactions.StockMain", "SourceStockMain")
+                        .WithMany()
+                        .HasForeignKey("SourceStockMain_ID")
+                        .OnDelete(DeleteBehavior.SetNull);
+
+                    b.HasOne("PharmaCare.Domain.Entities.Transactions.Voucher", "Voucher")
+                        .WithMany()
+                        .HasForeignKey("Voucher_ID")
+                        .OnDelete(DeleteBehavior.SetNull);
+
+                    b.Navigation("Party");
+
+                    b.Navigation("SourceStockMain");
+
+                    b.Navigation("Voucher");
                 });
 
             modelBuilder.Entity("PharmaCare.Domain.Entities.Security.Page", b =>

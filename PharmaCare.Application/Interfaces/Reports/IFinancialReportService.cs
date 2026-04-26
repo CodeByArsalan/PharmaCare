@@ -12,4 +12,5 @@ public interface IFinancialReportService
     Task<TrialBalanceVM> GetTrialBalanceAsync(DateTime asOfDate);
     Task<GeneralLedgerVM> GetGeneralLedgerAsync(DateRangeFilter filter);
     Task<PartyLedgerVM> GetPartyLedgerAsync(DateRangeFilter filter, string partyType);
+    Task<GlobalSearchResultVM> GlobalSearchAsync(string query);
 }

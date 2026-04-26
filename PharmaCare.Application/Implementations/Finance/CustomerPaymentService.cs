@@ -1,6 +1,7 @@
 using Microsoft.EntityFrameworkCore;
 using PharmaCare.Application.DTOs.Finance;
 using PharmaCare.Application.Interfaces;
+using PharmaCare.Application.Interfaces.Accounting;
 using PharmaCare.Application.Interfaces.Finance;
 using PharmaCare.Domain.Entities.Accounting;
 using PharmaCare.Domain.Entities.Configuration;
@@ -13,7 +14,7 @@ namespace PharmaCare.Application.Implementations.Finance;
 /// <summary>
 /// Service for managing customer receipts with double-entry accounting.
 /// </summary>
-public class CustomerPaymentService : ICustomerPaymentService
+public class CustomerPaymentService : BaseAccountingService, ICustomerPaymentService
 {
     private const int CashAccountTypeId = 1;
     private const int BankAccountTypeId = 2;
@@ -21,13 +22,12 @@ public class CustomerPaymentService : ICustomerPaymentService
     private readonly IRepository<Payment> _paymentRepository;
     private readonly IRepository<StockMain> _stockMainRepository;
     private readonly IRepository<TransactionType> _transactionTypeRepository;
-    private readonly IRepository<Voucher> _voucherRepository;
     private readonly IRepository<VoucherType> _voucherTypeRepository;
     private readonly IRepository<Party> _partyRepository;
     private readonly IRepository<Account> _accountRepository;
     private readonly IRepository<CreditNote> _creditNoteRepository;
     private readonly IRepository<PaymentAllocation> _paymentAllocationRepository;
-    private readonly IUnitOfWork _unitOfWork;
+    private readonly IFinancialPeriodService _financialPeriodService;
 
     private const string SALE_TRANSACTION_TYPE_CODE = "SALE";
     private const string SALE_RETURN_TRANSACTION_TYPE_CODE = "SRTN";
@@ -49,18 +49,19 @@ public class CustomerPaymentService : ICustomerPaymentService
         IRepository<Account> accountRepository,
         IRepository<CreditNote> creditNoteRepository,
         IRepository<PaymentAllocation> paymentAllocationRepository,
-        IUnitOfWork unitOfWork)
+        IUnitOfWork unitOfWork,
+        IFinancialPeriodService financialPeriodService)
+        : base(unitOfWork, voucherRepository)
     {
         _paymentRepository = paymentRepository;
         _stockMainRepository = stockMainRepository;
         _transactionTypeRepository = transactionTypeRepository;
-        _voucherRepository = voucherRepository;
         _voucherTypeRepository = voucherTypeRepository;
         _partyRepository = partyRepository;
         _accountRepository = accountRepository;
         _creditNoteRepository = creditNoteRepository;
         _paymentAllocationRepository = paymentAllocationRepository;
-        _unitOfWork = unitOfWork;
+        _financialPeriodService = financialPeriodService;
     }
 
     public async Task<IEnumerable<Payment>> GetAllCustomerReceiptsAsync()
@@ -148,8 +149,118 @@ public class CustomerPaymentService : ICustomerPaymentService
         return sales.Where(s => s.BalanceAmount > 0).ToList();
     }
 
+    public async Task<PharmaCare.Application.DTOs.PagedResult<StockMain>> GetPagedPendingSalesAsync(
+        int? customerId, DateTime? fromDate, DateTime? toDate, string? status, int page, int pageSize)
+    {
+        var query = _stockMainRepository.Query()
+            .AsNoTracking()
+            .Include(s => s.TransactionType)
+            .Include(s => s.Party)
+            .Where(s => s.TransactionType!.Code == SALE_TRANSACTION_TYPE_CODE
+                     && s.Status == "Approved");
+
+        if (customerId.HasValue)
+            query = query.Where(s => s.Party_ID == customerId.Value);
+
+        if (fromDate.HasValue)
+            query = query.Where(s => s.TransactionDate >= fromDate.Value.Date);
+
+        if (toDate.HasValue)
+            query = query.Where(s => s.TransactionDate <= toDate.Value.Date.AddDays(1).AddTicks(-1));
+
+        // For accurate filtering, we need to consider returns.
+        var salesWithReturns = query.Select(s => new
+        {
+            Sale = s,
+            TotalReturns = _stockMainRepository.Query()
+                .Where(r => r.TransactionType!.Code == SALE_RETURN_TRANSACTION_TYPE_CODE
+                         && r.Status != "Void"
+                         && r.ReferenceStockMain_ID == s.StockMainID)
+                .Sum(r => (decimal?)r.TotalAmount) ?? 0m
+        });
+
+        if (!string.IsNullOrEmpty(status) && status != "All")
+        {
+            if (status == "Paid")
+                salesWithReturns = salesWithReturns.Where(x => (x.Sale.TotalAmount - x.TotalReturns - x.Sale.PaidAmount) <= 0);
+            else if (status == "Unpaid")
+                salesWithReturns = salesWithReturns.Where(x => (x.Sale.TotalAmount - x.TotalReturns - x.Sale.PaidAmount) > 0 && x.Sale.PaidAmount <= 0);
+            else if (status == "Partial")
+                salesWithReturns = salesWithReturns.Where(x => (x.Sale.TotalAmount - x.TotalReturns - x.Sale.PaidAmount) > 0 && x.Sale.PaidAmount > 0);
+        }
+
+        int totalCount = await salesWithReturns.CountAsync();
+
+        var paginatedItems = await salesWithReturns
+            .OrderByDescending(x => x.Sale.TransactionDate)
+            .ThenByDescending(x => x.Sale.StockMainID)
+            .Skip((page - 1) * pageSize)
+            .Take(pageSize)
+            .ToListAsync();
+
+        var resultItems = new List<StockMain>();
+        foreach (var item in paginatedItems)
+        {
+            var sale = item.Sale;
+            sale.BalanceAmount = Math.Max(0, sale.TotalAmount - item.TotalReturns - sale.PaidAmount);
+            sale.PaymentStatus = sale.BalanceAmount <= 0
+                ? PharmaCare.Domain.Enums.PaymentStatus.Paid.ToString()
+                : (sale.PaidAmount <= 0 ? PharmaCare.Domain.Enums.PaymentStatus.Unpaid.ToString() : PharmaCare.Domain.Enums.PaymentStatus.Partial.ToString());
+            resultItems.Add(sale);
+        }
+
+        return new PharmaCare.Application.DTOs.PagedResult<StockMain>
+        {
+            Items = resultItems,
+            TotalCount = totalCount,
+            CurrentPage = page,
+            PageSize = pageSize
+        };
+    }
+
+
+    public async Task<PharmaCare.Application.DTOs.PagedResult<Payment>> GetPagedCustomerReceiptsAsync(
+        int? customerId, DateTime? fromDate, DateTime? toDate, int page, int pageSize)
+    {
+        var query = _paymentRepository.Query()
+            .AsNoTracking()
+            .Include(p => p.Party)
+            .Include(p => p.StockMain)
+            .Include(p => p.Account)
+            .Where(p => p.PaymentType == CustomerReceiptPaymentType);
+
+        if (customerId.HasValue)
+            query = query.Where(p => p.Party_ID == customerId.Value);
+
+        if (fromDate.HasValue)
+            query = query.Where(p => p.PaymentDate >= fromDate.Value.Date);
+
+        if (toDate.HasValue)
+            query = query.Where(p => p.PaymentDate <= toDate.Value.Date.AddDays(1).AddTicks(-1));
+
+        int totalCount = await query.CountAsync();
+
+        var items = await query
+            .OrderByDescending(p => p.PaymentDate)
+            .ThenByDescending(p => p.PaymentID)
+            .Skip((page - 1) * pageSize)
+            .Take(pageSize)
+            .ToListAsync();
+
+        return new PharmaCare.Application.DTOs.PagedResult<Payment>
+        {
+            Items = items,
+            TotalCount = totalCount,
+            CurrentPage = page,
+            PageSize = pageSize
+        };
+    }
+
     public async Task<Payment> CreateReceiptAsync(Payment payment, int userId)
     {
+        if (await _financialPeriodService.IsPeriodLockedAsync(payment.PaymentDate))
+            throw new InvalidOperationException("The financial period for this receipt date is closed.");
+
         return await ExecuteInTransactionAsync(async () =>
         {
             // Validate the transaction exists (include Party and their Account)
@@ -197,7 +308,7 @@ public class CustomerPaymentService : ICustomerPaymentService
                 throw new InvalidOperationException("Sale is not linked to a customer.");
 
             // Generate reference number
-            payment.Reference = await GenerateReferenceNoAsync();
+            payment.Reference = await GenerateReferenceNoAsync(_paymentRepository, PREFIX);
             payment.PaymentType = CustomerReceiptPaymentType; // Customer receipt
             payment.Party_ID = stockMain.Party_ID.Value;
             payment.PaymentMethod = NormalizePaymentMethod(payment.PaymentMethod, receiptAccount.AccountType_ID);
@@ -328,47 +439,10 @@ public class CustomerPaymentService : ICustomerPaymentService
 
     private async Task<string> GenerateReferenceNoAsync()
     {
-        var datePrefix = $"{PREFIX}-{DateTime.Now:yyyyMMdd}-";
-
-        var lastPayment = await _paymentRepository.Query()
-            .Where(p => p.Reference != null && p.Reference.StartsWith(datePrefix))
-            .OrderByDescending(p => p.Reference)
-            .FirstOrDefaultAsync();
-
-        int nextNum = 1;
-        if (lastPayment != null && lastPayment.Reference != null)
-        {
-            var parts = lastPayment.Reference.Split('-');
-            if (parts.Length > 2 && int.TryParse(parts.Last(), out int lastNum))
-            {
-                nextNum = lastNum + 1;
-            }
-        }
-
-        return $"{datePrefix}{nextNum:D4}";
+        return await base.GenerateReferenceNoAsync(_paymentRepository, PREFIX);
     }
 
-    private async Task<string> GenerateVoucherNoAsync(string prefix = "RV")
-    {
-        var datePrefix = $"{prefix}-{DateTime.Now:yyyyMMdd}-";
 
-        var lastVoucher = await _voucherRepository.Query()
-            .Where(v => v.VoucherNo.StartsWith(datePrefix))
-            .OrderByDescending(v => v.VoucherNo)
-            .FirstOrDefaultAsync();
-
-        int nextNum = 1;
-        if (lastVoucher != null)
-        {
-            var parts = lastVoucher.VoucherNo.Split('-');
-            if (parts.Length > 2 && int.TryParse(parts.Last(), out int lastNum))
-            {
-                nextNum = lastNum + 1;
-            }
-        }
-
-        return $"{datePrefix}{nextNum:D4}";
-    }
 
     /// <summary>
     /// Creates a refund to a customer.
@@ -377,6 +451,9 @@ public class CustomerPaymentService : ICustomerPaymentService
     /// </summary>
     public async Task<Payment> CreateRefundAsync(Payment payment, int userId)
     {
+        if (await _financialPeriodService.IsPeriodLockedAsync(payment.PaymentDate))
+            throw new InvalidOperationException("The financial period for this refund date is closed.");
+
         return await ExecuteInTransactionAsync(async () =>
         {
             if (payment.Amount <= 0)
@@ -661,6 +738,9 @@ public class CustomerPaymentService : ICustomerPaymentService
                 return false;
             }
 
+            if (await _financialPeriodService.IsPeriodLockedAsync(receipt.PaymentDate))
+                throw new InvalidOperationException("The financial period for this receipt date is closed.");
+
             receipt.IsVoided = true;
             receipt.VoidReason = reason.Trim();
             receipt.VoidedAt = DateTime.Now;
@@ -711,6 +791,9 @@ public class CustomerPaymentService : ICustomerPaymentService
                 return false;
             }
 
+            if (await _financialPeriodService.IsPeriodLockedAsync(refund.PaymentDate))
+                throw new InvalidOperationException("The financial period for this refund date is closed.");
+
             refund.IsVoided = true;
             refund.VoidReason = reason.Trim();
             refund.VoidedAt = DateTime.Now;
@@ -754,68 +837,6 @@ public class CustomerPaymentService : ICustomerPaymentService
         return parsedMethod.ToString();
     }
 
-    private async Task<Voucher?> CreateVoucherReversalAsync(int originalVoucherId, int userId, string reason)
-    {
-        var originalVoucher = await _voucherRepository.Query()
-            .Include(v => v.VoucherDetails)
-            .FirstOrDefaultAsync(v => v.VoucherID == originalVoucherId);
 
-        if (originalVoucher == null || originalVoucher.IsReversed)
-        {
-            return null;
-        }
 
-        var reversalVoucher = new Voucher
-        {
-            VoucherType_ID = originalVoucher.VoucherType_ID,
-            VoucherNo = $"REV-{originalVoucher.VoucherNo}",
-            VoucherDate = DateTime.Now,
-            TotalDebit = originalVoucher.TotalCredit,
-            TotalCredit = originalVoucher.TotalDebit,
-            Status = "Posted",
-            SourceTable = originalVoucher.SourceTable,
-            SourceID = originalVoucher.SourceID,
-            Narration = $"Reversal of {originalVoucher.VoucherNo} - Void: {reason}",
-            ReversesVoucher_ID = originalVoucher.VoucherID,
-            CreatedAt = DateTime.Now,
-            CreatedBy = userId
-        };
-
-        foreach (var detail in originalVoucher.VoucherDetails)
-        {
-            reversalVoucher.VoucherDetails.Add(new VoucherDetail
-            {
-                Account_ID = detail.Account_ID,
-                DebitAmount = detail.CreditAmount,
-                CreditAmount = detail.DebitAmount,
-                Description = $"Reversal - {detail.Description}",
-                Party_ID = detail.Party_ID,
-                Product_ID = detail.Product_ID
-            });
-        }
-
-        await _voucherRepository.AddAsync(reversalVoucher);
-
-        originalVoucher.IsReversed = true;
-        originalVoucher.ReversedByVoucher = reversalVoucher;
-        _voucherRepository.Update(originalVoucher);
-
-        return reversalVoucher;
-    }
-
-    private async Task<T> ExecuteInTransactionAsync<T>(Func<Task<T>> operation)
-    {
-        await _unitOfWork.BeginTransactionAsync();
-        try
-        {
-            var result = await operation();
-            await _unitOfWork.CommitTransactionAsync();
-            return result;
-        }
-        catch
-        {
-            await _unitOfWork.RollbackTransactionAsync();
-            throw;
-        }
-    }
 }

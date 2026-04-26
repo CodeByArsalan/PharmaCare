@@ -2,6 +2,8 @@ using Microsoft.EntityFrameworkCore;
 using PharmaCare.Application.Interfaces;
 using PharmaCare.Application.Interfaces.Configuration;
 using PharmaCare.Domain.Entities.Configuration;
+using PharmaCare.Application.Interfaces.Logging;
+using PharmaCare.Domain.Enums;
 
 namespace PharmaCare.Application.Implementations.Configuration;
 
@@ -9,15 +11,21 @@ public class PartyService : IPartyService
 {
     private readonly IRepository<Party> _repository;
     private readonly IRepository<PharmaCare.Domain.Entities.Accounting.Account> _accountRepository;
+    private readonly IActivityLogService _activityLogService;
+    private readonly ISessionService _sessionService;
     private readonly IUnitOfWork _unitOfWork;
 
     public PartyService(
         IRepository<Party> repository, 
         IRepository<PharmaCare.Domain.Entities.Accounting.Account> accountRepository,
+        IActivityLogService activityLogService,
+        ISessionService sessionService,
         IUnitOfWork unitOfWork)
     {
         _repository = repository;
         _accountRepository = accountRepository;
+        _activityLogService = activityLogService;
+        _sessionService = sessionService;
         _unitOfWork = unitOfWork;
     }
 
@@ -81,6 +89,17 @@ public class PartyService : IPartyService
         await _repository.AddAsync(party);
         await _unitOfWork.SaveChangesAsync();
         
+        var userName = _sessionService.GetCurrentUser()?.FullName ?? "Unknown User";
+        await _activityLogService.LogActivityAsync(
+            userId,
+            userName,
+            ActivityType.Create,
+            "Party",
+            party.PartyID.ToString(),
+            null,
+            null,
+            $"Created {party.PartyType}: {party.Name}");
+
         return party;
     }
 
@@ -117,6 +136,17 @@ public class PartyService : IPartyService
         _repository.Update(existing);
         await _unitOfWork.SaveChangesAsync();
         
+        var userName = _sessionService.GetCurrentUser()?.FullName ?? "Unknown User";
+        await _activityLogService.LogActivityAsync(
+            userId,
+            userName,
+            ActivityType.Update,
+            "Party",
+            existing.PartyID.ToString(),
+            null,
+            null,
+            $"Updated {existing.PartyType}: {existing.Name}");
+
         return true;
     }
 
@@ -133,6 +163,17 @@ public class PartyService : IPartyService
         _repository.Update(party);
         await _unitOfWork.SaveChangesAsync();
         
+        var userName = _sessionService.GetCurrentUser()?.FullName ?? "Unknown User";
+        await _activityLogService.LogActivityAsync(
+            userId,
+            userName,
+            ActivityType.StatusChange,
+            "Party",
+            party.PartyID.ToString(),
+            null,
+            null,
+            $"{ (party.IsActive ? "Activated" : "Deactivated") } {party.PartyType}: {party.Name}");
+
         return true;
     }
 

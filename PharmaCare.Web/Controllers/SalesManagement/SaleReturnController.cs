@@ -31,10 +31,20 @@ public class SaleReturnController : BaseController
     /// <summary>
     /// Displays list of all sale returns.
     /// </summary>
-    public async Task<IActionResult> SaleReturnsIndex()
+    public async Task<IActionResult> SaleReturnsIndex(int? customerId, DateTime? fromDate, DateTime? toDate, string? status, int page = 1)
     {
-        var returns = await _saleReturnService.GetAllAsync();
-        return View(returns);
+        int pageSize = 15;
+        var pagedResult = await _saleReturnService.GetPagedAsync(customerId, fromDate, toDate, status, page, pageSize);
+
+        var customers = await _partyService.GetAllAsync();
+        ViewBag.Customers = new SelectList(customers.Where(p => p.IsActive && (p.PartyType == "Customer" || p.PartyType == "Both")), "PartyID", "Name", customerId);
+        
+        ViewBag.SelectedCustomer = customerId;
+        ViewBag.SelectedStatus = status ?? "All";
+        ViewBag.FromDate = fromDate;
+        ViewBag.ToDate = toDate;
+
+        return View(pagedResult);
     }
 
     /// <summary>

@@ -1,5 +1,5 @@
 @using PharmaCare.Web.Utilities
-@model IEnumerable<PharmaCare.Domain.Entities.Transactions.StockMain>
+@model PharmaCare.Application.DTOs.PagedResult<PharmaCare.Domain.Entities.Transactions.StockMain>
 @{
     ViewData["Title"] = "Pending Sales";
 }
@@ -17,9 +17,41 @@
     </div>
 </div>
 
+<div class="card mb-4 shadow-sm border-0">
+    <div class="card-body bg-light">
+        <form method="get" asp-action="PendingSales" class="row gx-3 gy-2 align-items-end">
+            <div class="col-md-3">
+                <label class="form-label small fw-bold text-muted">Customer</label>
+                <select name="customerId" class="form-select select2" asp-items="ViewBag.Customers">
+                    <option value="">-- All Customers --</option>
+                </select>
+            </div>
+            <div class="col-md-2">
+                <label class="form-label small fw-bold text-muted">Status</label>
+                <select name="status" class="form-select">
+                    <option value="All" selected="@(ViewBag.SelectedStatus == "All")">All</option>
+                    <option value="Unpaid" selected="@(ViewBag.SelectedStatus == "Unpaid")">Unpaid</option>
+                    <option value="Partial" selected="@(ViewBag.SelectedStatus == "Partial")">Partial</option>
+                </select>
+            </div>
+            <div class="col-md-2">
+                <label class="form-label small fw-bold text-muted">From Date</label>
+                <input type="date" name="fromDate" class="form-control" value="@(ViewBag.FromDate != null ? ((DateTime)ViewBag.FromDate).ToString("yyyy-MM-dd") : "")" />
+            </div>
+            <div class="col-md-2">
+                <label class="form-label small fw-bold text-muted">To Date</label>
+                <input type="date" name="toDate" class="form-control" value="@(ViewBag.ToDate != null ? ((DateTime)ViewBag.ToDate).ToString("yyyy-MM-dd") : "")" />
+            </div>
+            <div class="col-md-3">
+                <button type="submit" class="btn btn-primary w-100"><i class="fas fa-search"></i> Search</button>
+            </div>
+        </form>
+    </div>
+</div>
+
 <div class="card">
     <div class="card-body">
-        @if (!Model.Any())
+        @if (!Model.Items.Any())
         {
             <div class="alert alert-info">
                 <i class="fas fa-info-circle"></i> No pending sales found. All sales are fully paid.
@@ -42,8 +74,8 @@
                         </tr>
                     </thead>
                     <tbody>
-                        @{int sNo = 1;}
-                        @foreach (var sale in Model)
+                        @{int sNo = ((Model.CurrentPage - 1) * Model.PageSize) + 1;}
+                        @foreach (var sale in Model.Items)
                         {
                             <tr>
                                 <td>@(sNo++)</td>
@@ -66,16 +98,46 @@
                 </table>
             </div>
         }
+
+        @if (Model.TotalPages > 1)
+        {
+            <div class="card-footer bg-white py-3 border-top-0">
+                <div class="d-flex align-items-center justify-content-between">
+                    <div class="text-muted small">
+                        Showing <strong>@(((Model.CurrentPage - 1) * Model.PageSize) + 1)</strong> to 
+                        <strong>@(Math.Min(Model.CurrentPage * Model.PageSize, Model.TotalCount))</strong> of 
+                        <strong>@Model.TotalCount</strong> entries
+                    </div>
+                    <nav>
+                        <ul class="pagination pagination-sm mb-0">
+                            <li class="page-item @(Model.CurrentPage == 1 ? "disabled" : "")">
+                                <a class="page-link" href="?page=@(Model.CurrentPage - 1)&customerId=@ViewBag.SelectedCustomer&status=@ViewBag.SelectedStatus&fromDate=@(ViewBag.FromDate != null ? ((DateTime)ViewBag.FromDate).ToString("yyyy-MM-dd") : "")&toDate=@(ViewBag.ToDate != null ? ((DateTime)ViewBag.ToDate).ToString("yyyy-MM-dd") : "")">Previous</a>
+                            </li>
+                            <li class="page-item disabled">
+                                <span class="page-link">Page @Model.CurrentPage of @Model.TotalPages</span>
+                            </li>
+                            <li class="page-item @(Model.CurrentPage == Model.TotalPages ? "disabled" : "")">
+                                <a class="page-link" href="?page=@(Model.CurrentPage + 1)&customerId=@ViewBag.SelectedCustomer&status=@ViewBag.SelectedStatus&fromDate=@(ViewBag.FromDate != null ? ((DateTime)ViewBag.FromDate).ToString("yyyy-MM-dd") : "")&toDate=@(ViewBag.ToDate != null ? ((DateTime)ViewBag.ToDate).ToString("yyyy-MM-dd") : "")">Next</a>
+                            </li>
+                        </ul>
+                    </nav>
+                </div>
+            </div>
+        }
     </div>
 </div>
 
 @section Scripts {
     <script>
         $(document).ready(function() {
+            $('.select2').select2({ theme: 'bootstrap-5' });
+
             if (!$.fn.DataTable.isDataTable('#pendingSalesTable')) {
                 $('#pendingSalesTable').DataTable({
                     order: [[2, 'desc']],
-                    pageLength: 25
+                    paging: false,
+                    info: false,
+                    searching: false
                 });
             }
         });

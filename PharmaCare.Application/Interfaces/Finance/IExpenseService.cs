@@ -14,6 +14,9 @@ public interface IExpenseService
     /// </summary>
     Task<IEnumerable<Expense>> GetAllAsync();
 
+    Task<PharmaCare.Application.DTOs.PagedResult<Expense>> GetPagedAsync(
+        int? categoryId, DateTime? from, DateTime? to, int page, int pageSize);
+
     /// <summary>
     /// Gets an expense by ID with related data.
     /// </summary>
@@ -24,6 +27,7 @@ public interface IExpenseService
     /// DR: Expense Account, CR: Source (Cash/Bank) Account
     /// </summary>
     Task<Expense> CreateAsync(Expense expense, int userId);
+    Task<bool> ApproveAsync(int expenseId, int userId);
 
     /// <summary>
     /// Voids an expense and reverses its accounting voucher.
@@ -56,4 +60,16 @@ public interface IExpenseService
     /// Toggles the active status of an expense category.
     /// </summary>
     Task ToggleCategoryStatusAsync(int categoryId, int userId);
+
+    // ========== EXPENSE BUDGETS ==========
+
+    /// <summary>
+    /// Gets budgets for a specific year and month. Includes categories even if no budget exists.
+    /// </summary>
+    Task<IEnumerable<PharmaCare.Application.ViewModels.Report.ExpenseBudgetVM>> GetBudgetsAsync(int year, int month);
+
+    /// <summary>
+    /// Saves or updates budgets for multiple categories in a specific month/year.
+    /// </summary>
+    Task SaveBudgetsAsync(int year, int month, List<PharmaCare.Application.ViewModels.Report.ExpenseBudgetVM> budgets, int userId);
 }

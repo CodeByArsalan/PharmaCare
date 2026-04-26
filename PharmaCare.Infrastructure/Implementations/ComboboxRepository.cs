@@ -327,7 +327,7 @@ public class ComboboxRepository : IComboboxRepository
     public IEnumerable<SelectListItem> GetSales(int? selectedValue = null)
     {
         return _context.StockMains
-            .Where(s => s.TransactionType.Code == "SALE")
+            .Where(s => s.TransactionType != null && s.TransactionType.Code == "SALE")
             .OrderByDescending(s => s.TransactionDate)
             .Select(s => new SelectListItem
             {
@@ -341,7 +341,7 @@ public class ComboboxRepository : IComboboxRepository
     public IEnumerable<SelectListItem> GetPurchases(int? selectedValue = null)
     {
         return _context.StockMains
-            .Where(s => s.TransactionType.Code == "GRN")
+            .Where(s => s.TransactionType != null && s.TransactionType.Code == "GRN")
             .OrderByDescending(s => s.TransactionDate)
             .Select(s => new SelectListItem
             {

@@ -4,6 +4,9 @@ using PharmaCare.Application.Interfaces;
 using PharmaCare.Application.Interfaces.Configuration;
 using PharmaCare.Domain.Entities.Configuration;
 using PharmaCare.Domain.Entities.Transactions;
+using PharmaCare.Application.Interfaces.Logging;
+using PharmaCare.Domain.Enums;
+using System.Text.Json;
 
 namespace PharmaCare.Application.Implementations.Configuration;
 
@@ -18,6 +21,8 @@ public class ProductService : IProductService
     private readonly IRepository<PriceType> _priceTypeRepository;
     private readonly IRepository<ProductPrice> _productPriceRepository;
     private readonly IRepository<StockDetail> _stockDetailRepository;
+    private readonly IActivityLogService _activityLogService;
+    private readonly ISessionService _sessionService;
     private readonly IUnitOfWork _unitOfWork;
 
     public ProductService(
@@ -27,6 +32,8 @@ public class ProductService : IProductService
         IRepository<PriceType> priceTypeRepository,
         IRepository<ProductPrice> productPriceRepository,
         IRepository<StockDetail> stockDetailRepository,
+        IActivityLogService activityLogService,
+        ISessionService sessionService,
         IUnitOfWork unitOfWork)
     {
         _repository = repository;
@@ -35,6 +42,8 @@ public class ProductService : IProductService
         _priceTypeRepository = priceTypeRepository;
         _productPriceRepository = productPriceRepository;
         _stockDetailRepository = stockDetailRepository;
+        _activityLogService = activityLogService;
+        _sessionService = sessionService;
         _unitOfWork = unitOfWork;
     }
 
@@ -110,6 +119,17 @@ public class ProductService : IProductService
         await _repository.AddAsync(product);
         await _unitOfWork.SaveChangesAsync();
         
+        var userName = _sessionService.GetCurrentUser()?.FullName ?? "Unknown User";
+        await _activityLogService.LogActivityAsync(
+            userId,
+            userName,
+            ActivityType.Create,
+            "Product",
+            product.ProductID.ToString(),
+            null,
+            null,
+            $"Created product: {product.Name} (SKU: {product.ShortCode})");
+
         return product;
     }
 
@@ -134,6 +154,17 @@ public class ProductService : IProductService
         _repository.Update(existing);
         await _unitOfWork.SaveChangesAsync();
         
+        var userName = _sessionService.GetCurrentUser()?.FullName ?? "Unknown User";
+        await _activityLogService.LogActivityAsync(
+            userId,
+            userName,
+            ActivityType.Update,
+            "Product",
+            existing.ProductID.ToString(),
+            null, // Interceptor handles JSON values
+            null,
+            $"Updated product: {existing.Name} (SKU: {existing.ShortCode})");
+
         return true;
     }
 
@@ -150,6 +181,17 @@ public class ProductService : IProductService
         _repository.Update(product);
         await _unitOfWork.SaveChangesAsync();
         
+        var userName = _sessionService.GetCurrentUser()?.FullName ?? "Unknown User";
+        await _activityLogService.LogActivityAsync(
+            userId,
+            userName,
+            ActivityType.StatusChange,
+            "Product",
+            product.ProductID.ToString(),
+            null,
+            null,
+            $"{ (product.IsActive ? "Activated" : "Deactivated") } product: {product.Name}");
+
         return true;
     }
 

@@ -1,5 +1,5 @@
 @using PharmaCare.Web.Utilities
-@model IEnumerable<PharmaCare.Domain.Entities.Finance.Payment>
+@model PharmaCare.Application.DTOs.PagedResult<PharmaCare.Domain.Entities.Finance.Payment>
 @{
     ViewData["Title"] = "Customer Receipts";
 }
@@ -26,11 +26,35 @@
     </div>
 </div>
 
+<div class="card mb-4 shadow-sm border-0">
+    <div class="card-body">
+        <form method="get" asp-action="ReceiptsIndex" class="row gx-3 gy-2 align-items-end">
+            <div class="col-md-4">
+                <label class="form-label small fw-bold text-muted">Customer</label>
+                <select name="customerId" class="form-select select2" asp-items="ViewBag.Customers">
+                    <option value="">-- All Customers --</option>
+                </select>
+            </div>
+            <div class="col-md-3">
+                <label class="form-label small fw-bold text-muted">From Date</label>
+                <input type="date" name="fromDate" class="form-control" value="@(ViewBag.FromDate != null ? ((DateTime)ViewBag.FromDate).ToString("yyyy-MM-dd") : "")" />
+            </div>
+            <div class="col-md-3">
+                <label class="form-label small fw-bold text-muted">To Date</label>
+                <input type="date" name="toDate" class="form-control" value="@(ViewBag.ToDate != null ? ((DateTime)ViewBag.ToDate).ToString("yyyy-MM-dd") : "")" />
+            </div>
+            <div class="col-md-2">
+                <button type="submit" class="btn btn-primary w-100"><i class="fas fa-search"></i> Search</button>
+            </div>
+        </form>
+    </div>
+</div>
+
 <div class="card">
     <div class="card-body">
         <div class="table-responsive">
             <table class="table table-hover" id="receiptsTable">
-                <thead>
+                <thead class="bg-theme-header">
                     <tr>
                         <th style="width: 50px;">S.No</th>
                         <th>Reference</th>
@@ -44,8 +68,8 @@
                     </tr>
                 </thead>
                 <tbody>
-                    @{int sNo = 1;}
-                    @foreach (var receipt in Model)
+                    @{int sNo = ((Model.CurrentPage - 1) * Model.PageSize) + 1;}
+                    @foreach (var receipt in Model.Items)
                     {
                         <tr>
                             <td>@(sNo++)</td>
@@ -66,7 +90,7 @@
                             <td>
                                 @if (receipt.IsVoided)
                                 {
-                                    <span class="badge bg-danger">Voided</span>
+                                    <span class="badge bg-danger cursor-pointer" data-bs-toggle="tooltip" title="Reason: @(receipt.VoidReason ?? "No reason provided")">Voided</span>
                                 }
                                 else
                                 {
@@ -94,6 +118,32 @@
                 </tbody>
             </table>
         </div>
+
+        @if (Model.TotalPages > 1)
+        {
+            <div class="card-footer bg-theme-footer py-3 border-top-0">
+                <div class="d-flex align-items-center justify-content-between">
+                    <div class="text-muted small">
+                        Showing <strong>@(((Model.CurrentPage - 1) * Model.PageSize) + 1)</strong> to 
+                        <strong>@(Math.Min(Model.CurrentPage * Model.PageSize, Model.TotalCount))</strong> of 
+                        <strong>@Model.TotalCount</strong> entries
+                    </div>
+                    <nav>
+                        <ul class="pagination pagination-sm mb-0">
+                            <li class="page-item @(Model.CurrentPage == 1 ? "disabled" : "")">
+                                <a class="page-link" href="?page=@(Model.CurrentPage - 1)&customerId=@ViewBag.SelectedCustomer&fromDate=@(ViewBag.FromDate != null ? ((DateTime)ViewBag.FromDate).ToString("yyyy-MM-dd") : "")&toDate=@(ViewBag.ToDate != null ? ((DateTime)ViewBag.ToDate).ToString("yyyy-MM-dd") : "")">Previous</a>
+                            </li>
+                            <li class="page-item disabled">
+                                <span class="page-link">Page @Model.CurrentPage of @Model.TotalPages</span>
+                            </li>
+                            <li class="page-item @(Model.CurrentPage == Model.TotalPages ? "disabled" : "")">
+                                <a class="page-link" href="?page=@(Model.CurrentPage + 1)&customerId=@ViewBag.SelectedCustomer&fromDate=@(ViewBag.FromDate != null ? ((DateTime)ViewBag.FromDate).ToString("yyyy-MM-dd") : "")&toDate=@(ViewBag.ToDate != null ? ((DateTime)ViewBag.ToDate).ToString("yyyy-MM-dd") : "")">Next</a>
+                            </li>
+                        </ul>
+                    </nav>
+                </div>
+            </div>
+        }
     </div>
 </div>
 
@@ -128,7 +178,9 @@
             if (!$.fn.DataTable.isDataTable('#receiptsTable')) {
                 $('#receiptsTable').DataTable({
                     order: [[2, 'desc']],
-                    pageLength: 25
+                    paging: false,
+                    info: false,
+                    searching: false
                 });
             }
 

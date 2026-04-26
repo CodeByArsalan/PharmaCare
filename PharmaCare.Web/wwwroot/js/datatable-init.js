@@ -1,6 +1,7 @@
-$(document).ready(function() {
+$(document).ready(function () {
     // Initialize standard tables
     $('.datatable').DataTable({
+        stateSave: true,
         responsive: true,
         pageLength: 10,
         lengthMenu: [
@@ -20,7 +21,7 @@ $(document).ready(function() {
             }
         },
         dom: '<"d-flex justify-content-between align-items-center mb-3"lf>rt<"d-flex justify-content-between align-items-center mt-3"ip>',
-        initComplete: function() {
+        initComplete: function () {
             // style search input
             $('.dataTables_filter input').addClass('form-control form-control-sm');
             $('.dataTables_length select').addClass('form-select form-select-sm');

@@ -1,5 +1,6 @@
 using Microsoft.EntityFrameworkCore;
 using PharmaCare.Application.Interfaces;
+using PharmaCare.Application.Interfaces.Accounting;
 using PharmaCare.Application.Interfaces.Configuration;
 using PharmaCare.Application.Interfaces.Transactions;
 using PharmaCare.Domain.Entities.Accounting;
@@ -46,8 +47,9 @@ public class SaleService : TransactionServiceBase, ISaleService
         IRepository<PaymentAllocation> paymentAllocationRepository,
         IRepository<Party> partyRepository,
         IUnitOfWork unitOfWork,
-        IProductService productService)
-        : base(stockMainRepository, voucherRepository, unitOfWork)
+        IProductService productService,
+        IFinancialPeriodService financialPeriodService)
+        : base(stockMainRepository, voucherRepository, unitOfWork, financialPeriodService)
     {
         _transactionTypeRepository = transactionTypeRepository;
         _voucherTypeRepository = voucherTypeRepository;
@@ -68,6 +70,44 @@ public class SaleService : TransactionServiceBase, ISaleService
             .OrderByDescending(s => s.TransactionDate)
             .ThenByDescending(s => s.StockMainID)
             .ToListAsync();
+    }
+
+    public async Task<PharmaCare.Application.DTOs.PagedResult<StockMain>> GetPagedAsync(
+        int? partyId, DateTime? fromDate, DateTime? toDate, string? status, int page, int pageSize)
+    {
+        var query = _stockMainRepository.Query()
+            .Include(s => s.TransactionType)
+            .Include(s => s.Party)
+            .Where(s => s.TransactionType!.Code == TRANSACTION_TYPE_CODE);
+
+        if (partyId.HasValue && partyId.Value > 0)
+            query = query.Where(s => s.Party_ID == partyId.Value);
+
+        if (fromDate.HasValue)
+            query = query.Where(s => s.TransactionDate >= fromDate.Value.Date);
+
+        if (toDate.HasValue)
+            query = query.Where(s => s.TransactionDate <= toDate.Value.Date.AddDays(1).AddTicks(-1));
+
+        if (!string.IsNullOrEmpty(status) && status != "All")
+            query = query.Where(s => s.Status == status);
+
+        int totalCount = await query.CountAsync();
+
+        var items = await query
+            .OrderByDescending(s => s.TransactionDate)
+            .ThenByDescending(s => s.StockMainID)
+            .Skip((page - 1) * pageSize)
+            .Take(pageSize)
+            .ToListAsync();
+
+        return new PharmaCare.Application.DTOs.PagedResult<StockMain>
+        {
+            Items = items,
+            TotalCount = totalCount,
+            CurrentPage = page,
+            PageSize = pageSize
+        };
     }
 
     public async Task<StockMain?> GetByIdAsync(int id)
@@ -142,6 +182,7 @@ public class SaleService : TransactionServiceBase, ISaleService
 
     public async Task<StockMain> CreateAsync(StockMain sale, int userId, int? paymentAccountId = null)
     {
+        await ValidatePeriodAsync(sale.TransactionDate);
         return await ExecuteInTransactionAsync(async () =>
         {
             NormalizeSaleLines(sale);
@@ -608,6 +649,8 @@ public class SaleService : TransactionServiceBase, ISaleService
 
             if (sale == null || sale.Status == TransactionStatus.Void.ToString())
                 return false;
+
+            await ValidatePeriodAsync(sale.TransactionDate);
 
             sale.Status = TransactionStatus.Void.ToString();
             sale.VoidReason = reason;

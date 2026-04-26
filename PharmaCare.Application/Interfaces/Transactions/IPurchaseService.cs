@@ -12,6 +12,14 @@ public interface IPurchaseService
     /// </summary>
     Task<IEnumerable<StockMain>> GetAllAsync();
 
+    Task<PharmaCare.Application.DTOs.PagedResult<StockMain>> GetPagedAsync(
+        int? partyId, 
+        DateTime? fromDate, 
+        DateTime? toDate, 
+        string? status, 
+        int page, 
+        int pageSize);
+
     /// <summary>
     /// Gets a purchase/GRN with its details.
     /// </summary>

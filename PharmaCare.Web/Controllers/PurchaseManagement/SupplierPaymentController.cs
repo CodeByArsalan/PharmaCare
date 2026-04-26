@@ -19,49 +19,38 @@ public class SupplierPaymentController : BaseController
     private readonly IAccountService _accountService;
     private readonly IPartyService _partyService;
     private readonly IPurchaseReturnService _purchaseReturnService;
+    private readonly ISupplierCreditNoteService _creditNoteService;
 
     public SupplierPaymentController(
         IPaymentService paymentService,
         IPurchaseService purchaseService,
         IAccountService accountService,
         IPartyService partyService,
-        IPurchaseReturnService purchaseReturnService)
+        IPurchaseReturnService purchaseReturnService,
+        ISupplierCreditNoteService creditNoteService)
     {
         _paymentService = paymentService;
         _purchaseService = purchaseService;
         _accountService = accountService;
         _partyService = partyService;
         _purchaseReturnService = purchaseReturnService;
+        _creditNoteService = creditNoteService;
     }
 
     /// Displays list of GRNs with payment information.
-    public async Task<IActionResult> PaymentsIndex(int? supplierId, string? paymentStatus, DateTime? fromDate, DateTime? toDate) 
+    public async Task<IActionResult> PaymentsIndex(int? supplierId, string? paymentStatus, DateTime? fromDate, DateTime? toDate, int page = 1) 
     {
-        bool includePaid = paymentStatus == "Paid" || paymentStatus == "All";
-        var grns = await _paymentService.GetPendingGrnsAsync(supplierId, includePaid);
-        var grnList = grns.ToList();
+        int pageSize = 15;
+        var pagedResult = await _paymentService.GetPagedPendingGrnsAsync(supplierId, fromDate, toDate, paymentStatus, page, pageSize);
 
-        if (!string.IsNullOrEmpty(paymentStatus) && paymentStatus != "All")
-        {
-            grnList = grnList.Where(g => g.PaymentStatus == paymentStatus).ToList();
-        }
-
-        if (fromDate.HasValue)
-        {
-            grnList = grnList.Where(g => g.TransactionDate >= fromDate.Value).ToList();
-        }
-
-        if (toDate.HasValue)
-        {
-            grnList = grnList.Where(g => g.TransactionDate <= toDate.Value).ToList();
-        }
-
+        ViewBag.Suppliers = await GetPartySelectListAsync(_partyService, "Supplier", supplierId);
+        
         ViewBag.SelectedSupplier = supplierId;
         ViewBag.SelectedStatus = paymentStatus ?? "All";
-        ViewBag.FromDate = fromDate ?? DateTime.Today;
-        ViewBag.ToDate = toDate ?? DateTime.Today;
+        ViewBag.FromDate = fromDate;
+        ViewBag.ToDate = toDate;
 
-        return View(grnList);
+        return View(pagedResult);
     }
 
     /// Shows form to make a payment for a GRN.
@@ -133,22 +122,24 @@ public class SupplierPaymentController : BaseController
             return RedirectToAction(nameof(PaymentsIndex));
         }
 
-        if (!grn.Party_ID.HasValue || grn.Party_ID.Value <= 0)
+        // Overpayment guard — use ShowMessage + redirect so the user lands back on the payment form
+        if (payment.Amount > grn.BalanceAmount)
         {
-            ModelState.AddModelError("", "Selected purchase is not linked to a supplier.");
-        }
-        else
-        {
-            payment.StockMain_ID = grn.StockMainID;
-            payment.Party_ID = grn.Party_ID.Value;
+            var encryptedId = grn.StockMainID.EncryptId();
+            ShowMessage(MessageType.Error, $"Payment amount ({payment.Amount:N2}) cannot exceed the outstanding balance ({grn.BalanceAmount:N2}).");
+            return RedirectToAction(nameof(MakePayment), new { stockMainId = encryptedId });
         }
 
-        ModelState.Remove("Party");
-        ModelState.Remove("StockMain");
-        ModelState.Remove("Account");
-        ModelState.Remove("Voucher");
-        ModelState.Remove("PaymentType");
-        ModelState.Remove("Reference");
+        if (!grn.Party_ID.HasValue || grn.Party_ID.Value <= 0)
+        {
+            ShowMessage(MessageType.Error, "Selected purchase is not linked to a supplier.");
+            return RedirectToAction(nameof(PaymentsIndex));
+        }
+
+        payment.StockMain_ID = grn.StockMainID;
+        payment.Party_ID = grn.Party_ID.Value;
+
+        CleanNavigationModelState("Party", "StockMain", "Account", "Voucher", "PaymentType", "Reference");
 
         if (ModelState.IsValid)
         {
@@ -218,12 +209,7 @@ public class SupplierPaymentController : BaseController
     [LinkedToPage("SupplierPayment", "PaymentsIndex")]
     public async Task<IActionResult> GetAccountsByMethod(string method)
     {
-        var accounts = await _accountService.GetAccountsByMethodAsync(method);
-        var result = accounts
-            .Select(a => new { id = a.AccountID, name = a.Name })
-            .ToList();
-
-        return Json(result);
+        return await GetAccountsByMethodAsync(_accountService, method);
     }
 
     /// Legacy alias for GetAccountsByMethod.
@@ -247,51 +233,6 @@ public class SupplierPaymentController : BaseController
         return await GetAccountsByType(method, typeId);
     }
 
-    /// Displays list of advance payments.
-    public async Task<IActionResult> AdvancePaymentsIndex()
-    {
-        var advancePayments = await _paymentService.GetAdvancePaymentsAsync();
-        return View(advancePayments);
-    }
-
-    /// Shows form to make an advance payment to a supplier.
-    public IActionResult AdvancePayment()
-    {
-        return View(new Payment
-        {
-            PaymentDate = DateTime.Now,
-            PaymentMethod = "Cash"
-        });
-    }
-
-    /// Processes an advance payment.
-    [HttpPost]
-    [ValidateAntiForgeryToken]
-    public async Task<IActionResult> AdvancePayment(Payment payment)
-    {
-        ModelState.Remove("Party");
-        ModelState.Remove("StockMain");
-        ModelState.Remove("Account");
-        ModelState.Remove("Voucher");
-        ModelState.Remove("PaymentType");
-        ModelState.Remove("Reference");
-
-        if (ModelState.IsValid)
-        {
-            try
-            {
-                await _paymentService.CreateAdvancePaymentAsync(payment, CurrentUserId);
-                ShowMessage(MessageType.Success, "Advance payment recorded successfully!");
-                return RedirectToAction(nameof(AdvancePaymentsIndex));
-            }
-            catch (Exception ex)
-            {
-                ModelState.AddModelError("", ex.Message);
-            }
-        }
-
-        return View(payment);
-    }
 
     /// Voids a supplier payment.
     [HttpPost]
@@ -339,181 +280,81 @@ public class SupplierPaymentController : BaseController
         grn.PaymentStatus = refreshedGrn.PaymentStatus;
     }
 
-    /// Displays a supplier ledger/statement.
+
+    /// Displays Supplier Reconciliation tool.
     [LinkedToPage("SupplierPayment", "PaymentsIndex")]
-    public async Task<IActionResult> SupplierLedger(int? supplierId, DateTime? fromDate, DateTime? toDate)
+    public async Task<IActionResult> SupplierReconciliation(int? supplierId)
     {
-        var parties = await _partyService.GetAllAsync();
-        ViewBag.Suppliers = new SelectList(
-            parties.Where(p => p.IsActive && (p.PartyType == "Supplier" || p.PartyType == "Both")),
-            "PartyID", "Name", supplierId
-        );
+        ViewBag.Suppliers = await GetPartySelectListAsync(_partyService, "Supplier", supplierId);
 
         ViewBag.SelectedSupplier = supplierId;
-        ViewBag.FromDate = fromDate;
-        ViewBag.ToDate = toDate ?? DateTime.Now;
 
         if (!supplierId.HasValue)
         {
-            ViewBag.LedgerEntries = new List<dynamic>();
-            ViewBag.SupplierName = "";
+            ViewBag.PendingGrns = new List<dynamic>();
+            ViewBag.AvailableCredits = new List<dynamic>();
             return View();
         }
 
-        var supplier = parties.FirstOrDefault(p => p.PartyID == supplierId.Value);
-        ViewBag.SupplierName = supplier?.Name ?? "Unknown";
+        var supplierGrns = await _paymentService.GetPendingGrnsAsync(supplierId.Value, false);
+        ViewBag.PendingGrns = supplierGrns;
 
-        var allGrns = await _purchaseService.GetAllAsync();
-        var supplierGrns = allGrns
-            .Where(g => g.Party_ID == supplierId.Value && g.Status != "Void")
+        var availableCredits = new List<dynamic>();
+
+
+        // 2. Supplier Credit Notes
+        var openCreditNotes = await _creditNoteService.GetOpenAsync(supplierId.Value);
+        var creditNotes = openCreditNotes
+            .Select(c => new {
+                IdType = "CreditNote",
+                Id = c.SupplierCreditNoteID.EncryptId(),
+                Reference = c.CreditNoteNo,
+                Date = c.CreditDate,
+                TotalAmount = c.TotalAmount,
+                AvailableAmount = c.BalanceAmount
+            })
             .ToList();
 
-        var allReturns = await _purchaseReturnService.GetAllAsync();
-        var supplierReturns = allReturns
-            .Where(r => r.Party_ID == supplierId.Value && r.Status != "Void")
-            .ToList();
+        availableCredits.AddRange(creditNotes);
 
-        var allPayments = await _paymentService.GetPaymentsByPartyAsync(supplierId.Value);
-        var supplierPayments = allPayments.Where(p => !p.IsVoided).ToList();
-
-        // Calculate opening balance if fromDate is specified
-        decimal openingBalance = supplier?.OpeningBalance ?? 0;
-        if (fromDate.HasValue)
-        {
-            decimal priorPurchases = supplierGrns.Where(g => g.TransactionDate < fromDate.Value).Sum(g => g.TotalAmount);
-            decimal priorReturns = supplierReturns.Where(r => r.TransactionDate < fromDate.Value).Sum(r => r.TotalAmount);
-            decimal priorPayments = supplierPayments.Where(p => p.PaymentDate < fromDate.Value).Sum(p => p.Amount);
-            
-            // For supplier: Purchases increase payable (Credit). Returns/Payments decrease payable (Debit).
-            // Opening Balance = Base Opening + Prior Purchases - Prior Returns - Prior Payments
-            openingBalance += priorPurchases - priorReturns - priorPayments;
-        }
-
-        // Build ledger entries for the period
-        var entries = new List<LedgerEntry>();
-
-        if (fromDate.HasValue || openingBalance != 0)
-        {
-            entries.Add(new LedgerEntry
-            {
-                Date = fromDate ?? DateTime.MinValue,
-                Reference = "Opening Balance",
-                Type = "-",
-                TypeBadge = "secondary",
-                Debit = 0,
-                Credit = 0,
-                Balance = openingBalance,
-                Remarks = "Balance carried forward",
-                EncryptedId = "",
-                Source = "OpeningBalance"
-            });
-        }
-
-        // GRNs → Credit (increase payable to supplier)
-        foreach (var grn in supplierGrns)
-        {
-            if (fromDate.HasValue && grn.TransactionDate < fromDate.Value) continue;
-            if (toDate.HasValue && grn.TransactionDate > toDate.Value.AddDays(1)) continue;
-
-            entries.Add(new LedgerEntry
-            {
-                Date = grn.TransactionDate,
-                Reference = grn.TransactionNo,
-                Type = "Purchase (GRN)",
-                TypeBadge = "primary",
-                Debit = 0,               // Changed: Purchases are Credit to Supplier Payable
-                Credit = grn.TotalAmount,
-                Remarks = grn.Remarks,
-                EncryptedId = grn.StockMainID.EncryptId(),
-                Source = "Purchase"
-            });
-        }
-
-        // Purchase Returns → Debit (reduces payable to supplier) 
-        foreach (var prtn in supplierReturns)
-        {
-            if (fromDate.HasValue && prtn.TransactionDate < fromDate.Value) continue;
-            if (toDate.HasValue && prtn.TransactionDate > toDate.Value.AddDays(1)) continue;
-
-            entries.Add(new LedgerEntry
-            {
-                Date = prtn.TransactionDate,
-                Reference = prtn.TransactionNo,
-                Type = "Purchase Return",
-                TypeBadge = "warning",
-                Debit = prtn.TotalAmount, // Returns reduce what we owe
-                Credit = 0,               
-                Remarks = prtn.Remarks,
-                EncryptedId = prtn.StockMainID.EncryptId(),
-                Source = "PurchaseReturn"
-            });
-        }
-
-        // Payments → Debit (reduces payable to supplier)
-        foreach (var payment in supplierPayments)
-        {
-            if (fromDate.HasValue && payment.PaymentDate < fromDate.Value) continue;
-            if (toDate.HasValue && payment.PaymentDate > toDate.Value.AddDays(1)) continue;
-
-            var payType = payment.StockMain_ID.HasValue ? "Payment" : "Advance Payment";
-            entries.Add(new LedgerEntry
-            {
-                Date = payment.PaymentDate,
-                Reference = payment.Reference ?? "-",
-                Type = payType,
-                TypeBadge = "success",
-                Debit = payment.Amount,  // Payments reduce what we owe
-                Credit = 0,              
-                Remarks = payment.Remarks,
-                EncryptedId = payment.PaymentID.EncryptId(),
-                Source = "Payment"
-            });
-        }
-
-        // Separate opening balance from period transactions so we sort them correctly
-        var openingEntry = entries.FirstOrDefault(e => e.Source == "OpeningBalance");
-        var periodEntries = entries.Where(e => e.Source != "OpeningBalance")
-                                   .OrderBy(e => e.Date)
-                                   .ThenBy(e => e.Reference)
-                                   .ToList();
-
-        // Calculate running balance using Payable Logic (Credit increases Payable, Debit reduces it)
-        decimal balance = openingBalance;
-        if (openingEntry != null)
-        {
-            openingEntry.Balance = balance;
-        }
-
-        foreach (var entry in periodEntries)
-        {
-            balance += entry.Credit - entry.Debit;
-            entry.Balance = balance;
-        }
-
-        var finalEntries = new List<LedgerEntry>();
-        if (openingEntry != null) finalEntries.Add(openingEntry);
-        finalEntries.AddRange(periodEntries);
-
-        ViewBag.LedgerEntries = finalEntries;
-        // Total Debit and Credit calculation for the period (excludes Opening Balance)
-        ViewBag.TotalDebit = periodEntries.Sum(e => e.Debit);
-        ViewBag.TotalCredit = periodEntries.Sum(e => e.Credit);
-        ViewBag.ClosingBalance = balance;
+        ViewBag.AvailableCredits = availableCredits.OrderBy(x => x.Date).ToList();
 
         return View();
     }
-}
 
-public class LedgerEntry
-{
-    public DateTime Date { get; set; }
-    public string Reference { get; set; } = "";
-    public string Type { get; set; } = "";
-    public string TypeBadge { get; set; } = "secondary";
-    public decimal Debit { get; set; }
-    public decimal Credit { get; set; }
-    public decimal Balance { get; set; }
-    public string? Remarks { get; set; }
-    public string? EncryptedId { get; set; }
-    public string? Source { get; set; }
+    [HttpPost]
+    [ValidateAntiForgeryToken]
+    [LinkedToPage("SupplierPayment", "PaymentsIndex")]
+    public async Task<IActionResult> ApplyCredit(string creditType, string creditId, string grnId, decimal amount)
+    {
+        try
+        {
+            int cId = Utility.DecryptId(creditId);
+            int gId = Utility.DecryptId(grnId);
+
+            if (cId == 0 || gId == 0)
+                throw new InvalidOperationException("Invalid IDs provided.");
+
+            if (creditType == "CreditNote")
+            {
+                await _creditNoteService.ApplyToGrnAsync(cId, gId, amount, CurrentUserId);
+                ShowMessage(MessageType.Success, "Credit Note applied successfully.");
+            }
+            else
+            {
+                throw new InvalidOperationException("Unknown credit type.");
+            }
+        }
+        catch (Exception ex)
+        {
+            ShowMessage(MessageType.Error, ex.Message);
+        }
+
+        // We redirect back to the page with the referrer to maintain the selected supplier
+        var referer = Request.Headers["Referer"].ToString();
+        if (!string.IsNullOrEmpty(referer))
+            return Redirect(referer);
+
+        return RedirectToAction(nameof(SupplierReconciliation));
+    }
 }

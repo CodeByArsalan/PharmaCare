@@ -1,7 +1,10 @@
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
+using Microsoft.AspNetCore.Mvc.Rendering;
 using PharmaCare.Application.Interfaces.Accounting;
+using PharmaCare.Application.Interfaces.Configuration;
 using PharmaCare.Application.Interfaces.Finance;
+using PharmaCare.Application.Interfaces.Transactions;
 using PharmaCare.Domain.Entities.Finance;
 using PharmaCare.Web.Filters;
 using PharmaCare.Web.Utilities;
@@ -12,28 +15,54 @@ public class CustomerPaymentController : BaseController
 {
     private readonly ICustomerPaymentService _customerPaymentService;
     private readonly IAccountService _accountService;
+    private readonly IPartyService _partyService;
+    private readonly ISaleService _saleService;
+    private readonly ISaleReturnService _saleReturnService;
 
     public CustomerPaymentController(
         ICustomerPaymentService customerPaymentService,
-        IAccountService accountService)
+        IAccountService accountService,
+        IPartyService partyService,
+        ISaleService saleService,
+        ISaleReturnService saleReturnService)
     {
         _customerPaymentService = customerPaymentService;
         _accountService = accountService;
+        _partyService = partyService;
+        _saleService = saleService;
+        _saleReturnService = saleReturnService;
     }
 
     /// Displays list of all customer receipts.
     [LinkedToPage("CustomerPayment", "ReceiptsIndex")]
-    public async Task<IActionResult> ReceiptsIndex()
+    public async Task<IActionResult> ReceiptsIndex(int? customerId, DateTime? fromDate, DateTime? toDate, int page = 1)
     {
-        var receipts = await _customerPaymentService.GetAllCustomerReceiptsAsync();
-        return View(receipts);
+        int pageSize = 15;
+        var pagedResult = await _customerPaymentService.GetPagedCustomerReceiptsAsync(customerId, fromDate, toDate, page, pageSize);
+
+        ViewBag.Customers = await GetPartySelectListAsync(_partyService, "Customer", customerId);
+        
+        ViewBag.SelectedCustomer = customerId;
+        ViewBag.FromDate = fromDate;
+        ViewBag.ToDate = toDate;
+
+        return View(pagedResult);
     }
 
     /// Shows pending sales for receipt collection.
-    public async Task<IActionResult> PendingSales()
+    public async Task<IActionResult> PendingSales(int? customerId, DateTime? fromDate, DateTime? toDate, string? status, int page = 1)
     {
-        var pendingSales = await _customerPaymentService.GetPendingSalesAsync();
-        return View(pendingSales);
+        int pageSize = 15;
+        var pagedResult = await _customerPaymentService.GetPagedPendingSalesAsync(customerId, fromDate, toDate, status, page, pageSize);
+
+        ViewBag.Customers = await GetPartySelectListAsync(_partyService, "Customer", customerId);
+        
+        ViewBag.SelectedCustomer = customerId;
+        ViewBag.SelectedStatus = status ?? "All";
+        ViewBag.FromDate = fromDate;
+        ViewBag.ToDate = toDate;
+
+        return View(pagedResult);
     }
 
     /// Shows form to receive payment for a sale.
@@ -79,13 +108,7 @@ public class CustomerPaymentController : BaseController
     [ValidateAntiForgeryToken]
     public async Task<IActionResult> ReceivePayment(Payment payment)
     {
-        // Remove validation for navigation properties
-        ModelState.Remove("Party");
-        ModelState.Remove("StockMain");
-        ModelState.Remove("Account");
-        ModelState.Remove("Voucher");
-        ModelState.Remove("PaymentType");
-        ModelState.Remove("Reference");
+        CleanNavigationModelState("Party", "StockMain", "Account", "Voucher", "PaymentType", "Reference");
 
         if (ModelState.IsValid)
         {
@@ -147,36 +170,32 @@ public class CustomerPaymentController : BaseController
         return Json(result);
     }
 
-    /// Gets accounts by type ID (AJAX).
-    [HttpGet]
-    public async Task<IActionResult> GetAccountsByType(int typeId)
-    {
-        var accounts = await _accountService.GetAllAsync();
-        var filteredAccounts = accounts
-            .Where(a => a.IsActive && a.AccountType_ID == typeId)
-            .Select(a => new { id = a.AccountID, name = a.Name })
-            .ToList();
-
-        return Json(filteredAccounts);
-    }
-
     /// Gets accounts by payment method (AJAX).
     [HttpGet]
-    public async Task<IActionResult> GetAccountsByPaymentMethod(string method)
+    [LinkedToPage("CustomerPayment", "ReceiptsIndex")]
+    public async Task<IActionResult> GetAccountsByMethod(string method)
     {
-        var accounts = await _accountService.GetAllAsync();
-        var isCash = string.Equals(method, "Cash", StringComparison.OrdinalIgnoreCase);
-        
-        // Use logic aligned with ComboboxRepository.GetCashBankAccounts
-        // type 1 = Cash, type 2 = Bank
-        var targetType = isCash ? 1 : 2;
+        return await GetAccountsByMethodAsync(_accountService, method);
+    }
 
-        var filteredAccounts = accounts
-            .Where(a => a.IsActive && a.AccountType_ID == targetType)
-            .Select(a => new { id = a.AccountID, name = a.Name })
-            .ToList();
+    /// Legacy alias or alternative parameters.
+    [HttpGet]
+    [LinkedToPage("CustomerPayment", "ReceiptsIndex")]
+    public async Task<IActionResult> GetAccountsByType(string method, int? typeId)
+    {
+        if (string.IsNullOrEmpty(method) && typeId.HasValue)
+        {
+            method = typeId == 1 ? "Cash" : "Bank";
+        }
+        return await GetAccountsByMethod(method ?? "Cash");
+    }
 
-        return Json(filteredAccounts);
+    /// Singular alias to handle potential typos in views.
+    [HttpGet]
+    [LinkedToPage("CustomerPayment", "ReceiptsIndex")]
+    public async Task<IActionResult> GetAccountByType(string method, int? typeId)
+    {
+        return await GetAccountsByType(method, typeId);
     }
 
     /// Displays list of all customer refunds.
@@ -298,12 +317,7 @@ public class CustomerPaymentController : BaseController
     [ValidateAntiForgeryToken]
     public async Task<IActionResult> Refund(Payment payment)
     {
-        ModelState.Remove("Party");
-        ModelState.Remove("StockMain");
-        ModelState.Remove("Account");
-        ModelState.Remove("Voucher");
-        ModelState.Remove("PaymentType");
-        ModelState.Remove("Reference");
+        CleanNavigationModelState("Party", "StockMain", "Account", "Voucher", "PaymentType", "Reference");
 
         if (ModelState.IsValid)
         {
@@ -326,4 +340,5 @@ public class CustomerPaymentController : BaseController
     }
 
     // private async Task LoadDropdownsAsync() { ... } // Removed
+
 }

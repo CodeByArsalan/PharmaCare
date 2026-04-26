@@ -70,4 +70,12 @@ public interface ICustomerPaymentService
     /// Gets reconciliation data for outstanding invoices and open credits.
     /// </summary>
     Task<CustomerReconciliationVM> GetCustomerReconciliationAsync(int? customerId = null);
+
+
+    Task<PharmaCare.Application.DTOs.PagedResult<StockMain>> GetPagedPendingSalesAsync(
+        int? customerId, DateTime? fromDate, DateTime? toDate, string? status, int page, int pageSize);
+
+
+    Task<PharmaCare.Application.DTOs.PagedResult<Payment>> GetPagedCustomerReceiptsAsync(
+        int? customerId, DateTime? fromDate, DateTime? toDate, int page, int pageSize);
 }

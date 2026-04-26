@@ -38,10 +38,18 @@ public class PurchaseController : BaseController
         _logger = logger;
     }
 
-    public async Task<IActionResult> PurchasesIndex()
+    public async Task<IActionResult> PurchasesIndex(int? supplierId, DateTime? fromDate, DateTime? toDate, string? status, int page = 1)
     {
-        var purchases = await _purchaseService.GetAllAsync();
-        return View(purchases);
+        int pageSize = 15;
+        var pagedResult = await _purchaseService.GetPagedAsync(supplierId, fromDate, toDate, status, page, pageSize);
+
+        ViewBag.Suppliers = await GetPartySelectListAsync(_partyService, "Supplier", supplierId);
+        ViewBag.SelectedSupplier = supplierId;
+        ViewBag.FromDate = fromDate;
+        ViewBag.ToDate = toDate;
+        ViewBag.SelectedStatus = status;
+
+        return View(pagedResult);
     }
 
     public IActionResult AddPurchase()
@@ -58,6 +66,7 @@ public class PurchaseController : BaseController
     [ValidateAntiForgeryToken]
     public async Task<IActionResult> AddPurchase(PurchaseCreateRequest request, int? PaymentAccountId, decimal transferredAdvanceAmount = 0)
     {
+        CleanNavigationModelState("Party", "StockDetails", "PurchaseOrders");
         if (!request.Party_ID.HasValue || request.Party_ID.Value <= 0)
         {
             ShowMessage(MessageType.Error, "Supplier is required.");
@@ -136,6 +145,7 @@ public class PurchaseController : BaseController
     [ValidateAntiForgeryToken]
     public async Task<IActionResult> EditPurchase(PurchaseCreateRequest request)
     {
+        CleanNavigationModelState("Party", "StockDetails", "PurchaseOrders");
         if (request.StockMainID <= 0)
         {
             ShowMessage(MessageType.Error, "Invalid Purchase ID.");

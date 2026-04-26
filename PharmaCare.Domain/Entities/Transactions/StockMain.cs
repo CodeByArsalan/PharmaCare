@@ -56,15 +56,11 @@ public class StockMain : BaseEntity
     public decimal BalanceAmount { get; set; }
 
     // ========== STATUS ==========
-    /// <summary>
-    /// Draft, Approved, Void
-    /// </summary>
+    /// <summary>Draft, Approved, Void</summary>
     [StringLength(20)]
     public string Status { get; set; } = TransactionStatus.Draft.ToString();
 
-    /// <summary>
-    /// Unpaid, Partial, Paid
-    /// </summary>
+    /// <summary>Unpaid, Partial, Paid</summary>
     [StringLength(20)]
     public string PaymentStatus { get; set; } = PaymentStatusEnum.Unpaid.ToString();
 
@@ -74,18 +70,23 @@ public class StockMain : BaseEntity
     public Voucher? Voucher { get; set; }
 
     // ========== REFERENCE (FOR RETURNS) ==========
-    /// <summary>
-    /// Links to original transaction (for returns)
-    /// </summary>
+    /// <summary>Links to original transaction (for returns)</summary>
     [ForeignKey("ReferenceStockMain")]
     public int? ReferenceStockMain_ID { get; set; }
     public StockMain? ReferenceStockMain { get; set; }
 
-
-
     // ========== REMARKS ==========
     [StringLength(500)]
     public string? Remarks { get; set; }
+
+    // ========== STOCK ADJUSTMENT ==========
+    /// <summary>Damaged | Expired | Lost | Bonus | OpeningCorrection | Other</summary>
+    [StringLength(50)]
+    public string? AdjustmentReason { get; set; }
+
+    /// <summary>Write-off (reduce stock) | Write-in (increase stock)</summary>
+    [StringLength(20)]
+    public string? AdjustmentType { get; set; }
 
     // ========== VOID TRACKING ==========
     [StringLength(500)]

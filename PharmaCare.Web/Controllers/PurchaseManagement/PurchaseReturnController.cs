@@ -26,10 +26,20 @@ public class PurchaseReturnController : BaseController
         _productService = productService;
     }
 
-    public async Task<IActionResult> PurchaseReturnsIndex()
+    public async Task<IActionResult> PurchaseReturnsIndex(int? supplierId, DateTime? fromDate, DateTime? toDate, string? status, int page = 1)
     {
-        var returns = await _purchaseReturnService.GetAllAsync();
-        return View(returns);
+        int pageSize = 15;
+        var pagedResult = await _purchaseReturnService.GetPagedAsync(supplierId, fromDate, toDate, status, page, pageSize);
+
+        var suppliers = await _partyService.GetAllAsync();
+        ViewBag.Suppliers = new SelectList(suppliers.Where(p => p.IsActive && (p.PartyType == "Supplier" || p.PartyType == "Both")), "PartyID", "Name", supplierId);
+        
+        ViewBag.SelectedSupplier = supplierId;
+        ViewBag.SelectedStatus = status ?? "All";
+        ViewBag.FromDate = fromDate;
+        ViewBag.ToDate = toDate;
+
+        return View(pagedResult);
     }
 
     public  IActionResult AddPurchaseReturn()

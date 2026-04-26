@@ -1,4 +1,4 @@
-@model IEnumerable<PharmaCare.Domain.Entities.Finance.Expense>
+@model PharmaCare.Application.DTOs.PagedResult<PharmaCare.Domain.Entities.Finance.Expense>
 @using PharmaCare.Web.Utilities
 @{
     ViewData["Title"] = "Expense Management";
@@ -20,6 +20,30 @@
     </div>
 </div>
 
+<div class="card mb-4 shadow-sm border-0">
+    <div class="card-body bg-light">
+        <form method="get" asp-action="ExpensesIndex" class="row gx-3 gy-2 align-items-end">
+            <div class="col-md-3">
+                <label class="form-label small fw-bold text-muted">Category</label>
+                <select name="categoryId" class="form-select select2" asp-items="ViewBag.Categories">
+                    <option value="">-- All Categories --</option>
+                </select>
+            </div>
+            <div class="col-md-3">
+                <label class="form-label small fw-bold text-muted">From Date</label>
+                <input type="date" name="fromDate" class="form-control" value="@(ViewBag.FromDate != null ? ((DateTime)ViewBag.FromDate).ToString("yyyy-MM-dd") : "")" />
+            </div>
+            <div class="col-md-3">
+                <label class="form-label small fw-bold text-muted">To Date</label>
+                <input type="date" name="toDate" class="form-control" value="@(ViewBag.ToDate != null ? ((DateTime)ViewBag.ToDate).ToString("yyyy-MM-dd") : "")" />
+            </div>
+            <div class="col-md-3">
+                <button type="submit" class="btn btn-primary w-100"><i class="fas fa-search"></i> Search</button>
+            </div>
+        </form>
+    </div>
+</div>
+
 <div class="card">
     <div class="card-body p-0">
         <table class="table mb-0" id="expensesTable">
@@ -36,9 +60,9 @@
                 </tr>
             </thead>
             <tbody>
-                @if (Model.Any())
+                @if (Model.Items.Any())
                 {
-                    @foreach (var item in Model)
+                    @foreach (var item in Model.Items)
                     {
                         var isVoided = item.Voucher != null && item.Voucher.IsReversed;
                         <tr class="@(isVoided ? "table-danger opacity-75" : "")">
@@ -49,49 +73,84 @@
                             <td>@item.SourceAccount?.Name</td>
                             <td class="text-end fw-bold">@item.Amount.ToString("N2")</td>
                             <td>
-                                @if (isVoided)
+                                @if (item.Status == PharmaCare.Domain.Enums.TransactionStatus.Void)
                                 {
-                                    <span class="badge bg-danger">Voided</span>
+                                    <span class="badge bg-danger cursor-pointer" data-bs-toggle="tooltip" title="Reason: @(item.VoidReason ?? "No reason provided")">Voided</span>
+                                }
+                                else if (item.Status == PharmaCare.Domain.Enums.TransactionStatus.Approved)
+                                {
+                                    <span class="badge bg-success">Approved</span>
                                 }
                                 else
                                 {
-                                    <span class="badge bg-success">Active</span>
+                                    <span class="badge bg-warning text-dark">Draft</span>
                                 }
                             </td>
                             <td class="text-end">
-                                <a asp-action="ViewExpense" asp-route-id="@Utility.EncryptId(item.ExpenseID)"
-                                   class="btn btn-sm btn-outline-primary" title="View">
-                                    <i class="fas fa-eye"></i>
-                                </a>
-                                @if (!isVoided)
-                                {
-                                    <button type="button" class="btn btn-sm btn-outline-danger btn-void"
-                                            data-id="@Utility.EncryptId(item.ExpenseID)"
-                                            data-desc="@(item.Description ?? item.ExpenseCategory?.Name)" title="Void">
-                                        <i class="fas fa-ban"></i>
-                                    </button>
-                                }
+                                <div class="btn-group">
+                                    <a asp-action="ViewExpense" asp-route-id="@Utility.EncryptId(item.ExpenseID)"
+                                       class="btn btn-sm btn-outline-primary" title="View">
+                                        <i class="fas fa-eye"></i>
+                                    </a>
+                                    
+                                    @if (item.Status == PharmaCare.Domain.Enums.TransactionStatus.Draft)
+                                    {
+                                        <button type="button" class="btn btn-sm btn-outline-success btn-approve"
+                                                data-id="@Utility.EncryptId(item.ExpenseID)"
+                                                data-desc="@(item.Description ?? item.ExpenseCategory?.Name)" title="Approve">
+                                            <i class="fas fa-check"></i>
+                                        </button>
+                                    }
+
+                                    @if (item.Status != PharmaCare.Domain.Enums.TransactionStatus.Void)
+                                    {
+                                        <button type="button" class="btn btn-sm btn-outline-danger btn-void"
+                                                data-id="@Utility.EncryptId(item.ExpenseID)"
+                                                data-desc="@(item.Description ?? item.ExpenseCategory?.Name)" title="Void">
+                                            <i class="fas fa-ban"></i>
+                                        </button>
+                                    }
+                                </div>
                             </td>
                         </tr>
                     }
                 }
-                else
-                {
-                    <tr>
-                        <td colspan="8" class="text-center py-4">
-                            <div class="empty-state">
-                                <i class="fas fa-file-invoice-dollar"></i>
-                                <p class="mb-0">No expenses recorded yet. Click "Record Expense" to add one.</p>
-                            </div>
-                        </td>
-                    </tr>
-                }
             </tbody>
         </table>
+        @if (Model.TotalPages > 1)
+        {
+            <div class="card-footer bg-theme-footer py-3 mt-4 border-top">
+                <div class="d-flex align-items-center justify-content-between">
+                    <div class="text-muted small">
+                        Showing <strong>@(((Model.CurrentPage - 1) * Model.PageSize) + 1)</strong> to 
+                        <strong>@(Math.Min(Model.CurrentPage * Model.PageSize, Model.TotalCount))</strong> of 
+                        <strong>@Model.TotalCount</strong> entries
+                    </div>
+                    <nav>
+                        <ul class="pagination pagination-sm mb-0">
+                            <li class="page-item @(Model.CurrentPage == 1 ? "disabled" : "")">
+                                <a class="page-link" href="?page=@(Model.CurrentPage - 1)&categoryId=@ViewBag.SelectedCategory&fromDate=@(ViewBag.FromDate != null ? ((DateTime)ViewBag.FromDate).ToString("yyyy-MM-dd") : "")&toDate=@(ViewBag.ToDate != null ? ((DateTime)ViewBag.ToDate).ToString("yyyy-MM-dd") : "")">Previous</a>
+                            </li>
+                            <li class="page-item disabled">
+                                <span class="page-link">Page @Model.CurrentPage of @Model.TotalPages</span>
+                            </li>
+                            <li class="page-item @(Model.CurrentPage == Model.TotalPages ? "disabled" : "")">
+                                <a class="page-link" href="?page=@(Model.CurrentPage + 1)&categoryId=@ViewBag.SelectedCategory&fromDate=@(ViewBag.FromDate != null ? ((DateTime)ViewBag.FromDate).ToString("yyyy-MM-dd") : "")&toDate=@(ViewBag.ToDate != null ? ((DateTime)ViewBag.ToDate).ToString("yyyy-MM-dd") : "")">Next</a>
+                            </li>
+                        </ul>
+                    </nav>
+                </div>
+            </div>
+        }
     </div>
 </div>
 
-<!-- Hidden form for void -->
+<!-- Hidden forms -->
+<form id="approveForm" method="post" asp-action="Approve" style="display: none;">
+    @Html.AntiForgeryToken()
+    <input type="hidden" name="id" id="approveId" />
+</form>
+
 <form id="voidForm" method="post" asp-action="Void" style="display: none;">
     @Html.AntiForgeryToken()
     <input type="hidden" name="id" id="voidId" />
@@ -100,33 +159,73 @@
 
 @section Scripts {
     <script>
-        document.querySelectorAll('.btn-void').forEach(function (btn) {
-            btn.addEventListener('click', function () {
-                const id = this.getAttribute('data-id');
-                const desc = this.getAttribute('data-desc');
+        $(document).ready(function() {
+            $('.select2').select2({ theme: 'bootstrap-5' });
 
-                Swal.fire({
-                    title: 'Void Expense?',
-                    text: `Are you sure you want to void "${desc}"?`,
-                    input: 'textarea',
-                    inputPlaceholder: 'Enter reason for voiding...',
-                    inputValidator: (value) => {
-                        if (!value) return 'Void reason is required.';
-                    },
-                    icon: 'warning',
-                    showCancelButton: true,
-                    confirmButtonColor: '#dc2626',
-                    cancelButtonColor: '#64748b',
-                    confirmButtonText: 'Yes, void it!',
-                    cancelButtonText: 'Cancel',
-                    background: 'var(--bg-card)',
-                    color: 'var(--text-primary)'
-                }).then((result) => {
-                    if (result.isConfirmed) {
-                        document.getElementById('voidId').value = id;
-                        document.getElementById('voidReason').value = result.value;
-                        document.getElementById('voidForm').submit();
-                    }
+            if (!$.fn.DataTable.isDataTable('#expensesTable')) {
+                $('#expensesTable').DataTable({
+                    order: [[0, 'desc']],
+                    paging: false,
+                    info: false,
+                    searching: false
+                });
+            }
+
+            // Approve Handler
+            document.querySelectorAll('.btn-approve').forEach(function (btn) {
+                btn.addEventListener('click', function () {
+                    const id = this.getAttribute('data-id');
+                    const desc = this.getAttribute('data-desc');
+
+                    Swal.fire({
+                        title: 'Approve Expense?',
+                        text: `Are you sure you want to approve "${desc}" and post it to accounting?`,
+                        icon: 'question',
+                        showCancelButton: true,
+                        confirmButtonColor: '#10b981',
+                        cancelButtonColor: '#64748b',
+                        confirmButtonText: 'Yes, approve it!',
+                        cancelButtonText: 'Cancel',
+                        background: 'var(--bg-card)',
+                        color: 'var(--text-primary)'
+                    }).then((result) => {
+                        if (result.isConfirmed) {
+                            document.getElementById('approveId').value = id;
+                            document.getElementById('approveForm').submit();
+                        }
+                    });
+                });
+            });
+
+            // Void Handler
+            document.querySelectorAll('.btn-void').forEach(function (btn) {
+                btn.addEventListener('click', function () {
+                    const id = this.getAttribute('data-id');
+                    const desc = this.getAttribute('data-desc');
+
+                    Swal.fire({
+                        title: 'Void Expense?',
+                        text: `Are you sure you want to void "${desc}"?`,
+                        input: 'textarea',
+                        inputPlaceholder: 'Enter reason for voiding...',
+                        inputValidator: (value) => {
+                            if (!value) return 'Void reason is required.';
+                        },
+                        icon: 'warning',
+                        showCancelButton: true,
+                        confirmButtonColor: '#dc2626',
+                        cancelButtonColor: '#64748b',
+                        confirmButtonText: 'Yes, void it!',
+                        cancelButtonText: 'Cancel',
+                        background: 'var(--bg-card)',
+                        color: 'var(--text-primary)'
+                    }).then((result) => {
+                        if (result.isConfirmed) {
+                            document.getElementById('voidId').value = id;
+                            document.getElementById('voidReason').value = result.value;
+                            document.getElementById('voidForm').submit();
+                        }
+                    });
                 });
             });
         });

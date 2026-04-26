@@ -58,7 +58,7 @@
                             <td>
                                 @if (refund.IsVoided)
                                 {
-                                    <span class="badge bg-danger">Voided</span>
+                                    <span class="badge bg-danger cursor-pointer" data-bs-toggle="tooltip" title="Reason: @(refund.VoidReason ?? "No reason provided")">Voided</span>
                                 }
                                 else
                                 {

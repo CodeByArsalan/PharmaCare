@@ -2,7 +2,11 @@ using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using PharmaCare.Application.DTOs.Security;
 using PharmaCare.Application.Interfaces;
+using PharmaCare.Application.Interfaces.Configuration;
 using PharmaCare.Web.Filters;
+using PharmaCare.Web.Utilities;
+using Microsoft.AspNetCore.Mvc.Rendering;
+using PharmaCare.Application.Interfaces.Accounting;
 
 namespace PharmaCare.Web.Controllers;
 
@@ -72,6 +76,40 @@ public abstract class BaseController : Controller
         TempData["ToastMessage"] = message;
         ViewData["ToastType"] = type.ToString().ToLower();
         ViewData["ToastMessage"] = message;
+    }
+
+    /// <summary>
+    /// Removes standard navigation properties from ModelState to avoid validation errors for entities.
+    /// </summary>
+    protected void CleanNavigationModelState(params string[] properties)
+    {
+        foreach (var prop in properties)
+        {
+            ModelState.Remove(prop);
+        }
+    }
+
+    /// <summary>
+    /// Gets a SelectList for parties (Suppliers, Customers, or Both).
+    /// </summary>
+    protected async Task<SelectList> GetPartySelectListAsync(IPartyService partyService, string partyType, int? selectedId = null)
+    {
+        var parties = await partyService.GetAllAsync();
+        var filtered = parties.Where(p => p.IsActive && (p.PartyType == partyType || p.PartyType == "Both"));
+        return new SelectList(filtered, "PartyID", "Name", selectedId);
+    }
+
+    /// <summary>
+    /// Common logic to fetch accounts based on payment method.
+    /// </summary>
+    protected async Task<IActionResult> GetAccountsByMethodAsync(IAccountService accountService, string method)
+    {
+        var accounts = await accountService.GetAccountsByMethodAsync(method);
+        var result = accounts
+            .Select(a => new { id = a.AccountID, name = a.Name })
+            .ToList();
+
+        return Json(result);
     }
 }
 

@@ -1,0 +1,161 @@
+@using PharmaCare.Web.Utilities
+@model PharmaCare.Domain.Entities.Transactions.StockMain
+@{
+    ViewData["Title"] = $"Stock Adjustment — {Model.TransactionNo}";
+}
+
+<div class="page-header d-flex justify-content-between align-items-center mb-4">
+    <h4 class="page-title">
+        <i class="fas fa-balance-scale"></i> @Model.TransactionNo
+        <span class="badge bg-@(Model.Status == "Approved" ? "success" : "danger") ms-2">@Model.Status</span>
+    </h4>
+    <a asp-action="AdjustmentIndex" class="btn btn-outline-secondary">
+        <i class="fas fa-arrow-left me-2"></i>Back to List
+    </a>
+</div>
+
+<div class="row g-4">
+    <div class="col-md-8">
+        <div class="card h-100">
+            <div class="card-header"><h6 class="mb-0">Adjustment Details</h6></div>
+            <div class="card-body">
+                <dl class="row mb-0">
+                    <dt class="col-sm-3">Reference No</dt>
+                    <dd class="col-sm-9"><strong>@Model.TransactionNo</strong></dd>
+                    
+                    <dt class="col-sm-3">Date</dt>
+                    <dd class="col-sm-9">@Model.TransactionDate.ToString("dd/MM/yyyy")</dd>
+                    
+                    <dt class="col-sm-3">Type</dt>
+                    <dd class="col-sm-9">
+                        @if (Model.AdjustmentType == "Write-in")
+                        {
+                            <span class="text-success"><i class="fas fa-arrow-up me-1"></i> Write-in (Increase Stock)</span>
+                        }
+                        else
+                        {
+                            <span class="text-danger"><i class="fas fa-arrow-down me-1"></i> Write-off (Decrease Stock)</span>
+                        }
+                    </dd>
+
+                    <dt class="col-sm-3">Reason</dt>
+                    <dd class="col-sm-9">@Model.AdjustmentReason</dd>
+                    
+                    <dt class="col-sm-3">Total Value</dt>
+                    <dd class="col-sm-9 fw-bold">@Model.TotalAmount.ToString("N2") PKR</dd>
+
+                    <dt class="col-sm-3">Remarks</dt>
+                    <dd class="col-sm-9 text-muted">@(Model.Remarks ?? "—")</dd>
+
+                    @if (Model.Status == "Void")
+                    {
+                        <dt class="col-sm-3 text-danger mt-2">Void Reason</dt>
+                        <dd class="col-sm-9 text-danger mt-2"><strong>@Model.VoidReason</strong></dd>
+                        
+                        <dt class="col-sm-3 text-danger">Voided At</dt>
+                        <dd class="col-sm-9 text-danger">@Model.VoidedAt?.ToString("dd/MM/yyyy HH:mm")</dd>
+                    }
+                </dl>
+            </div>
+        </div>
+    </div>
+
+    @if (Model.Voucher != null)
+    {
+        <div class="col-md-4">
+            <div class="card h-100">
+                <div class="card-header"><h6 class="mb-0">Accounting Voucher</h6></div>
+                <div class="card-body">
+                    <p class="mb-1 text-muted small">Voucher No: <strong>@Model.Voucher.VoucherNo</strong></p>
+                    <p class="mb-2 text-muted small">Status: @Model.Voucher.Status</p>
+                    <hr />
+                    <ul class="list-unstyled small mb-0">
+                        @foreach (var detail in Model.Voucher.VoucherDetails.OrderByDescending(d => d.DebitAmount))
+                        {
+                            <li class="mb-2 border-bottom pb-1">
+                                <div class="fw-bold">@detail.Account?.Name</div>
+                                <div class="d-flex justify-content-between text-muted">
+                                    <span>DR: @detail.DebitAmount.ToString("N2")</span>
+                                    <span>CR: @detail.CreditAmount.ToString("N2")</span>
+                                </div>
+                            </li>
+                        }
+                    </ul>
+                </div>
+            </div>
+        </div>
+    }
+</div>
+
+<div class="card mt-4">
+    <div class="card-header"><h6 class="mb-0">Adjusted Products</h6></div>
+    <div class="card-body p-0">
+        <div class="table-responsive">
+            <table class="table table-hover mb-0">
+                <thead class="table-light">
+                    <tr>
+                        <th style="width:50px">#</th>
+                        <th>Product</th>
+                        <th class="text-end">Quantity Adjusted</th>
+                        <th class="text-end">Line Cost (PKR)</th>
+                        <th class="text-end">Line Total (PKR)</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    @{ int sNo = 1; }
+                    @foreach (var detail in Model.StockDetails)
+                    {
+                        <tr>
+                            <td>@(sNo++)</td>
+                            <td><strong>@detail.Product?.Name</strong></td>
+                            <td class="text-end fw-bold">@detail.Quantity</td>
+                            <td class="text-end text-muted">@detail.LineCost.ToString("N2")</td>
+                            <td class="text-end">@detail.LineTotal.ToString("N2")</td>
+                        </tr>
+                    }
+                </tbody>
+                <tfoot class="table-light fw-bold">
+                    <tr>
+                        <td colspan="4" class="text-end">Grand Total:</td>
+                        <td class="text-end">@Model.TotalAmount.ToString("N2")</td>
+                    </tr>
+                </tfoot>
+            </table>
+        </div>
+    </div>
+</div>
+
+@if (Model.Status == "Approved")
+{
+    <div class="mt-4 text-end">
+        <button type="button" class="btn btn-outline-danger px-4" data-bs-toggle="modal" data-bs-target="#voidModal">
+            <i class="fas fa-ban me-2"></i>Void Adjustment
+        </button>
+    </div>
+
+    <!-- Void Modal -->
+    <div class="modal fade" id="voidModal" tabindex="-1">
+        <div class="modal-dialog">
+            <div class="modal-content">
+                <form asp-action="Void" method="post">
+                    <input type="hidden" name="id" value="@Model.StockMainID.EncryptId()" />
+                    <div class="modal-header">
+                        <h5 class="modal-title text-danger"><i class="fas fa-ban me-2"></i>Void Stock Adjustment</h5>
+                        <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+                    </div>
+                    <div class="modal-body">
+                        <p>This will void <strong>@Model.TransactionNo</strong> and reverse all stock and accounting entries.</p>
+                        <div class="mb-3">
+                            <label class="form-label">Void Reason <span class="text-danger">*</span></label>
+                            <textarea name="voidReason" class="form-control" rows="2" required placeholder="Enter reason..."></textarea>
+                        </div>
+                    </div>
+                    <div class="modal-footer">
+                        <button type="button" class="btn btn-outline-secondary" data-bs-dismiss="modal">Cancel</button>
+                        <button type="submit" class="btn btn-danger"><i class="fas fa-ban me-2"></i>Void</button>
+                    </div>
+                </form>
+            </div>
+        </div>
+    </div>
+}

@@ -1,5 +1,6 @@
 using Microsoft.EntityFrameworkCore;
 using PharmaCare.Application.Interfaces;
+using PharmaCare.Application.Interfaces.Accounting;
 using PharmaCare.Application.Interfaces.Transactions;
 using PharmaCare.Domain.Entities.Accounting;
 using PharmaCare.Domain.Entities.Configuration;
@@ -31,8 +32,9 @@ public class PurchaseReturnService : TransactionServiceBase, IPurchaseReturnServ
         IRepository<VoucherType> voucherTypeRepository,
         IRepository<Party> partyRepository,
         IRepository<Product> productRepository,
-        IUnitOfWork unitOfWork)
-        : base(stockMainRepository, voucherRepository, unitOfWork)
+        IUnitOfWork unitOfWork,
+        IFinancialPeriodService financialPeriodService)
+        : base(stockMainRepository, voucherRepository, unitOfWork, financialPeriodService)
     {
         _transactionTypeRepository = transactionTypeRepository;
         _voucherTypeRepository = voucherTypeRepository;
@@ -53,6 +55,47 @@ public class PurchaseReturnService : TransactionServiceBase, IPurchaseReturnServ
             .ToListAsync();
     }
 
+    public async Task<PharmaCare.Application.DTOs.PagedResult<StockMain>> GetPagedAsync(
+        int? partyId, DateTime? from, DateTime? to, string? status, int page, int pageSize)
+    {
+        var query = _stockMainRepository.Query()
+            .AsNoTracking()
+            .Include(s => s.TransactionType)
+            .Include(s => s.Party)
+            .Include(s => s.ReferenceStockMain)
+            .Include(s => s.Voucher)
+            .Where(s => s.TransactionType!.Code == TRANSACTION_TYPE_CODE);
+
+        if (partyId.HasValue)
+            query = query.Where(s => s.Party_ID == partyId.Value);
+
+        if (from.HasValue)
+            query = query.Where(s => s.TransactionDate >= from.Value.Date);
+
+        if (to.HasValue)
+            query = query.Where(s => s.TransactionDate <= to.Value.Date.AddDays(1).AddTicks(-1));
+
+        if (!string.IsNullOrEmpty(status) && status != "All")
+            query = query.Where(s => s.Status == status);
+
+        int totalCount = await query.CountAsync();
+
+        var items = await query
+            .OrderByDescending(s => s.TransactionDate)
+            .ThenByDescending(s => s.StockMainID)
+            .Skip((page - 1) * pageSize)
+            .Take(pageSize)
+            .ToListAsync();
+
+        return new PharmaCare.Application.DTOs.PagedResult<StockMain>
+        {
+            Items = items,
+            TotalCount = totalCount,
+            CurrentPage = page,
+            PageSize = pageSize
+        };
+    }
+
     public async Task<StockMain?> GetByIdAsync(int id)
     {
         return await _stockMainRepository.Query()
@@ -68,6 +111,7 @@ public class PurchaseReturnService : TransactionServiceBase, IPurchaseReturnServ
 
     public async Task<StockMain> CreateAsync(StockMain purchaseReturn, int userId)
     {
+        await ValidatePeriodAsync(purchaseReturn.TransactionDate);
         // Get the PRTN transaction type
         var transactionType = await _transactionTypeRepository.Query()
             .FirstOrDefaultAsync(t => t.Code == TRANSACTION_TYPE_CODE);
@@ -305,6 +349,8 @@ public class PurchaseReturnService : TransactionServiceBase, IPurchaseReturnServ
 
         if (purchaseReturn.Status == "Void")
             return false;
+
+        await ValidatePeriodAsync(purchaseReturn.TransactionDate);
 
         purchaseReturn.Status = "Void";
         purchaseReturn.VoidReason = reason;

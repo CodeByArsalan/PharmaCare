@@ -16,7 +16,7 @@
     <div class="card-body">
         <div class="table-responsive">
             <table class="table table-hover" id="vouchersTable">
-                <thead class="table-dark">
+                <thead class="bg-theme-header">
                     <tr>
                         <th>Date</th>
                         <th>Voucher No</th>
@@ -54,7 +54,7 @@
                                 @if (item.Status == "Posted" && item.ReversedByVoucher_ID == null && item.ReversesVoucher_ID == null)
                                 {
                                     <button type="button" class="btn btn-sm btn-outline-danger" 
-                                            onclick="openVoidModal(@item.VoucherID, '@item.VoucherNo')">
+                                            onclick="openVoidModal('@PharmaCare.Web.Utilities.Utility.EncryptId(item.VoucherID)', '@item.VoucherNo')">
                                         <i class="fas fa-ban"></i> Void
                                     </button>
                                 }

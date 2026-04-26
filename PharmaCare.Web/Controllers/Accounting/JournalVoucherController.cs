@@ -70,8 +70,7 @@ public class JournalVoucherController : BaseController
     [LinkedToPage("JournalVoucher", "JournalVoucherIndex")]
     public async Task<IActionResult> ReverseJournalVoucher(string id, string voidReason)
     {
-        //int voucherId = Utility.DecryptId(id);
-        int voucherId = id.ToInt32();
+        int voucherId = Utility.DecryptId(id);
         if (voucherId == 0)
         {
             ShowMessage(MessageType.Error, "Invalid Voucher ID.");
@@ -121,7 +120,7 @@ public class JournalVoucherController : BaseController
              ModelState.AddModelError("", "At least one voucher detail row is required.");
         }
 
-        if (ModelState.IsValid)
+        if (ModelState.IsValid && vm.VoucherDetails != null)
         {
             try
             {
@@ -133,7 +132,9 @@ public class JournalVoucherController : BaseController
                     Narration = vm.Narration,
                     TotalDebit = vm.TotalDebit,
                     TotalCredit = vm.TotalCredit,
-                    VoucherDetails = vm.VoucherDetails.Select(d => new Application.DTOs.Transactions.JournalVoucherDetailDto 
+                    VoucherDetails = vm.VoucherDetails
+                        .Where(d => d != null)
+                        .Select(d => new Application.DTOs.Transactions.JournalVoucherDetailDto 
                     {
                         Account_ID = d.Account_ID,
                         DebitAmount = d.DebitAmount,
