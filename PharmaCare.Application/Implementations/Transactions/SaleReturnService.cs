@@ -138,6 +138,7 @@ public class SaleReturnService : TransactionServiceBase, ISaleReturnService
             // Server-side quantity validation against the reference sale
             await ValidateReturnQuantitiesAsync(saleReturn);
             await PopulateMissingLineCostsFromReferenceSaleAsync(saleReturn);
+            saleReturn.ReferenceStockMain = originalSale; // Ensure reference is available for price enforcement
             NormalizeReturnLines(saleReturn);
 
             // 2. Prepare StockMain
@@ -501,6 +502,18 @@ public class SaleReturnService : TransactionServiceBase, ISaleReturnService
             if (detail.UnitPrice < 0 || detail.CostPrice < 0)
             {
                 throw new InvalidOperationException("Unit and cost prices cannot be negative.");
+            }
+
+            // Price Enforcement: Use original sale price if available
+            if (saleReturn.ReferenceStockMain != null)
+            {
+                var originalDetail = saleReturn.ReferenceStockMain.StockDetails
+                    .FirstOrDefault(d => d.Product_ID == detail.Product_ID);
+                
+                if (originalDetail != null)
+                {
+                    detail.UnitPrice = originalDetail.UnitPrice;
+                }
             }
 
             detail.DiscountPercent = 0;

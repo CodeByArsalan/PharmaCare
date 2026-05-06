@@ -96,4 +96,8 @@ public class StockMain : BaseEntity
 
     // ========== NAVIGATION ==========
     public ICollection<StockDetail> StockDetails { get; set; } = new List<StockDetail>();
+
+    // ========== CONCURRENCY ==========
+    [Timestamp]
+    public byte[] RowVersion { get; set; } = Array.Empty<byte>();
 }

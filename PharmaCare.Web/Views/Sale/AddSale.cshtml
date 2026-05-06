@@ -552,6 +552,11 @@
             document.getElementById('lineItemsBody').style.opacity = '0.5';
             try {
                 const response = await fetch(url);
+                if (!response.ok) {
+                    const errorText = await response.text();
+                    console.error('Server error on GetProducts:', response.status, errorText);
+                    throw new Error(`Server returned ${response.status}: ${errorText}`);
+                }
                 products = await response.json();
                 
                 // Update prices in existing rows

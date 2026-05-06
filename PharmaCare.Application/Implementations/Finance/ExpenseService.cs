@@ -153,6 +153,9 @@ public class ExpenseService : IExpenseService
             if (expense.Amount <= 0)
                 throw new InvalidOperationException("Expense amount must be greater than zero.");
 
+            if (expense.Amount > 100000000) // 100 Million limit
+                throw new InvalidOperationException("Expense amount exceeds sanity limit (100 Million).");
+
             // Set audit fields
             expense.CreatedAt = DateTime.Now;
             expense.CreatedBy = userId;

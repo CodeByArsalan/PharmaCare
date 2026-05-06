@@ -122,6 +122,11 @@ public abstract class TransactionServiceBase
         {
             stockMain.DiscountAmount = Math.Round(stockMain.SubTotal * stockMain.DiscountPercent / 100, 2);
         }
+        else
+        {
+            // Reset discount amount if percent is 0 to prevent spoofing
+            stockMain.DiscountAmount = 0;
+        }
 
         stockMain.TotalAmount = stockMain.SubTotal - stockMain.DiscountAmount;
         stockMain.BalanceAmount = stockMain.TotalAmount - stockMain.PaidAmount;

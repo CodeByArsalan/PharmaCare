@@ -21,6 +21,7 @@ public class ProductService : IProductService
     private readonly IRepository<PriceType> _priceTypeRepository;
     private readonly IRepository<ProductPrice> _productPriceRepository;
     private readonly IRepository<StockDetail> _stockDetailRepository;
+    private readonly IRepository<TransactionType> _transactionTypeRepository;
     private readonly IActivityLogService _activityLogService;
     private readonly ISessionService _sessionService;
     private readonly IUnitOfWork _unitOfWork;
@@ -32,6 +33,7 @@ public class ProductService : IProductService
         IRepository<PriceType> priceTypeRepository,
         IRepository<ProductPrice> productPriceRepository,
         IRepository<StockDetail> stockDetailRepository,
+        IRepository<TransactionType> transactionTypeRepository,
         IActivityLogService activityLogService,
         ISessionService sessionService,
         IUnitOfWork unitOfWork)
@@ -42,6 +44,7 @@ public class ProductService : IProductService
         _priceTypeRepository = priceTypeRepository;
         _productPriceRepository = productPriceRepository;
         _stockDetailRepository = stockDetailRepository;
+        _transactionTypeRepository = transactionTypeRepository;
         _activityLogService = activityLogService;
         _sessionService = sessionService;
         _unitOfWork = unitOfWork;
@@ -298,20 +301,34 @@ public class ProductService : IProductService
             .Where(p => p.IsActive)
             .ToListAsync();
 
-        // Get all stock movements for approved transactions
+        // Optimized stock calculation: Fetch IDs first to avoid heavy joins in the aggregation
+        var transactionTypes = await _transactionTypeRepository.Query()
+            .AsNoTracking()
+            .Where(tt => tt.AffectsStock && tt.IsActive)
+            .Select(tt => new { tt.TransactionTypeID, tt.StockDirection })
+            .ToListAsync();
+
+        var typeIds = transactionTypes.Select(t => t.TransactionTypeID).ToList();
+        var directionDict = transactionTypes.ToDictionary(t => t.TransactionTypeID, t => t.StockDirection);
+
         var stockMovements = await _stockDetailRepository.Query()
-            .Include(sd => sd.StockMain)
-                .ThenInclude(sm => sm!.TransactionType)
-            .Where(sd => sd.StockMain!.Status == "Approved" && sd.StockMain.TransactionType!.AffectsStock)
-            .GroupBy(sd => sd.Product_ID)
+            .AsNoTracking()
+            .Where(sd => typeIds.Contains(sd.StockMain!.TransactionType_ID) && sd.StockMain.Status == "Approved")
+            .GroupBy(sd => new { sd.Product_ID, sd.StockMain!.TransactionType_ID })
             .Select(g => new
             {
-                ProductId = g.Key,
-                StockChange = g.Sum(sd => sd.Quantity * sd.StockMain!.TransactionType!.StockDirection)
+                ProductId = g.Key.Product_ID,
+                TransactionTypeId = g.Key.TransactionType_ID,
+                Quantity = g.Sum(sd => sd.Quantity)
             })
             .ToListAsync();
 
-        var stockDict = stockMovements.ToDictionary(x => x.ProductId, x => x.StockChange);
+        var stockDict = stockMovements
+            .GroupBy(m => m.ProductId)
+            .ToDictionary(
+                g => g.Key,
+                g => g.Sum(m => m.Quantity * (directionDict.TryGetValue(m.TransactionTypeId, out var dir) ? dir : 0))
+            );
 
         // Get specific prices if priceTypeId is provided
         Dictionary<int, decimal> priceDict = new Dictionary<int, decimal>();
@@ -372,17 +389,15 @@ public class ProductService : IProductService
             .Select(p => new { p.ProductID, p.OpeningPrice })
             .ToListAsync();
 
-        // Get the latest GRN cost price for each product
+        // Optimized GRN cost lookup
         var latestGrnCosts = await _stockDetailRepository.Query()
-            .Include(sd => sd.StockMain)
-                .ThenInclude(sm => sm!.TransactionType)
             .Where(sd => sd.StockMain!.Status == "Approved" && sd.StockMain.TransactionType!.Code == "GRN")
             .GroupBy(sd => sd.Product_ID)
             .Select(g => new
             {
                 ProductId = g.Key,
                 // Using Max(StockMainID) as chronological order of GRNs
-                LatestGrnCost = g.OrderByDescending(x => x.StockMain_ID).FirstOrDefault()!.CostPrice
+                LatestGrnCost = g.OrderByDescending(x => x.StockMain_ID).Select(x => (decimal?)x.CostPrice).FirstOrDefault()
             })
             .ToListAsync();
 
@@ -391,8 +406,8 @@ public class ProductService : IProductService
         var result = new Dictionary<int, decimal>();
         foreach (var p in products)
         {
-            // Fallback to opening price if no GRN exists
-            result[p.ProductID] = grnDict.TryGetValue(p.ProductID, out var grnCost) ? grnCost : p.OpeningPrice;
+            // Fallback to opening price if no GRN exists or cost is null
+            result[p.ProductID] = (grnDict.TryGetValue(p.ProductID, out var grnCost) && grnCost.HasValue) ? grnCost.Value : p.OpeningPrice;
         }
 
         return result;

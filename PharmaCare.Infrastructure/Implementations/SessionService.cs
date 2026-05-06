@@ -34,20 +34,54 @@ public class SessionService : ISessionService
     {
         if (Session == null) return;
 
-        // Fetch user
+        // Fetch user's roles and basic info using AsNoTracking for speed
         var user = await _context.Users
+            .AsNoTracking()
             .FirstOrDefaultAsync(u => u.Id == userId);
 
         if (user == null) return;
 
-        // Fetch user's roles
+        // Fetch roles directly
         var userRoles = await _context.UserRoles_Custom
+            .AsNoTracking()
             .Where(ur => ur.User_ID == userId)
             .Join(_context.Roles_Custom,
                 ur => ur.Role_ID,
                 r => r.RoleID,
                 (ur, r) => new { r.RoleID, r.Name })
             .ToListAsync();
+
+        var roleIds = userRoles.Select(r => r.RoleID).ToList();
+
+        // Fetch accessible pages for user's roles - Optimized with Grouping and Projections
+        var pagePermissions = await _context.RolePages
+            .AsNoTracking()
+            .Where(rp => roleIds.Contains(rp.Role_ID))
+            .Select(rp => new 
+            { 
+                rp.Page_ID, 
+                rp.Page!.Controller, 
+                rp.Page.Action,
+                rp.CanView,
+                rp.CanCreate,
+                rp.CanEdit,
+                rp.CanDelete
+            })
+            .ToListAsync();
+
+        var aggregatedPermissions = pagePermissions
+            .GroupBy(p => new { p.Page_ID, p.Controller, p.Action })
+            .Select(g => new PagePermission
+            {
+                PageId = g.Key.Page_ID,
+                Controller = g.Key.Controller ?? string.Empty,
+                Action = g.Key.Action ?? string.Empty,
+                CanView = g.Any(p => p.CanView),
+                CanCreate = g.Any(p => p.CanCreate),
+                CanEdit = g.Any(p => p.CanEdit),
+                CanDelete = g.Any(p => p.CanDelete)
+            })
+            .ToList();
 
         // Create user session info
         var userSession = new UserSessionInfo
@@ -57,52 +91,32 @@ public class SessionService : ISessionService
             Email = user.Email ?? string.Empty,
             StoreId = null,
             StoreName = null,
-            RoleIds = userRoles.Select(r => r.RoleID).ToList(),
+            RoleIds = roleIds,
             RoleNames = userRoles.Select(r => r.Name).ToList()
         };
 
-        // Fetch accessible pages for user's roles
-        var roleIds = userSession.RoleIds;
-        var pagePermissions = await _context.RolePages
-            .Where(rp => roleIds.Contains(rp.Role_ID))
-            .Include(rp => rp.Page)
-            .GroupBy(rp => new { rp.Page_ID, rp.Page!.Controller, rp.Page.Action })
-            .Select(g => new PagePermission
-            {
-                PageId = g.Key.Page_ID,
-                Controller = g.Key.Controller ?? string.Empty,
-                Action = g.Key.Action ?? string.Empty,
-                // If any role grants the permission, the user has it
-                CanView = g.Any(rp => rp.CanView),
-                CanCreate = g.Any(rp => rp.CanCreate),
-                CanEdit = g.Any(rp => rp.CanEdit),
-                CanDelete = g.Any(rp => rp.CanDelete)
-            })
-            .ToListAsync();
-
         // Fetch PageUrls for accessible pages and add them to permissions
-        // This allows sub-actions (AddUser, EditUser, etc.) to inherit permissions from their parent page
-        var accessiblePageIds = pagePermissions.Select(p => p.PageId).ToList();
+        var accessiblePageIds = aggregatedPermissions.Select(p => p.PageId).ToList();
         var pageUrls = await _context.PageUrls
+            .AsNoTracking()
             .Where(pu => accessiblePageIds.Contains(pu.Page_ID))
             .ToListAsync();
 
-        // Add PageUrl entries as additional permission entries, inheriting from parent page
+        // Add PageUrl entries
         foreach (var pageUrl in pageUrls)
         {
-            var parentPermission = pagePermissions.FirstOrDefault(p => p.PageId == pageUrl.Page_ID);
+            var parentPermission = aggregatedPermissions.FirstOrDefault(p => p.PageId == pageUrl.Page_ID);
             if (parentPermission != null)
             {
-                // Check if this controller/action combo already exists
-                var exists = pagePermissions.Any(p =>
+                var exists = aggregatedPermissions.Any(p =>
                     string.Equals(p.Controller, pageUrl.Controller, StringComparison.OrdinalIgnoreCase) &&
                     string.Equals(p.Action, pageUrl.Action, StringComparison.OrdinalIgnoreCase));
 
                 if (!exists)
                 {
-                    pagePermissions.Add(new PagePermission
+                    aggregatedPermissions.Add(new PagePermission
                     {
-                        PageId = pageUrl.Page_ID, // Use parent page ID for reference
+                        PageId = pageUrl.Page_ID,
                         Controller = pageUrl.Controller,
                         Action = pageUrl.Action,
                         CanView = parentPermission.CanView,
@@ -114,13 +128,14 @@ public class SessionService : ISessionService
             }
         }
 
-        // Fetch sidebar menu items (pages with view permission)
-        var sidebarPageIds = pagePermissions
+        // Fetch sidebar menu items
+        var sidebarPageIds = aggregatedPermissions
             .Where(p => p.CanView)
             .Select(p => p.PageId)
             .ToHashSet();
 
         var allPages = await _context.Pages
+            .AsNoTracking()
             .Where(p => p.IsActive && p.IsVisible)
             .OrderBy(p => p.Parent_ID)
             .ThenBy(p => p.DisplayOrder)
@@ -131,7 +146,7 @@ public class SessionService : ISessionService
 
         // Store in session
         Session.SetString(UserSessionKey, JsonSerializer.Serialize(userSession));
-        Session.SetString(PagePermissionsKey, JsonSerializer.Serialize(pagePermissions));
+        Session.SetString(PagePermissionsKey, JsonSerializer.Serialize(aggregatedPermissions));
         Session.SetString(SidebarMenuKey, JsonSerializer.Serialize(sidebarMenu));
     }
 

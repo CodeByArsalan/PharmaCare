@@ -459,6 +459,18 @@ public class CustomerPaymentService : BaseAccountingService, ICustomerPaymentSer
             if (payment.Amount <= 0)
                 throw new InvalidOperationException("Refund amount must be greater than zero.");
 
+            // Financial Validation: Ensure customer has enough credit balance (unallocated credit notes)
+            var totalCreditBalance = await _creditNoteRepository.Query()
+                .Where(c => c.Party_ID == payment.Party_ID && c.Status == "Open")
+                .SumAsync(c => (decimal?)c.BalanceAmount) ?? 0;
+
+            if (payment.Amount > totalCreditBalance)
+            {
+                throw new InvalidOperationException(
+                    $"Insufficient credit balance. Requested refund ({payment.Amount:N2}) " +
+                    $"exceeds available credit ({totalCreditBalance:N2}).");
+            }
+
             if (payment.Party_ID <= 0)
                 throw new InvalidOperationException("Customer is required for a refund.");
 
