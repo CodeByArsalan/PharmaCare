@@ -1,16 +1,22 @@
+@model PharmaCare.Application.ViewModels.Report.DashboardVM
 @{
     ViewData["Title"] = "Dashboard";
+    bool showSales = Model.CanViewSales || Model.CanViewFinancials;
+    bool showInventory = Model.CanViewInventory || Model.CanViewSales;
+    bool showFinancials = Model.CanViewFinancials;
 }
 
 <style>
     .quick-actions {
-        display: grid;
-        grid-template-columns: repeat(3, 1fr);
+        display: flex;
         gap: 1rem;
         margin-bottom: 2rem;
+        flex-wrap: wrap;
     }
     
     .action-btn {
+        flex: 1;
+        min-width: 150px;
         display: flex;
         flex-direction: column;
         align-items: center;
@@ -76,69 +82,19 @@
     .chart-body {
         padding: 1.5rem;
     }
-    
-    .chart-placeholder {
-        height: 280px;
+
+    .mini-statement-row {
         display: flex;
-        flex-direction: column;
-        align-items: center;
-        justify-content: center;
-        color: var(--text-muted);
+        justify-content: space-between;
+        padding: 0.5rem 0;
+        border-bottom: 1px solid var(--glass-border);
     }
-    
-    .chart-placeholder i {
-        font-size: 3rem;
-        margin-bottom: 1rem;
-        opacity: 0.5;
-    }
-    
-    .activity-item {
-        display: flex;
-        align-items: flex-start;
-        padding: 1rem;
-        border-radius: var(--radius-lg);
-        transition: background var(--transition-fast);
-    }
-    
-    .activity-item:hover {
-        background: var(--glass-bg);
-    }
-    
-    .activity-icon {
-        width: 40px;
-        height: 40px;
-        border-radius: var(--radius-md);
-        display: flex;
-        align-items: center;
-        justify-content: center;
-        margin-right: 1rem;
-        font-size: 0.875rem;
-    }
-    
-    .activity-icon.sale { background: rgba(16, 185, 129, 0.15); color: var(--secondary-500); }
-    .activity-icon.purchase { background: rgba(102, 126, 234, 0.15); color: var(--primary-500); }
-    .activity-icon.alert { background: rgba(245, 158, 11, 0.15); color: var(--warning-500); }
-    
-    .activity-content {
-        flex: 1;
-    }
-    
-    .activity-title {
-        font-size: 0.875rem;
-        font-weight: 500;
-        color: var(--text-primary);
-        margin-bottom: 0.25rem;
-    }
-    
-    .activity-time {
-        font-size: 0.75rem;
-        color: var(--text-muted);
-    }
-    
-    @@media (max-width: 992px) {
-        .quick-actions {
-            grid-template-columns: repeat(2, 1fr);
-        }
+
+    .mini-statement-row.total {
+        font-weight: bold;
+        border-bottom: none;
+        border-top: 2px solid var(--glass-border);
+        margin-top: 0.5rem;
     }
 </style>
 
@@ -153,142 +109,307 @@
     </div>
 </div>
 
+@if (!showSales && !showInventory && !showFinancials)
+{
+    <div class="row mt-4">
+        <div class="col-12">
+            <div class="chart-card text-center py-5">
+                <i class="fas fa-lock fa-4x mb-3 text-muted opacity-50"></i>
+                <h4 class="text-muted">Welcome to PharmaCare</h4>
+                <p class="text-secondary mb-0">You do not have specific dashboard permissions assigned.</p>
+                <p class="text-secondary">Please use the sidebar menu to navigate to your authorized modules.</p>
+            </div>
+        </div>
+    </div>
+}
+
 <!-- Stats Cards -->
 <div class="row g-4 mb-4">
-    <div class="col-md-3 col-lg-3">
-        <div class="stat-card-modern" style="--card-border-gradient: var(--gradient-primary); --card-bg-gradient: linear-gradient(135deg, rgba(14, 165, 233, 0.1) 0%, rgba(6, 182, 212, 0.05) 100%);">
-            <div class="stat-icon-wrapper">
-                <i class="fas fa-shopping-cart text-primary"></i>
-            </div>
-            <div class="stat-label">Today's Sales</div>
-            <div class="stat-value">PKR <span class="counter-animate" data-target="@(ViewBag.TodaySales ?? 0)">@(((decimal)(ViewBag.TodaySales ?? 0m)).ToString("N0"))</span></div>
-            <div class="stat-change positive">
-                <i class="fas fa-arrow-up"></i> 12% vs yesterday
+    @if (showSales)
+    {
+        <div class="col-md-3 col-lg-3">
+            <div class="stat-card-modern" style="--card-border-gradient: var(--gradient-primary); --card-bg-gradient: linear-gradient(135deg, rgba(14, 165, 233, 0.1) 0%, rgba(6, 182, 212, 0.05) 100%);">
+                <div class="stat-icon-wrapper">
+                    <i class="fas fa-shopping-cart text-primary"></i>
+                </div>
+                <div class="stat-label">Today's Sales</div>
+                <div class="stat-value">PKR <span class="counter-animate" data-target="@(Model.TodaySales)">@Model.TodaySales.ToString("N0")</span></div>
+                <div class="stat-change positive">
+                    <i class="fas fa-arrow-up"></i> @Model.TodayOrders orders
+                </div>
             </div>
         </div>
-    </div>
+        
+        <div class="col-md-3 col-lg-3">
+            <div class="stat-card-modern" style="--card-border-gradient: var(--gradient-secondary); --card-bg-gradient: linear-gradient(135deg, rgba(16, 185, 129, 0.1) 0%, rgba(5, 150, 105, 0.05) 100%);">
+                <div class="stat-icon-wrapper">
+                    <i class="fas fa-money-bill-wave text-success"></i>
+                </div>
+                <div class="stat-label">Cash Collected</div>
+                <div class="stat-value">PKR <span class="counter-animate" data-target="@(Model.CashCollected)">@Model.CashCollected.ToString("N0")</span></div>
+                <div class="stat-change positive">
+                    <i class="fas fa-cash-register"></i> From today's sales
+                </div>
+            </div>
+        </div>
+    }
     
-    <div class="col-md-3 col-lg-3">
-        <div class="stat-card-modern" style="--card-border-gradient: var(--gradient-secondary); --card-bg-gradient: linear-gradient(135deg, rgba(16, 185, 129, 0.1) 0%, rgba(5, 150, 105, 0.05) 100%);">
-            <div class="stat-icon-wrapper">
-                <i class="fas fa-receipt text-success"></i>
-            </div>
-            <div class="stat-label">Today's Orders</div>
-            <div class="stat-value"><span class="counter-animate" data-target="@(ViewBag.TodayOrders ?? 0)">@(ViewBag.TodayOrders ?? 0)</span></div>
-            <div class="stat-change positive">
-                <i class="fas fa-box"></i> @(ViewBag.ItemsSold ?? 0) items sold
+    @if (showFinancials)
+    {
+        <div class="col-md-3 col-lg-3">
+            <div class="stat-card-modern" style="--card-border-gradient: var(--gradient-warning); --card-bg-gradient: linear-gradient(135deg, rgba(245, 158, 11, 0.1) 0%, rgba(217, 119, 6, 0.05) 100%);">
+                <div class="stat-icon-wrapper">
+                    <i class="fas fa-coins text-warning"></i>
+                </div>
+                <div class="stat-label">Gross Profit</div>
+                <div class="stat-value">PKR <span class="counter-animate" data-target="@(Model.GrossProfit)">@Model.GrossProfit.ToString("N0")</span></div>
+                <div class="stat-change positive">
+                    <i class="fas fa-chart-pie"></i> Today's Margin
+                </div>
             </div>
         </div>
-    </div>
+    }
     
-    <div class="col-md-3 col-lg-3">
-        <div class="stat-card-modern" style="--card-border-gradient: var(--gradient-warning); --card-bg-gradient: linear-gradient(135deg, rgba(245, 158, 11, 0.1) 0%, rgba(217, 119, 6, 0.05) 100%);">
-            <div class="stat-icon-wrapper">
-                <i class="fas fa-pills text-warning"></i>
-            </div>
-            <div class="stat-label">Products</div>
-            <div class="stat-value"><span class="counter-animate" data-target="@(ViewBag.TotalProducts ?? 0)">@(ViewBag.TotalProducts ?? 0)</span></div>
-            <div class="stat-change positive">
-                <i class="fas fa-cubes"></i> In catalog
-            </div>
-        </div>
-    </div>
-    
-    <div class="col-md-3 col-lg-3">
-        <div class="stat-card-modern" style="--card-border-gradient: var(--gradient-danger); --card-bg-gradient: linear-gradient(135deg, rgba(239, 68, 68, 0.1) 0%, rgba(220, 38, 38, 0.05) 100%);">
-            <div class="stat-icon-wrapper">
-                <i class="fas fa-exclamation-triangle text-danger"></i>
-            </div>
-            <div class="stat-label">Low Stock</div>
-            <div class="stat-value"><span class="counter-animate" data-target="@(ViewBag.LowStockCount ?? 0)">@(ViewBag.LowStockCount ?? 0)</span></div>
-            <div class="stat-change @((int)(ViewBag.LowStockCount ?? 0) > 0 ? "negative" : "positive")">
-                <i class="fas @((int)(ViewBag.LowStockCount ?? 0) > 0 ? "fa-exclamation" : "fa-check")"></i> @((int)(ViewBag.LowStockCount ?? 0) > 0 ? "Need reorder" : "All stocked")
+    @if (showInventory)
+    {
+        <div class="col-md-3 col-lg-3">
+            <div class="stat-card-modern" style="--card-border-gradient: var(--gradient-danger); --card-bg-gradient: linear-gradient(135deg, rgba(239, 68, 68, 0.1) 0%, rgba(220, 38, 38, 0.05) 100%);">
+                <div class="stat-icon-wrapper">
+                    <i class="fas fa-exclamation-triangle text-danger"></i>
+                </div>
+                <div class="stat-label">Low Stock</div>
+                <div class="stat-value"><span class="counter-animate" data-target="@(Model.LowStockCount)">@Model.LowStockCount</span></div>
+                <div class="stat-change @(Model.LowStockCount > 0 ? "negative" : "positive")">
+                    <i class="fas @(Model.LowStockCount > 0 ? "fa-exclamation" : "fa-check")"></i> @(Model.LowStockCount > 0 ? "Need reorder" : "All stocked")
+                </div>
             </div>
         </div>
-    </div>
+    }
 </div>
 
 <!-- Quick Actions -->
-<h5 class="text-primary mb-3"><i class="fas fa-bolt me-2" style="color: var(--warning-500);"></i>Quick Actions</h5>
-<div class="quick-actions">
-    <a href="/Product/ProductsIndex" class="action-btn">
-        <i class="fas fa-pills"></i>
-        <span>Add Product</span>
-    </a>
-    <a href="/Party/AddParty" class="action-btn">
-        <i class="fas fa-user-plus"></i>
-        <span>Add Party</span>
-    </a>
-    <a href="/Category/AddCategory" class="action-btn">
-        <i class="fas fa-tags"></i>
-        <span>Categories</span>
-    </a>
-</div>
+@if (Model.CanViewInventory || Model.CanViewSales)
+{
+    <h5 class="text-primary mb-3"><i class="fas fa-bolt me-2" style="color: var(--warning-500);"></i>Quick Actions</h5>
+    <div class="quick-actions">
+        <a href="/Product/ProductsIndex" class="action-btn">
+            <i class="fas fa-pills"></i>
+            <span>Add Product</span>
+        </a>
+        <a href="/Party/AddParty" class="action-btn">
+            <i class="fas fa-user-plus"></i>
+            <span>Add Party</span>
+        </a>
+        <a href="/Category/AddCategory" class="action-btn">
+            <i class="fas fa-tags"></i>
+            <span>Categories</span>
+        </a>
+    </div>
+}
 
-<!-- Charts Row -->
-<div class="row g-4">
-    <div class="col-lg-8">
-        <div class="chart-card">
-            <div class="chart-header">
-                <span class="chart-title">
-                    <i class="fas fa-chart-line"></i>
-                    Sales Overview
-                </span>
-                <select class="form-select w-auto" style="max-width: 150px;">
-                    <option>Last 7 Days</option>
-                    <option>Last 30 Days</option>
-                    <option>This Month</option>
-                    <option>This Year</option>
-                </select>
-            </div>
-            <div class="chart-body">
-                <canvas id="salesChart" style="height: 280px; width: 100%;"></canvas>
-            </div>
-        </div>
-    </div>
-    
-    <div class="col-lg-4 mt-2">
-        <div class="chart-card h-100">
-            <div class="chart-header">
-                <span class="chart-title">
-                    <i class="fas fa-clock"></i>
-                    Recent Activity
-                </span>
-            </div>
-            <div class="chart-body" style="padding: 0.5rem;">
-                <div class="activity-item">
-                    <div class="activity-icon sale">
-                        <i class="fas fa-user-circle"></i>
-                    </div>
-                    <div class="activity-content">
-                        <div class="activity-title">Welcome to PharmaCare!</div>
-                        <div class="activity-time">Get started by adding products and parties</div>
-                    </div>
+@if (showFinancials)
+{
+    <!-- Charts Row 1: Main Chart & Financials -->
+    <div class="row g-4 mb-4">
+        <div class="col-md-8 col-lg-8 mb-4">
+            <div class="chart-card h-100">
+                <div class="chart-header">
+                    <span class="chart-title">
+                        <i class="fas fa-chart-line"></i>
+                        Sales vs Purchases
+                    </span>
+                    <select class="form-select w-auto" id="chartPeriodSelect" style="max-width: 150px;">
+                        <option value="7d">Last 7 Days</option>
+                        <option value="30d">Last 30 Days</option>
+                        <option value="month">This Month</option>
+                        <option value="year">This Year</option>
+                    </select>
                 </div>
-                
-                <div class="activity-item">
-                    <div class="activity-icon purchase">
-                        <i class="fas fa-info-circle"></i>
-                    </div>
-                    <div class="activity-content">
-                        <div class="activity-title">Setup your store</div>
-                        <div class="activity-time">Configure categories and products</div>
-                    </div>
-                </div>
-                
-                <div class="activity-item">
-                    <div class="activity-icon alert">
-                        <i class="fas fa-lightbulb"></i>
-                    </div>
-                    <div class="activity-content">
-                        <div class="activity-title">Pro Tip</div>
-                        <div class="activity-time">Create categories before adding products</div>
+                <div class="chart-body">
+                    <div style="position: relative; height: 320px; width: 100%;">
+                        <canvas id="salesChart"></canvas>
                     </div>
                 </div>
             </div>
         </div>
+        
+        <div class="col-md-4 col-lg-4">
+            <!-- Tier 3: Today's Profit / Loss -->
+            <div class="chart-card mb-4">
+                <div class="chart-header">
+                    <span class="chart-title">
+                        <i class="fas fa-calculator text-success"></i>
+                        Today's Financial Summary
+                    </span>
+                </div>
+                <div class="chart-body">
+                    <div class="mini-statement-row">
+                        <span>Net Revenue</span>
+                        <span class="text-success">PKR @Model.TodayProfitLoss.NetRevenue.ToString("N0")</span>
+                    </div>
+                    <div class="mini-statement-row">
+                        <span>Cost of Goods (COGS)</span>
+                        <span class="text-danger">-PKR @Model.TodayProfitLoss.COGS.ToString("N0")</span>
+                    </div>
+                    <div class="mini-statement-row total">
+                        <span>Gross Profit</span>
+                        <span class="text-primary">PKR @Model.TodayProfitLoss.GrossProfit.ToString("N0")</span>
+                    </div>
+                    <div class="mini-statement-row mt-2">
+                        <span>Total Expenses</span>
+                        <span class="text-danger">-PKR @Model.TodayProfitLoss.TotalExpenses.ToString("N0")</span>
+                    </div>
+                    <div class="mini-statement-row total">
+                        <span>Net Profit</span>
+                        <span class="@(Model.TodayProfitLoss.NetProfit >= 0 ? "text-success" : "text-danger")">
+                            PKR @Model.TodayProfitLoss.NetProfit.ToString("N0")
+                        </span>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Tier 3: Today's Cash Flow -->
+            <div class="chart-card">
+                <div class="chart-header">
+                    <span class="chart-title">
+                        <i class="fas fa-exchange-alt text-info"></i>
+                        Today's Cash Flow
+                    </span>
+                </div>
+                <div class="chart-body">
+                    <div class="mini-statement-row">
+                        <span>Total Cash In</span>
+                        <span class="text-success">PKR @Model.TodayCashFlow.TotalCashIn.ToString("N0")</span>
+                    </div>
+                    <div class="mini-statement-row">
+                        <span>Total Cash Out</span>
+                        <span class="text-danger">-PKR @Model.TodayCashFlow.TotalCashOut.ToString("N0")</span>
+                    </div>
+                    <div class="mini-statement-row total">
+                        <span>Net Cash Flow</span>
+                        <span class="@((Model.TodayCashFlow.TotalCashIn - Model.TodayCashFlow.TotalCashOut) >= 0 ? "text-success" : "text-danger")">
+                            PKR @((Model.TodayCashFlow.TotalCashIn - Model.TodayCashFlow.TotalCashOut).ToString("N0"))
+                        </span>
+                    </div>
+                </div>
+            </div>
+        </div>
     </div>
-</div>
+}
+
+<!-- Charts Row 2: Product & Customer Insights -->
+@if (showSales || showFinancials)
+{
+    <div class="row g-4 mb-4">
+        @if (showSales)
+        {
+            <div class="@(showFinancials ? "col-md-6 col-lg-6" : "col-md-12 col-lg-12")">
+                <div class="chart-card h-100">
+                    <div class="chart-header">
+                        <span class="chart-title">
+                            <i class="fas fa-chart-pie text-primary"></i>
+                            Top 5 Products by Revenue
+                        </span>
+                    </div>
+                    <div class="chart-body d-flex justify-content-center align-items-center">
+                        @if (Model.TopProducts.Any())
+                        {
+                            <div style="position: relative; height: 300px; width: 100%;">
+                                <canvas id="topProductsChart"></canvas>
+                            </div>
+                        }
+                        else
+                        {
+                            <div class="text-muted text-center py-5 w-100">
+                                <i class="fas fa-box-open fa-3x mb-3 opacity-50"></i>
+                                <p>No product sales data this month.</p>
+                            </div>
+                        }
+                    </div>
+                </div>
+            </div>
+        }
+        
+        @if (showFinancials)
+        {
+            <div class="@(showSales ? "col-md-6 col-lg-6" : "col-md-12 col-lg-12")">
+                <div class="chart-card h-100">
+                    <div class="chart-header">
+                        <span class="chart-title text-danger">
+                            <i class="fas fa-chart-bar text-danger"></i>
+                            Top Outstanding Customers
+                        </span>
+                    </div>
+                    <div class="chart-body d-flex justify-content-center align-items-center">
+                        @if (Model.TopOutstandingCustomers.Any())
+                        {
+                            <div style="position: relative; height: 300px; width: 100%;">
+                                <canvas id="topCustomersChart"></canvas>
+                            </div>
+                        }
+                        else
+                        {
+                            <div class="text-muted text-center py-5 w-100">
+                                <i class="fas fa-users fa-3x mb-3 opacity-50"></i>
+                                <p>No customers with outstanding balances.</p>
+                            </div>
+                        }
+                    </div>
+                </div>
+            </div>
+        }
+    </div>
+}
+
+<!-- Tier 2: Low Stock Table -->
+@if (showInventory)
+{
+    <div class="row g-4">
+        <div class="col-12">
+            <div class="chart-card">
+                <div class="chart-header">
+                    <span class="chart-title text-danger">
+                        <i class="fas fa-exclamation-circle text-danger"></i>
+                        Critical Low Stock Alerts
+                    </span>
+                    <a href="/InventoryReport/LowStock" class="btn btn-sm btn-outline-danger">View All</a>
+                </div>
+                <div class="chart-body p-0">
+                    <div class="table-responsive">
+                        <table class="table table-hover mb-0 align-middle">
+                            <thead class="table-light">
+                                <tr>
+                                    <th>Product</th>
+                                    <th>Current Stock</th>
+                                    <th>Reorder Level</th>
+                                    <th>Shortfall</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                @if (Model.CriticalStock.Any())
+                                {
+                                    foreach (var item in Model.CriticalStock)
+                                    {
+                                        <tr>
+                                            <td><strong>@item.ProductName</strong><br/><small class="text-muted">@item.CategoryName</small></td>
+                                            <td><span class="badge bg-danger">@item.CurrentStock</span></td>
+                                            <td>@item.ReorderLevel</td>
+                                            <td class="text-danger fw-bold">@item.Shortfall</td>
+                                        </tr>
+                                    }
+                                }
+                                else
+                                {
+                                    <tr><td colspan="4" class="text-center text-muted">All stock levels are normal.</td></tr>
+                                }
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+}
 
 @section Scripts {
     <script>
@@ -312,40 +433,178 @@
                         counter.innerText = Math.ceil(current).toLocaleString();
                         requestAnimationFrame(updateCounter);
                     } else {
-                        // Ensure exact final value formatting
                         counter.innerText = target.toLocaleString(undefined, { minimumFractionDigits: target % 1 !== 0 ? 2 : 0 });
                     }
                 };
                 updateCounter();
             });
 
-            // Initialize Chart.js
+            if (typeof Chart === 'undefined') return;
+
+            // 1. Sales vs Purchases Chart
             const ctxCanvas = document.getElementById('salesChart');
-            if (ctxCanvas && typeof Chart !== 'undefined') {
+            let myChart = null;
+
+            if (ctxCanvas) {
                 const ctx = ctxCanvas.getContext('2d');
-                const gradientFill = ctx.createLinearGradient(0, 0, 0, 300);
-                gradientFill.addColorStop(0, 'rgba(14, 165, 233, 0.4)');
-                gradientFill.addColorStop(1, 'rgba(14, 165, 233, 0.0)');
                 
-                new Chart(ctx, {
-                    type: 'line',
+                const gradientSales = ctx.createLinearGradient(0, 0, 0, 300);
+                gradientSales.addColorStop(0, 'rgba(14, 165, 233, 0.4)');
+                gradientSales.addColorStop(1, 'rgba(14, 165, 233, 0.0)');
+                
+                const gradientPurchases = ctx.createLinearGradient(0, 0, 0, 300);
+                gradientPurchases.addColorStop(0, 'rgba(239, 68, 68, 0.4)');
+                gradientPurchases.addColorStop(1, 'rgba(239, 68, 68, 0.0)');
+
+                const initChart = (labels, salesData, purchaseData) => {
+                    if (myChart) myChart.destroy();
+                    
+                    myChart = new Chart(ctx, {
+                        type: 'line',
+                        data: {
+                            labels: labels,
+                            datasets: [
+                                {
+                                    label: 'Sales (PKR)',
+                                    data: salesData,
+                                    borderColor: '#0ea5e9',
+                                    backgroundColor: gradientSales,
+                                    borderWidth: 3,
+                                    pointBackgroundColor: '#fff',
+                                    pointBorderColor: '#0ea5e9',
+                                    pointBorderWidth: 2,
+                                    pointRadius: 4,
+                                    fill: true,
+                                    tension: 0.4
+                                },
+                                {
+                                    label: 'Purchases (PKR)',
+                                    data: purchaseData,
+                                    borderColor: '#ef4444',
+                                    backgroundColor: gradientPurchases,
+                                    borderWidth: 3,
+                                    pointBackgroundColor: '#fff',
+                                    pointBorderColor: '#ef4444',
+                                    pointBorderWidth: 2,
+                                    pointRadius: 4,
+                                    fill: true,
+                                    tension: 0.4
+                                }
+                            ]
+                        },
+                        options: {
+                            responsive: true,
+                            maintainAspectRatio: false,
+                            plugins: {
+                                legend: { display: true, position: 'top' },
+                                tooltip: {
+                                    backgroundColor: 'rgba(15, 23, 42, 0.9)',
+                                    titleColor: '#fff',
+                                    bodyColor: '#cbd5e1',
+                                    padding: 10,
+                                    displayColors: true,
+                                    callbacks: {
+                                        label: function(context) {
+                                            return context.dataset.label + ': PKR ' + context.parsed.y.toLocaleString();
+                                        }
+                                    }
+                                }
+                            },
+                            scales: {
+                                y: {
+                                    beginAtZero: true,
+                                    grid: {
+                                        borderDash: [5, 5],
+                                        color: 'rgba(0,0,0,0.05)'
+                                    }
+                                },
+                                x: {
+                                    grid: { display: false }
+                                }
+                            }
+                        }
+                    });
+                };
+
+                // Initial load
+                initChart(@Html.Raw(Model.WeeklyLabelsJson), @Html.Raw(Model.WeeklySalesDataJson), @Html.Raw(Model.WeeklyPurchaseDataJson));
+
+                // Handle Period Change via AJAX
+                const periodSelect = document.getElementById('chartPeriodSelect');
+                if (periodSelect) {
+                    periodSelect.addEventListener('change', function() {
+                        const period = this.value;
+                        fetch('/Home/GetChartData?period=' + period)
+                            .then(response => response.json())
+                            .then(data => {
+                                initChart(data.labels, data.salesData, data.purchaseData);
+                            })
+                            .catch(err => console.error('Error fetching chart data:', err));
+                    });
+                }
+            }
+
+            // 2. Top Products Doughnut Chart
+            const ctxProducts = document.getElementById('topProductsChart');
+            if (ctxProducts) {
+                new Chart(ctxProducts, {
+                    type: 'doughnut',
                     data: {
-                        labels: ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Today'],
+                        labels: @Html.Raw(Model.TopProductsLabelsJson),
                         datasets: [{
-                            label: 'Sales (PKR)',
-                            data: [15000, 22000, 18000, 29000, 14000, 32000, @(ViewBag.TodaySales ?? 0)],
-                            borderColor: '#0ea5e9',
-                            backgroundColor: gradientFill,
-                            borderWidth: 3,
-                            pointBackgroundColor: '#fff',
-                            pointBorderColor: '#0ea5e9',
-                            pointBorderWidth: 2,
-                            pointRadius: 4,
-                            fill: true,
-                            tension: 0.4
+                            data: @Html.Raw(Model.TopProductsDataJson),
+                            backgroundColor: [
+                                'rgba(14, 165, 233, 0.85)',
+                                'rgba(16, 185, 129, 0.85)',
+                                'rgba(245, 158, 11, 0.85)',
+                                'rgba(139, 92, 246, 0.85)',
+                                'rgba(236, 72, 153, 0.85)'
+                            ],
+                            borderWidth: 0,
+                            hoverOffset: 4
                         }]
                     },
                     options: {
+                        responsive: true,
+                        maintainAspectRatio: false,
+                        plugins: {
+                            legend: {
+                                position: 'right',
+                                labels: { usePointStyle: true, boxWidth: 8, font: { size: 11 } }
+                            },
+                            tooltip: {
+                                backgroundColor: 'rgba(15, 23, 42, 0.9)',
+                                titleColor: '#fff',
+                                bodyColor: '#cbd5e1',
+                                padding: 10,
+                                callbacks: {
+                                    label: function(context) {
+                                        return ' ' + context.label + ': PKR ' + context.parsed.toLocaleString();
+                                    }
+                                }
+                            }
+                        },
+                        cutout: '70%'
+                    }
+                });
+            }
+
+            // 3. Top Customers Bar Chart
+            const ctxCustomers = document.getElementById('topCustomersChart');
+            if (ctxCustomers) {
+                new Chart(ctxCustomers, {
+                    type: 'bar',
+                    data: {
+                        labels: @Html.Raw(Model.TopCustomersLabelsJson),
+                        datasets: [{
+                            label: 'Outstanding Balance',
+                            data: @Html.Raw(Model.TopCustomersDataJson),
+                            backgroundColor: 'rgba(239, 68, 68, 0.75)',
+                            borderRadius: 4
+                        }]
+                    },
+                    options: {
+                        indexAxis: 'y', // Makes it horizontal
                         responsive: true,
                         maintainAspectRatio: false,
                         plugins: {
@@ -355,24 +614,22 @@
                                 titleColor: '#fff',
                                 bodyColor: '#cbd5e1',
                                 padding: 10,
-                                displayColors: false,
                                 callbacks: {
                                     label: function(context) {
-                                        return 'PKR ' + context.parsed.y.toLocaleString();
+                                        return ' PKR ' + context.parsed.x.toLocaleString();
                                     }
                                 }
                             }
                         },
                         scales: {
-                            y: {
-                                beginAtZero: true,
-                                grid: {
-                                    borderDash: [5, 5],
-                                    color: 'rgba(0,0,0,0.05)'
-                                }
-                            },
                             x: {
-                                grid: { display: false }
+                                beginAtZero: true,
+                                grid: { color: 'rgba(0,0,0,0.05)', borderDash: [5, 5] },
+                                ticks: { maxTicksLimit: 5 }
+                            },
+                            y: {
+                                grid: { display: false },
+                                ticks: { font: { size: 11 } }
                             }
                         }
                     }

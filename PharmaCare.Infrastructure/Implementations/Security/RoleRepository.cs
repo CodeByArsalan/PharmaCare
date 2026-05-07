@@ -16,7 +16,7 @@ public class RoleRepository : Repository<Role>, IRoleRepository
     public async Task<List<Role>> GetAllOrderedAsync()
     {
         return await _dbSet
-            .OrderBy(r => r.Name)
+            .OrderBy(r => r.RoleID)
             .ToListAsync();
     }
 
@@ -24,7 +24,7 @@ public class RoleRepository : Repository<Role>, IRoleRepository
     {
         return await _dbSet
             .Where(r => r.IsActive)
-            .OrderBy(r => r.Name)
+            .OrderBy(r => r.RoleID)
             .ToListAsync();
     }
 }
