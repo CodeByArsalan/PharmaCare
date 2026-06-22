@@ -24,8 +24,8 @@
             });
 
             Toast.fire({
-                icon: '@toastType',
-                title: '@Html.Raw(toastMessage?.Replace("'", "\\'"))'
+                icon: @Json.Serialize(toastType),
+                title: @Json.Serialize(toastMessage)
             });
         });
     </script>

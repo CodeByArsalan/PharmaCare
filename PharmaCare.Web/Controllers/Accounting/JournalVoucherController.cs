@@ -8,7 +8,6 @@ using PharmaCare.Domain.Entities.Transactions;
 using PharmaCare.Web.Filters;
 using PharmaCare.Web.Utilities;
 using PharmaCare.Web.ViewModels.Accounting;
-using XAct;
 
 namespace PharmaCare.Web.Controllers.Accounting;
 

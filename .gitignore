@@ -361,3 +361,11 @@ MigrationBackup/
 
 # Fody - auto-generated XML schema
 FodyWeavers.xsd
+
+# Secrets & environment-specific config — NEVER commit these
+# Data Protection keys (master key for encrypted tokens/cookies)
+**/Keys/
+# Per-environment app settings that may contain connection strings / secrets
+**/appsettings.Development.json
+**/appsettings.Production.json
+**/appsettings.*.Local.json

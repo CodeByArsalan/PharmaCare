@@ -41,10 +41,15 @@ public class AuthService : IAuthService
             return new AuthResult { Success = false, ErrorMessage = "Account is deactivated" };
         }
 
-        var result = await _signInManager.PasswordSignInAsync(user, password, rememberMe, lockoutOnFailure: false);
+        var result = await _signInManager.PasswordSignInAsync(user, password, rememberMe, lockoutOnFailure: true);
         if (result.Succeeded)
         {
             return new AuthResult { Success = true, User = user };
+        }
+
+        if (result.IsLockedOut)
+        {
+            return new AuthResult { Success = false, ErrorMessage = "Account is temporarily locked due to multiple failed login attempts. Please try again later." };
         }
 
         return new AuthResult { Success = false, ErrorMessage = "Invalid email or password" };

@@ -1,5 +1,6 @@
 using Microsoft.AspNetCore.Identity;
 using Microsoft.AspNetCore.Mvc;
+using Microsoft.AspNetCore.RateLimiting;
 using PharmaCare.Application.Interfaces;
 using PharmaCare.Application.Interfaces.Logging;
 using PharmaCare.Domain.Entities.Security;
@@ -44,6 +45,7 @@ public class AccountController : Controller
 
     [HttpPost]
     [ValidateAntiForgeryToken]
+    [EnableRateLimiting("auth")]
     public async Task<IActionResult> Login(LoginViewModel model, string? returnUrl = null)
     {
         ViewData["ReturnUrl"] = returnUrl;
@@ -53,7 +55,14 @@ public class AccountController : Controller
             var user = await _userManager.FindByEmailAsync(model.Email);
             if (user != null && user.IsActive)
             {
-                var result = await _signInManager.PasswordSignInAsync(user, model.Password, model.RememberMe, lockoutOnFailure: false);
+                // lockoutOnFailure: true makes Identity count failed attempts and lock the
+                // account per the configured policy (5 attempts / 15 min).
+                var result = await _signInManager.PasswordSignInAsync(user, model.Password, model.RememberMe, lockoutOnFailure: true);
+                if (result.IsLockedOut)
+                {
+                    ModelState.AddModelError(string.Empty, "This account is temporarily locked due to multiple failed login attempts. Please try again later.");
+                    return View(model);
+                }
                 if (result.Succeeded)
                 {
                     // Initialize session with user data and permissions

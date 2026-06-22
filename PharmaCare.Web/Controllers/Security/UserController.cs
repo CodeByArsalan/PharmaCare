@@ -97,8 +97,10 @@ public class UserController : BaseController
     [ValidateAntiForgeryToken]
     public async Task<IActionResult> EditUser(string id, UserViewModel model)
     {
-        //int userId = Utility.DecryptId(id);
-        //if (id != model.Id) return NotFound();
+        // Ensure the (tamper-proof) id from the route matches the posted model id.
+        // Prevents editing an arbitrary user by tampering with the hidden Id field.
+        int userId = Utility.DecryptId(id);
+        if (userId == 0 || userId != model.Id) return NotFound();
 
         // Remove password validation for edit if not provided
         if (string.IsNullOrEmpty(model.Password))

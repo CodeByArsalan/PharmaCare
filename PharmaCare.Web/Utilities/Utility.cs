@@ -1,31 +1,72 @@
-using System.Text;
-using XSystem.Security.Cryptography;
+using Microsoft.AspNetCore.DataProtection;
 
 namespace PharmaCare.Web.Utilities;
 
+/// <summary>
+/// Helper for producing tamper-proof, opaque tokens for entity IDs placed in URLs.
+///
+/// Backed by ASP.NET Core Data Protection (authenticated encryption). Unlike the
+/// previous implementation — which merely Base64-encoded the raw ID and was trivially
+/// reversible — values produced here cannot be decoded or forged without the
+/// application's protection key, which closes the IDOR/enumeration vector via URL tampering.
+///
+/// Authorization is still the responsibility of each controller/service: a valid token
+/// only proves the value was issued by this app, not that the current user may access it.
+/// </summary>
 public static class Utility
 {
+    private static IDataProtector? _protector;
+
+    /// <summary>
+    /// Must be called once at application startup (see Program.cs) before any
+    /// Encrypt/Decrypt call. Wires the static helper to the configured
+    /// Data Protection provider.
+    /// </summary>
+    public static void Initialize(IDataProtectionProvider provider)
+    {
+        // A stable, versioned purpose string. Changing it invalidates previously issued tokens.
+        _protector = provider.CreateProtector("PharmaCare.Web.Utilities.Utility.UrlId.v1");
+    }
+
+    private static IDataProtector Protector =>
+        _protector ?? throw new InvalidOperationException(
+            "Utility.Initialize(IDataProtectionProvider) must be called at startup before encrypting/decrypting IDs.");
+
     public static string EncryptURL(string strData)
     {
+        if (string.IsNullOrEmpty(strData))
+        {
+            return string.Empty;
+        }
+
         try
         {
-            if (!string.IsNullOrEmpty(strData))
-            {
-                SHA1Managed shaM = new SHA1Managed();
-                Convert.ToBase64String(shaM.ComputeHash(Encoding.ASCII.GetBytes(strData)));
-                Byte[] encByteData;
-                encByteData = ASCIIEncoding.ASCII.GetBytes(strData);
-                String encStrData = Convert.ToBase64String(encByteData);
-                return encStrData;
-            }
-            else
-            {
-                return "";
-            }
+            // Protect returns a URL-safe (base64url) string.
+            return Protector.Protect(strData);
         }
         catch (Exception)
         {
-            return "";
+            return string.Empty;
+        }
+    }
+
+    public static string DecryptURL(string strData)
+    {
+        if (string.IsNullOrEmpty(strData))
+        {
+            return string.Empty;
+        }
+
+        try
+        {
+            // Unprotect throws CryptographicException if the token was tampered with,
+            // forged, or issued under a different key/purpose. We swallow it and return
+            // empty so callers fall through to their existing "not found" handling.
+            return Protector.Unprotect(strData);
+        }
+        catch (Exception)
+        {
+            return string.Empty;
         }
     }
 
@@ -38,7 +79,8 @@ public static class Utility
     }
 
     /// <summary>
-    /// Decrypt an encrypted ID string back to integer.
+    /// Decrypt an encrypted ID string back to integer. Returns 0 when the token is
+    /// missing, malformed, tampered with, or forged.
     /// </summary>
     public static int DecryptId(string encryptedId)
     {
@@ -57,7 +99,8 @@ public static class Utility
     }
 
     /// <summary>
-    /// Decrypt an encrypted ID string back to long.
+    /// Decrypt an encrypted ID string back to long. Returns 0 when the token is
+    /// missing, malformed, tampered with, or forged.
     /// </summary>
     public static long DecryptIdLong(string encryptedId)
     {
@@ -65,28 +108,5 @@ public static class Utility
         if (long.TryParse(decrypted, out long id))
             return id;
         return 0;
-    }
-
-    public static string DecryptURL(string strData)
-    {
-        try
-        {
-            if (!string.IsNullOrEmpty(strData))
-            {
-                Byte[] decByteData;
-                decByteData = Convert.FromBase64String(strData);
-                String decStrData = ASCIIEncoding.ASCII.GetString(decByteData);
-
-                return decStrData;
-            }
-            else
-            {
-                return "";
-            }
-        }
-        catch (Exception)
-        {
-            return "";
-        }
     }
 }

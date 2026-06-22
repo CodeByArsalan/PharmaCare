@@ -1,6 +1,10 @@
 using Microsoft.AspNetCore.Identity;
+using Microsoft.AspNetCore.DataProtection;
+using Microsoft.AspNetCore.RateLimiting;
+using System.Threading.RateLimiting;
 using Microsoft.EntityFrameworkCore;
 using PharmaCare.Infrastructure;
+using PharmaCare.Web.Utilities;
 using PharmaCare.Domain.Entities.Security;
 using PharmaCare.Application.Interfaces;
 using PharmaCare.Infrastructure.Implementations;
@@ -23,10 +27,12 @@ using PharmaCare.Application.Interfaces.Finance;
 using PharmaCare.Application.Implementations.Finance;
 
 var builder = WebApplication.CreateBuilder(args);
-var connectionString = builder.Configuration.GetConnectionString("PharmaCareDBConnectionString") 
-    ?? throw new InvalidOperationException("Connection string 'PharmaCareDBConnectionString' not found.");
-var logConnectionString = builder.Configuration.GetConnectionString("PharmaCareLogDBConnectionString")
-    ?? throw new InvalidOperationException("Connection string 'PharmaCareLogDBConnectionString' not found.");
+var connectionString = builder.Configuration.GetConnectionString("PharmaCareDBConnectionString");
+if (string.IsNullOrWhiteSpace(connectionString))
+    throw new InvalidOperationException("Connection string 'PharmaCareDBConnectionString' is not configured. Set it via appsettings.Development.json, environment variables, or user-secrets.");
+var logConnectionString = builder.Configuration.GetConnectionString("PharmaCareLogDBConnectionString");
+if (string.IsNullOrWhiteSpace(logConnectionString))
+    throw new InvalidOperationException("Connection string 'PharmaCareLogDBConnectionString' is not configured. Set it via appsettings.Development.json, environment variables, or user-secrets.");
 
 // Logging Database Context (separate database for audit logs)
 builder.Services.AddDbContext<LogDbContext>(options => options.UseSqlServer(logConnectionString));
@@ -43,16 +49,32 @@ builder.Services.AddDbContext<PharmaCareDBContext>((serviceProvider, options) =>
 });
 
 
+// Data Protection — persist keys to a stable on-disk location and pin the application
+// name so issued tokens (e.g. encrypted URL IDs) stay valid across restarts/deployments.
+// NOTE: the Keys folder contains the master key and must NEVER be committed to source control.
+builder.Services.AddDataProtection()
+    .PersistKeysToFileSystem(new DirectoryInfo(Path.Combine(builder.Environment.ContentRootPath, "Keys")))
+    .SetApplicationName("PharmaCare");
+
 // Identity
 builder.Services.AddDefaultIdentity<User>(options =>
 {
     options.SignIn.RequireConfirmedAccount = false;
-    options.Password.RequireDigit = false;
-    options.Password.RequireLowercase = false;
+
+    // Password policy — strengthened for a system holding financial/inventory data.
+    options.Password.RequireDigit = true;
+    options.Password.RequireLowercase = true;
     options.Password.RequireNonAlphanumeric = false;
-    options.Password.RequireUppercase = false;
-    options.Password.RequiredLength = 6;
+    options.Password.RequireUppercase = true;
+    options.Password.RequiredLength = 8;
+    options.Password.RequiredUniqueChars = 1;
+
     options.User.RequireUniqueEmail = true;
+
+    // Account lockout — throttles brute-force / credential-stuffing attacks.
+    options.Lockout.AllowedForNewUsers = true;
+    options.Lockout.MaxFailedAccessAttempts = 5;
+    options.Lockout.DefaultLockoutTimeSpan = TimeSpan.FromMinutes(15);
 }).AddEntityFrameworkStores<PharmaCareDBContext>();
 
 // Configure Authentication Cookie for "Remember Me" functionality
@@ -61,11 +83,39 @@ builder.Services.ConfigureApplicationCookie(options =>
     options.LoginPath = "/Account/Login";
     options.LogoutPath = "/Account/Logout";
     options.AccessDeniedPath = "/Account/AccessDenied";
-    options.ExpireTimeSpan = TimeSpan.FromDays(30); // Cookie valid for 30 days when "Remember Me" is checked
-    options.SlidingExpiration = true; // Refresh the cookie on each request
+    options.ExpireTimeSpan = TimeSpan.FromHours(8); // Bounded session (was 30 days)
+    options.SlidingExpiration = true; // Refresh the cookie on activity
     options.Cookie.HttpOnly = true;
-    options.Cookie.SecurePolicy = CookieSecurePolicy.SameAsRequest;
-    options.Cookie.SameSite = SameSiteMode.Lax;
+    // Always require HTTPS for the auth cookie outside Development (where local HTTP is common).
+    options.Cookie.SecurePolicy = builder.Environment.IsDevelopment()
+        ? CookieSecurePolicy.SameAsRequest
+        : CookieSecurePolicy.Always;
+    options.Cookie.SameSite = SameSiteMode.Strict;
+});
+
+// Rate limiting — primary defense against brute-force on authentication endpoints,
+// with a relaxed per-IP global limiter as a safety net against abusive clients.
+builder.Services.AddRateLimiter(options =>
+{
+    options.RejectionStatusCode = StatusCodes.Status429TooManyRequests;
+
+    // Applied to the login endpoint via [EnableRateLimiting("auth")].
+    options.AddFixedWindowLimiter("auth", limiterOptions =>
+    {
+        limiterOptions.PermitLimit = 10;
+        limiterOptions.Window = TimeSpan.FromMinutes(1);
+        limiterOptions.QueueLimit = 0;
+    });
+
+    options.GlobalLimiter = PartitionedRateLimiter.Create<HttpContext, string>(context =>
+        RateLimitPartition.GetFixedWindowLimiter(
+            partitionKey: context.Connection.RemoteIpAddress?.ToString() ?? "unknown",
+            factory: _ => new FixedWindowRateLimiterOptions
+            {
+                PermitLimit = 300,
+                Window = TimeSpan.FromMinutes(1),
+                QueueLimit = 0
+            }));
 });
 
 // Core Services
@@ -137,12 +187,41 @@ builder.Services.AddRazorPages();
 builder.Services.AddDistributedMemoryCache();
 builder.Services.AddSession(options =>
 {
-    options.IdleTimeout = TimeSpan.FromHours(2);
+    options.IdleTimeout = TimeSpan.FromMinutes(30);
     options.Cookie.HttpOnly = true;
     options.Cookie.IsEssential = true;
+    options.Cookie.SecurePolicy = builder.Environment.IsDevelopment()
+        ? CookieSecurePolicy.SameAsRequest
+        : CookieSecurePolicy.Always;
+    options.Cookie.SameSite = SameSiteMode.Strict;
 });
 
 var app = builder.Build();
+
+// Wire the static URL-ID protector (Utility.EncryptId/DecryptId) to Data Protection.
+Utility.Initialize(app.Services.GetRequiredService<IDataProtectionProvider>());
+
+// Security response headers applied to every response.
+app.Use(async (context, next) =>
+{
+    var headers = context.Response.Headers;
+    headers["X-Content-Type-Options"] = "nosniff";
+    headers["X-Frame-Options"] = "DENY";
+    headers["Referrer-Policy"] = "no-referrer";
+    headers["X-XSS-Protection"] = "0"; // Deprecated header; explicitly disabled in favor of CSP.
+    headers["Content-Security-Policy"] =
+        "default-src 'self'; " +
+        "script-src 'self' 'unsafe-inline' https://cdn.jsdelivr.net; " +
+        "style-src 'self' 'unsafe-inline' https://cdn.jsdelivr.net https://fonts.googleapis.com; " +
+        "font-src 'self' https://fonts.gstatic.com data:; " +
+        "img-src 'self' data:; " +
+        "connect-src 'self'; " +
+        "frame-ancestors 'none'; " +
+        "base-uri 'self'; " +
+        "form-action 'self'; " +
+        "object-src 'none'";
+    await next();
+});
 
 // Configure the HTTP request pipeline
 if (!app.Environment.IsDevelopment())
@@ -167,6 +246,7 @@ app.UseRequestLocalization(localizationOptions);
 app.UseHttpsRedirection();
 app.UseStaticFiles();
 app.UseRouting();
+app.UseRateLimiter();
 app.UseSession();
 app.UseAuthentication();
 app.UseSessionInitialization(); // Re-initialize session for "Remember Me" users
