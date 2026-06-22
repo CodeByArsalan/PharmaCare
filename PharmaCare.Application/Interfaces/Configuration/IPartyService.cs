@@ -1,3 +1,4 @@
+using PharmaCare.Application.DTOs;
 using PharmaCare.Domain.Entities.Configuration;
 
 namespace PharmaCare.Application.Interfaces.Configuration;
@@ -8,6 +9,11 @@ namespace PharmaCare.Application.Interfaces.Configuration;
 public interface IPartyService
 {
     Task<IEnumerable<Party>> GetAllAsync();
+
+    /// <summary>
+    /// Server-side paged + filtered list of parties for the index grid.
+    /// </summary>
+    Task<PagedResult<Party>> GetPagedAsync(string? search, string? partyType, bool? isActive, int page, int pageSize);
     Task<Party?> GetByIdAsync(int id);
     Task<Party> CreateAsync(Party party, int userId);
     Task<bool> UpdateAsync(Party party, int userId);

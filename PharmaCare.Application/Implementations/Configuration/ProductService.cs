@@ -1,4 +1,5 @@
 using Microsoft.EntityFrameworkCore;
+using PharmaCare.Application.DTOs;
 using PharmaCare.Application.DTOs.Configuration;
 using PharmaCare.Application.Interfaces;
 using PharmaCare.Application.Interfaces.Configuration;
@@ -96,13 +97,55 @@ public class ProductService : IProductService
         // I will limit to 50 only if no filters are provided (initial load).
         
         bool hasFilters = categoryId.HasValue || subCategoryId.HasValue || isActive.HasValue || !string.IsNullOrWhiteSpace(searchTerm);
-        
+
         if (!hasFilters)
         {
             query = query.Take(50);
         }
 
         return await query.ToListAsync();
+    }
+
+    public async Task<PagedResult<Product>> GetPagedFilteredProductsAsync(int? categoryId, int? subCategoryId, bool? isActive, string? searchTerm, int page, int pageSize)
+    {
+        var query = _repository.Query()
+            .AsNoTracking()
+            .Include(p => p.SubCategory)
+            .Include(p => p.Category)
+            .AsQueryable();
+
+        if (categoryId.HasValue)
+            query = query.Where(p => p.Category_ID == categoryId.Value);
+
+        if (subCategoryId.HasValue)
+            query = query.Where(p => p.SubCategory_ID == subCategoryId.Value);
+
+        if (isActive.HasValue)
+            query = query.Where(p => p.IsActive == isActive.Value);
+
+        if (!string.IsNullOrWhiteSpace(searchTerm))
+        {
+            var term = searchTerm.ToLower();
+            query = query.Where(p => p.Name.ToLower().Contains(term) ||
+                                     (p.ShortCode != null && p.ShortCode.ToLower().Contains(term)));
+        }
+
+        int totalCount = await query.CountAsync();
+
+        var items = await query
+            .OrderByDescending(p => p.IsActive)
+            .ThenByDescending(p => p.ProductID)
+            .Skip((page - 1) * pageSize)
+            .Take(pageSize)
+            .ToListAsync();
+
+        return new PagedResult<Product>
+        {
+            Items = items,
+            TotalCount = totalCount,
+            CurrentPage = page,
+            PageSize = pageSize
+        };
     }
 
     public async Task<Product?> GetByIdAsync(int id)

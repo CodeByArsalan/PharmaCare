@@ -14,9 +14,15 @@ public class LogDbContext : DbContext
     }
 
     /// <summary>
-    /// Activity logs tracking all user actions
+    /// Activity logs tracking all user actions (hot/live table).
     /// </summary>
     public DbSet<ActivityLog> ActivityLogs { get; set; } = null!;
+
+    /// <summary>
+    /// Archived activity logs moved out of the live table once they age past the
+    /// hot-retention window. Managed by the log-retention background job.
+    /// </summary>
+    public DbSet<ActivityLogArchive> ActivityLogsArchive { get; set; } = null!;
 
     protected override void OnModelCreating(ModelBuilder builder)
     {
@@ -48,6 +54,27 @@ public class LogDbContext : DbContext
             entity.Property(e => e.Description).HasMaxLength(500);
 
             // Configure JSON columns for old/new values (stored as NVARCHAR(MAX))
+            entity.Property(e => e.OldValues).HasColumnType("nvarchar(max)");
+            entity.Property(e => e.NewValues).HasColumnType("nvarchar(max)");
+        });
+
+        builder.Entity<ActivityLogArchive>(entity =>
+        {
+            entity.ToTable("ActivityLogsArchive");
+            entity.HasKey(e => e.ActivityLogID);
+            // Preserve the original ActivityLogID during the move (do not auto-generate).
+            entity.Property(e => e.ActivityLogID).ValueGeneratedNever();
+
+            // Timestamp drives the purge query, so keep it indexed here too.
+            entity.HasIndex(e => e.Timestamp);
+            entity.HasIndex(e => new { e.EntityName, e.EntityId });
+
+            entity.Property(e => e.UserName).HasMaxLength(256);
+            entity.Property(e => e.EntityName).HasMaxLength(100);
+            entity.Property(e => e.EntityId).HasMaxLength(50);
+            entity.Property(e => e.IpAddress).HasMaxLength(50);
+            entity.Property(e => e.UserAgent).HasMaxLength(500);
+            entity.Property(e => e.Description).HasMaxLength(500);
             entity.Property(e => e.OldValues).HasColumnType("nvarchar(max)");
             entity.Property(e => e.NewValues).HasColumnType("nvarchar(max)");
         });

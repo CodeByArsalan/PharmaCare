@@ -16,8 +16,9 @@ public class ProductController : BaseController
         _productService = productService;
     }
 
-    public async Task<IActionResult> ProductsIndex(int? categoryId, int? subCategoryId, int? status, string? searchTerm, string? activeTab)
+    public async Task<IActionResult> ProductsIndex(int? categoryId, int? subCategoryId, int? status, string? searchTerm, string? activeTab, int page = 1)
     {
+        const int pageSize = 15;
         // Status Logic: 1 = Active, 0 = Inactive, null = All
         bool? isActive = status.HasValue ? (status.Value == 1) : null;
         ViewBag.CurrentStatus = status;
@@ -25,8 +26,8 @@ public class ProductController : BaseController
         ViewBag.CurrentCategory = categoryId;
         ViewBag.CurrentSubCategory = subCategoryId;
 
-        // Get Products
-        var products = await _productService.GetFilteredProductsAsync(categoryId, subCategoryId, isActive, searchTerm);
+        // Get Products (server-side paged)
+        var products = await _productService.GetPagedFilteredProductsAsync(categoryId, subCategoryId, isActive, searchTerm, page, pageSize);
 
         // Prepare Add Product form data
         var priceTypes = await _productService.GetPriceTypesAsync();

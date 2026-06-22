@@ -34,10 +34,16 @@ public class PurchaseOrderController : BaseController
         _paymentService = paymentService;
     }
 
-    public async Task<IActionResult> PurchaseOrdersIndex()
+    public async Task<IActionResult> PurchaseOrdersIndex(int? supplierId, string? status, int page = 1)
     {
-        var purchaseOrders = await _purchaseOrderService.GetAllAsync();
-        return View(purchaseOrders);
+        const int pageSize = 15;
+        var pagedResult = await _purchaseOrderService.GetPagedAsync(supplierId, status, page, pageSize);
+
+        ViewBag.Suppliers = await GetPartySelectListAsync(_partyService, "Supplier", supplierId);
+        ViewBag.SelectedSupplier = supplierId;
+        ViewBag.SelectedStatus = status;
+
+        return View(pagedResult);
     }
     [LinkedToPage("PurchaseOrder", "PurchaseOrdersIndex")]
     public async Task<IActionResult> ViewPurchaseOrder(string id)

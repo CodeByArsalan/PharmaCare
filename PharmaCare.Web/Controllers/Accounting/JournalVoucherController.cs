@@ -31,11 +31,14 @@ public class JournalVoucherController : BaseController
         _userService = userService;
     }
 
-    public async Task<IActionResult> JournalVoucherIndex()
+    public async Task<IActionResult> JournalVoucherIndex(string? search, string? status, int page = 1)
     {
-        var vouchers = await _jvService.GetAllJournalVouchersAsync();
+        const int pageSize = 15;
+        var vouchers = await _jvService.GetPagedJournalVouchersAsync(search, status, page, pageSize);
         var users = await _userService.GetAllUsersAsync();
         ViewBag.UserNames = users.ToDictionary(u => u.Id, u => u.FullName);
+        ViewBag.Search = search;
+        ViewBag.SelectedStatus = status;
         return View(vouchers);
     }
 

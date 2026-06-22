@@ -1,3 +1,4 @@
+using PharmaCare.Application.DTOs;
 using PharmaCare.Domain.Entities.Configuration;
 
 namespace PharmaCare.ViewModels;
@@ -8,9 +9,9 @@ namespace PharmaCare.ViewModels;
 public class ProductIndexViewModel
 {
     /// <summary>
-    /// List of products for the grid
+    /// Paged list of products for the grid
     /// </summary>
-    public IEnumerable<Product> Products { get; set; } = new List<Product>();
+    public PagedResult<Product> Products { get; set; } = new PagedResult<Product>();
 
     /// <summary>
     /// ViewModel for the Add Product form

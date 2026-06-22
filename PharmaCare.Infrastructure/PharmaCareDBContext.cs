@@ -338,6 +338,10 @@ public class PharmaCareDBContext : IdentityUserContext<User, int>
             entity.HasKey(e => e.StockMainID);
             entity.Property(e => e.TransactionNo).IsRequired().HasMaxLength(50);
             entity.HasIndex(e => e.TransactionNo).IsUnique();
+            // Composite index for the dominant list/report query shape:
+            // filter by transaction type (equality) + date range, ordered/filtered by date, with Status predicate.
+            entity.HasIndex(e => new { e.TransactionType_ID, e.TransactionDate, e.Status })
+                  .HasDatabaseName("IX_StockMains_Type_Date_Status");
             entity.ToTable(t =>
             {
                 t.HasCheckConstraint("CK_StockMains_Status_Valid", "[Status] IN ('Draft','Approved','Void')");

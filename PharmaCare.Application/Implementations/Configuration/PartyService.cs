@@ -1,4 +1,5 @@
 using Microsoft.EntityFrameworkCore;
+using PharmaCare.Application.DTOs;
 using PharmaCare.Application.Interfaces;
 using PharmaCare.Application.Interfaces.Configuration;
 using PharmaCare.Domain.Entities.Configuration;
@@ -33,6 +34,43 @@ public class PartyService : IPartyService
     {
         var parties = await _repository.GetAllAsync();
         return parties.OrderByDescending(p => p.IsActive);
+    }
+
+    public async Task<PagedResult<Party>> GetPagedAsync(string? search, string? partyType, bool? isActive, int page, int pageSize)
+    {
+        var query = _repository.Query().AsNoTracking();
+
+        if (!string.IsNullOrWhiteSpace(search))
+        {
+            var term = search.Trim();
+            query = query.Where(p =>
+                p.Name.Contains(term) ||
+                (p.Phone != null && p.Phone.Contains(term)) ||
+                (p.Email != null && p.Email.Contains(term)));
+        }
+
+        if (!string.IsNullOrWhiteSpace(partyType) && partyType != "All")
+            query = query.Where(p => p.PartyType == partyType);
+
+        if (isActive.HasValue)
+            query = query.Where(p => p.IsActive == isActive.Value);
+
+        int totalCount = await query.CountAsync();
+
+        var items = await query
+            .OrderByDescending(p => p.IsActive)
+            .ThenBy(p => p.Name)
+            .Skip((page - 1) * pageSize)
+            .Take(pageSize)
+            .ToListAsync();
+
+        return new PagedResult<Party>
+        {
+            Items = items,
+            TotalCount = totalCount,
+            CurrentPage = page,
+            PageSize = pageSize
+        };
     }
 
     public async Task<Party?> GetByIdAsync(int id)

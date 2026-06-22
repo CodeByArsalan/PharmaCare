@@ -1,6 +1,8 @@
-@model IEnumerable<PharmaCare.Domain.Entities.Transactions.Voucher>
+@model PharmaCare.Application.DTOs.PagedResult<PharmaCare.Domain.Entities.Transactions.Voucher>
 @{
     ViewData["Title"] = "Journal Vouchers";
+    var search = ViewBag.Search as string;
+    var selectedStatus = ViewBag.SelectedStatus as string;
 }
 
 <div class="page-header">
@@ -10,6 +12,28 @@
     <a asp-action="AddJournalVoucher" class="btn btn-primary">
         <i class="fas fa-plus"></i> New Voucher
     </a>
+</div>
+
+<div class="card mb-4 shadow-sm border-0">
+    <div class="card-body bg-light">
+        <form method="get" asp-action="JournalVoucherIndex" class="row gx-3 gy-2 align-items-end">
+            <div class="col-md-6">
+                <label class="form-label small fw-bold text-muted">Search</label>
+                <input type="text" name="search" class="form-control" value="@search" placeholder="Voucher no or narration..." />
+            </div>
+            <div class="col-md-4">
+                <label class="form-label small fw-bold text-muted">Status</label>
+                <select name="status" class="form-select">
+                    <option value="All" selected="@(string.IsNullOrEmpty(selectedStatus) || selectedStatus == "All")">All</option>
+                    <option value="Posted" selected="@(selectedStatus == "Posted")">Posted</option>
+                    <option value="Reversed" selected="@(selectedStatus == "Reversed")">Voided</option>
+                </select>
+            </div>
+            <div class="col-md-2">
+                <button type="submit" class="btn btn-primary w-100"><i class="fas fa-search me-2"></i>Filter</button>
+            </div>
+        </form>
+    </div>
 </div>
 
 <div class="card">
@@ -28,7 +52,11 @@
                     </tr>
                 </thead>
                 <tbody>
-                    @foreach (var item in Model)
+                    @if (!Model.Items.Any())
+                    {
+                        <tr><td colspan="7" class="text-center py-4 text-muted">No journal vouchers found.</td></tr>
+                    }
+                    @foreach (var item in Model.Items)
                     {
                         <tr class="@(item.Status == "Reversed" ? "text-muted text-decoration-line-through" : "")">
                             <td>@item.VoucherDate.ToString("dd-MM-yyyy")</td>
@@ -69,6 +97,32 @@
             </table>
         </div>
     </div>
+
+    @if (Model.TotalPages > 1)
+    {
+        <div class="card-footer bg-theme-footer py-3">
+            <div class="d-flex align-items-center justify-content-between">
+                <div class="text-muted small">
+                    Showing <strong>@(((Model.CurrentPage - 1) * Model.PageSize) + 1)</strong> to
+                    <strong>@(Math.Min(Model.CurrentPage * Model.PageSize, Model.TotalCount))</strong> of
+                    <strong>@Model.TotalCount</strong> entries
+                </div>
+                <nav>
+                    <ul class="pagination pagination-sm mb-0">
+                        <li class="page-item @(Model.CurrentPage == 1 ? "disabled" : "")">
+                            <a class="page-link" href="?page=@(Model.CurrentPage - 1)&search=@search&status=@selectedStatus">Previous</a>
+                        </li>
+                        <li class="page-item disabled">
+                            <span class="page-link">Page @Model.CurrentPage of @Model.TotalPages</span>
+                        </li>
+                        <li class="page-item @(Model.CurrentPage == Model.TotalPages ? "disabled" : "")">
+                            <a class="page-link" href="?page=@(Model.CurrentPage + 1)&search=@search&status=@selectedStatus">Next</a>
+                        </li>
+                    </ul>
+                </nav>
+            </div>
+        </div>
+    }
 </div>
 
 <!-- Void Modal -->
@@ -99,12 +153,7 @@
 
 @section Scripts {
     <script>
-        $(document).ready(function() {
-            $('#vouchersTable').DataTable({
-                "order": [[ 0, "desc" ]]
-            });
-        });
-
+        // Server-side paging is used; client-side DataTables init removed.
         function openVoidModal(id, no) {
             $('#voidVoucherId').val(id);
             $('#voidVoucherNo').text(no);

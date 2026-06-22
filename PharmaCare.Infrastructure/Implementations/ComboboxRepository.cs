@@ -288,18 +288,20 @@ public class ComboboxRepository : IComboboxRepository
 
     public IEnumerable<SelectListItem> GetEntityNamesForLog(string? selectedValue = null)
     {
-        // This might be heavy if table is huge, but it's for filter dropdown
-        return _logContext.ActivityLogs
+        // DISTINCT + ORDER BY run in SQL; only the small set of distinct entity names is
+        // materialized, then mapped to SelectListItems in memory.
+        var names = _logContext.ActivityLogs
             .Select(l => l.EntityName)
             .Distinct()
             .OrderBy(n => n)
-            .Select(n => new SelectListItem
-            {
-                Value = n,
-                Text = n,
-                Selected = selectedValue == n
-            })
             .ToList();
+
+        return names.Select(n => new SelectListItem
+        {
+            Value = n,
+            Text = n,
+            Selected = selectedValue == n
+        }).ToList();
     }
 
     public IEnumerable<SelectListItem> GetPaymentMethods(string? selectedValue = null)

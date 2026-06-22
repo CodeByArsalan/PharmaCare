@@ -1,3 +1,4 @@
+using PharmaCare.Application.DTOs;
 using PharmaCare.Application.DTOs.Configuration;
 using PharmaCare.Domain.Entities.Configuration;
 
@@ -13,6 +14,11 @@ public interface IProductService
     Task<Product> CreateAsync(Product product, int userId);
     Task<bool> UpdateAsync(Product product, int userId);
     Task<IEnumerable<Product>> GetFilteredProductsAsync(int? categoryId, int? subCategoryId, bool? isActive, string? searchTerm);
+
+    /// <summary>
+    /// Server-side paged + filtered products for the index grid.
+    /// </summary>
+    Task<PagedResult<Product>> GetPagedFilteredProductsAsync(int? categoryId, int? subCategoryId, bool? isActive, string? searchTerm, int page, int pageSize);
     /// <summary>
     /// Toggles the active status of a product
     /// </summary>

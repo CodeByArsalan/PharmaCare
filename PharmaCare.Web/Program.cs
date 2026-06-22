@@ -41,6 +41,11 @@ builder.Services.AddDbContext<LogDbContext>(options => options.UseSqlServer(logC
 builder.Services.AddScoped<AuditSaveChangesInterceptor>();
 builder.Services.AddScoped<IActivityLogRepository, ActivityLogRepository>();
 
+// Activity-log retention: nightly job that archives ActivityLogs older than the hot
+// window and purges archived rows older than the archive window (see "LogRetention" config).
+builder.Services.Configure<LogRetentionOptions>(builder.Configuration.GetSection(LogRetentionOptions.SectionName));
+builder.Services.AddHostedService<LogRetentionService>();
+
 // Database Context with audit interceptor
 builder.Services.AddDbContext<PharmaCareDBContext>((serviceProvider, options) => 
 {

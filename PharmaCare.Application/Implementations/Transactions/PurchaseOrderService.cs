@@ -1,4 +1,5 @@
 using Microsoft.EntityFrameworkCore;
+using PharmaCare.Application.DTOs;
 using PharmaCare.Application.Interfaces;
 using PharmaCare.Application.Interfaces.Transactions;
 using PharmaCare.Domain.Entities.Finance;
@@ -47,6 +48,41 @@ public class PurchaseOrderService : IPurchaseOrderService
 
         await RecalculateOutstandingAsync(purchaseOrders);
         return purchaseOrders;
+    }
+
+    public async Task<PagedResult<StockMain>> GetPagedAsync(int? supplierId, string? status, int page, int pageSize)
+    {
+        var query = _stockMainRepository.Query()
+            .Include(s => s.TransactionType)
+            .Include(s => s.Party)
+            .Include(s => s.StockDetails)
+            .Where(s => s.TransactionType!.Code == TRANSACTION_TYPE_CODE);
+
+        if (supplierId.HasValue && supplierId.Value > 0)
+            query = query.Where(s => s.Party_ID == supplierId.Value);
+
+        if (!string.IsNullOrWhiteSpace(status) && status != "All")
+            query = query.Where(s => s.Status == status);
+
+        int totalCount = await query.CountAsync();
+
+        var items = await query
+            .OrderByDescending(s => s.TransactionDate)
+            .ThenByDescending(s => s.StockMainID)
+            .Skip((page - 1) * pageSize)
+            .Take(pageSize)
+            .ToListAsync();
+
+        // Recalculate outstanding only for the current page's POs (per-PO independent).
+        await RecalculateOutstandingAsync(items);
+
+        return new PagedResult<StockMain>
+        {
+            Items = items,
+            TotalCount = totalCount,
+            CurrentPage = page,
+            PageSize = pageSize
+        };
     }
 
     public async Task<StockMain?> GetByIdAsync(int id)

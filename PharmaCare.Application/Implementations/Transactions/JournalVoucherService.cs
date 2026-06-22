@@ -1,4 +1,5 @@
 using Microsoft.EntityFrameworkCore;
+using PharmaCare.Application.DTOs;
 using PharmaCare.Application.DTOs.Transactions;
 using PharmaCare.Application.Interfaces;
 using PharmaCare.Application.Interfaces.Transactions;
@@ -33,6 +34,39 @@ public class JournalVoucherService : IJournalVoucherService
             .Where(v => v.VoucherType.Code == "JV")
             .OrderByDescending(v=>v.VoucherID)
             .ToListAsync();
+    }
+
+    public async Task<PagedResult<Voucher>> GetPagedJournalVouchersAsync(string? search, string? status, int page, int pageSize)
+    {
+        var query = _voucherRepository.Query()
+            .AsNoTracking()
+            .Include(v => v.VoucherType)
+            .Where(v => v.VoucherType.Code == "JV");
+
+        if (!string.IsNullOrWhiteSpace(search))
+        {
+            var term = search.Trim();
+            query = query.Where(v => v.VoucherNo.Contains(term) || (v.Narration != null && v.Narration.Contains(term)));
+        }
+
+        if (!string.IsNullOrWhiteSpace(status) && status != "All")
+            query = query.Where(v => v.Status == status);
+
+        int totalCount = await query.CountAsync();
+
+        var items = await query
+            .OrderByDescending(v => v.VoucherID)
+            .Skip((page - 1) * pageSize)
+            .Take(pageSize)
+            .ToListAsync();
+
+        return new PagedResult<Voucher>
+        {
+            Items = items,
+            TotalCount = totalCount,
+            CurrentPage = page,
+            PageSize = pageSize
+        };
     }
 
     public async Task<Voucher?> GetByIdAsync(int id)

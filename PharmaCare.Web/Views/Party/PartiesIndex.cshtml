@@ -1,7 +1,10 @@
 @using PharmaCare.Web.Utilities
-@model IEnumerable<PharmaCare.Domain.Entities.Configuration.Party>
+@model PharmaCare.Application.DTOs.PagedResult<PharmaCare.Domain.Entities.Configuration.Party>
 @{
     ViewData["Title"] = "Party Management";
+    var search = ViewBag.Search as string;
+    var selectedType = ViewBag.SelectedType as string ?? "All";
+    var selectedStatus = ViewBag.SelectedStatus as int?;
 }
 
 <!-- Page Header -->
@@ -23,9 +26,40 @@
     </div>
 }
 
+<div class="card mb-4 shadow-sm border-0">
+    <div class="card-body bg-light">
+        <form method="get" asp-action="PartiesIndex" class="row gx-3 gy-2 align-items-end">
+            <div class="col-md-5">
+                <label class="form-label small fw-bold text-muted">Search</label>
+                <input type="text" name="search" class="form-control" value="@search" placeholder="Name, phone or email..." />
+            </div>
+            <div class="col-md-3">
+                <label class="form-label small fw-bold text-muted">Type</label>
+                <select name="partyType" class="form-select">
+                    <option value="All" selected="@(selectedType == "All")">All</option>
+                    <option value="Customer" selected="@(selectedType == "Customer")">Customer</option>
+                    <option value="Supplier" selected="@(selectedType == "Supplier")">Supplier</option>
+                    <option value="Both" selected="@(selectedType == "Both")">Both</option>
+                </select>
+            </div>
+            <div class="col-md-3">
+                <label class="form-label small fw-bold text-muted">Status</label>
+                <select name="status" class="form-select">
+                    <option value="" selected="@(selectedStatus == null)">All</option>
+                    <option value="1" selected="@(selectedStatus == 1)">Active</option>
+                    <option value="0" selected="@(selectedStatus == 0)">Inactive</option>
+                </select>
+            </div>
+            <div class="col-md-1">
+                <button type="submit" class="btn btn-primary w-100"><i class="fas fa-search"></i></button>
+            </div>
+        </form>
+    </div>
+</div>
+
 <div class="card">
-    <div class="card-body">
-        <table class="table table-hover datatable">
+    <div class="card-body p-0">
+        <table class="table table-hover mb-0">
             <thead>
                 <tr>
                     <th style="width: 60px;">S.No</th>
@@ -38,52 +72,92 @@
                 </tr>
             </thead>
             <tbody>
-                @{ int count = 1; }
-                @foreach (var item in Model)
+                @if (Model.Items.Any())
+                {
+                    var sno = ((Model.CurrentPage - 1) * Model.PageSize) + 1;
+                    @foreach (var item in Model.Items)
+                    {
+                        <tr>
+                            <td>@(sno++)</td>
+                            <td><strong>@item.Name</strong></td>
+                            <td>
+                                @if (item.PartyType == "Customer")
+                                {
+                                    <span class="badge bg-info">Customer</span>
+                                }
+                                else if (item.PartyType == "Supplier")
+                                {
+                                    <span class="badge bg-warning">Supplier</span>
+                                }
+                                else
+                                {
+                                    <span class="badge bg-secondary">@item.PartyType</span>
+                                }
+                            </td>
+                            <td>@(item.Phone ?? "-")</td>
+                            <td>@(item.Email ?? "-")</td>
+                            <td>
+                                @if (item.IsActive)
+                                {
+                                    <span class="badge bg-success">Active</span>
+                                }
+                                else
+                                {
+                                    <span class="badge bg-danger">Inactive</span>
+                                }
+                            </td>
+                            <td class="text-end">
+                                <a asp-action="EditParty" asp-route-id="@item.PartyID.EncryptId()" class="btn btn-sm btn-outline-primary">
+                                    <i class="fas fa-edit"></i>
+                                </a>
+                                <button type="button" class="btn btn-sm btn-outline-danger btn-delete"
+                                        data-id="@item.PartyID.EncryptId()" data-name="@item.Name">
+                                    <i class="fas fa-trash"></i>
+                                </button>
+                            </td>
+                        </tr>
+                    }
+                }
+                else
                 {
                     <tr>
-                        <td>@(count++)</td>
-                        <td><strong>@item.Name</strong></td>
-                        <td>
-                            @if (item.PartyType == "Customer")
-                            {
-                                <span class="badge bg-info">Customer</span>
-                            }
-                            else if (item.PartyType == "Supplier")
-                            {
-                                <span class="badge bg-warning">Supplier</span>
-                            }
-                            else
-                            {
-                                <span class="badge bg-secondary">@item.PartyType</span>
-                            }
-                        </td>
-                        <td>@(item.Phone ?? "-")</td>
-                        <td>@(item.Email ?? "-")</td>
-                        <td>
-                            @if (item.IsActive)
-                            {
-                                <span class="badge bg-success">Active</span>
-                            }
-                            else
-                            {
-                                <span class="badge bg-danger">Inactive</span>
-                            }
-                        </td>
-                        <td class="text-end">
-                            <a asp-action="EditParty" asp-route-id="@item.PartyID.EncryptId()" class="btn btn-sm btn-outline-primary">
-                                <i class="fas fa-edit"></i>
-                            </a>
-                            <button type="button" class="btn btn-sm btn-outline-danger btn-delete" 
-                                    data-id="@item.PartyID.EncryptId()" data-name="@item.Name">
-                                <i class="fas fa-trash"></i>
-                            </button>
+                        <td colspan="7" class="text-center py-4">
+                            <div class="empty-state">
+                                <i class="fas fa-users fa-3x text-muted mb-3"></i>
+                                <p class="mb-0">No parties found.</p>
+                            </div>
                         </td>
                     </tr>
                 }
             </tbody>
         </table>
     </div>
+
+    @if (Model.TotalPages > 1)
+    {
+        <div class="card-footer bg-theme-footer py-3">
+            <div class="d-flex align-items-center justify-content-between">
+                <div class="text-muted small">
+                    Showing <strong>@(((Model.CurrentPage - 1) * Model.PageSize) + 1)</strong> to
+                    <strong>@(Math.Min(Model.CurrentPage * Model.PageSize, Model.TotalCount))</strong> of
+                    <strong>@Model.TotalCount</strong> entries
+                </div>
+                <nav>
+                    <ul class="pagination pagination-sm mb-0">
+                        <li class="page-item @(Model.CurrentPage == 1 ? "disabled" : "")">
+                            <a class="page-link" href="?page=@(Model.CurrentPage - 1)&search=@search&partyType=@selectedType&status=@selectedStatus">Previous</a>
+                        </li>
+                        <li class="page-item disabled">
+                            <span class="page-link">Page @Model.CurrentPage of @Model.TotalPages</span>
+                        </li>
+                        <li class="page-item @(Model.CurrentPage == Model.TotalPages ? "disabled" : "")">
+                            <a class="page-link" href="?page=@(Model.CurrentPage + 1)&search=@search&partyType=@selectedType&status=@selectedStatus">Next</a>
+                        </li>
+                    </ul>
+                </nav>
+            </div>
+        </div>
+    }
 </div>
 
 <!-- Hidden form for delete -->

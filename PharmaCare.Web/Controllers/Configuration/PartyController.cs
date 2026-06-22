@@ -14,10 +14,18 @@ public class PartyController : BaseController
         _partyService = partyService;
     }
 
-    public async Task<IActionResult> PartiesIndex()
+    public async Task<IActionResult> PartiesIndex(string? search, string? partyType, int? status, int page = 1)
     {
-        var parties = await _partyService.GetAllAsync();
-        return View("PartiesIndex", parties);
+        const int pageSize = 15;
+        bool? isActive = status switch { 1 => true, 0 => false, _ => null };
+
+        var result = await _partyService.GetPagedAsync(search, partyType, isActive, page, pageSize);
+
+        ViewBag.Search = search;
+        ViewBag.SelectedType = partyType ?? "All";
+        ViewBag.SelectedStatus = status;
+
+        return View("PartiesIndex", result);
     }
     public IActionResult AddParty()
     {

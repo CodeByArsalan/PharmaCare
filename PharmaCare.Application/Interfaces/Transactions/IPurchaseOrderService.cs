@@ -1,3 +1,4 @@
+using PharmaCare.Application.DTOs;
 using PharmaCare.Domain.Entities.Transactions;
 
 namespace PharmaCare.Application.Interfaces.Transactions;
@@ -11,6 +12,11 @@ public interface IPurchaseOrderService
     /// Gets all purchase orders.
     /// </summary>
     Task<IEnumerable<StockMain>> GetAllAsync();
+
+    /// <summary>
+    /// Server-side paged + filtered purchase orders for the index grid.
+    /// </summary>
+    Task<PagedResult<StockMain>> GetPagedAsync(int? supplierId, string? status, int page, int pageSize);
 
     /// <summary>
     /// Gets a purchase order with its details.

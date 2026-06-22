@@ -19,8 +19,6 @@ public class PurchaseReportService : IPurchaseReportService
     public async Task<PurchaseReportVM> GetPurchaseReportAsync(DateRangeFilter filter)
     {
         var query = _db.StockMains
-            .Include(s => s.TransactionType)
-            .Include(s => s.Party)
             .Where(s => (PurchaseCodes.Contains(s.TransactionType!.Code) || PurchaseReturnCodes.Contains(s.TransactionType!.Code))
                         && s.TransactionDate >= filter.FromDate
                         && s.TransactionDate < filter.ToDate.AddDays(1)
@@ -29,29 +27,24 @@ public class PurchaseReportService : IPurchaseReportService
         if (filter.PartyId.HasValue)
             query = query.Where(s => s.Party_ID == filter.PartyId.Value);
 
-        var data = await query.ToListAsync();
-
-        var rows = data.Select(s =>
-        {
-            var isReturn = PurchaseReturnCodes.Contains(s.TransactionType!.Code);
-            var multiplier = isReturn ? -1 : 1;
-
-            return new PurchaseReportRow
+        // Project to the report row in SQL (negate return rows via CASE), selecting only the
+        // columns we need instead of materializing full entity graphs.
+        var rows = await query
+            .OrderByDescending(s => s.TransactionDate)
+            .Select(s => new PurchaseReportRow
             {
                 StockMainId = s.StockMainID,
                 TransactionNo = s.TransactionNo,
                 TransactionDate = s.TransactionDate,
-                SupplierName = s.Party?.Name ?? "",
-                SubTotal = s.SubTotal * multiplier,
-                Discount = s.DiscountAmount * multiplier,
-                TotalAmount = s.TotalAmount * multiplier,
-                PaidAmount = s.PaidAmount * multiplier,
-                BalanceAmount = s.BalanceAmount * multiplier,
-                Status = isReturn ? "Return" : s.Status
-            };
-        })
-        .OrderByDescending(s => s.TransactionDate)
-        .ToList();
+                SupplierName = s.Party != null ? s.Party.Name : "",
+                SubTotal = PurchaseReturnCodes.Contains(s.TransactionType!.Code) ? -s.SubTotal : s.SubTotal,
+                Discount = PurchaseReturnCodes.Contains(s.TransactionType!.Code) ? -s.DiscountAmount : s.DiscountAmount,
+                TotalAmount = PurchaseReturnCodes.Contains(s.TransactionType!.Code) ? -s.TotalAmount : s.TotalAmount,
+                PaidAmount = PurchaseReturnCodes.Contains(s.TransactionType!.Code) ? -s.PaidAmount : s.PaidAmount,
+                BalanceAmount = PurchaseReturnCodes.Contains(s.TransactionType!.Code) ? -s.BalanceAmount : s.BalanceAmount,
+                Status = PurchaseReturnCodes.Contains(s.TransactionType!.Code) ? "Return" : s.Status
+            })
+            .ToListAsync();
 
         var vm = new PurchaseReportVM
         {
@@ -69,38 +62,29 @@ public class PurchaseReportService : IPurchaseReportService
 
     public async Task<PurchaseBySupplierVM> GetPurchaseBySupplierAsync(DateRangeFilter filter)
     {
-        var purchases = await _db.StockMains
-            .Include(s => s.TransactionType)
-            .Include(s => s.Party)
+        // Aggregate per supplier in SQL (GROUP BY) so only the per-supplier summary rows are
+        // returned, instead of pulling every transaction in the range into memory.
+        var rows = await _db.StockMains
             .Where(s => (PurchaseCodes.Contains(s.TransactionType!.Code) || PurchaseReturnCodes.Contains(s.TransactionType!.Code))
                         && s.TransactionDate >= filter.FromDate
                         && s.TransactionDate < filter.ToDate.AddDays(1)
                         && s.Status != "Void"
                         && s.Party_ID != null)
-            .ToListAsync();
-
-        var rows = purchases
-            .GroupBy(s => s.Party_ID)
-            .Select(g =>
+            .GroupBy(s => new { s.Party_ID, SupplierName = s.Party!.Name })
+            .Select(g => new PurchaseBySupplierRow
             {
-                var first = g.First();
-                var totalPurchases = g.Sum(s => PurchaseReturnCodes.Contains(s.TransactionType!.Code) ? -s.TotalAmount : s.TotalAmount);
-                var totalPaid = g.Sum(s => PurchaseReturnCodes.Contains(s.TransactionType!.Code) ? -s.PaidAmount : s.PaidAmount);
-                var balanceDue = g.Sum(s => PurchaseReturnCodes.Contains(s.TransactionType!.Code) ? -s.BalanceAmount : s.BalanceAmount);
-
-                return new PurchaseBySupplierRow
-                {
-                    PartyId = first.Party_ID ?? 0,
-                    SupplierName = first.Party?.Name ?? "Unknown",
-                    PurchaseCount = g.Count(s => PurchaseCodes.Contains(s.TransactionType!.Code)),
-                    TotalPurchases = totalPurchases,
-                    TotalPaid = totalPaid,
-                    BalanceDue = balanceDue,
-                    LastPurchaseDate = g.Where(s => PurchaseCodes.Contains(s.TransactionType!.Code)).Max(s => (DateTime?)s.TransactionDate)
-                };
+                PartyId = g.Key.Party_ID ?? 0,
+                SupplierName = g.Key.SupplierName ?? "Unknown",
+                // SUM(CASE ...) — count only purchases, negate returns for money columns.
+                PurchaseCount = g.Sum(s => PurchaseCodes.Contains(s.TransactionType!.Code) ? 1 : 0),
+                TotalPurchases = g.Sum(s => PurchaseReturnCodes.Contains(s.TransactionType!.Code) ? -s.TotalAmount : s.TotalAmount),
+                TotalPaid = g.Sum(s => PurchaseReturnCodes.Contains(s.TransactionType!.Code) ? -s.PaidAmount : s.PaidAmount),
+                BalanceDue = g.Sum(s => PurchaseReturnCodes.Contains(s.TransactionType!.Code) ? -s.BalanceAmount : s.BalanceAmount),
+                // MAX over purchase rows only (returns map to NULL and are ignored by MAX).
+                LastPurchaseDate = g.Max(s => PurchaseCodes.Contains(s.TransactionType!.Code) ? (DateTime?)s.TransactionDate : null)
             })
             .OrderByDescending(r => r.TotalPurchases)
-            .ToList();
+            .ToListAsync();
 
         return new PurchaseBySupplierVM
         {
