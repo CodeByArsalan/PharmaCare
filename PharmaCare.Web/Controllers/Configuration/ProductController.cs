@@ -16,9 +16,9 @@ public class ProductController : BaseController
         _productService = productService;
     }
 
-    public async Task<IActionResult> ProductsIndex(int? categoryId, int? subCategoryId, int? status, string? searchTerm, string? activeTab, int page = 1)
+    public async Task<IActionResult> ProductsIndex(int? categoryId, int? subCategoryId, int? status, string? searchTerm, string? activeTab, int page = 1, int pageSize = 25)
     {
-        const int pageSize = 15;
+        pageSize = NormalizePageSize(pageSize);
         // Status Logic: 1 = Active, 0 = Inactive, null = All
         bool? isActive = status.HasValue ? (status.Value == 1) : null;
         ViewBag.CurrentStatus = status;

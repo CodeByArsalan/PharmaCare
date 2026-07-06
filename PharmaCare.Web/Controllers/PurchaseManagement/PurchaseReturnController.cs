@@ -26,9 +26,9 @@ public class PurchaseReturnController : BaseController
         _productService = productService;
     }
 
-    public async Task<IActionResult> PurchaseReturnsIndex(int? supplierId, DateTime? fromDate, DateTime? toDate, string? status, int page = 1)
+    public async Task<IActionResult> PurchaseReturnsIndex(int? supplierId, DateTime? fromDate, DateTime? toDate, string? status, int page = 1, int pageSize = 25)
     {
-        int pageSize = 15;
+        pageSize = NormalizePageSize(pageSize);
         var pagedResult = await _purchaseReturnService.GetPagedAsync(supplierId, fromDate, toDate, status, page, pageSize);
 
         var suppliers = await _partyService.GetAllAsync();

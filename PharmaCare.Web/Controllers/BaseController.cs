@@ -90,6 +90,13 @@ public abstract class BaseController : Controller
     }
 
     /// <summary>
+    /// Validates a user-supplied page size against the allowed set, falling back to 25.
+    /// Prevents arbitrary/huge page sizes from the query string.
+    /// </summary>
+    protected static int NormalizePageSize(int pageSize) =>
+        pageSize is 10 or 25 or 50 or 100 ? pageSize : 25;
+
+    /// <summary>
     /// Gets a SelectList for parties (Suppliers, Customers, or Both).
     /// </summary>
     protected async Task<SelectList> GetPartySelectListAsync(IPartyService partyService, string partyType, int? selectedId = null)

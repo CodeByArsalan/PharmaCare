@@ -38,9 +38,9 @@ public class PurchaseController : BaseController
         _logger = logger;
     }
 
-    public async Task<IActionResult> PurchasesIndex(int? supplierId, DateTime? fromDate, DateTime? toDate, string? status, int page = 1)
+    public async Task<IActionResult> PurchasesIndex(int? supplierId, DateTime? fromDate, DateTime? toDate, string? status, int page = 1, int pageSize = 25)
     {
-        int pageSize = 15;
+        pageSize = NormalizePageSize(pageSize);
         var pagedResult = await _purchaseService.GetPagedAsync(supplierId, fromDate, toDate, status, page, pageSize);
 
         ViewBag.Suppliers = await GetPartySelectListAsync(_partyService, "Supplier", supplierId);

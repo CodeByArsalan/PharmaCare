@@ -14,9 +14,9 @@ public class PartyController : BaseController
         _partyService = partyService;
     }
 
-    public async Task<IActionResult> PartiesIndex(string? search, string? partyType, int? status, int page = 1)
+    public async Task<IActionResult> PartiesIndex(string? search, string? partyType, int? status, int page = 1, int pageSize = 25)
     {
-        const int pageSize = 15;
+        pageSize = NormalizePageSize(pageSize);
         bool? isActive = status switch { 1 => true, 0 => false, _ => null };
 
         var result = await _partyService.GetPagedAsync(search, partyType, isActive, page, pageSize);

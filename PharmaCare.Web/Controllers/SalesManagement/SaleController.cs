@@ -35,9 +35,9 @@ public class SaleController : BaseController
         _logger = logger;
     }
 
-    public async Task<IActionResult> SalesIndex(int? customerId, DateTime? fromDate, DateTime? toDate, string? status, int page = 1)
+    public async Task<IActionResult> SalesIndex(int? customerId, DateTime? fromDate, DateTime? toDate, string? status, int page = 1, int pageSize = 25)
     {
-        int pageSize = 15;
+        pageSize = NormalizePageSize(pageSize);
         var pagedResult = await _saleService.GetPagedAsync(customerId, fromDate, toDate, status, page, pageSize);
 
         ViewBag.Customers = await GetPartySelectListAsync(_partyService, "Customer", customerId);

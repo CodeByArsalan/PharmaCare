@@ -38,9 +38,9 @@ public class SupplierPaymentController : BaseController
     }
 
     /// Displays list of GRNs with payment information.
-    public async Task<IActionResult> PaymentsIndex(int? supplierId, string? paymentStatus, DateTime? fromDate, DateTime? toDate, int page = 1) 
+    public async Task<IActionResult> PaymentsIndex(int? supplierId, string? paymentStatus, DateTime? fromDate, DateTime? toDate, int page = 1, int pageSize = 25)
     {
-        int pageSize = 15;
+        pageSize = NormalizePageSize(pageSize);
         var pagedResult = await _paymentService.GetPagedPendingGrnsAsync(supplierId, fromDate, toDate, paymentStatus, page, pageSize);
 
         ViewBag.Suppliers = await GetPartySelectListAsync(_partyService, "Supplier", supplierId);

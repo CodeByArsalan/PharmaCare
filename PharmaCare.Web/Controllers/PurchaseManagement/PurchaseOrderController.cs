@@ -34,9 +34,9 @@ public class PurchaseOrderController : BaseController
         _paymentService = paymentService;
     }
 
-    public async Task<IActionResult> PurchaseOrdersIndex(int? supplierId, string? status, int page = 1)
+    public async Task<IActionResult> PurchaseOrdersIndex(int? supplierId, string? status, int page = 1, int pageSize = 25)
     {
-        const int pageSize = 15;
+        pageSize = NormalizePageSize(pageSize);
         var pagedResult = await _purchaseOrderService.GetPagedAsync(supplierId, status, page, pageSize);
 
         ViewBag.Suppliers = await GetPartySelectListAsync(_partyService, "Supplier", supplierId);
