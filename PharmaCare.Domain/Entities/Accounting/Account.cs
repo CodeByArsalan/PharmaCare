@@ -8,8 +8,11 @@ namespace PharmaCare.Domain.Entities.Accounting;
 /// Level 4: Chart of Accounts (Individual Accounts)
 /// The actual transactional ledger accounts.
 /// </summary>
-public class Account : BaseEntityWithStatus
+public class Account : BaseEntityWithStatus, ITenantEntity
 {
+    // Tenant (pharmacy) that owns this row. Auto-filtered and stamped by the DbContext.
+    public int Pharmacy_ID { get; set; }
+
     [Key]
     public int AccountID { get; set; }
 

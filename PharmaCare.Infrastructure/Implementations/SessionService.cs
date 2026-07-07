@@ -83,12 +83,26 @@ public class SessionService : ISessionService
             })
             .ToList();
 
+        // Resolve the owning pharmacy name (Pharmacies is not tenant-filtered).
+        string? pharmacyName = null;
+        if (user.Pharmacy_ID.HasValue)
+        {
+            pharmacyName = await _context.Pharmacies
+                .AsNoTracking()
+                .Where(p => p.PharmacyID == user.Pharmacy_ID.Value)
+                .Select(p => p.Name)
+                .FirstOrDefaultAsync();
+        }
+
         // Create user session info
         var userSession = new UserSessionInfo
         {
             UserId = user.Id,
             FullName = user.FullName,
             Email = user.Email ?? string.Empty,
+            Pharmacy_ID = user.Pharmacy_ID,
+            PharmacyName = pharmacyName,
+            IsPlatformAdmin = user.IsPlatformAdmin,
             StoreId = null,
             StoreName = null,
             RoleIds = roleIds,

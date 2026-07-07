@@ -8,8 +8,11 @@ namespace PharmaCare.Domain.Entities.Configuration;
 /// <summary>
 /// Party entity representing Customers and Suppliers.
 /// </summary>
-public class Party : BaseEntityWithStatus
+public class Party : BaseEntityWithStatus, ITenantEntity
 {
+    // Tenant (pharmacy) that owns this row. Auto-filtered and stamped by the DbContext.
+    public int Pharmacy_ID { get; set; }
+
     [Key]
     public int PartyID { get; set; }
 

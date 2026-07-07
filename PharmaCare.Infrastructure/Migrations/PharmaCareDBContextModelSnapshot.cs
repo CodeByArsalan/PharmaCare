@@ -124,6 +124,9 @@ namespace PharmaCare.Infrastructure.Migrations
                         .HasMaxLength(200)
                         .HasColumnType("nvarchar(200)");
 
+                    b.Property<int>("Pharmacy_ID")
+                        .HasColumnType("int");
+
                     b.Property<DateTime?>("UpdatedAt")
                         .HasColumnType("datetime2");
 
@@ -137,6 +140,8 @@ namespace PharmaCare.Infrastructure.Migrations
                     b.HasIndex("AccountSubhead_ID");
 
                     b.HasIndex("AccountType_ID");
+
+                    b.HasIndex("Pharmacy_ID");
 
                     b.ToTable("Accounts", (string)null);
                 });
@@ -154,7 +159,12 @@ namespace PharmaCare.Infrastructure.Migrations
                         .HasMaxLength(100)
                         .HasColumnType("nvarchar(100)");
 
+                    b.Property<int>("Pharmacy_ID")
+                        .HasColumnType("int");
+
                     b.HasKey("AccountFamilyID");
+
+                    b.HasIndex("Pharmacy_ID");
 
                     b.ToTable("AccountFamilies", (string)null);
                 });
@@ -170,14 +180,25 @@ namespace PharmaCare.Infrastructure.Migrations
                     b.Property<int>("AccountFamily_ID")
                         .HasColumnType("int");
 
+                    b.Property<string>("Code")
+                        .HasMaxLength(30)
+                        .HasColumnType("nvarchar(30)");
+
                     b.Property<string>("HeadName")
                         .IsRequired()
                         .HasMaxLength(100)
                         .HasColumnType("nvarchar(100)");
 
+                    b.Property<int>("Pharmacy_ID")
+                        .HasColumnType("int");
+
                     b.HasKey("AccountHeadID");
 
                     b.HasIndex("AccountFamily_ID");
+
+                    b.HasIndex("Pharmacy_ID");
+
+                    b.HasIndex("Pharmacy_ID", "Code");
 
                     b.ToTable("AccountHeads", (string)null);
                 });
@@ -193,6 +214,13 @@ namespace PharmaCare.Infrastructure.Migrations
                     b.Property<int>("AccountHead_ID")
                         .HasColumnType("int");
 
+                    b.Property<string>("Code")
+                        .HasMaxLength(30)
+                        .HasColumnType("nvarchar(30)");
+
+                    b.Property<int>("Pharmacy_ID")
+                        .HasColumnType("int");
+
                     b.Property<string>("SubheadName")
                         .IsRequired()
                         .HasMaxLength(100)
@@ -201,6 +229,10 @@ namespace PharmaCare.Infrastructure.Migrations
                     b.HasKey("AccountSubheadID");
 
                     b.HasIndex("AccountHead_ID");
+
+                    b.HasIndex("Pharmacy_ID");
+
+                    b.HasIndex("Pharmacy_ID", "Code");
 
                     b.ToTable("AccountSubheads", (string)null);
                 });
@@ -266,6 +298,9 @@ namespace PharmaCare.Infrastructure.Migrations
                         .HasMaxLength(50)
                         .HasColumnType("nvarchar(50)");
 
+                    b.Property<int>("Pharmacy_ID")
+                        .HasColumnType("int");
+
                     b.Property<string>("Remarks")
                         .HasMaxLength(500)
                         .HasColumnType("nvarchar(500)");
@@ -280,6 +315,8 @@ namespace PharmaCare.Infrastructure.Migrations
                         .HasColumnType("int");
 
                     b.HasKey("PeriodID");
+
+                    b.HasIndex("Pharmacy_ID");
 
                     b.ToTable("FinancialPeriods");
                 });
@@ -314,6 +351,9 @@ namespace PharmaCare.Infrastructure.Migrations
                         .HasMaxLength(100)
                         .HasColumnType("nvarchar(100)");
 
+                    b.Property<int>("Pharmacy_ID")
+                        .HasColumnType("int");
+
                     b.Property<int?>("SaleAccount_ID")
                         .IsRequired()
                         .HasColumnType("int");
@@ -333,6 +373,8 @@ namespace PharmaCare.Infrastructure.Migrations
                     b.HasIndex("COGSAccount_ID");
 
                     b.HasIndex("DamageAccount_ID");
+
+                    b.HasIndex("Pharmacy_ID");
 
                     b.HasIndex("SaleAccount_ID");
 
@@ -400,6 +442,9 @@ namespace PharmaCare.Infrastructure.Migrations
                         .HasMaxLength(20)
                         .HasColumnType("nvarchar(20)");
 
+                    b.Property<int>("Pharmacy_ID")
+                        .HasColumnType("int");
+
                     b.Property<string>("Phone")
                         .HasMaxLength(20)
                         .HasColumnType("nvarchar(20)");
@@ -413,6 +458,8 @@ namespace PharmaCare.Infrastructure.Migrations
                     b.HasKey("PartyID");
 
                     b.HasIndex("Account_ID");
+
+                    b.HasIndex("Pharmacy_ID");
 
                     b.ToTable("Parties", (string)null);
                 });
@@ -434,6 +481,9 @@ namespace PharmaCare.Infrastructure.Migrations
                     b.Property<bool>("IsActive")
                         .HasColumnType("bit");
 
+                    b.Property<int>("Pharmacy_ID")
+                        .HasColumnType("int");
+
                     b.Property<string>("PriceTypeName")
                         .IsRequired()
                         .HasMaxLength(100)
@@ -446,6 +496,8 @@ namespace PharmaCare.Infrastructure.Migrations
                         .HasColumnType("int");
 
                     b.HasKey("PriceTypeID");
+
+                    b.HasIndex("Pharmacy_ID");
 
                     b.ToTable("PriceTypes", (string)null);
                 });
@@ -481,6 +533,9 @@ namespace PharmaCare.Infrastructure.Migrations
                     b.Property<int>("OpeningQuantity")
                         .HasColumnType("int");
 
+                    b.Property<int>("Pharmacy_ID")
+                        .HasColumnType("int");
+
                     b.Property<int>("ReorderLevel")
                         .HasColumnType("int");
 
@@ -505,6 +560,8 @@ namespace PharmaCare.Infrastructure.Migrations
                     b.HasKey("ProductID");
 
                     b.HasIndex("Category_ID");
+
+                    b.HasIndex("Pharmacy_ID");
 
                     b.HasIndex("ShortCode");
 
@@ -533,6 +590,9 @@ namespace PharmaCare.Infrastructure.Migrations
                     b.Property<bool>("IsActive")
                         .HasColumnType("bit");
 
+                    b.Property<int>("Pharmacy_ID")
+                        .HasColumnType("int");
+
                     b.Property<int>("PriceType_ID")
                         .HasColumnType("int");
 
@@ -550,11 +610,60 @@ namespace PharmaCare.Infrastructure.Migrations
 
                     b.HasKey("ProductPriceID");
 
+                    b.HasIndex("Pharmacy_ID");
+
                     b.HasIndex("PriceType_ID");
 
                     b.HasIndex("Product_ID");
 
                     b.ToTable("ProductPrices", (string)null);
+                });
+
+            modelBuilder.Entity("PharmaCare.Domain.Entities.Configuration.ProductPriceHistory", b =>
+                {
+                    b.Property<int>("ProductPriceHistoryID")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("int");
+
+                    SqlServerPropertyBuilderExtensions.UseIdentityColumn(b.Property<int>("ProductPriceHistoryID"));
+
+                    b.Property<string>("ChangeReason")
+                        .HasMaxLength(250)
+                        .HasColumnType("nvarchar(250)");
+
+                    b.Property<int>("ChangedBy")
+                        .HasColumnType("int");
+
+                    b.Property<decimal>("CostPriceAtChange")
+                        .HasColumnType("decimal(18,2)");
+
+                    b.Property<DateTime>("EffectiveFrom")
+                        .HasColumnType("datetime2");
+
+                    b.Property<DateTime?>("EffectiveTo")
+                        .HasColumnType("datetime2");
+
+                    b.Property<int>("Pharmacy_ID")
+                        .HasColumnType("int");
+
+                    b.Property<int>("PriceType_ID")
+                        .HasColumnType("int");
+
+                    b.Property<int>("Product_ID")
+                        .HasColumnType("int");
+
+                    b.Property<decimal>("SalePrice")
+                        .HasColumnType("decimal(18,2)");
+
+                    b.HasKey("ProductPriceHistoryID");
+
+                    b.HasIndex("Pharmacy_ID");
+
+                    b.HasIndex("PriceType_ID");
+
+                    b.HasIndex("Product_ID", "PriceType_ID", "EffectiveTo");
+
+                    b.ToTable("ProductPriceHistories", (string)null);
                 });
 
             modelBuilder.Entity("PharmaCare.Domain.Entities.Configuration.ProfitSettings", b =>
@@ -564,6 +673,12 @@ namespace PharmaCare.Infrastructure.Migrations
                         .HasColumnType("int");
 
                     SqlServerPropertyBuilderExtensions.UseIdentityColumn(b.Property<int>("SettingsID"));
+
+                    b.Property<int>("Pharmacy_ID")
+                        .HasColumnType("int");
+
+                    b.Property<decimal>("PriceRoundingStep")
+                        .HasColumnType("decimal(18,2)");
 
                     b.Property<decimal>("RetailProfitPercent")
                         .HasColumnType("decimal(5,2)");
@@ -579,17 +694,9 @@ namespace PharmaCare.Infrastructure.Migrations
 
                     b.HasKey("SettingsID");
 
-                    b.ToTable("ProfitSettings", (string)null);
+                    b.HasIndex("Pharmacy_ID");
 
-                    b.HasData(
-                        new
-                        {
-                            SettingsID = 1,
-                            RetailProfitPercent = 20m,
-                            UpdatedAt = new DateTime(2024, 1, 1, 0, 0, 0, 0, DateTimeKind.Unspecified),
-                            UpdatedBy = 1,
-                            WholesaleProfitPercent = 10m
-                        });
+                    b.ToTable("ProfitSettings", (string)null);
                 });
 
             modelBuilder.Entity("PharmaCare.Domain.Entities.Configuration.SubCategory", b =>
@@ -617,6 +724,9 @@ namespace PharmaCare.Infrastructure.Migrations
                         .HasMaxLength(100)
                         .HasColumnType("nvarchar(100)");
 
+                    b.Property<int>("Pharmacy_ID")
+                        .HasColumnType("int");
+
                     b.Property<DateTime?>("UpdatedAt")
                         .HasColumnType("datetime2");
 
@@ -626,6 +736,8 @@ namespace PharmaCare.Infrastructure.Migrations
                     b.HasKey("SubCategoryID");
 
                     b.HasIndex("Category_ID");
+
+                    b.HasIndex("Pharmacy_ID");
 
                     b.ToTable("SubCategories", (string)null);
                 });
@@ -660,6 +772,9 @@ namespace PharmaCare.Infrastructure.Migrations
                         .HasColumnType("nvarchar(50)");
 
                     b.Property<int>("Party_ID")
+                        .HasColumnType("int");
+
+                    b.Property<int>("Pharmacy_ID")
                         .HasColumnType("int");
 
                     b.Property<string>("Remarks")
@@ -698,14 +813,16 @@ namespace PharmaCare.Infrastructure.Migrations
 
                     b.HasKey("CreditNoteID");
 
-                    b.HasIndex("CreditNoteNo")
-                        .IsUnique();
-
                     b.HasIndex("Party_ID");
+
+                    b.HasIndex("Pharmacy_ID");
 
                     b.HasIndex("SourceStockMain_ID");
 
                     b.HasIndex("Voucher_ID");
+
+                    b.HasIndex("Pharmacy_ID", "CreditNoteNo")
+                        .IsUnique();
 
                     b.ToTable("CreditNotes", null, t =>
                         {
@@ -749,6 +866,9 @@ namespace PharmaCare.Infrastructure.Migrations
                     b.Property<DateTime>("ExpenseDate")
                         .HasColumnType("datetime2");
 
+                    b.Property<int>("Pharmacy_ID")
+                        .HasColumnType("int");
+
                     b.Property<string>("Reference")
                         .HasMaxLength(100)
                         .HasColumnType("nvarchar(100)");
@@ -782,6 +902,8 @@ namespace PharmaCare.Infrastructure.Migrations
 
                     b.HasIndex("ExpenseCategory_ID");
 
+                    b.HasIndex("Pharmacy_ID");
+
                     b.HasIndex("SourceAccount_ID");
 
                     b.HasIndex("Voucher_ID");
@@ -812,6 +934,9 @@ namespace PharmaCare.Infrastructure.Migrations
                     b.Property<int>("Month")
                         .HasColumnType("int");
 
+                    b.Property<int>("Pharmacy_ID")
+                        .HasColumnType("int");
+
                     b.Property<string>("Remarks")
                         .HasColumnType("nvarchar(max)");
 
@@ -826,7 +951,11 @@ namespace PharmaCare.Infrastructure.Migrations
 
                     b.HasKey("ExpenseBudgetID");
 
-                    b.HasIndex("ExpenseCategory_ID", "Year", "Month")
+                    b.HasIndex("ExpenseCategory_ID");
+
+                    b.HasIndex("Pharmacy_ID");
+
+                    b.HasIndex("Pharmacy_ID", "ExpenseCategory_ID", "Year", "Month")
                         .IsUnique();
 
                     b.ToTable("ExpenseBudgets", (string)null);
@@ -860,6 +989,9 @@ namespace PharmaCare.Infrastructure.Migrations
                     b.Property<int?>("Parent_ID")
                         .HasColumnType("int");
 
+                    b.Property<int>("Pharmacy_ID")
+                        .HasColumnType("int");
+
                     b.Property<DateTime?>("UpdatedAt")
                         .HasColumnType("datetime2");
 
@@ -871,6 +1003,8 @@ namespace PharmaCare.Infrastructure.Migrations
                     b.HasIndex("DefaultExpenseAccount_ID");
 
                     b.HasIndex("Parent_ID");
+
+                    b.HasIndex("Pharmacy_ID");
 
                     b.ToTable("ExpenseCategories", (string)null);
                 });
@@ -923,6 +1057,9 @@ namespace PharmaCare.Infrastructure.Migrations
                         .HasMaxLength(20)
                         .HasColumnType("nvarchar(20)");
 
+                    b.Property<int>("Pharmacy_ID")
+                        .HasColumnType("int");
+
                     b.Property<string>("Reference")
                         .HasMaxLength(100)
                         .HasColumnType("nvarchar(100)");
@@ -958,6 +1095,8 @@ namespace PharmaCare.Infrastructure.Migrations
                     b.HasIndex("Account_ID");
 
                     b.HasIndex("Party_ID");
+
+                    b.HasIndex("Pharmacy_ID");
 
                     b.HasIndex("StockMain_ID");
 
@@ -995,6 +1134,9 @@ namespace PharmaCare.Infrastructure.Migrations
                     b.Property<int?>("Payment_ID")
                         .HasColumnType("int");
 
+                    b.Property<int>("Pharmacy_ID")
+                        .HasColumnType("int");
+
                     b.Property<string>("Remarks")
                         .HasMaxLength(500)
                         .HasColumnType("nvarchar(500)");
@@ -1018,6 +1160,8 @@ namespace PharmaCare.Infrastructure.Migrations
                     b.HasIndex("CreditNote_ID");
 
                     b.HasIndex("Payment_ID");
+
+                    b.HasIndex("Pharmacy_ID");
 
                     b.HasIndex("StockMain_ID");
 
@@ -1061,6 +1205,9 @@ namespace PharmaCare.Infrastructure.Migrations
                     b.Property<int>("Party_ID")
                         .HasColumnType("int");
 
+                    b.Property<int>("Pharmacy_ID")
+                        .HasColumnType("int");
+
                     b.Property<string>("Remarks")
                         .HasMaxLength(500)
                         .HasColumnType("nvarchar(500)");
@@ -1097,14 +1244,16 @@ namespace PharmaCare.Infrastructure.Migrations
 
                     b.HasKey("SupplierCreditNoteID");
 
-                    b.HasIndex("CreditNoteNo")
-                        .IsUnique();
-
                     b.HasIndex("Party_ID");
+
+                    b.HasIndex("Pharmacy_ID");
 
                     b.HasIndex("SourceStockMain_ID");
 
                     b.HasIndex("Voucher_ID");
+
+                    b.HasIndex("Pharmacy_ID", "CreditNoteNo")
+                        .IsUnique();
 
                     b.ToTable("SupplierCreditNotes", null, t =>
                         {
@@ -1227,6 +1376,9 @@ namespace PharmaCare.Infrastructure.Migrations
                         .HasMaxLength(50)
                         .HasColumnType("nvarchar(50)");
 
+                    b.Property<int>("Pharmacy_ID")
+                        .HasColumnType("int");
+
                     b.Property<DateTime?>("UpdatedAt")
                         .HasColumnType("datetime2");
 
@@ -1235,7 +1387,9 @@ namespace PharmaCare.Infrastructure.Migrations
 
                     b.HasKey("RoleID");
 
-                    b.HasIndex("Name")
+                    b.HasIndex("Pharmacy_ID");
+
+                    b.HasIndex("Pharmacy_ID", "Name")
                         .IsUnique();
 
                     b.ToTable("Roles", (string)null);
@@ -1264,12 +1418,17 @@ namespace PharmaCare.Infrastructure.Migrations
                     b.Property<int>("Page_ID")
                         .HasColumnType("int");
 
+                    b.Property<int>("Pharmacy_ID")
+                        .HasColumnType("int");
+
                     b.Property<int>("Role_ID")
                         .HasColumnType("int");
 
                     b.HasKey("RolePageID");
 
                     b.HasIndex("Page_ID");
+
+                    b.HasIndex("Pharmacy_ID");
 
                     b.HasIndex("Role_ID", "Page_ID")
                         .IsUnique();
@@ -1313,6 +1472,9 @@ namespace PharmaCare.Infrastructure.Migrations
                     b.Property<bool>("IsActive")
                         .HasColumnType("bit");
 
+                    b.Property<bool>("IsPlatformAdmin")
+                        .HasColumnType("bit");
+
                     b.Property<bool>("LockoutEnabled")
                         .HasColumnType("bit");
 
@@ -1329,6 +1491,9 @@ namespace PharmaCare.Infrastructure.Migrations
 
                     b.Property<string>("PasswordHash")
                         .HasColumnType("nvarchar(max)");
+
+                    b.Property<int?>("Pharmacy_ID")
+                        .HasColumnType("int");
 
                     b.Property<string>("PhoneNumber")
                         .HasColumnType("nvarchar(max)");
@@ -1362,6 +1527,8 @@ namespace PharmaCare.Infrastructure.Migrations
                         .HasDatabaseName("UserNameIndex")
                         .HasFilter("[NormalizedUserName] IS NOT NULL");
 
+                    b.HasIndex("Pharmacy_ID");
+
                     b.ToTable("Users", (string)null);
                 });
 
@@ -1373,6 +1540,9 @@ namespace PharmaCare.Infrastructure.Migrations
 
                     SqlServerPropertyBuilderExtensions.UseIdentityColumn(b.Property<int>("UserRoleID"));
 
+                    b.Property<int>("Pharmacy_ID")
+                        .HasColumnType("int");
+
                     b.Property<int>("Role_ID")
                         .HasColumnType("int");
 
@@ -1381,12 +1551,72 @@ namespace PharmaCare.Infrastructure.Migrations
 
                     b.HasKey("UserRoleID");
 
+                    b.HasIndex("Pharmacy_ID");
+
                     b.HasIndex("Role_ID");
 
                     b.HasIndex("User_ID", "Role_ID")
                         .IsUnique();
 
                     b.ToTable("UserRoles", (string)null);
+                });
+
+            modelBuilder.Entity("PharmaCare.Domain.Entities.Tenancy.Pharmacy", b =>
+                {
+                    b.Property<int>("PharmacyID")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("int");
+
+                    SqlServerPropertyBuilderExtensions.UseIdentityColumn(b.Property<int>("PharmacyID"));
+
+                    b.Property<string>("Address")
+                        .HasMaxLength(500)
+                        .HasColumnType("nvarchar(500)");
+
+                    b.Property<string>("Code")
+                        .IsRequired()
+                        .HasMaxLength(50)
+                        .HasColumnType("nvarchar(50)");
+
+                    b.Property<DateTime>("CreatedAt")
+                        .HasColumnType("datetime2");
+
+                    b.Property<int>("CreatedBy")
+                        .HasColumnType("int");
+
+                    b.Property<string>("Email")
+                        .HasMaxLength(100)
+                        .HasColumnType("nvarchar(100)");
+
+                    b.Property<bool>("IsActive")
+                        .HasColumnType("bit");
+
+                    b.Property<string>("Name")
+                        .IsRequired()
+                        .HasMaxLength(200)
+                        .HasColumnType("nvarchar(200)");
+
+                    b.Property<string>("Phone")
+                        .HasMaxLength(20)
+                        .HasColumnType("nvarchar(20)");
+
+                    b.Property<string>("Status")
+                        .IsRequired()
+                        .HasMaxLength(20)
+                        .HasColumnType("nvarchar(20)");
+
+                    b.Property<DateTime?>("UpdatedAt")
+                        .HasColumnType("datetime2");
+
+                    b.Property<int?>("UpdatedBy")
+                        .HasColumnType("int");
+
+                    b.HasKey("PharmacyID");
+
+                    b.HasIndex("Code")
+                        .IsUnique();
+
+                    b.ToTable("Pharmacies", (string)null);
                 });
 
             modelBuilder.Entity("PharmaCare.Domain.Entities.Transactions.StockDetail", b =>
@@ -1412,6 +1642,9 @@ namespace PharmaCare.Infrastructure.Migrations
                     b.Property<decimal>("LineTotal")
                         .HasColumnType("decimal(18,2)");
 
+                    b.Property<int>("Pharmacy_ID")
+                        .HasColumnType("int");
+
                     b.Property<int>("Product_ID")
                         .HasColumnType("int");
 
@@ -1429,6 +1662,8 @@ namespace PharmaCare.Infrastructure.Migrations
                         .HasColumnType("decimal(18,2)");
 
                     b.HasKey("StockDetailID");
+
+                    b.HasIndex("Pharmacy_ID");
 
                     b.HasIndex("Product_ID");
 
@@ -1478,6 +1713,9 @@ namespace PharmaCare.Infrastructure.Migrations
                         .IsRequired()
                         .HasMaxLength(20)
                         .HasColumnType("nvarchar(20)");
+
+                    b.Property<int>("Pharmacy_ID")
+                        .HasColumnType("int");
 
                     b.Property<int?>("ReferenceStockMain_ID")
                         .HasColumnType("int");
@@ -1537,14 +1775,18 @@ namespace PharmaCare.Infrastructure.Migrations
 
                     b.HasIndex("Party_ID");
 
+                    b.HasIndex("Pharmacy_ID");
+
                     b.HasIndex("ReferenceStockMain_ID");
 
-                    b.HasIndex("TransactionNo")
-                        .IsUnique();
+                    b.HasIndex("TransactionType_ID");
 
                     b.HasIndex("Voucher_ID");
 
-                    b.HasIndex("TransactionType_ID", "TransactionDate", "Status")
+                    b.HasIndex("Pharmacy_ID", "TransactionNo")
+                        .IsUnique();
+
+                    b.HasIndex("Pharmacy_ID", "TransactionType_ID", "TransactionDate", "Status")
                         .HasDatabaseName("IX_StockMains_Type_Date_Status");
 
                     b.ToTable("StockMains", null, t =>
@@ -1619,6 +1861,9 @@ namespace PharmaCare.Infrastructure.Migrations
                         .HasMaxLength(500)
                         .HasColumnType("nvarchar(500)");
 
+                    b.Property<int>("Pharmacy_ID")
+                        .HasColumnType("int");
+
                     b.Property<int?>("ReversedByVoucher_ID")
                         .HasColumnType("int");
 
@@ -1660,6 +1905,8 @@ namespace PharmaCare.Infrastructure.Migrations
 
                     b.HasKey("VoucherID");
 
+                    b.HasIndex("Pharmacy_ID");
+
                     b.HasIndex("ReversedByVoucher_ID")
                         .IsUnique()
                         .HasFilter("[ReversedByVoucher_ID] IS NOT NULL");
@@ -1668,10 +1915,10 @@ namespace PharmaCare.Infrastructure.Migrations
                         .IsUnique()
                         .HasFilter("[ReversesVoucher_ID] IS NOT NULL");
 
-                    b.HasIndex("VoucherNo")
-                        .IsUnique();
-
                     b.HasIndex("VoucherType_ID");
+
+                    b.HasIndex("Pharmacy_ID", "VoucherNo")
+                        .IsUnique();
 
                     b.ToTable("Vouchers", (string)null);
                 });
@@ -1700,6 +1947,9 @@ namespace PharmaCare.Infrastructure.Migrations
                     b.Property<int?>("Party_ID")
                         .HasColumnType("int");
 
+                    b.Property<int>("Pharmacy_ID")
+                        .HasColumnType("int");
+
                     b.Property<int?>("Product_ID")
                         .HasColumnType("int");
 
@@ -1711,6 +1961,8 @@ namespace PharmaCare.Infrastructure.Migrations
                     b.HasIndex("Account_ID");
 
                     b.HasIndex("Party_ID");
+
+                    b.HasIndex("Pharmacy_ID");
 
                     b.HasIndex("Product_ID");
 
@@ -1797,6 +2049,12 @@ namespace PharmaCare.Infrastructure.Migrations
                         .OnDelete(DeleteBehavior.Restrict)
                         .IsRequired();
 
+                    b.HasOne("PharmaCare.Domain.Entities.Tenancy.Pharmacy", null)
+                        .WithMany()
+                        .HasForeignKey("Pharmacy_ID")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
                     b.Navigation("AccountHead");
 
                     b.Navigation("AccountSubhead");
@@ -1804,11 +2062,26 @@ namespace PharmaCare.Infrastructure.Migrations
                     b.Navigation("AccountType");
                 });
 
+            modelBuilder.Entity("PharmaCare.Domain.Entities.Accounting.AccountFamily", b =>
+                {
+                    b.HasOne("PharmaCare.Domain.Entities.Tenancy.Pharmacy", null)
+                        .WithMany()
+                        .HasForeignKey("Pharmacy_ID")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+                });
+
             modelBuilder.Entity("PharmaCare.Domain.Entities.Accounting.AccountHead", b =>
                 {
                     b.HasOne("PharmaCare.Domain.Entities.Accounting.AccountFamily", "AccountFamily")
                         .WithMany("AccountHeads")
                         .HasForeignKey("AccountFamily_ID")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.HasOne("PharmaCare.Domain.Entities.Tenancy.Pharmacy", null)
+                        .WithMany()
+                        .HasForeignKey("Pharmacy_ID")
                         .OnDelete(DeleteBehavior.Restrict)
                         .IsRequired();
 
@@ -1823,7 +2096,22 @@ namespace PharmaCare.Infrastructure.Migrations
                         .OnDelete(DeleteBehavior.Restrict)
                         .IsRequired();
 
+                    b.HasOne("PharmaCare.Domain.Entities.Tenancy.Pharmacy", null)
+                        .WithMany()
+                        .HasForeignKey("Pharmacy_ID")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
                     b.Navigation("AccountHead");
+                });
+
+            modelBuilder.Entity("PharmaCare.Domain.Entities.Accounting.FinancialPeriod", b =>
+                {
+                    b.HasOne("PharmaCare.Domain.Entities.Tenancy.Pharmacy", null)
+                        .WithMany()
+                        .HasForeignKey("Pharmacy_ID")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
                 });
 
             modelBuilder.Entity("PharmaCare.Domain.Entities.Configuration.Category", b =>
@@ -1837,6 +2125,12 @@ namespace PharmaCare.Infrastructure.Migrations
                     b.HasOne("PharmaCare.Domain.Entities.Accounting.Account", "DamageAccount")
                         .WithMany()
                         .HasForeignKey("DamageAccount_ID")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.HasOne("PharmaCare.Domain.Entities.Tenancy.Pharmacy", null)
+                        .WithMany()
+                        .HasForeignKey("Pharmacy_ID")
                         .OnDelete(DeleteBehavior.Restrict)
                         .IsRequired();
 
@@ -1867,7 +2161,22 @@ namespace PharmaCare.Infrastructure.Migrations
                         .WithMany()
                         .HasForeignKey("Account_ID");
 
+                    b.HasOne("PharmaCare.Domain.Entities.Tenancy.Pharmacy", null)
+                        .WithMany()
+                        .HasForeignKey("Pharmacy_ID")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
                     b.Navigation("Account");
+                });
+
+            modelBuilder.Entity("PharmaCare.Domain.Entities.Configuration.PriceType", b =>
+                {
+                    b.HasOne("PharmaCare.Domain.Entities.Tenancy.Pharmacy", null)
+                        .WithMany()
+                        .HasForeignKey("Pharmacy_ID")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
                 });
 
             modelBuilder.Entity("PharmaCare.Domain.Entities.Configuration.Product", b =>
@@ -1876,6 +2185,12 @@ namespace PharmaCare.Infrastructure.Migrations
                         .WithMany("Products")
                         .HasForeignKey("Category_ID")
                         .OnDelete(DeleteBehavior.Restrict);
+
+                    b.HasOne("PharmaCare.Domain.Entities.Tenancy.Pharmacy", null)
+                        .WithMany()
+                        .HasForeignKey("Pharmacy_ID")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
 
                     b.HasOne("PharmaCare.Domain.Entities.Configuration.SubCategory", "SubCategory")
                         .WithMany("Products")
@@ -1890,6 +2205,12 @@ namespace PharmaCare.Infrastructure.Migrations
 
             modelBuilder.Entity("PharmaCare.Domain.Entities.Configuration.ProductPrice", b =>
                 {
+                    b.HasOne("PharmaCare.Domain.Entities.Tenancy.Pharmacy", null)
+                        .WithMany()
+                        .HasForeignKey("Pharmacy_ID")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
                     b.HasOne("PharmaCare.Domain.Entities.Configuration.PriceType", "PriceType")
                         .WithMany()
                         .HasForeignKey("PriceType_ID")
@@ -1907,11 +2228,51 @@ namespace PharmaCare.Infrastructure.Migrations
                     b.Navigation("Product");
                 });
 
+            modelBuilder.Entity("PharmaCare.Domain.Entities.Configuration.ProductPriceHistory", b =>
+                {
+                    b.HasOne("PharmaCare.Domain.Entities.Tenancy.Pharmacy", null)
+                        .WithMany()
+                        .HasForeignKey("Pharmacy_ID")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.HasOne("PharmaCare.Domain.Entities.Configuration.PriceType", "PriceType")
+                        .WithMany()
+                        .HasForeignKey("PriceType_ID")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.HasOne("PharmaCare.Domain.Entities.Configuration.Product", "Product")
+                        .WithMany()
+                        .HasForeignKey("Product_ID")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.Navigation("PriceType");
+
+                    b.Navigation("Product");
+                });
+
+            modelBuilder.Entity("PharmaCare.Domain.Entities.Configuration.ProfitSettings", b =>
+                {
+                    b.HasOne("PharmaCare.Domain.Entities.Tenancy.Pharmacy", null)
+                        .WithMany()
+                        .HasForeignKey("Pharmacy_ID")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+                });
+
             modelBuilder.Entity("PharmaCare.Domain.Entities.Configuration.SubCategory", b =>
                 {
                     b.HasOne("PharmaCare.Domain.Entities.Configuration.Category", "Category")
                         .WithMany("SubCategories")
                         .HasForeignKey("Category_ID")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.HasOne("PharmaCare.Domain.Entities.Tenancy.Pharmacy", null)
+                        .WithMany()
+                        .HasForeignKey("Pharmacy_ID")
                         .OnDelete(DeleteBehavior.Restrict)
                         .IsRequired();
 
@@ -1923,6 +2284,12 @@ namespace PharmaCare.Infrastructure.Migrations
                     b.HasOne("PharmaCare.Domain.Entities.Configuration.Party", "Party")
                         .WithMany()
                         .HasForeignKey("Party_ID")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.HasOne("PharmaCare.Domain.Entities.Tenancy.Pharmacy", null)
+                        .WithMany()
+                        .HasForeignKey("Pharmacy_ID")
                         .OnDelete(DeleteBehavior.Restrict)
                         .IsRequired();
 
@@ -1957,6 +2324,12 @@ namespace PharmaCare.Infrastructure.Migrations
                         .OnDelete(DeleteBehavior.Restrict)
                         .IsRequired();
 
+                    b.HasOne("PharmaCare.Domain.Entities.Tenancy.Pharmacy", null)
+                        .WithMany()
+                        .HasForeignKey("Pharmacy_ID")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
                     b.HasOne("PharmaCare.Domain.Entities.Accounting.Account", "SourceAccount")
                         .WithMany()
                         .HasForeignKey("SourceAccount_ID")
@@ -1985,6 +2358,12 @@ namespace PharmaCare.Infrastructure.Migrations
                         .OnDelete(DeleteBehavior.Cascade)
                         .IsRequired();
 
+                    b.HasOne("PharmaCare.Domain.Entities.Tenancy.Pharmacy", null)
+                        .WithMany()
+                        .HasForeignKey("Pharmacy_ID")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
                     b.Navigation("ExpenseCategory");
                 });
 
@@ -1999,6 +2378,12 @@ namespace PharmaCare.Infrastructure.Migrations
                         .WithMany("ChildCategories")
                         .HasForeignKey("Parent_ID")
                         .OnDelete(DeleteBehavior.Restrict);
+
+                    b.HasOne("PharmaCare.Domain.Entities.Tenancy.Pharmacy", null)
+                        .WithMany()
+                        .HasForeignKey("Pharmacy_ID")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
 
                     b.Navigation("DefaultExpenseAccount");
 
@@ -2016,6 +2401,12 @@ namespace PharmaCare.Infrastructure.Migrations
                     b.HasOne("PharmaCare.Domain.Entities.Configuration.Party", "Party")
                         .WithMany()
                         .HasForeignKey("Party_ID")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.HasOne("PharmaCare.Domain.Entities.Tenancy.Pharmacy", null)
+                        .WithMany()
+                        .HasForeignKey("Pharmacy_ID")
                         .OnDelete(DeleteBehavior.Restrict)
                         .IsRequired();
 
@@ -2050,6 +2441,12 @@ namespace PharmaCare.Infrastructure.Migrations
                         .HasForeignKey("Payment_ID")
                         .OnDelete(DeleteBehavior.Cascade);
 
+                    b.HasOne("PharmaCare.Domain.Entities.Tenancy.Pharmacy", null)
+                        .WithMany()
+                        .HasForeignKey("Pharmacy_ID")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
                     b.HasOne("PharmaCare.Domain.Entities.Transactions.StockMain", "StockMain")
                         .WithMany()
                         .HasForeignKey("StockMain_ID")
@@ -2068,6 +2465,12 @@ namespace PharmaCare.Infrastructure.Migrations
                     b.HasOne("PharmaCare.Domain.Entities.Configuration.Party", "Party")
                         .WithMany()
                         .HasForeignKey("Party_ID")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.HasOne("PharmaCare.Domain.Entities.Tenancy.Pharmacy", null)
+                        .WithMany()
+                        .HasForeignKey("Pharmacy_ID")
                         .OnDelete(DeleteBehavior.Restrict)
                         .IsRequired();
 
@@ -2109,12 +2512,27 @@ namespace PharmaCare.Infrastructure.Migrations
                     b.Navigation("Page");
                 });
 
+            modelBuilder.Entity("PharmaCare.Domain.Entities.Security.Role", b =>
+                {
+                    b.HasOne("PharmaCare.Domain.Entities.Tenancy.Pharmacy", null)
+                        .WithMany()
+                        .HasForeignKey("Pharmacy_ID")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+                });
+
             modelBuilder.Entity("PharmaCare.Domain.Entities.Security.RolePage", b =>
                 {
                     b.HasOne("PharmaCare.Domain.Entities.Security.Page", "Page")
                         .WithMany("RolePages")
                         .HasForeignKey("Page_ID")
                         .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.HasOne("PharmaCare.Domain.Entities.Tenancy.Pharmacy", null)
+                        .WithMany()
+                        .HasForeignKey("Pharmacy_ID")
+                        .OnDelete(DeleteBehavior.Restrict)
                         .IsRequired();
 
                     b.HasOne("PharmaCare.Domain.Entities.Security.Role", "Role")
@@ -2128,8 +2546,22 @@ namespace PharmaCare.Infrastructure.Migrations
                     b.Navigation("Role");
                 });
 
+            modelBuilder.Entity("PharmaCare.Domain.Entities.Security.User", b =>
+                {
+                    b.HasOne("PharmaCare.Domain.Entities.Tenancy.Pharmacy", null)
+                        .WithMany()
+                        .HasForeignKey("Pharmacy_ID")
+                        .OnDelete(DeleteBehavior.Restrict);
+                });
+
             modelBuilder.Entity("PharmaCare.Domain.Entities.Security.UserRole", b =>
                 {
+                    b.HasOne("PharmaCare.Domain.Entities.Tenancy.Pharmacy", null)
+                        .WithMany()
+                        .HasForeignKey("Pharmacy_ID")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
                     b.HasOne("PharmaCare.Domain.Entities.Security.Role", "Role")
                         .WithMany("UserRoles")
                         .HasForeignKey("Role_ID")
@@ -2149,6 +2581,12 @@ namespace PharmaCare.Infrastructure.Migrations
 
             modelBuilder.Entity("PharmaCare.Domain.Entities.Transactions.StockDetail", b =>
                 {
+                    b.HasOne("PharmaCare.Domain.Entities.Tenancy.Pharmacy", null)
+                        .WithMany()
+                        .HasForeignKey("Pharmacy_ID")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
                     b.HasOne("PharmaCare.Domain.Entities.Configuration.Product", "Product")
                         .WithMany()
                         .HasForeignKey("Product_ID")
@@ -2172,6 +2610,12 @@ namespace PharmaCare.Infrastructure.Migrations
                         .WithMany()
                         .HasForeignKey("Party_ID")
                         .OnDelete(DeleteBehavior.SetNull);
+
+                    b.HasOne("PharmaCare.Domain.Entities.Tenancy.Pharmacy", null)
+                        .WithMany()
+                        .HasForeignKey("Pharmacy_ID")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
 
                     b.HasOne("PharmaCare.Domain.Entities.Transactions.StockMain", "ReferenceStockMain")
                         .WithMany()
@@ -2200,6 +2644,12 @@ namespace PharmaCare.Infrastructure.Migrations
 
             modelBuilder.Entity("PharmaCare.Domain.Entities.Transactions.Voucher", b =>
                 {
+                    b.HasOne("PharmaCare.Domain.Entities.Tenancy.Pharmacy", null)
+                        .WithMany()
+                        .HasForeignKey("Pharmacy_ID")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
                     b.HasOne("PharmaCare.Domain.Entities.Transactions.Voucher", "ReversedByVoucher")
                         .WithOne()
                         .HasForeignKey("PharmaCare.Domain.Entities.Transactions.Voucher", "ReversedByVoucher_ID")
@@ -2235,6 +2685,12 @@ namespace PharmaCare.Infrastructure.Migrations
                         .WithMany()
                         .HasForeignKey("Party_ID")
                         .OnDelete(DeleteBehavior.SetNull);
+
+                    b.HasOne("PharmaCare.Domain.Entities.Tenancy.Pharmacy", null)
+                        .WithMany()
+                        .HasForeignKey("Pharmacy_ID")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
 
                     b.HasOne("PharmaCare.Domain.Entities.Configuration.Product", "Product")
                         .WithMany()

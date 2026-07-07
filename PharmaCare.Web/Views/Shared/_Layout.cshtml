@@ -38,7 +38,10 @@
     </button>
     
     <script src="~/lib/jquery/dist/jquery.min.js"></script>
-    <script src="~/assets/js/bootstrap.js"></script>
+    <!-- Bootstrap production bundle from CDN (already allowed by the CSP script-src). The old
+         local ~/assets/js/bootstrap.js was a webpack dev build using eval-based sourcemaps,
+         which the Content-Security-Policy blocks (EvalError). -->
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js"></script>
     <script src="~/lib/sweetalert2/sweetalert2.all.min.js"></script>
     <script src="~/lib/datatables/js/jquery.dataTables.min.js"></script>
     <script src="~/lib/datatables-bs5/js/dataTables.bootstrap5.min.js"></script>
@@ -50,7 +53,8 @@
     @await Html.PartialAsync("_ToastNotifications")
     @await RenderSectionAsync("Scripts", required: false)
     
-    <!-- BUG-009 Fix: Core Application Form submit interceptor to prevent rapid double-clicks -->
+    <!-- Form submit interceptor: prevents double-submits and shows the shared .btn-loading
+         state (spinner) on the submit button, preserving its label/width across all variants. -->
     <script>
         $(document).ready(function() {
             $('form').on('submit', function() {
@@ -60,8 +64,7 @@
                 }
                 var $btn = $form.find('button[type="submit"]');
                 if ($btn.length > 0 && !$btn.prop('disabled')) {
-                    $btn.prop('disabled', true);
-                    $btn.html('<span class="spinner-border spinner-border-sm" aria-hidden="true"></span> Processing...');
+                    $btn.addClass('btn-loading').attr('aria-busy', 'true').prop('disabled', true);
                 }
             });
         });

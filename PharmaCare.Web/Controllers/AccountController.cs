@@ -3,6 +3,7 @@ using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.RateLimiting;
 using PharmaCare.Application.Interfaces;
 using PharmaCare.Application.Interfaces.Logging;
+using PharmaCare.Application.Interfaces.Tenancy;
 using PharmaCare.Domain.Entities.Security;
 using PharmaCare.Domain.Enums;
 
@@ -17,17 +18,23 @@ public class AccountController : Controller
     private readonly UserManager<User> _userManager;
     private readonly ISessionService _sessionService;
     private readonly IActivityLogService _activityLogService;
+    private readonly ICurrentTenant _currentTenant;
+    private readonly IPharmacyService _pharmacyService;
 
     public AccountController(
         SignInManager<User> signInManager,
         UserManager<User> userManager,
         ISessionService sessionService,
-        IActivityLogService activityLogService)
+        IActivityLogService activityLogService,
+        ICurrentTenant currentTenant,
+        IPharmacyService pharmacyService)
     {
         _signInManager = signInManager;
         _userManager = userManager;
         _sessionService = sessionService;
         _activityLogService = activityLogService;
+        _currentTenant = currentTenant;
+        _pharmacyService = pharmacyService;
     }
 
     [HttpGet]
@@ -65,9 +72,32 @@ public class AccountController : Controller
                 }
                 if (result.Succeeded)
                 {
+                    // Resolve the tenant (pharmacy) for this user and guard suspended tenants.
+                    if (!user.IsPlatformAdmin)
+                    {
+                        if (user.Pharmacy_ID is not int pharmacyId || pharmacyId <= 0)
+                        {
+                            await _signInManager.SignOutAsync();
+                            ModelState.AddModelError(string.Empty, "Your account is not linked to a pharmacy. Please contact your administrator.");
+                            return View(model);
+                        }
+
+                        if (!await _pharmacyService.IsOperationalAsync(pharmacyId))
+                        {
+                            await _signInManager.SignOutAsync();
+                            ModelState.AddModelError(string.Empty, "Your pharmacy account is currently suspended. Please contact support.");
+                            return View(model);
+                        }
+
+                        // Make the tenant available for the rest of THIS request so the
+                        // tenant-filtered role/permission queries in InitializeSessionAsync resolve.
+                        // Subsequent requests resolve the tenant from the auth-cookie claim.
+                        _currentTenant.SetTenant(pharmacyId);
+                    }
+
                     // Initialize session with user data and permissions
                     await _sessionService.InitializeSessionAsync(user.Id);
-                    
+
                     // Log login activity
                     await _activityLogService.LogActivityAsync(
                         user.Id,
@@ -76,7 +106,13 @@ public class AccountController : Controller
                         "User",
                         user.Id.ToString(),
                         description: $"User '{user.UserName}' logged in");
-                    
+
+                    // Platform super-admins land in the cross-pharmacy admin area.
+                    if (user.IsPlatformAdmin)
+                    {
+                        return RedirectToAction("Index", "Pharmacies");
+                    }
+
                     return RedirectToLocal(returnUrl);
                 }
             }
@@ -109,42 +145,20 @@ public class AccountController : Controller
         return RedirectToAction("Login");
     }
 
+    // Public self-registration is disabled in the multi-tenant model: pharmacies and their
+    // users are provisioned by the platform super-admin. Users are always created under a
+    // specific pharmacy (see the platform-admin area and User management), never tenant-less.
     [HttpGet]
     public IActionResult Register()
     {
-        return View(new RegisterViewModel());
+        return RedirectToAction(nameof(Login));
     }
 
     [HttpPost]
     [ValidateAntiForgeryToken]
-    public async Task<IActionResult> Register(RegisterViewModel model)
+    public IActionResult Register(RegisterViewModel model)
     {
-        if (ModelState.IsValid)
-        {
-            var user = new User
-            {
-                UserName = model.Email,
-                Email = model.Email,
-                FullName = model.FullName,
-                IsActive = true,
-                CreatedAt = DateTime.Now
-            };
-
-            var result = await _userManager.CreateAsync(user, model.Password);
-            if (result.Succeeded)
-            {
-                // Sign in and redirect to dashboard
-                await _signInManager.SignInAsync(user, isPersistent: false);
-                return RedirectToAction("Index", "Home");
-            }
-
-            foreach (var error in result.Errors)
-            {
-                ModelState.AddModelError(string.Empty, error.Description);
-            }
-        }
-
-        return View(model);
+        return RedirectToAction(nameof(Login));
     }
 
     [HttpGet]

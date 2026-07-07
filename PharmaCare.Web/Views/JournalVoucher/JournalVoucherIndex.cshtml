@@ -29,7 +29,7 @@
                     <option value="Reversed" selected="@(selectedStatus == "Reversed")">Voided</option>
                 </select>
             </div>
-            <div class="col-md-auto">
+            <div class="col-md-2 d-grid">
                 <button type="submit" class="btn btn-primary"><i class="fas fa-search me-1"></i> Search</button>
             </div>
         </form>
@@ -46,13 +46,13 @@
             <table class="table table-hover" id="vouchersTable">
                 <thead class="bg-theme-header">
                     <tr>
-                        <th>Date</th>
-                        <th>Voucher No</th>
-                        <th>Narration</th>
-                        <th class="text-end">Amount</th>
-                        <th class="text-center">Status</th>
-                        <th class="text-center">Created By</th>
-                        <th class="text-center">Actions</th>
+                        <th scope="col">Date</th>
+                        <th scope="col">Voucher No</th>
+                        <th scope="col">Narration</th>
+                        <th scope="col" class="text-end">Amount</th>
+                        <th scope="col" class="text-center">Status</th>
+                        <th scope="col" class="text-center">Created By</th>
+                        <th scope="col" class="text-center">Actions</th>
                     </tr>
                 </thead>
                 <tbody>

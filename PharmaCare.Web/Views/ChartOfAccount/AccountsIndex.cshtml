@@ -25,17 +25,18 @@
 
 <div class="card">
     <div class="card-body">
+        <div class="table-responsive">
         <table class="table table-hover datatable">
             <thead>
                 <tr>
-                    <th style="width: 60px;">S.No</th>
+                    <th scope="col" style="width: 60px;">S.No</th>
 
-                    <th>Head</th>
-                    <th>Sub-Head</th>
-                    <th>Account Name</th>
-                    <th>Type</th>
-                    <th>Status</th>
-                    <th class="text-end">Actions</th>
+                    <th scope="col">Head</th>
+                    <th scope="col">Sub-Head</th>
+                    <th scope="col">Account Name</th>
+                    <th scope="col">Type</th>
+                    <th scope="col">Status</th>
+                    <th scope="col" class="text-end">Actions</th>
                 </tr>
             </thead>
             <tbody>
@@ -60,11 +61,11 @@
                             }
                         </td>
                         <td class="text-end">
-                            <a asp-action="EditAccount" asp-route-id="@item.AccountID.EncryptId()" class="btn btn-sm btn-outline-primary">
+                            <a asp-action="EditAccount" asp-route-id="@item.AccountID.EncryptId()" class="btn btn-sm btn-outline-primary" title="Edit account" aria-label="Edit account">
                                 <i class="fas fa-edit"></i>
                             </a>
-                            <button type="button" class="btn btn-sm btn-outline-danger btn-delete" 
-                                    data-id="@item.AccountID.EncryptId()" data-name="@item.Name">
+                            <button type="button" class="btn btn-sm btn-outline-danger btn-delete"
+                                    data-id="@item.AccountID.EncryptId()" data-name="@item.Name" title="Toggle account status" aria-label="Toggle account status">
                                 <i class="fas fa-toggle-on"></i>
                             </button>
                         </td>
@@ -72,6 +73,7 @@
                 }
             </tbody>
         </table>
+        </div>
     </div>
 </div>
 

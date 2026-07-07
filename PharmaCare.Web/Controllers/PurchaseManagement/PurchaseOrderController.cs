@@ -198,7 +198,7 @@ public class PurchaseOrderController : BaseController
         if (result)
         {
             ShowMessage(MessageType.Success, "Purchase Order approved successfully! You can now record an advance payment.");
-            return RedirectToAction(nameof(MakePayment), new { id = id });
+            return RedirectToAction(nameof(PurchaseOrdersIndex));
         }
         else
         {

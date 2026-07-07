@@ -1,5 +1,6 @@
 using System.ComponentModel.DataAnnotations;
 using System.ComponentModel.DataAnnotations.Schema;
+using PharmaCare.Domain.Entities.Base;
 
 namespace PharmaCare.Domain.Entities.Transactions;
 
@@ -7,8 +8,11 @@ namespace PharmaCare.Domain.Entities.Transactions;
 /// Voucher - Accounting voucher header.
 /// All financial transactions create vouchers for double-entry bookkeeping.
 /// </summary>
-public class Voucher
+public class Voucher : ITenantEntity
 {
+    // Tenant (pharmacy) that owns this row. Auto-filtered and stamped by the DbContext.
+    public int Pharmacy_ID { get; set; }
+
     [Key]
     public int VoucherID { get; set; }
 

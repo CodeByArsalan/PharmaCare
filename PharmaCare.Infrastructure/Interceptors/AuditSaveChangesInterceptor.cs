@@ -4,8 +4,10 @@ using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.ChangeTracking;
 using Microsoft.EntityFrameworkCore.Diagnostics;
 using Microsoft.Extensions.DependencyInjection;
+using PharmaCare.Domain.Entities.Base;
 using PharmaCare.Domain.Entities.Logging;
 using PharmaCare.Domain.Enums;
+using PharmaCare.Infrastructure.Implementations.Tenancy;
 
 namespace PharmaCare.Infrastructure.Interceptors;
 
@@ -95,16 +97,31 @@ public class AuditSaveChangesInterceptor : SaveChangesInterceptor
         _pendingAuditEntries.Clear();
 
         var httpContext = _httpContextAccessor.HttpContext;
+
+        // Platform super-admin actions (provisioning a pharmacy, suspending it, etc.) are system
+        // setup, not a pharmacy's own operational activity — do not write them to the activity log.
+        if (httpContext?.User?.HasClaim(TenantClaimsPrincipalFactory.PlatformAdminClaimType, "true") == true)
+        {
+            return;
+        }
+
         var userId = GetCurrentUserId(httpContext);
         var userName = GetCurrentUserName(httpContext);
         var ipAddress = GetClientIpAddress(httpContext);
         var userAgent = GetUserAgent(httpContext);
+        var fallbackPharmacyId = GetCurrentPharmacyId(httpContext);
 
         foreach (var entry in context.ChangeTracker.Entries())
         {
             // Skip if not a tracked entity type we want to audit
             if (entry.Entity is ActivityLog || entry.State == EntityState.Detached || entry.State == EntityState.Unchanged)
                 continue;
+
+            // Prefer the row's own stamped tenant (set by DbContext.StampTenant before this runs);
+            // fall back to the request's tenant claim for non-tenant entities (e.g. User).
+            var pharmacyId = entry.Entity is ITenantEntity tenantEntity && tenantEntity.Pharmacy_ID > 0
+                ? tenantEntity.Pharmacy_ID
+                : fallbackPharmacyId;
 
             var auditEntry = new AuditEntry
             {
@@ -113,6 +130,7 @@ public class AuditSaveChangesInterceptor : SaveChangesInterceptor
                 IpAddress = ipAddress,
                 UserAgent = userAgent,
                 StoreId = null,
+                Pharmacy_ID = pharmacyId,
                 EntityName = entry.Entity.GetType().Name,
                 Entry = entry
             };
@@ -176,6 +194,7 @@ public class AuditSaveChangesInterceptor : SaveChangesInterceptor
                     UserAgent = auditEntry.UserAgent,
                     Timestamp = DateTime.Now,
                     StoreId = auditEntry.StoreId,
+                    Pharmacy_ID = auditEntry.Pharmacy_ID,
                     Description = GenerateDescription(auditEntry)
                 };
 
@@ -207,6 +226,12 @@ public class AuditSaveChangesInterceptor : SaveChangesInterceptor
     private string GetCurrentUserName(HttpContext? httpContext)
     {
         return httpContext?.User?.Identity?.Name ?? "System";
+    }
+
+    private int? GetCurrentPharmacyId(HttpContext? httpContext)
+    {
+        var claim = httpContext?.User?.FindFirst(CurrentTenantService.PharmacyClaimType)?.Value;
+        return int.TryParse(claim, out var id) && id > 0 ? id : null;
     }
 
     private string? GetClientIpAddress(HttpContext? httpContext)
@@ -372,6 +397,7 @@ public class AuditSaveChangesInterceptor : SaveChangesInterceptor
         public string? IpAddress { get; set; }
         public string? UserAgent { get; set; }
         public int? StoreId { get; set; }
+        public int? Pharmacy_ID { get; set; }
         public EntityEntry? Entry { get; set; }
     }
 }

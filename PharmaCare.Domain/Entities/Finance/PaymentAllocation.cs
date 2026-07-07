@@ -8,8 +8,11 @@ namespace PharmaCare.Domain.Entities.Finance;
 /// <summary>
 /// Allocation record linking a payment/credit note to a specific sale invoice.
 /// </summary>
-public class PaymentAllocation : BaseEntity
+public class PaymentAllocation : BaseEntity, ITenantEntity
 {
+    // Tenant (pharmacy) that owns this row. Auto-filtered and stamped by the DbContext.
+    public int Pharmacy_ID { get; set; }
+
     [Key]
     public int PaymentAllocationID { get; set; }
 

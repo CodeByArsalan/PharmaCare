@@ -19,7 +19,7 @@
 <div class="card mb-4 shadow-sm border-0">
     <div class="card-body bg-light">
         <form method="get" asp-action="PurchaseOrdersIndex" class="row gx-3 gy-2 align-items-end">
-            <div class="col-md-5">
+            <div class="col-md-6">
                 <label class="form-label small fw-bold text-muted">Supplier</label>
                 <select name="supplierId" class="form-select select2" asp-items="ViewBag.Suppliers">
                     <option value="">-- All Suppliers --</option>
@@ -35,7 +35,7 @@
                     <option value="Void" selected="@(selectedStatus == "Void")">Void</option>
                 </select>
             </div>
-            <div class="col-md-auto">
+            <div class="col-md-2 d-grid">
                 <button type="submit" class="btn btn-primary"><i class="fas fa-search me-1"></i> Search</button>
             </div>
         </form>
@@ -48,19 +48,20 @@
         {
             @await Html.PartialAsync("_PagerTop", Model)
         }
+        <div class="table-responsive">
         <table class="table table-hover mb-0" id="purchaseOrdersTable">
             <thead>
                 <tr>
-                    <th class="w-50px">S.No</th>
-                    <th>PO Number</th>
-                    <th>Date</th>
-                    <th>Supplier</th>
-                    <th class="text-end">Amount</th>
-                    <th class="text-end">Paid</th>
-                    <th class="text-end">Balance</th>
-                    <th>Payment</th>
-                    <th>Status</th>
-                    <th class="text-end w-250px">Actions</th>
+                    <th scope="col" class="w-50px">S.No</th>
+                    <th scope="col">PO Number</th>
+                    <th scope="col">Date</th>
+                    <th scope="col">Supplier</th>
+                    <th scope="col" class="text-end">Amount</th>
+                    <th scope="col" class="text-end">Paid</th>
+                    <th scope="col" class="text-end">Balance</th>
+                    <th scope="col">Payment</th>
+                    <th scope="col">Status</th>
+                    <th scope="col" class="text-end w-250px">Actions</th>
                 </tr>
             </thead>
             <tbody>
@@ -110,26 +111,26 @@
                                 }
                             </td>
                             <td class="text-end">
-                                <a asp-action="ViewPurchaseOrder" asp-route-id="@item.StockMainID.EncryptId()" class="btn btn-sm btn-outline-info" title="View">
+                                <a asp-action="ViewPurchaseOrder" asp-route-id="@item.StockMainID.EncryptId()" class="btn btn-sm btn-outline-info" title="View" aria-label="View purchase order">
                                     <i class="fas fa-eye"></i>
                                 </a>
                                 @if (item.Status == "Draft")
                                 {
-                                    <a asp-action="EditPurchaseOrder" asp-route-id="@item.StockMainID.EncryptId()" class="btn btn-sm btn-outline-primary" title="Edit">
+                                    <a asp-action="EditPurchaseOrder" asp-route-id="@item.StockMainID.EncryptId()" class="btn btn-sm btn-outline-primary" title="Edit" aria-label="Edit purchase order">
                                         <i class="fas fa-edit"></i>
                                     </a>
-                                    <button type="button" class="btn btn-sm btn-outline-success btn-approve" 
-                                            data-id="@item.StockMainID.EncryptId()" data-no="@item.TransactionNo" title="Approve">
+                                    <button type="button" class="btn btn-sm btn-outline-success btn-approve" title="Approve" aria-label="Approve purchase order"
+                                            data-id="@item.StockMainID.EncryptId()" data-no="@item.TransactionNo">
                                         <i class="fas fa-check"></i>
                                     </button>
-                                    <button type="button" class="btn btn-sm btn-outline-danger btn-delete" 
-                                            data-id="@item.StockMainID.EncryptId()" data-no="@item.TransactionNo" title="Cancel">
+                                    <button type="button" class="btn btn-sm btn-outline-danger btn-delete" title="Cancel" aria-label="Cancel purchase order"
+                                            data-id="@item.StockMainID.EncryptId()" data-no="@item.TransactionNo">
                                         <i class="fas fa-times"></i>
                                     </button>
                                 }
                                 @if (item.Status == "Approved" && item.BalanceAmount > 0)
                                 {
-                                    <a asp-action="MakePayment" asp-route-id="@item.StockMainID.EncryptId()" class="btn btn-sm btn-success ms-1" title="Pay Advance">
+                                    <a asp-action="MakePayment" asp-route-id="@item.StockMainID.EncryptId()" class="btn btn-sm btn-success ms-1" title="Pay Advance" aria-label="Pay Advance">
                                         <i class="fas fa-money-bill-wave"></i>
                                     </a>
                                 }
@@ -150,6 +151,7 @@
                 }
             </tbody>
         </table>
+        </div>
     </div>
 
     @if (Model.TotalCount > 0)
@@ -171,9 +173,8 @@
 
 @section Scripts {
     <script>
-        document.addEventListener('DOMContentLoaded', function () {
-            $('.select2').select2({ theme: 'bootstrap-5' });
-        });
+        // NOTE: Select2 is initialized globally (with width:100%) by select2-global.js.
+        // Do NOT re-init here — a second init without a width blows the dropdown to full width.
 
         // Approve button handler
         document.querySelectorAll('.btn-approve').forEach(function(btn) {

@@ -34,6 +34,16 @@ namespace PharmaCare.AuditTests
         public List<PharmaCare.Application.DTOs.Security.SidebarMenuItemDTO> GetSidebarMenu() => new List<PharmaCare.Application.DTOs.Security.SidebarMenuItemDTO>();
     }
 
+    // Pins all DbContext reads/writes in this harness to the default pharmacy (tenant 1).
+    public class MockCurrentTenant : PharmaCare.Application.Interfaces.Tenancy.ICurrentTenant
+    {
+        public int? TenantId => 1;
+        public bool HasValue => true;
+        public void SetTenant(int pharmacyId) { }
+        public IDisposable BeginScope(int pharmacyId) => new Noop();
+        private sealed class Noop : IDisposable { public void Dispose() { } }
+    }
+
     public class MockActivityLogService : IActivityLogService
     {
         public Task LogActivityAsync(int userId, string userName, ActivityType activityType, string entityName, string? entityId = null, string? oldValues = null, string? newValues = null, string? description = null) => Task.CompletedTask;
@@ -53,6 +63,7 @@ namespace PharmaCare.AuditTests
                 options.UseSqlServer("Server=Arsalan-NSD;Database=PharmaCareDB_Test;Trusted_Connection=True;Encrypt=false"));
             services.AddScoped(typeof(IRepository<>), typeof(Repository<>));
             services.AddScoped<IUnitOfWork, UnitOfWork>();
+            services.AddScoped<PharmaCare.Application.Interfaces.Tenancy.ICurrentTenant, MockCurrentTenant>();
             services.AddScoped<IFinancialPeriodService, FinancialPeriodService>();
             services.AddScoped<ISaleService, SaleService>();
             services.AddScoped<ISaleReturnService, SaleReturnService>();

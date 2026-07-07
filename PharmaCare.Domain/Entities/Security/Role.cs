@@ -7,8 +7,11 @@ namespace PharmaCare.Domain.Entities.Security;
 /// Role entity for grouping permissions.
 /// Users can have multiple roles.
 /// </summary>
-public class Role : BaseEntityWithStatus
+public class Role : BaseEntityWithStatus, ITenantEntity
 {
+    // Tenant (pharmacy) that owns this row. Auto-filtered and stamped by the DbContext.
+    public int Pharmacy_ID { get; set; }
+
     [Key]
     public int RoleID { get; set; }
 

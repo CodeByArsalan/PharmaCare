@@ -6,8 +6,11 @@ namespace PharmaCare.Domain.Entities.Accounting;
 /// <summary>
 /// Represents a financial period (e.g., a month) that can be locked to prevent back-dated transactions.
 /// </summary>
-public class FinancialPeriod : BaseEntity
+public class FinancialPeriod : BaseEntity, ITenantEntity
 {
+    // Tenant (pharmacy) that owns this row. Auto-filtered and stamped by the DbContext.
+    public int Pharmacy_ID { get; set; }
+
     [Key]
     public int PeriodID { get; set; }
 

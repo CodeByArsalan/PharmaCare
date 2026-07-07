@@ -13,26 +13,8 @@
     <link rel="stylesheet" href="~/assets/css/bootstrap.min.css" />
     <link rel="stylesheet" href="~/lib/fontawesome/css/all.min.css" />
     <link rel="stylesheet" href="~/css/site.css" asp-append-version="true" />
-    <style>
-        .login-container {
-            position: relative;
-            z-index: 1;
-            width: 100%;
-            max-width: 440px;
-            padding: 1.5rem;
-        }
-        
-        .login-card {
-            background: var(--bg-card);
-            backdrop-filter: blur(20px);
-            border: 1px solid var(--glass-border);
-            border-radius: var(--radius-2xl);
-            padding: 3rem;
-            box-shadow: var(--shadow-2xl);
-        }
-    </style>
 </head>
-<body style="display: flex; align-items: center; justify-content: center;">
+<body class="auth-body">
     <!-- Animated Background -->
     <div class="bg-orbs">
         <div class="bg-orb"></div>
@@ -96,6 +78,17 @@
     </div>
 
     <script src="~/lib/jquery/dist/jquery.min.js"></script>
-    <script src="~/assets/js/bootstrap.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js"></script>
+    <script>
+        // Login bypasses the main layout, so apply the shared submit-loading state here too.
+        document.querySelector('form')?.addEventListener('submit', function () {
+            var btn = this.querySelector('button[type="submit"]');
+            if (btn && this.checkValidity()) {
+                btn.classList.add('btn-loading');
+                btn.setAttribute('aria-busy', 'true');
+                btn.disabled = true;
+            }
+        });
+    </script>
 </body>
 </html>

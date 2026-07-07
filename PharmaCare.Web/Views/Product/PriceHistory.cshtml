@@ -1,0 +1,93 @@
+@using PharmaCare.Web.Utilities
+@model IEnumerable<PharmaCare.Domain.Entities.Configuration.ProductPriceHistory>
+@{
+    ViewData["Title"] = "Price History";
+    var productName = ViewBag.ProductName as string ?? "Product";
+    var productIdEnc = ViewBag.ProductIdEnc as string;
+}
+
+<!-- Page Header -->
+<div class="page-header">
+    <h4 class="page-title">
+        <i class="fas fa-clock-rotate-left"></i>
+        Price History
+    </h4>
+    <a asp-action="EditProduct" asp-route-id="@productIdEnc" class="btn btn-outline-secondary">
+        <i class="fas fa-arrow-left me-2"></i>Back to Product
+    </a>
+</div>
+
+<div class="card">
+    <div class="card-header d-flex justify-content-between align-items-center">
+        <h6 class="mb-0"><i class="fas fa-pills me-2"></i>@productName</h6>
+        <span class="text-muted small">Every explicit sale-price change, newest first.</span>
+    </div>
+    <div class="card-body p-0">
+        <div class="table-responsive">
+            <table class="table table-bordered table-hover mb-0 align-middle">
+                <thead class="table-dark">
+                    <tr>
+                        <th>Price Type</th>
+                        <th class="text-end">Sale Price</th>
+                        <th class="text-end">Cost at Change</th>
+                        <th class="text-end">Margin</th>
+                        <th>Effective From</th>
+                        <th>Effective To</th>
+                        <th>Changed By</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    @if (!Model.Any())
+                    {
+                        <tr>
+                            <td colspan="7" class="text-center text-muted py-4">
+                                <i class="fas fa-info-circle me-1"></i>No price changes recorded yet.
+                            </td>
+                        </tr>
+                    }
+                    else
+                    {
+                        @foreach (var h in Model)
+                        {
+                            var margin = h.CostPriceAtChange > 0
+                                ? (h.SalePrice - h.CostPriceAtChange) / h.CostPriceAtChange * 100
+                                : (decimal?)null;
+                            <tr>
+                                <td>@(h.PriceType?.PriceTypeName ?? $"Type #{h.PriceType_ID}")</td>
+                                <td class="text-end">@h.SalePrice.ToString("N2")</td>
+                                <td class="text-end">@h.CostPriceAtChange.ToString("N2")</td>
+                                <td class="text-end">
+                                    @if (margin.HasValue)
+                                    {
+                                        <span class="@(margin.Value < 0 ? "text-danger" : "text-success")">@margin.Value.ToString("N1")%</span>
+                                    }
+                                    else
+                                    {
+                                        <span class="text-muted">—</span>
+                                    }
+                                </td>
+                                <td>@h.EffectiveFrom.ToString("dd MMM yyyy, hh:mm tt")</td>
+                                <td>
+                                    @if (h.EffectiveTo.HasValue)
+                                    {
+                                        @h.EffectiveTo.Value.ToString("dd MMM yyyy, hh:mm tt")
+                                    }
+                                    else
+                                    {
+                                        <span class="badge bg-success">Current</span>
+                                    }
+                                </td>
+                                <td class="text-muted">User #@h.ChangedBy</td>
+                            </tr>
+                        }
+                    }
+                </tbody>
+            </table>
+        </div>
+    </div>
+</div>
+
+<div class="alert alert-info py-2 small mt-3">
+    <i class="fas fa-info-circle me-1"></i>
+    Margin is shown against the stored price and cost at the time of change. For wholesale, Sale Price is per box, so its margin is indicative only.
+</div>

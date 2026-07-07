@@ -23,4 +23,6 @@ public class ActivityLogArchive
     public DateTime Timestamp { get; set; }
     public string? Description { get; set; }
     public int? StoreId { get; set; }
+    // Tenant (pharmacy) this log entry belongs to. Preserved from the live ActivityLog row.
+    public int? Pharmacy_ID { get; set; }
 }

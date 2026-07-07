@@ -13,8 +13,11 @@ namespace PharmaCare.Domain.Entities.Finance;
 /// <summary>
 /// Payment - Customer receipts and supplier payments.
 /// </summary>
-public class Payment : BaseEntity
+public class Payment : BaseEntity, ITenantEntity
 {
+    // Tenant (pharmacy) that owns this row. Auto-filtered and stamped by the DbContext.
+    public int Pharmacy_ID { get; set; }
+
     [Key]
     public int PaymentID { get; set; }
 

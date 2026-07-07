@@ -5,5 +5,5 @@ namespace PharmaCare.Application.Interfaces.Configuration;
 public interface IProfitSettingsService
 {
     Task<ProfitSettings> GetAsync();
-    Task UpdateAsync(decimal retailProfitPercent, decimal wholesaleProfitPercent, int userId);
+    Task UpdateAsync(decimal retailProfitPercent, decimal wholesaleProfitPercent, decimal priceRoundingStep, int userId);
 }

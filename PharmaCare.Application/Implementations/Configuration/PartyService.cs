@@ -10,21 +10,39 @@ namespace PharmaCare.Application.Implementations.Configuration;
 
 public class PartyService : IPartyService
 {
+    // Well-known chart-of-accounts codes resolved within the current pharmacy (tenant).
+    // Seeded per pharmacy at provisioning; replaces the old hardcoded account IDs.
+    private const string CustomerHeadCode = "AR_HEAD";
+    private const string CustomerSubheadCode = "AR_SUB";
+    private const string CustomerTypeCode = "AR";
+    private const string SupplierHeadCode = "AP_HEAD";
+    private const string SupplierSubheadCode = "AP_SUB";
+    private const string SupplierTypeCode = "AP";
+
     private readonly IRepository<Party> _repository;
     private readonly IRepository<PharmaCare.Domain.Entities.Accounting.Account> _accountRepository;
+    private readonly IRepository<PharmaCare.Domain.Entities.Accounting.AccountHead> _accountHeadRepository;
+    private readonly IRepository<PharmaCare.Domain.Entities.Accounting.AccountSubhead> _accountSubheadRepository;
+    private readonly IRepository<PharmaCare.Domain.Entities.Accounting.AccountType> _accountTypeRepository;
     private readonly IActivityLogService _activityLogService;
     private readonly ISessionService _sessionService;
     private readonly IUnitOfWork _unitOfWork;
 
     public PartyService(
-        IRepository<Party> repository, 
+        IRepository<Party> repository,
         IRepository<PharmaCare.Domain.Entities.Accounting.Account> accountRepository,
+        IRepository<PharmaCare.Domain.Entities.Accounting.AccountHead> accountHeadRepository,
+        IRepository<PharmaCare.Domain.Entities.Accounting.AccountSubhead> accountSubheadRepository,
+        IRepository<PharmaCare.Domain.Entities.Accounting.AccountType> accountTypeRepository,
         IActivityLogService activityLogService,
         ISessionService sessionService,
         IUnitOfWork unitOfWork)
     {
         _repository = repository;
         _accountRepository = accountRepository;
+        _accountHeadRepository = accountHeadRepository;
+        _accountSubheadRepository = accountSubheadRepository;
+        _accountTypeRepository = accountTypeRepository;
         _activityLogService = activityLogService;
         _sessionService = sessionService;
         _unitOfWork = unitOfWork;
@@ -84,33 +102,36 @@ public class PartyService : IPartyService
         party.CreatedBy = userId;
         party.IsActive = true;
 
-        // Automate Account Creation
-        int headId = 0;
-        int subheadId = 0;
-        int typeId = 0;
+        // Automate Account Creation — resolve the receivable/payable head, subhead and type by
+        // well-known code WITHIN the current pharmacy. The chart of accounts is per-tenant, so
+        // ids differ between pharmacies; codes are stable and seeded at provisioning.
+        var isSupplier = party.PartyType.Equals("Supplier", StringComparison.OrdinalIgnoreCase);
+        var isCustomer = party.PartyType.Equals("Customer", StringComparison.OrdinalIgnoreCase)
+                         || party.PartyType.Equals("Both", StringComparison.OrdinalIgnoreCase);
 
-        if (party.PartyType.Equals("Supplier", StringComparison.OrdinalIgnoreCase))
+        if (isSupplier || isCustomer)
         {
-            headId = 6;
-            subheadId = 5;
-            typeId = 4;
-        }
-        else if (party.PartyType.Equals("Customer", StringComparison.OrdinalIgnoreCase) || 
-                 party.PartyType.Equals("Both", StringComparison.OrdinalIgnoreCase))
-        {
-            headId = 1;
-            subheadId = 2;
-            typeId = 3;
-        }
+            var headCode = isSupplier ? SupplierHeadCode : CustomerHeadCode;
+            var subheadCode = isSupplier ? SupplierSubheadCode : CustomerSubheadCode;
+            var typeCode = isSupplier ? SupplierTypeCode : CustomerTypeCode;
 
-        if (headId > 0 && subheadId > 0)
-        {
+            var head = await _accountHeadRepository.Query().FirstOrDefaultAsync(h => h.Code == headCode);
+            var subhead = await _accountSubheadRepository.Query().FirstOrDefaultAsync(s => s.Code == subheadCode);
+            var accountType = await _accountTypeRepository.Query().FirstOrDefaultAsync(t => t.Code == typeCode);
+
+            if (head == null || subhead == null || accountType == null)
+            {
+                throw new InvalidOperationException(
+                    $"This pharmacy's chart of accounts is not fully set up (missing {(isSupplier ? "payable" : "receivable")} " +
+                    "head/subhead/type). Contact your administrator to complete pharmacy setup.");
+            }
+
             var account = new PharmaCare.Domain.Entities.Accounting.Account
             {
                 Name = party.Name,
-                AccountHead_ID = headId,
-                AccountSubhead_ID = subheadId,
-                AccountType_ID = typeId,
+                AccountHead_ID = head.AccountHeadID,
+                AccountSubhead_ID = subhead.AccountSubheadID,
+                AccountType_ID = accountType.AccountTypeID,
                 IsSystemAccount = false,
                 IsActive = true,
                 CreatedAt = DateTime.Now,
@@ -120,7 +141,7 @@ public class PartyService : IPartyService
             await _accountRepository.AddAsync(account);
             await _unitOfWork.SaveChangesAsync();
 
-            // Link the account back to the party
+            // Link the account back to the party (Pharmacy_ID is stamped automatically on save).
             party.Account_ID = account.AccountID;
         }
 

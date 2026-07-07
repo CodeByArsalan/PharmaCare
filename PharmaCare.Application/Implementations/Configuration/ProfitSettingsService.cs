@@ -36,6 +36,7 @@ public class ProfitSettingsService : IProfitSettingsService
             {
                 RetailProfitPercent = 20,
                 WholesaleProfitPercent = 10,
+                PriceRoundingStep = 1.00m,
                 UpdatedAt = DateTime.Now,
                 UpdatedBy = 1 // System user
             };
@@ -46,18 +47,19 @@ public class ProfitSettingsService : IProfitSettingsService
         return settings;
     }
 
-    public async Task UpdateAsync(decimal retailProfitPercent, decimal wholesaleProfitPercent, int userId)
+    public async Task UpdateAsync(decimal retailProfitPercent, decimal wholesaleProfitPercent, decimal priceRoundingStep, int userId)
     {
         var settings = await GetAsync();
-        
+
         settings.RetailProfitPercent = retailProfitPercent;
         settings.WholesaleProfitPercent = wholesaleProfitPercent;
+        settings.PriceRoundingStep = priceRoundingStep < 0 ? 0 : priceRoundingStep;
         settings.UpdatedAt = DateTime.Now;
         settings.UpdatedBy = userId;
-        
+
         _repository.Update(settings);
         await _unitOfWork.SaveChangesAsync();
-        
+
         var userName = _sessionService.GetCurrentUser()?.FullName ?? "Unknown User";
         await _activityLogService.LogActivityAsync(
             userId,
@@ -67,6 +69,6 @@ public class ProfitSettingsService : IProfitSettingsService
             settings.SettingsID.ToString(),
             null,
             null,
-            $"Updated profit settings: Retail {retailProfitPercent}%, Wholesale {wholesaleProfitPercent}%");
+            $"Updated profit settings: Retail {retailProfitPercent}%, Wholesale {wholesaleProfitPercent}%, Rounding step {settings.PriceRoundingStep}");
     }
 }

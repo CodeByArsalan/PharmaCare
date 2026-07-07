@@ -41,6 +41,19 @@ builder.Services.AddDbContext<LogDbContext>(options => options.UseSqlServer(logC
 builder.Services.AddScoped<AuditSaveChangesInterceptor>();
 builder.Services.AddScoped<IActivityLogRepository, ActivityLogRepository>();
 
+// Ambient tenant (current pharmacy) — resolved from the auth claim / explicit override.
+// Scoped so it shares the request scope with the DbContext that consumes it.
+builder.Services.AddScoped<PharmaCare.Application.Interfaces.Tenancy.ICurrentTenant, PharmaCare.Infrastructure.Implementations.Tenancy.CurrentTenantService>();
+builder.Services.AddScoped<PharmaCare.Application.Interfaces.Tenancy.IPharmacyService, PharmaCare.Infrastructure.Implementations.Tenancy.PharmacyService>();
+builder.Services.AddScoped<PharmaCare.Application.Interfaces.Tenancy.ITenantProvisioningService, PharmaCare.Infrastructure.Implementations.Tenancy.TenantProvisioningService>();
+
+// Platform super-admin gate: only users carrying the IsPlatformAdmin claim reach the /Pharmacies area.
+builder.Services.AddAuthorization(options =>
+{
+    options.AddPolicy("PlatformAdmin", policy =>
+        policy.RequireClaim(PharmaCare.Infrastructure.Implementations.Tenancy.TenantClaimsPrincipalFactory.PlatformAdminClaimType, "true"));
+});
+
 // Activity-log retention: nightly job that archives ActivityLogs older than the hot
 // window and purges archived rows older than the archive window (see "LogRetention" config).
 builder.Services.Configure<LogRetentionOptions>(builder.Configuration.GetSection(LogRetentionOptions.SectionName));
@@ -80,7 +93,10 @@ builder.Services.AddDefaultIdentity<User>(options =>
     options.Lockout.AllowedForNewUsers = true;
     options.Lockout.MaxFailedAccessAttempts = 5;
     options.Lockout.DefaultLockoutTimeSpan = TimeSpan.FromMinutes(15);
-}).AddEntityFrameworkStores<PharmaCareDBContext>();
+})
+    // Emit the pharmacy (tenant) claim into the auth cookie at sign-in.
+    .AddClaimsPrincipalFactory<PharmaCare.Infrastructure.Implementations.Tenancy.TenantClaimsPrincipalFactory>()
+    .AddEntityFrameworkStores<PharmaCareDBContext>();
 
 // Configure Authentication Cookie for "Remember Me" functionality
 builder.Services.ConfigureApplicationCookie(options =>
@@ -146,6 +162,7 @@ builder.Services.AddScoped<IAccountSubHeadService, AccountSubHeadService>();
 builder.Services.AddScoped<IAccountService, AccountService>();
 builder.Services.AddScoped<IJournalVoucherService, JournalVoucherService>();
 builder.Services.AddScoped<IProfitSettingsService, ProfitSettingsService>();
+builder.Services.AddScoped<IPricingService, PricingService>();
 
 // Purchase Management Services
 builder.Services.AddScoped<IPurchaseOrderService, PurchaseOrderService>();
@@ -207,6 +224,9 @@ var app = builder.Build();
 Utility.Initialize(app.Services.GetRequiredService<IDataProtectionProvider>());
 
 // Security response headers applied to every response.
+// In Development, connect-src is relaxed to allow Visual Studio's Browser Link / hot-reload
+// (ws/wss + localhost) and CDN sourcemaps; production keeps the strict "connect-src 'self'".
+var cspIsDevelopment = app.Environment.IsDevelopment();
 app.Use(async (context, next) =>
 {
     var headers = context.Response.Headers;
@@ -214,13 +234,18 @@ app.Use(async (context, next) =>
     headers["X-Frame-Options"] = "DENY";
     headers["Referrer-Policy"] = "no-referrer";
     headers["X-XSS-Protection"] = "0"; // Deprecated header; explicitly disabled in favor of CSP.
+
+    var connectSrc = cspIsDevelopment
+        ? "connect-src 'self' ws: wss: http://localhost:* https://localhost:* https://cdn.jsdelivr.net; "
+        : "connect-src 'self'; ";
+
     headers["Content-Security-Policy"] =
         "default-src 'self'; " +
         "script-src 'self' 'unsafe-inline' https://cdn.jsdelivr.net; " +
         "style-src 'self' 'unsafe-inline' https://cdn.jsdelivr.net https://fonts.googleapis.com; " +
         "font-src 'self' https://fonts.gstatic.com data:; " +
         "img-src 'self' data:; " +
-        "connect-src 'self'; " +
+        connectSrc +
         "frame-ancestors 'none'; " +
         "base-uri 'self'; " +
         "form-action 'self'; " +
@@ -262,4 +287,8 @@ app.MapControllerRoute(
     pattern: "{controller=Account}/{action=Login}/{id?}");
 
 app.MapRazorPages();
+
+// Idempotently ensure global reference data, the log-DB tenant column, and a platform super-admin.
+await PharmaCare.Infrastructure.Implementations.Tenancy.DbInitializer.InitializeAsync(app.Services);
+
 app.Run();

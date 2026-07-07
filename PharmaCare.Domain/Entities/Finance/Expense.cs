@@ -10,8 +10,11 @@ namespace PharmaCare.Domain.Entities.Finance;
 /// <summary>
 /// Expense transaction with automatic voucher creation.
 /// </summary>
-public class Expense : BaseEntity
+public class Expense : BaseEntity, ITenantEntity
 {
+    // Tenant (pharmacy) that owns this row. Auto-filtered and stamped by the DbContext.
+    public int Pharmacy_ID { get; set; }
+
     [Key]
     public int ExpenseID { get; set; }
 

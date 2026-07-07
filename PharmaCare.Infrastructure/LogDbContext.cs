@@ -45,6 +45,9 @@ public class LogDbContext : DbContext
             // Index for querying by activity type
             entity.HasIndex(e => e.ActivityType);
 
+            // Index for querying a single pharmacy's audit trail
+            entity.HasIndex(e => e.Pharmacy_ID);
+
             // Configure string lengths
             entity.Property(e => e.UserName).HasMaxLength(256);
             entity.Property(e => e.EntityName).HasMaxLength(100);

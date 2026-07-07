@@ -1,0 +1,94 @@
+@model IEnumerable<PharmaCare.Domain.Entities.Tenancy.Pharmacy>
+@{
+    ViewData["Title"] = "Pharmacies";
+}
+
+<div class="page-header">
+    <h4 class="page-title">
+        <i class="fas fa-hospital"></i>
+        Pharmacies (Tenants)
+    </h4>
+    <a asp-action="Create" class="btn btn-primary">
+        <i class="fas fa-plus me-2"></i>Add Pharmacy
+    </a>
+</div>
+
+@if (TempData["Success"] != null)
+{
+    <div class="alert alert-success alert-dismissible fade show" role="alert">
+        <i class="fas fa-check-circle me-2"></i>@TempData["Success"]
+        <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+    </div>
+}
+
+<div class="card">
+    <div class="card-body p-0">
+        <div class="table-responsive">
+        <table class="table mb-0">
+            <thead>
+                <tr>
+                    <th scope="col">Name</th>
+                    <th scope="col">Code</th>
+                    <th scope="col">Phone</th>
+                    <th scope="col">Status</th>
+                    <th scope="col" class="text-end">Actions</th>
+                </tr>
+            </thead>
+            <tbody>
+                @if (Model.Any())
+                {
+                    @foreach (var p in Model)
+                    {
+                        <tr>
+                            <td><strong>@p.Name</strong></td>
+                            <td>@p.Code</td>
+                            <td>@(string.IsNullOrEmpty(p.Phone) ? "-" : p.Phone)</td>
+                            <td>
+                                @if (string.Equals(p.Status, "Active", StringComparison.OrdinalIgnoreCase))
+                                {
+                                    <span class="badge bg-success">Active</span>
+                                }
+                                else
+                                {
+                                    <span class="badge bg-danger">Suspended</span>
+                                }
+                            </td>
+                            <td class="text-end">
+                                @if (string.Equals(p.Status, "Active", StringComparison.OrdinalIgnoreCase))
+                                {
+                                    <form asp-action="Suspend" asp-route-id="@p.PharmacyID" method="post" class="d-inline">
+                                        @Html.AntiForgeryToken()
+                                        <button type="submit" class="btn btn-sm btn-outline-danger">
+                                            <i class="fas fa-ban me-1"></i>Suspend
+                                        </button>
+                                    </form>
+                                }
+                                else
+                                {
+                                    <form asp-action="Activate" asp-route-id="@p.PharmacyID" method="post" class="d-inline">
+                                        @Html.AntiForgeryToken()
+                                        <button type="submit" class="btn btn-sm btn-outline-success">
+                                            <i class="fas fa-check me-1"></i>Activate
+                                        </button>
+                                    </form>
+                                }
+                            </td>
+                        </tr>
+                    }
+                }
+                else
+                {
+                    <tr>
+                        <td colspan="5" class="text-center py-4">
+                            <div class="empty-state">
+                                <i class="fas fa-hospital"></i>
+                                <p class="mb-0">No pharmacies yet. Click "Add Pharmacy" to create one.</p>
+                            </div>
+                        </td>
+                    </tr>
+                }
+            </tbody>
+        </table>
+        </div>
+    </div>
+</div>

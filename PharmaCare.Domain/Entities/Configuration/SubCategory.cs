@@ -7,8 +7,11 @@ namespace PharmaCare.Domain.Entities.Configuration;
 /// <summary>
 /// Product sub-category under a parent category.
 /// </summary>
-public class SubCategory : BaseEntityWithStatus
+public class SubCategory : BaseEntityWithStatus, ITenantEntity
 {
+    // Tenant (pharmacy) that owns this row. Auto-filtered and stamped by the DbContext.
+    public int Pharmacy_ID { get; set; }
+
     [Key]
     public int SubCategoryID { get; set; }
 

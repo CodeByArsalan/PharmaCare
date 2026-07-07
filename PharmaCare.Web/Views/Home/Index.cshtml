@@ -6,98 +6,6 @@
     bool showFinancials = Model.CanViewFinancials;
 }
 
-<style>
-    .quick-actions {
-        display: flex;
-        gap: 1rem;
-        margin-bottom: 2rem;
-        flex-wrap: wrap;
-    }
-    
-    .action-btn {
-        flex: 1;
-        min-width: 150px;
-        display: flex;
-        flex-direction: column;
-        align-items: center;
-        justify-content: center;
-        padding: 1.5rem;
-        background: var(--glass-bg);
-        border: 1px solid var(--glass-border);
-        border-radius: var(--radius-xl);
-        text-decoration: none;
-        color: var(--text-primary);
-        transition: all var(--transition-base);
-    }
-    
-    .action-btn:hover {
-        background: rgba(102, 126, 234, 0.1);
-        border-color: rgba(102, 126, 234, 0.3);
-        color: var(--text-primary);
-        transform: translateY(-2px);
-    }
-    
-    .action-btn i {
-        font-size: 1.75rem;
-        margin-bottom: 0.75rem;
-        background: var(--gradient-primary);
-        -webkit-background-clip: text;
-        -webkit-text-fill-color: transparent;
-        background-clip: text;
-    }
-    
-    .action-btn span {
-        font-size: 0.875rem;
-        font-weight: 500;
-    }
-    
-    .chart-card {
-        background: var(--bg-card);
-        border: 1px solid var(--glass-border);
-        border-radius: var(--radius-xl);
-        overflow: hidden;
-    }
-    
-    .chart-header {
-        display: flex;
-        justify-content: space-between;
-        align-items: center;
-        padding: 1.25rem 1.5rem;
-        border-bottom: 1px solid var(--glass-border);
-    }
-    
-    .chart-title {
-        font-size: 1rem;
-        font-weight: 600;
-        color: var(--text-primary);
-        display: flex;
-        align-items: center;
-        gap: 0.5rem;
-    }
-    
-    .chart-title i {
-        color: var(--primary-500);
-    }
-    
-    .chart-body {
-        padding: 1.5rem;
-    }
-
-    .mini-statement-row {
-        display: flex;
-        justify-content: space-between;
-        padding: 0.5rem 0;
-        border-bottom: 1px solid var(--glass-border);
-    }
-
-    .mini-statement-row.total {
-        font-weight: bold;
-        border-bottom: none;
-        border-top: 2px solid var(--glass-border);
-        margin-top: 0.5rem;
-    }
-</style>
-
 <!-- Dashboard Header -->
 <div class="page-header">
     <div>
@@ -448,14 +356,25 @@
 
             if (ctxCanvas) {
                 const ctx = ctxCanvas.getContext('2d');
-                
+
+                // Pull chart colours from the theme's CSS variables (no hardcoded brand hex).
+                const rootStyle = getComputedStyle(document.documentElement);
+                const salesColor = (rootStyle.getPropertyValue('--primary-500').trim() || salesColor);
+                const purchaseColor = (rootStyle.getPropertyValue('--danger-500').trim() || purchaseColor);
+                const hexToRgba = (hex, a) => {
+                    const h = hex.replace('#', '');
+                    const full = h.length === 3 ? h.split('').map(c => c + c).join('') : h;
+                    const n = parseInt(full, 16);
+                    return `rgba(${(n >> 16) & 255}, ${(n >> 8) & 255}, ${n & 255}, ${a})`;
+                };
+
                 const gradientSales = ctx.createLinearGradient(0, 0, 0, 300);
-                gradientSales.addColorStop(0, 'rgba(14, 165, 233, 0.4)');
-                gradientSales.addColorStop(1, 'rgba(14, 165, 233, 0.0)');
-                
+                gradientSales.addColorStop(0, hexToRgba(salesColor, 0.4));
+                gradientSales.addColorStop(1, hexToRgba(salesColor, 0.0));
+
                 const gradientPurchases = ctx.createLinearGradient(0, 0, 0, 300);
-                gradientPurchases.addColorStop(0, 'rgba(239, 68, 68, 0.4)');
-                gradientPurchases.addColorStop(1, 'rgba(239, 68, 68, 0.0)');
+                gradientPurchases.addColorStop(0, hexToRgba(purchaseColor, 0.4));
+                gradientPurchases.addColorStop(1, hexToRgba(purchaseColor, 0.0));
 
                 const initChart = (labels, salesData, purchaseData) => {
                     if (myChart) myChart.destroy();
@@ -468,11 +387,11 @@
                                 {
                                     label: 'Sales (PKR)',
                                     data: salesData,
-                                    borderColor: '#0ea5e9',
+                                    borderColor: salesColor,
                                     backgroundColor: gradientSales,
                                     borderWidth: 3,
                                     pointBackgroundColor: '#fff',
-                                    pointBorderColor: '#0ea5e9',
+                                    pointBorderColor: salesColor,
                                     pointBorderWidth: 2,
                                     pointRadius: 4,
                                     fill: true,
@@ -481,11 +400,11 @@
                                 {
                                     label: 'Purchases (PKR)',
                                     data: purchaseData,
-                                    borderColor: '#ef4444',
+                                    borderColor: purchaseColor,
                                     backgroundColor: gradientPurchases,
                                     borderWidth: 3,
                                     pointBackgroundColor: '#fff',
-                                    pointBorderColor: '#ef4444',
+                                    pointBorderColor: purchaseColor,
                                     pointBorderWidth: 2,
                                     pointRadius: 4,
                                     fill: true,

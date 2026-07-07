@@ -29,16 +29,16 @@
             <table class="table table-hover" id="refundsTable">
                 <thead>
                     <tr>
-                        <th style="width: 50px;">S.No</th>
-                        <th>Reference</th>
-                        <th>Date</th>
-                        <th>Customer</th>
-                        <th>Method</th>
-                        <th>Status</th>
-                        <th>Account</th>
-                        <th class="text-end">Amount</th>
-                        <th>Remarks</th>
-                        <th class="text-end" style="width:120px;">Actions</th>
+                        <th scope="col" style="width: 50px;">S.No</th>
+                        <th scope="col">Reference</th>
+                        <th scope="col">Date</th>
+                        <th scope="col">Customer</th>
+                        <th scope="col">Method</th>
+                        <th scope="col">Status</th>
+                        <th scope="col">Account</th>
+                        <th scope="col" class="text-end">Amount</th>
+                        <th scope="col">Remarks</th>
+                        <th scope="col" class="text-end" style="width:120px;">Actions</th>
                     </tr>
                 </thead>
                 <tbody>
@@ -74,7 +74,7 @@
                                     <button type="button"
                                             class="btn btn-sm btn-outline-danger void-refund-btn"
                                             data-id="@PharmaCare.Web.Utilities.Utility.EncryptId(refund.PaymentID)"
-                                            data-ref="@refund.Reference">
+                                            data-ref="@refund.Reference" title="Void refund" aria-label="Void refund">
                                         <i class="fas fa-ban"></i>
                                     </button>
                                 }

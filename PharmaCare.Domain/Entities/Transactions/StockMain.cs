@@ -12,8 +12,11 @@ namespace PharmaCare.Domain.Entities.Transactions;
 /// Stock Main - Unified header for all inventory transactions.
 /// Replaces: GRN, Sale, PurchaseReturn, SalesReturn, StockAdjustment
 /// </summary>
-public class StockMain : BaseEntity
+public class StockMain : BaseEntity, ITenantEntity
 {
+    // Tenant (pharmacy) that owns this row. Auto-filtered and stamped by the DbContext.
+    public int Pharmacy_ID { get; set; }
+
     [Key]
     public int StockMainID { get; set; }
 
