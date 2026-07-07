@@ -122,7 +122,8 @@ public class TenantProvisioningService : ITenantProvisioningService
     private static ProvisionResult Fail(string message) => new() { Success = false, ErrorMessage = message };
 
     /// <summary>
-    /// Seeds a minimal but complete chart of accounts. Codes AR_HEAD/AR_SUB/AP_HEAD/AP_SUB are
+    /// Seeds a minimal but complete chart of accounts across 5 families
+    /// (Assets, Liabilities, Capital, Revenue, Expense). Codes AR_HEAD/AR_SUB/AP_HEAD/AP_SUB are
     /// resolved by PartyService; the "Discount Allowed" subhead is resolved by SaleService; the
     /// Sales/COGS/Stock/Damage accounts are assigned to categories by the pharmacy later.
     /// </summary>
@@ -134,27 +135,30 @@ public class TenantProvisioningService : ITenantProvisioningService
 
         var assets = new AccountFamily { FamilyName = "Assets" };
         var liabilities = new AccountFamily { FamilyName = "Liabilities" };
-        var income = new AccountFamily { FamilyName = "Income" };
-        var expenses = new AccountFamily { FamilyName = "Expenses" };
-        _context.AccountFamilies.AddRange(assets, liabilities, income, expenses);
+        var capital = new AccountFamily { FamilyName = "Capital" };
+        var income = new AccountFamily { FamilyName = "Revenue" };
+        var expenses = new AccountFamily { FamilyName = "Expense" };
+        _context.AccountFamilies.AddRange(assets, liabilities, capital, income, expenses);
         await _context.SaveChangesAsync();
 
         var currentAssets = new AccountHead { HeadName = "Current Assets", Code = "AR_HEAD", AccountFamily_ID = assets.AccountFamilyID };
         var currentLiabilities = new AccountHead { HeadName = "Current Liabilities", Code = "AP_HEAD", AccountFamily_ID = liabilities.AccountFamilyID };
+        var capitalHead = new AccountHead { HeadName = "Owner's Equity", AccountFamily_ID = capital.AccountFamilyID };
         var revenueHead = new AccountHead { HeadName = "Revenue", AccountFamily_ID = income.AccountFamilyID };
         var expenseHead = new AccountHead { HeadName = "Expenses", AccountFamily_ID = expenses.AccountFamilyID };
-        _context.AccountHeads.AddRange(currentAssets, currentLiabilities, revenueHead, expenseHead);
+        _context.AccountHeads.AddRange(currentAssets, currentLiabilities, capitalHead, revenueHead, expenseHead);
         await _context.SaveChangesAsync();
 
         var cashBankSub = new AccountSubhead { SubheadName = "Cash & Bank", AccountHead_ID = currentAssets.AccountHeadID };
         var receivablesSub = new AccountSubhead { SubheadName = "Trade Receivables", Code = "AR_SUB", AccountHead_ID = currentAssets.AccountHeadID };
         var inventorySub = new AccountSubhead { SubheadName = "Inventory", AccountHead_ID = currentAssets.AccountHeadID };
         var payablesSub = new AccountSubhead { SubheadName = "Trade Payables", Code = "AP_SUB", AccountHead_ID = currentLiabilities.AccountHeadID };
+        var capitalSub = new AccountSubhead { SubheadName = "Capital", AccountHead_ID = capitalHead.AccountHeadID };
         var salesSub = new AccountSubhead { SubheadName = "Sales Revenue", AccountHead_ID = revenueHead.AccountHeadID };
         var costOfSalesSub = new AccountSubhead { SubheadName = "Cost of Sales", AccountHead_ID = expenseHead.AccountHeadID };
         var damageSub = new AccountSubhead { SubheadName = "Damage & Loss", AccountHead_ID = expenseHead.AccountHeadID };
         var discountSub = new AccountSubhead { SubheadName = "Discount Allowed", AccountHead_ID = expenseHead.AccountHeadID };
-        _context.AccountSubheads.AddRange(cashBankSub, receivablesSub, inventorySub, payablesSub, salesSub, costOfSalesSub, damageSub, discountSub);
+        _context.AccountSubheads.AddRange(cashBankSub, receivablesSub, inventorySub, payablesSub, capitalSub, salesSub, costOfSalesSub, damageSub, discountSub);
         await _context.SaveChangesAsync();
 
         Account Acct(string name, AccountSubhead sub, AccountHead head, string typeCode) => new()
@@ -175,6 +179,7 @@ public class TenantProvisioningService : ITenantProvisioningService
             Acct("Cash in Hand", cashBankSub, currentAssets, "CASH"),
             Acct("Bank Account", cashBankSub, currentAssets, "BANK"),
             Acct("Inventory / Stock", inventorySub, currentAssets, "STK"),
+            Acct("Owner's Capital", capitalSub, capitalHead, "GEN"),
             Acct("Sales Revenue", salesSub, revenueHead, "SALE"),
             Acct("Cost of Goods Sold", costOfSalesSub, expenseHead, "COGS"),
             Acct("Damage & Loss", damageSub, expenseHead, "DMG"),
