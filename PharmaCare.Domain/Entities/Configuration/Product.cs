@@ -7,8 +7,11 @@ namespace PharmaCare.Domain.Entities.Configuration;
 /// <summary>
 /// Product entity with pricing. No batch/expiry tracking.
 /// </summary>
-public class Product : BaseEntityWithStatus
+public class Product : BaseEntityWithStatus, ITenantEntity
 {
+    // Tenant (pharmacy) that owns this row. Auto-filtered and stamped by the DbContext.
+    public int Pharmacy_ID { get; set; }
+
     [Key]
     public int ProductID { get; set; }
 

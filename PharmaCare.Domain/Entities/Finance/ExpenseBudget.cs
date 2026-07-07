@@ -7,8 +7,11 @@ namespace PharmaCare.Domain.Entities.Finance;
 /// <summary>
 /// Monthly budget for an expense category.
 /// </summary>
-public class ExpenseBudget : BaseEntity
+public class ExpenseBudget : BaseEntity, ITenantEntity
 {
+    // Tenant (pharmacy) that owns this row. Auto-filtered and stamped by the DbContext.
+    public int Pharmacy_ID { get; set; }
+
     [Key]
     public int ExpenseBudgetID { get; set; }
 

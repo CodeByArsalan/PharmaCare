@@ -19,6 +19,7 @@ public class SaleController : BaseController
     private readonly IPartyService _partyService;
     private readonly IProductService _productService;
     private readonly IProfitSettingsService _profitSettingsService;
+    private readonly IPricingService _pricingService;
     private readonly ILogger<SaleController> _logger;
 
     public SaleController(
@@ -26,12 +27,14 @@ public class SaleController : BaseController
         IPartyService partyService,
         IProductService productService,
         IProfitSettingsService profitSettingsService,
+        IPricingService pricingService,
         ILogger<SaleController> logger)
     {
         _saleService = saleService;
         _partyService = partyService;
         _productService = productService;
         _profitSettingsService = profitSettingsService;
+        _pricingService = pricingService;
         _logger = logger;
     }
 
@@ -100,18 +103,20 @@ public class SaleController : BaseController
             }
         }
 
-        // Server-side wholesale: enforce box pricing and convert boxes → units for stock
+        // Server-side wholesale: enforce box pricing (via the canonical resolver) and convert boxes → units for stock
         if (selectedParty?.IsWholeSale == true)
         {
-            var productsWithStock = await _productService.GetProductsWithStockAsync(priceTypeId: 2);
+            var settings = await _profitSettingsService.GetAsync();
+            var wholesaleCosts = await _productService.GetLastGrnCostPricesAsync();
+            var productsWithStock = await _productService.GetProductsWithStockAsync(priceTypeId: _pricingService.WholesalePriceTypeId);
             var productLookup = productsWithStock.ToDictionary(
                 ps => ps.Product.ProductID,
-                ps => new
+                ps =>
                 {
-                    // SpecificPrice from ProductPrice table is already the per-box wholesale price
-                    BoxPrice = ps.SpecificPrice ?? (ps.Product.OpeningPrice * ps.Product.UnitsInPack),
-                    PerUnitPrice = (ps.SpecificPrice ?? (ps.Product.OpeningPrice * ps.Product.UnitsInPack)) / ps.Product.UnitsInPack,
-                    ps.Product.UnitsInPack
+                    var cost = wholesaleCosts.TryGetValue(ps.Product.ProductID, out var wc) ? wc : ps.Product.OpeningPrice;
+                    var resolved = _pricingService.Resolve(
+                        _pricingService.WholesalePriceTypeId, cost, ps.Product.UnitsInPack, ps.SpecificPrice, settings);
+                    return new { resolved, ps.Product.UnitsInPack };
                 });
 
             foreach (var detail in sale.StockDetails)
@@ -121,10 +126,25 @@ public class SaleController : BaseController
                     // User entered quantity in boxes — convert to units for stock deduction
                     var boxesOrdered = detail.Quantity;
                     detail.Quantity = boxesOrdered * info.UnitsInPack;
-                    detail.UnitPrice = info.PerUnitPrice;
-                    detail.LineTotal = boxesOrdered * info.BoxPrice;
-                    detail.LineCost = detail.Quantity * detail.CostPrice;
+                    detail.UnitPrice = info.resolved.UnitPrice;
+                    detail.LineTotal = boxesOrdered * info.resolved.BoxPrice;
                 }
+            }
+        }
+
+        // Margin floor (hard block): re-derive authoritative costs and reject any below-cost line.
+        // Also normalises CostPrice/LineCost server-side so client-supplied values can't understate COGS.
+        var authoritativeCosts = await _productService.GetLastGrnCostPricesAsync();
+        foreach (var detail in sale.StockDetails)
+        {
+            var cost = authoritativeCosts.TryGetValue(detail.Product_ID, out var lc) ? lc : detail.CostPrice;
+            detail.CostPrice = cost;
+            detail.LineCost = detail.Quantity * cost;
+
+            if (detail.UnitPrice < cost)
+            {
+                ModelState.AddModelError(nameof(request.StockDetails),
+                    $"A line item's sale price ({detail.UnitPrice:N2}) is below its cost ({cost:N2}). Below-cost sales are not allowed.");
             }
         }
 
@@ -244,26 +264,27 @@ public class SaleController : BaseController
             var lastGrnCosts = await _productService.GetLastGrnCostPricesAsync();
             var profitSettings = await _profitSettingsService.GetAsync();
 
+            // Default to retail (1) when no price type is specified.
+            var priceType = priceTypeId ?? 1;
             var result = productsWithStock
-                .Select(ps => 
+                .Select(ps =>
                 {
                     var costPrice = lastGrnCosts.TryGetValue(ps.Product.ProductID, out var c) ? c : ps.Product.OpeningPrice;
-                    var retailPrice = costPrice * (1 + profitSettings.RetailProfitPercent / 100);
-                    var wholesaleBoxPrice = costPrice * (1 + profitSettings.WholesaleProfitPercent / 100) * ps.Product.UnitsInPack;
 
-                    // Fall back to SpecificPrice from ProductPrice table if it exists, otherwise use ProfitSettings formula
-                    var finalUnitPrice = ps.SpecificPrice ?? retailPrice;
-                    var finalBoxPrice = ps.SpecificPrice ?? wholesaleBoxPrice;
+                    // Single canonical resolver: explicit price ?? cost+margin formula (rounded, never below cost).
+                    var resolved = _pricingService.Resolve(priceType, costPrice, ps.Product.UnitsInPack, ps.SpecificPrice, profitSettings);
 
                     return new
                     {
                         id = ps.Product.ProductID,
                         name = ps.Product.Name,
-                        unitPrice = finalUnitPrice,
+                        unitPrice = resolved.UnitPrice,
                         costPrice = costPrice,
                         stockQuantity = ps.CurrentStock,
                         unitsInPack = ps.Product.UnitsInPack,
-                        boxPrice = finalBoxPrice
+                        boxPrice = resolved.BoxPrice,
+                        priceSource = resolved.Source.ToString(),
+                        belowCost = resolved.BelowCost
                     };
                 })
                 .ToList();

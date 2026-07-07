@@ -23,6 +23,11 @@ public abstract class BaseController : Controller
 
     protected int CurrentUserId => SessionService.GetCurrentUser()?.UserId ?? 0;
 
+    /// <summary>The current user's pharmacy (tenant) id; 0 for platform admins / unauthenticated.</summary>
+    protected int CurrentPharmacyId => SessionService.GetCurrentUser()?.Pharmacy_ID ?? 0;
+
+    protected bool IsPlatformAdmin => SessionService.GetCurrentUser()?.IsPlatformAdmin ?? false;
+
     protected string CurrentUserName => SessionService.GetCurrentUser()?.FullName ?? "Unknown";
 
     protected string CurrentUserEmail => SessionService.GetCurrentUser()?.Email ?? string.Empty;

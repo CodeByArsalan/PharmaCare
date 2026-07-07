@@ -2,6 +2,7 @@ using System.ComponentModel.DataAnnotations;
 using System.ComponentModel.DataAnnotations.Schema;
 using PharmaCare.Domain.Entities.Configuration;
 using PharmaCare.Domain.Entities.Accounting;
+using PharmaCare.Domain.Entities.Base;
 
 namespace PharmaCare.Domain.Entities.Transactions;
 
@@ -9,8 +10,11 @@ namespace PharmaCare.Domain.Entities.Transactions;
 /// Voucher Detail - Line items for accounting vouchers.
 /// Each line debits or credits an account.
 /// </summary>
-public class VoucherDetail
+public class VoucherDetail : ITenantEntity
 {
+    // Tenant (pharmacy) that owns this row. Auto-filtered and stamped by the DbContext.
+    public int Pharmacy_ID { get; set; }
+
     [Key]
     public int VoucherDetailID { get; set; }
 

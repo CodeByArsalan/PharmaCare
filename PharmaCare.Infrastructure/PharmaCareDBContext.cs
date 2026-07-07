@@ -1,9 +1,13 @@
+using System.Reflection;
 using Microsoft.AspNetCore.Identity;
 using Microsoft.AspNetCore.Identity.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore;
+using PharmaCare.Application.Interfaces.Tenancy;
+using PharmaCare.Domain.Entities.Base;
 using PharmaCare.Domain.Entities.Security;
 using PharmaCare.Domain.Entities.Configuration;
 using PharmaCare.Domain.Entities.Accounting;
+using PharmaCare.Domain.Entities.Tenancy;
 using PharmaCare.Domain.Entities.Transactions;
 using PharmaCare.Domain.Entities.Finance;
 using PharmaCare.Domain.Enums;
@@ -15,10 +19,18 @@ namespace PharmaCare.Infrastructure;
 /// </summary>
 public class PharmaCareDBContext : IdentityUserContext<User, int>
 {
-    public PharmaCareDBContext(DbContextOptions<PharmaCareDBContext> options)
+    private readonly ICurrentTenant _currentTenant;
+
+    public PharmaCareDBContext(DbContextOptions<PharmaCareDBContext> options, ICurrentTenant? currentTenant = null)
         : base(options)
     {
+        // currentTenant is null only in design-time contexts (dotnet ef), where query filters
+        // are recorded but never executed. NullTenant keeps the filter expression NRE-safe.
+        _currentTenant = currentTenant ?? NullTenant.Instance;
     }
+
+    // ========== TENANCY ==========
+    public DbSet<Pharmacy> Pharmacies { get; set; } = null!;
 
     // ========== SECURITY ==========
     public DbSet<Role> Roles_Custom { get; set; } = null!;
@@ -34,6 +46,7 @@ public class PharmaCareDBContext : IdentityUserContext<User, int>
     public DbSet<Party> Parties { get; set; } = null!;
     public DbSet<PriceType> PriceTypes { get; set; } = null!;
     public DbSet<ProductPrice> ProductPrices { get; set; } = null!;
+    public DbSet<ProductPriceHistory> ProductPriceHistories { get; set; } = null!;
     public DbSet<ProfitSettings> ProfitSettings { get; set; } = null!;
 
     // ========== ACCOUNTING ==========
@@ -67,10 +80,29 @@ public class PharmaCareDBContext : IdentityUserContext<User, int>
     {
         base.OnModelCreating(builder);
 
+        // ========== TENANCY ==========
+        builder.Entity<Pharmacy>(entity =>
+        {
+            entity.ToTable("Pharmacies");
+            entity.HasKey(e => e.PharmacyID);
+            entity.Property(e => e.Name).IsRequired().HasMaxLength(200);
+            entity.Property(e => e.Code).IsRequired().HasMaxLength(50);
+            entity.HasIndex(e => e.Code).IsUnique();
+            entity.Property(e => e.Status).IsRequired().HasMaxLength(20);
+        });
+
         // ========== IDENTITY TABLES ==========
         builder.Entity<User>(entity =>
         {
             entity.ToTable("Users");
+            // Users are tenant-scoped by column but NOT globally query-filtered: login must
+            // resolve a user by (globally unique) email before any tenant is known, and platform
+            // super-admins have a NULL Pharmacy_ID. User listings filter by tenant explicitly.
+            entity.HasOne<Pharmacy>()
+                  .WithMany()
+                  .HasForeignKey(e => e.Pharmacy_ID)
+                  .OnDelete(DeleteBehavior.Restrict);
+            entity.HasIndex(e => e.Pharmacy_ID);
         });
 
         builder.Entity<IdentityUserClaim<int>>(entity =>
@@ -94,7 +126,8 @@ public class PharmaCareDBContext : IdentityUserContext<User, int>
             entity.ToTable("Roles");
             entity.HasKey(e => e.RoleID);
             entity.Property(e => e.Name).IsRequired().HasMaxLength(50);
-            entity.HasIndex(e => e.Name).IsUnique();
+            // Role names are unique per pharmacy (each tenant can have its own "Admin").
+            entity.HasIndex(e => new { e.Pharmacy_ID, e.Name }).IsUnique();
         });
 
         builder.Entity<UserRole>(entity =>
@@ -245,20 +278,30 @@ public class PharmaCareDBContext : IdentityUserContext<User, int>
                 .OnDelete(DeleteBehavior.Restrict);
         });
 
+        builder.Entity<ProductPriceHistory>(entity =>
+        {
+            entity.ToTable("ProductPriceHistories");
+            entity.HasKey(e => e.ProductPriceHistoryID);
+
+            entity.HasOne(e => e.Product)
+                .WithMany()
+                .HasForeignKey(e => e.Product_ID)
+                .OnDelete(DeleteBehavior.Cascade);
+
+            entity.HasOne(e => e.PriceType)
+                .WithMany()
+                .HasForeignKey(e => e.PriceType_ID)
+                .OnDelete(DeleteBehavior.Restrict);
+
+            // Fast lookup of the currently-effective row per product + price type.
+            entity.HasIndex(e => new { e.Product_ID, e.PriceType_ID, e.EffectiveTo });
+        });
+
         builder.Entity<ProfitSettings>(entity =>
         {
             entity.ToTable("ProfitSettings");
             entity.HasKey(e => e.SettingsID);
-            
-            // Seed a single default row
-            entity.HasData(new ProfitSettings 
-            { 
-                SettingsID = 1, 
-                RetailProfitPercent = 20m, 
-                WholesaleProfitPercent = 10m,
-                UpdatedAt = new DateTime(2024, 1, 1),
-                UpdatedBy = 1
-            });
+            // No global seed: ProfitSettings is now per-pharmacy and seeded during tenant provisioning.
         });
 
         // ========== ACCOUNTING ==========
@@ -274,6 +317,8 @@ public class PharmaCareDBContext : IdentityUserContext<User, int>
             entity.ToTable("AccountHeads");
             entity.HasKey(e => e.AccountHeadID);
             entity.Property(e => e.HeadName).IsRequired().HasMaxLength(100);
+            // Lookup by well-known code within a tenant (account resolution replaces hardcoded IDs).
+            entity.HasIndex(e => new { e.Pharmacy_ID, e.Code });
             entity.HasOne(e => e.AccountFamily)
                 .WithMany(f => f.AccountHeads)
                 .HasForeignKey(e => e.AccountFamily_ID)
@@ -285,6 +330,8 @@ public class PharmaCareDBContext : IdentityUserContext<User, int>
             entity.ToTable("AccountSubheads");
             entity.HasKey(e => e.AccountSubheadID);
             entity.Property(e => e.SubheadName).IsRequired().HasMaxLength(100);
+            // Lookup by well-known code within a tenant (account resolution replaces hardcoded IDs).
+            entity.HasIndex(e => new { e.Pharmacy_ID, e.Code });
             entity.HasOne(e => e.AccountHead)
                 .WithMany(h => h.AccountSubheads)
                 .HasForeignKey(e => e.AccountHead_ID)
@@ -337,10 +384,11 @@ public class PharmaCareDBContext : IdentityUserContext<User, int>
             entity.ToTable("StockMains");
             entity.HasKey(e => e.StockMainID);
             entity.Property(e => e.TransactionNo).IsRequired().HasMaxLength(50);
-            entity.HasIndex(e => e.TransactionNo).IsUnique();
-            // Composite index for the dominant list/report query shape:
-            // filter by transaction type (equality) + date range, ordered/filtered by date, with Status predicate.
-            entity.HasIndex(e => new { e.TransactionType_ID, e.TransactionDate, e.Status })
+            // Transaction numbers are unique per pharmacy (numbering restarts per tenant).
+            entity.HasIndex(e => new { e.Pharmacy_ID, e.TransactionNo }).IsUnique();
+            // Composite index for the dominant list/report query shape, tenant-first:
+            // filter by pharmacy + transaction type (equality) + date range, with Status predicate.
+            entity.HasIndex(e => new { e.Pharmacy_ID, e.TransactionType_ID, e.TransactionDate, e.Status })
                   .HasDatabaseName("IX_StockMains_Type_Date_Status");
             entity.ToTable(t =>
             {
@@ -397,7 +445,7 @@ public class PharmaCareDBContext : IdentityUserContext<User, int>
             entity.ToTable("Vouchers");
             entity.HasKey(e => e.VoucherID);
             entity.Property(e => e.VoucherNo).IsRequired().HasMaxLength(50);
-            entity.HasIndex(e => e.VoucherNo).IsUnique();
+            entity.HasIndex(e => new { e.Pharmacy_ID, e.VoucherNo }).IsUnique();
 
             entity.HasOne(e => e.VoucherType)
                 .WithMany()
@@ -513,7 +561,7 @@ public class PharmaCareDBContext : IdentityUserContext<User, int>
             entity.ToTable("CreditNotes");
             entity.HasKey(e => e.CreditNoteID);
             entity.Property(e => e.CreditNoteNo).IsRequired().HasMaxLength(50);
-            entity.HasIndex(e => e.CreditNoteNo).IsUnique();
+            entity.HasIndex(e => new { e.Pharmacy_ID, e.CreditNoteNo }).IsUnique();
             entity.Property(e => e.Status).HasMaxLength(20);
             entity.ToTable(t =>
             {
@@ -541,7 +589,7 @@ public class PharmaCareDBContext : IdentityUserContext<User, int>
             entity.ToTable("SupplierCreditNotes");
             entity.HasKey(e => e.SupplierCreditNoteID);
             entity.Property(e => e.CreditNoteNo).IsRequired().HasMaxLength(50);
-            entity.HasIndex(e => e.CreditNoteNo).IsUnique();
+            entity.HasIndex(e => new { e.Pharmacy_ID, e.CreditNoteNo }).IsUnique();
             entity.Property(e => e.Status).HasMaxLength(20);
             entity.ToTable(t =>
             {
@@ -599,7 +647,99 @@ public class PharmaCareDBContext : IdentityUserContext<User, int>
                 .WithMany()
                 .HasForeignKey(e => e.ExpenseCategory_ID)
                 .OnDelete(DeleteBehavior.Cascade);
-            entity.HasIndex(e => new { e.ExpenseCategory_ID, e.Year, e.Month }).IsUnique();
+            entity.HasIndex(e => new { e.Pharmacy_ID, e.ExpenseCategory_ID, e.Year, e.Month }).IsUnique();
         });
+
+        // ========== TENANT ISOLATION (applied to every ITenantEntity) ==========
+        // Single choke point: for each tenant-owned entity, require Pharmacy_ID, index it, add a
+        // FK to Pharmacy, and apply the global query filter. Adding a new tenant table later only
+        // requires implementing ITenantEntity — it is picked up here automatically, so no per-table
+        // filtering can be forgotten.
+        foreach (var entityType in builder.Model.GetEntityTypes())
+        {
+            var clrType = entityType.ClrType;
+            if (!typeof(ITenantEntity).IsAssignableFrom(clrType) || clrType == typeof(ITenantEntity))
+            {
+                continue;
+            }
+
+            builder.Entity(clrType).Property(nameof(ITenantEntity.Pharmacy_ID)).IsRequired();
+            builder.Entity(clrType).HasIndex(nameof(ITenantEntity.Pharmacy_ID));
+            builder.Entity(clrType)
+                   .HasOne(typeof(Pharmacy))
+                   .WithMany()
+                   .HasForeignKey(nameof(ITenantEntity.Pharmacy_ID))
+                   .OnDelete(DeleteBehavior.Restrict);
+
+            SetTenantFilterMethod.MakeGenericMethod(clrType).Invoke(this, new object[] { builder });
+        }
+    }
+
+    private static readonly MethodInfo SetTenantFilterMethod =
+        typeof(PharmaCareDBContext).GetMethod(nameof(SetTenantFilter), BindingFlags.Instance | BindingFlags.NonPublic)!;
+
+    private void SetTenantFilter<TEntity>(ModelBuilder builder) where TEntity : class, ITenantEntity
+    {
+        // The instance member access (_currentTenant.TenantId) is re-evaluated by EF Core per query,
+        // so the tenant set at login/provisioning is honoured. A null tenant matches no rows.
+        builder.Entity<TEntity>().HasQueryFilter(e => e.Pharmacy_ID == _currentTenant.TenantId);
+    }
+
+    // ========== TENANT STAMPING ON WRITE ==========
+    public override int SaveChanges(bool acceptAllChangesOnSuccess)
+    {
+        StampTenant();
+        return base.SaveChanges(acceptAllChangesOnSuccess);
+    }
+
+    public override Task<int> SaveChangesAsync(bool acceptAllChangesOnSuccess, CancellationToken cancellationToken = default)
+    {
+        StampTenant();
+        return base.SaveChangesAsync(acceptAllChangesOnSuccess, cancellationToken);
+    }
+
+    /// <summary>
+    /// Stamps Pharmacy_ID on inserted tenant rows from the current tenant, and blocks moving an
+    /// existing row to another tenant. Throws if a tenant row is inserted with no tenant in context
+    /// (prevents accidentally unowned financial records).
+    /// </summary>
+    private void StampTenant()
+    {
+        var tenantId = _currentTenant.TenantId;
+
+        foreach (var entry in ChangeTracker.Entries<ITenantEntity>())
+        {
+            if (entry.State == EntityState.Added)
+            {
+                if (entry.Entity.Pharmacy_ID == 0)
+                {
+                    if (tenantId is null or <= 0)
+                    {
+                        throw new InvalidOperationException(
+                            $"Cannot insert {entry.Entity.GetType().Name}: no current pharmacy (tenant) in context. " +
+                            "Ensure the request is authenticated, or wrap the operation in ICurrentTenant.BeginScope(pharmacyId).");
+                    }
+
+                    entry.Entity.Pharmacy_ID = tenantId.Value;
+                }
+            }
+            else if (entry.State == EntityState.Modified)
+            {
+                // A row can never change its owning pharmacy.
+                entry.Property(nameof(ITenantEntity.Pharmacy_ID)).IsModified = false;
+            }
+        }
+    }
+
+    /// <summary>Null-object tenant used only by design-time contexts (dotnet ef), which build the
+    /// model but never execute queries, so the filter expression is never evaluated.</summary>
+    private sealed class NullTenant : ICurrentTenant
+    {
+        public static readonly NullTenant Instance = new();
+        public int? TenantId => null;
+        public bool HasValue => false;
+        public void SetTenant(int pharmacyId) { }
+        public IDisposable BeginScope(int pharmacyId) => new NoopScope();
+        private sealed class NoopScope : IDisposable { public void Dispose() { } }
     }
 }

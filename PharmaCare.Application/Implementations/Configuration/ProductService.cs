@@ -1,6 +1,7 @@
 using Microsoft.EntityFrameworkCore;
 using PharmaCare.Application.DTOs;
 using PharmaCare.Application.DTOs.Configuration;
+using PharmaCare.Application.Exceptions;
 using PharmaCare.Application.Interfaces;
 using PharmaCare.Application.Interfaces.Configuration;
 using PharmaCare.Domain.Entities.Configuration;
@@ -21,6 +22,7 @@ public class ProductService : IProductService
     private readonly IRepository<Category> _categoryRepository;
     private readonly IRepository<PriceType> _priceTypeRepository;
     private readonly IRepository<ProductPrice> _productPriceRepository;
+    private readonly IRepository<ProductPriceHistory> _productPriceHistoryRepository;
     private readonly IRepository<StockDetail> _stockDetailRepository;
     private readonly IRepository<TransactionType> _transactionTypeRepository;
     private readonly IActivityLogService _activityLogService;
@@ -33,6 +35,7 @@ public class ProductService : IProductService
         IRepository<Category> categoryRepository,
         IRepository<PriceType> priceTypeRepository,
         IRepository<ProductPrice> productPriceRepository,
+        IRepository<ProductPriceHistory> productPriceHistoryRepository,
         IRepository<StockDetail> stockDetailRepository,
         IRepository<TransactionType> transactionTypeRepository,
         IActivityLogService activityLogService,
@@ -44,6 +47,7 @@ public class ProductService : IProductService
         _categoryRepository = categoryRepository;
         _priceTypeRepository = priceTypeRepository;
         _productPriceRepository = productPriceRepository;
+        _productPriceHistoryRepository = productPriceHistoryRepository;
         _stockDetailRepository = stockDetailRepository;
         _transactionTypeRepository = transactionTypeRepository;
         _activityLogService = activityLogService;
@@ -283,23 +287,64 @@ public class ProductService : IProductService
             .ToListAsync();
     }
 
+    public async Task<IEnumerable<ProductPriceHistory>> GetPriceHistoryAsync(int productId)
+    {
+        return await _productPriceHistoryRepository.Query()
+            .Include(h => h.PriceType)
+            .Where(h => h.Product_ID == productId)
+            .OrderByDescending(h => h.EffectiveFrom)
+            .ThenBy(h => h.PriceType_ID)
+            .ToListAsync();
+    }
+
     public async Task SaveProductPricesAsync(int productId, List<ProductPriceDto> prices, int userId)
     {
+        // PriceType id 2 == Wholesale, whose SalePrice is stored per box (not per unit).
+        const int wholesalePriceTypeId = 2;
+
+        var product = await _repository.Query().FirstOrDefaultAsync(p => p.ProductID == productId);
+        if (product == null)
+        {
+            throw new PricingValidationException("Product not found.");
+        }
+        var unitsInPack = product.UnitsInPack < 1 ? 1 : product.UnitsInPack;
+
+        // Authoritative current cost, used both for the below-cost block and to stamp price history.
+        var costs = await GetLastGrnCostPricesAsync();
+        var cost = costs.TryGetValue(productId, out var c) ? c : product.OpeningPrice;
+
         var existingPrices = await _productPriceRepository.Query()
             .Where(pp => pp.Product_ID == productId)
             .ToListAsync();
 
+        var openHistory = await _productPriceHistoryRepository.Query()
+            .Where(h => h.Product_ID == productId && h.EffectiveTo == null)
+            .ToListAsync();
+
+        var now = DateTime.Now;
+
         foreach (var priceDto in prices)
         {
             var existingPrice = existingPrices.FirstOrDefault(pp => pp.PriceType_ID == priceDto.PriceTypeId);
+            var openRow = openHistory.FirstOrDefault(h => h.PriceType_ID == priceDto.PriceTypeId);
 
             if (priceDto.Price > 0)
             {
+                // Margin floor (hard block): reject a sale price that is below cost.
+                var perUnitPrice = priceDto.PriceTypeId == wholesalePriceTypeId
+                    ? priceDto.Price / unitsInPack
+                    : priceDto.Price;
+                if (perUnitPrice < cost)
+                {
+                    throw new PricingValidationException(
+                        $"{priceDto.PriceTypeName} price {priceDto.Price:N2} is below the current cost of {cost:N2} per unit. Below-cost prices are not allowed.");
+                }
+
                 if (existingPrice != null)
                 {
                     existingPrice.SalePrice = priceDto.Price;
                     existingPrice.IsActive = true;
-                    existingPrice.UpdatedAt = DateTime.Now;
+                    existingPrice.UpdatedAt = now;
                     existingPrice.UpdatedBy = userId;
                     _productPriceRepository.Update(existingPrice);
                 }
@@ -311,10 +356,31 @@ public class ProductService : IProductService
                         PriceType_ID = priceDto.PriceTypeId,
                         SalePrice = priceDto.Price,
                         IsActive = true,
-                        CreatedAt = DateTime.Now,
+                        CreatedAt = now,
                         CreatedBy = userId
                     };
                     await _productPriceRepository.AddAsync(newPrice);
+                }
+
+                // Effective-dated history: only append when the price actually changes.
+                if (openRow == null || openRow.SalePrice != priceDto.Price)
+                {
+                    if (openRow != null)
+                    {
+                        openRow.EffectiveTo = now;
+                        _productPriceHistoryRepository.Update(openRow);
+                    }
+
+                    await _productPriceHistoryRepository.AddAsync(new ProductPriceHistory
+                    {
+                        Product_ID = productId,
+                        PriceType_ID = priceDto.PriceTypeId,
+                        SalePrice = priceDto.Price,
+                        CostPriceAtChange = cost,
+                        EffectiveFrom = now,
+                        EffectiveTo = null,
+                        ChangedBy = userId
+                    });
                 }
             }
             else
@@ -322,9 +388,16 @@ public class ProductService : IProductService
                 if (existingPrice != null && existingPrice.IsActive)
                 {
                     existingPrice.IsActive = false;
-                    existingPrice.UpdatedAt = DateTime.Now;
+                    existingPrice.UpdatedAt = now;
                     existingPrice.UpdatedBy = userId;
                     _productPriceRepository.Update(existingPrice);
+                }
+
+                // The explicit price is being removed — close any open history period.
+                if (openRow != null)
+                {
+                    openRow.EffectiveTo = now;
+                    _productPriceHistoryRepository.Update(openRow);
                 }
             }
         }

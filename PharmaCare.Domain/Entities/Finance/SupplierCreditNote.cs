@@ -11,8 +11,11 @@ namespace PharmaCare.Domain.Entities.Finance;
 /// Records a credit note issued by a supplier (e.g. for damaged / wrong goods returned to supplier).
 /// Does NOT affect stock — purely a financial adjustment reducing what we owe the supplier.
 /// </summary>
-public class SupplierCreditNote : BaseEntity
+public class SupplierCreditNote : BaseEntity, ITenantEntity
 {
+    // Tenant (pharmacy) that owns this row. Auto-filtered and stamped by the DbContext.
+    public int Pharmacy_ID { get; set; }
+
     [Key]
     public int SupplierCreditNoteID { get; set; }
 

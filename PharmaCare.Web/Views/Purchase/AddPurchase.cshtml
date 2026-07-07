@@ -58,7 +58,7 @@
                                 <tr>
                                     <th style="width: 50px;">#</th>
                                     <th style="min-width: 250px;">Product <span class="text-danger">*</span></th>
-                                    <th style="width: 120px;">Boxes Recv <span class="text-danger">*</span></th>
+                                    <th style="width: 120px; white-space: nowrap;">Boxes Recv <span class="text-danger">*</span></th>
                                     <th style="width: 140px;">Box Cost <span class="text-danger">*</span></th>
                                     <th style="width: 140px;">Line Total</th>
                                     <th style="width: 60px;"></th>
@@ -145,8 +145,13 @@
 
 
         document.addEventListener('DOMContentLoaded', async function() {
-            const response = await fetch('@Url.Action("GetProducts")');
-            products = await response.json();
+            try {
+                const response = await fetch('@Url.Action("GetProducts")');
+                if (!response.ok) throw new Error('HTTP ' + response.status);
+                products = await response.json();
+            } catch (e) {
+                Swal.fire({ icon: 'error', title: 'Could not load products', text: 'Please refresh the page and try again.' });
+            }
             addLineItem();
             
             // Handle Enter key on line total to add new row and open Select2 dropdown
@@ -183,11 +188,16 @@
             togglePaymentAccount();
             
             if (supplierId) {
-                const response = await fetch('@Url.Action("GetPurchaseOrders")' + '?supplierId=' + supplierId);
-                const pos = await response.json();
-                pos.forEach(po => {
-                    $poSelect.append('<option value="' + po.id + '" data-details=\'' + JSON.stringify(po.details) + '\' data-paid="' + po.paidAmount + '">' + po.transactionNo + ' - ' + po.date + ' (' + po.total.toFixed(2) + ')</option>');
-                });
+                try {
+                    const response = await fetch('@Url.Action("GetPurchaseOrders")' + '?supplierId=' + supplierId);
+                    if (!response.ok) throw new Error('HTTP ' + response.status);
+                    const pos = await response.json();
+                    pos.forEach(po => {
+                        $poSelect.append('<option value="' + po.id + '" data-details=\'' + JSON.stringify(po.details) + '\' data-paid="' + po.paidAmount + '">' + po.transactionNo + ' - ' + po.date + ' (' + po.total.toFixed(2) + ')</option>');
+                    });
+                } catch (e) {
+                    Swal.fire({ icon: 'error', title: 'Could not load purchase orders', text: 'Please try selecting the supplier again.' });
+                }
             }
 
             // Reinitialize Select2 on PO dropdown
@@ -287,7 +297,7 @@
                     </select>
                 </td>
                 <td>
-                    <input type="number" class="form-control box-quantity-input" step="0.0001" min="0.0001" value="${displayQuantity}" required />
+                    <input type="number" class="form-control box-quantity-input" step="1" min="1" value="${Math.round(displayQuantity)}" required />
                     <input type="hidden" name="StockDetails[${rowIndex}].Quantity" class="quantity-input" value="${quantity}" />
                 </td>
                 <td>

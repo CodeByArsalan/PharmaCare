@@ -120,7 +120,7 @@
         var lines = [];
 
         $(document).ready(function() {
-            $('.select2').select2({ theme: 'bootstrap-5' });
+            // Select2 is initialized globally by select2-global.js (width:100%) — no re-init here.
 
             $('#btnAddItem').click(function() {
                 var pid = $('#productSelect').val();

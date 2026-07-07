@@ -8,8 +8,11 @@ namespace PharmaCare.Domain.Entities.Configuration;
 /// <summary>
 /// Product category with linked accounting accounts.
 /// </summary>
-public class Category : BaseEntityWithStatus
+public class Category : BaseEntityWithStatus, ITenantEntity
 {
+    // Tenant (pharmacy) that owns this row. Auto-filtered and stamped by the DbContext.
+    public int Pharmacy_ID { get; set; }
+
     [Key]
     public int CategoryID { get; set; }
 

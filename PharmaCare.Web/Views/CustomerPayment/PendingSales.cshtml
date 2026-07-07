@@ -42,7 +42,7 @@
                 <label class="form-label small fw-bold text-muted">To Date</label>
                 <input type="date" name="toDate" class="form-control" value="@(ViewBag.ToDate != null ? ((DateTime)ViewBag.ToDate).ToString("yyyy-MM-dd") : "")" />
             </div>
-            <div class="col-md-auto">
+            <div class="col-md-3 d-grid">
                 <button type="submit" class="btn btn-primary"><i class="fas fa-search me-1"></i> Search</button>
             </div>
         </form>
@@ -113,7 +113,7 @@
 @section Scripts {
     <script>
         $(document).ready(function() {
-            $('.select2').select2({ theme: 'bootstrap-5' });
+            // Select2 is initialized globally by select2-global.js (width:100%) — no re-init here.
 
             if (!$.fn.DataTable.isDataTable('#pendingSalesTable')) {
                 $('#pendingSalesTable').DataTable({

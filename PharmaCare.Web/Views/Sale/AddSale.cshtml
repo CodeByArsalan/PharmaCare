@@ -129,7 +129,7 @@
                                 <tr>
                                     <th class="w-50px text-center">#</th>
                                     <th class="w-min-150px"><i class="fas fa-barcode me-2 text-muted"></i>Product <span class="text-danger">*</span></th>
-                                    <th class="w-125px text-center">Quantity <span class="text-danger">*</span></th>
+                                    <th class="w-150px text-center">Quantity <span class="text-danger">*</span></th>
                                     <th class="w-140px text-end">Unit Price <span class="text-danger">*</span></th>
                                     <th class="w-140px text-end">Line Total</th>
                                     <th class="w-50px text-center"></th>
@@ -568,6 +568,7 @@
                 }
             } catch (error) {
                 console.error('Error fetching products:', error);
+                Swal.fire({ icon: 'error', title: 'Could not load products', text: 'Please try again.' });
             } finally {
                 document.getElementById('lineItemsBody').style.opacity = '1';
             }

@@ -3,6 +3,8 @@
 @inject ISessionService SessionService
 
 @{
+    var currentUser = SessionService.GetCurrentUser();
+    var isPlatformAdmin = currentUser?.IsPlatformAdmin ?? false;
     var sidebarMenu = SessionService.GetSidebarMenu();
     var currentController = ViewContext.RouteData.Values["controller"]?.ToString() ?? "";
 }
@@ -20,15 +22,28 @@
     </div>
     
     <nav>
-        <!-- Dashboard (always shown for authenticated users) -->
+        @if (isPlatformAdmin)
+        {
+            <!-- Platform super-admin: the tenant-management home. -->
+            <div class="nav-section">
+                <a asp-controller="Pharmacies" asp-action="Index"
+                   class="nav-link @(currentController == "Pharmacies" ? "active" : "")">
+                    <i class="fas fa-hospital"></i>
+                    <span>Pharmacies</span>
+                </a>
+            </div>
+        }
+        else
+        {
+        <!-- Dashboard (shown for authenticated pharmacy users) -->
         <div class="nav-section">
-            <a asp-controller="Home" asp-action="Index" 
+            <a asp-controller="Home" asp-action="Index"
                class="nav-link @(currentController == "Home" ? "active" : "")">
                 <i class="fas fa-home"></i>
                 <span>Dashboard</span>
             </a>
         </div>
-        
+
         @foreach (var menuSection in sidebarMenu)
         {
             @if (menuSection.Children.Any())
@@ -68,6 +83,7 @@
                     </a>
                 </div>
             }
+        }
         }
 
         <script>

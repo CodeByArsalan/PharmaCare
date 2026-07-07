@@ -1,0 +1,71 @@
+@model PharmaCare.Application.Interfaces.Tenancy.ProvisionPharmacyRequest
+@{
+    ViewData["Title"] = "Add Pharmacy";
+}
+
+<div class="page-header">
+    <h4 class="page-title">
+        <i class="fas fa-plus-circle"></i>
+        Add New Pharmacy
+    </h4>
+    <a asp-action="Index" class="btn btn-outline-secondary">
+        <i class="fas fa-arrow-left me-2"></i>Back to List
+    </a>
+</div>
+
+<div class="card">
+    <div class="card-body">
+        <form asp-action="Create" method="post">
+            <div asp-validation-summary="ModelOnly" class="text-danger mb-3"></div>
+
+            <h6 class="text-muted mb-3">Pharmacy</h6>
+            <div class="row g-3">
+                <div class="col-md-6">
+                    <label class="form-label">Pharmacy Name <span class="text-danger">*</span></label>
+                    <input asp-for="PharmacyName" class="form-control" placeholder="e.g. Acme Pharmacy" required />
+                    <span asp-validation-for="PharmacyName" class="text-danger small"></span>
+                </div>
+                <div class="col-md-6">
+                    <label class="form-label">Code <span class="text-danger">*</span></label>
+                    <input asp-for="PharmacyCode" class="form-control" placeholder="e.g. ACME" required />
+                    <span asp-validation-for="PharmacyCode" class="text-danger small"></span>
+                </div>
+                <div class="col-md-6">
+                    <label class="form-label">Phone</label>
+                    <input asp-for="Phone" class="form-control" placeholder="Optional" />
+                </div>
+                <div class="col-md-6">
+                    <label class="form-label">Address</label>
+                    <input asp-for="Address" class="form-control" placeholder="Optional" />
+                </div>
+            </div>
+
+            <hr class="my-4" />
+            <h6 class="text-muted mb-3">First Administrator</h6>
+            <div class="row g-3">
+                <div class="col-md-6">
+                    <label class="form-label">Full Name <span class="text-danger">*</span></label>
+                    <input asp-for="AdminFullName" class="form-control" placeholder="Administrator name" required />
+                    <span asp-validation-for="AdminFullName" class="text-danger small"></span>
+                </div>
+                <div class="col-md-6">
+                    <label class="form-label">Email <span class="text-danger">*</span></label>
+                    <input asp-for="AdminEmail" type="email" class="form-control" placeholder="admin@pharmacy.com" required />
+                    <span asp-validation-for="AdminEmail" class="text-danger small"></span>
+                </div>
+                <div class="col-md-6">
+                    <label class="form-label">Password <span class="text-danger">*</span></label>
+                    <input asp-for="AdminPassword" type="password" class="form-control" placeholder="Min 8 chars, upper, lower, digit" required />
+                    <span asp-validation-for="AdminPassword" class="text-danger small"></span>
+                </div>
+            </div>
+
+            <div class="text-end mt-4">
+                <a asp-action="Index" class="btn btn-outline-secondary me-2">Cancel</a>
+                <button type="submit" class="btn btn-primary">
+                    <i class="fas fa-save me-2"></i>Create Pharmacy
+                </button>
+            </div>
+        </form>
+    </div>
+</div>

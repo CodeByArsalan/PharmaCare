@@ -1,0 +1,21 @@
+@model PharmaCare.Web.ViewModels.TableEmptyModel
+@*
+    Shared empty-state row for list tables. Usage inside a <tbody>:
+    <partial name="_TableEmpty" model='new PharmaCare.Web.ViewModels.TableEmptyModel {
+        Icon = "fa-tags", Message = "No categories yet.", ColSpan = 4,
+        CtaText = "Add Category", CtaAction = "AddCategory" }' />
+*@
+<tr>
+    <td colspan="@Model.ColSpan" class="text-center py-5">
+        <div class="empty-state">
+            <i class="fas @Model.Icon empty-state-icon" aria-hidden="true"></i>
+            <p class="mb-3 text-muted">@Model.Message</p>
+            @if (!string.IsNullOrEmpty(Model.CtaText) && !string.IsNullOrEmpty(Model.CtaAction))
+            {
+                <a asp-controller="@Model.CtaController" asp-action="@Model.CtaAction" class="btn btn-sm btn-primary">
+                    <i class="fas fa-plus me-1" aria-hidden="true"></i>@Model.CtaText
+                </a>
+            }
+        </div>
+    </td>
+</tr>

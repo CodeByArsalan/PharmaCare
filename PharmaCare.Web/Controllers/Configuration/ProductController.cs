@@ -1,5 +1,6 @@
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.Mvc.Rendering;
+using PharmaCare.Application.Exceptions;
 using PharmaCare.Application.Interfaces.Configuration;
 using PharmaCare.Domain.Entities.Configuration;
 using PharmaCare.ViewModels;
@@ -82,10 +83,18 @@ public class ProductController : BaseController
 
             // Create Product
             var createdProduct = await _productService.CreateAsync(vm, CurrentUserId);
-            
-            // Save Prices
-            await _productService.SaveProductPricesAsync(createdProduct.ProductID, vm.ProductPrices, CurrentUserId);
-            
+
+            // Save Prices (below-cost prices are rejected by the service)
+            try
+            {
+                await _productService.SaveProductPricesAsync(createdProduct.ProductID, vm.ProductPrices, CurrentUserId);
+            }
+            catch (PricingValidationException ex)
+            {
+                ShowMessage(MessageType.Error, ex.Message + " The product was created — please correct its pricing.");
+                return RedirectToAction("EditProduct", new { id = Utility.EncryptId(createdProduct.ProductID) });
+            }
+
             ShowMessage(MessageType.Success, "Product created successfully!");
             return RedirectToAction("ProductsIndex", new { activeTab = "products" });
         }
@@ -177,15 +186,39 @@ public class ProductController : BaseController
             {
                 return NotFound();
             }
-            
-            // Save Prices
-            await _productService.SaveProductPricesAsync(productId, vm.ProductPrices, CurrentUserId);
-            
+
+            // Save Prices (below-cost prices are rejected by the service)
+            try
+            {
+                await _productService.SaveProductPricesAsync(productId, vm.ProductPrices, CurrentUserId);
+            }
+            catch (PricingValidationException ex)
+            {
+                ShowMessage(MessageType.Error, ex.Message);
+                return RedirectToAction("EditProduct", new { id });
+            }
+
             ShowMessage(MessageType.Success, "Product updated successfully!");
             return RedirectToAction("ProductsIndex");
         }
         
         return View(vm);
+    }
+
+    [HttpGet]
+    public async Task<IActionResult> PriceHistory(string id)
+    {
+        int productId = Utility.DecryptId(id);
+        if (productId == 0) return NotFound();
+
+        var product = await _productService.GetByIdAsync(productId);
+        if (product == null) return NotFound();
+
+        ViewBag.ProductName = product.Name;
+        ViewBag.ProductIdEnc = id;
+
+        var history = await _productService.GetPriceHistoryAsync(productId);
+        return View(history);
     }
 
     [HttpPost]

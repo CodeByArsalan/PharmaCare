@@ -2,6 +2,7 @@ using Microsoft.AspNetCore.Http;
 using Microsoft.EntityFrameworkCore;
 using PharmaCare.Application.DTOs.Logging;
 using PharmaCare.Application.Interfaces.Logging;
+using PharmaCare.Application.Interfaces.Tenancy;
 using PharmaCare.Domain.Entities.Logging;
 using PharmaCare.Domain.Enums;
 
@@ -11,13 +12,25 @@ public class ActivityLogService : IActivityLogService
 {
     private readonly IActivityLogRepository _logRepository;
     private readonly IHttpContextAccessor _httpContextAccessor;
+    private readonly ICurrentTenant _currentTenant;
 
     public ActivityLogService(
         IActivityLogRepository logRepository,
-        IHttpContextAccessor httpContextAccessor)
+        IHttpContextAccessor httpContextAccessor,
+        ICurrentTenant currentTenant)
     {
         _logRepository = logRepository;
         _httpContextAccessor = httpContextAccessor;
+        _currentTenant = currentTenant;
+    }
+
+    // The activity log lives in a separate database with no global query filter, so every READ
+    // must be scoped to the current pharmacy explicitly. A pharmacy admin sees only their own
+    // pharmacy's log entries; entries stamped with a different (or null) Pharmacy_ID stay hidden.
+    private IQueryable<ActivityLog> TenantScoped()
+    {
+        var tenantId = _currentTenant.TenantId;
+        return _logRepository.Query().Where(l => l.Pharmacy_ID == tenantId);
     }
 
     public async Task LogActivityAsync(
@@ -45,7 +58,8 @@ public class ActivityLogService : IActivityLogService
             UserAgent = GetUserAgent(httpContext),
             Timestamp = DateTime.Now,
             Description = description ?? GenerateDescription(activityType, entityName, entityId),
-            StoreId = null
+            StoreId = null,
+            Pharmacy_ID = _currentTenant.TenantId
         };
 
         await _logRepository.AddAsync(log);
@@ -54,7 +68,7 @@ public class ActivityLogService : IActivityLogService
 
     public async Task<ActivityLogPagedResult> GetLogsAsync(ActivityLogFilterDto filter)
     {
-        var query = _logRepository.Query();
+        var query = TenantScoped();
 
         // Apply filters
         if (filter.UserId.HasValue)
@@ -103,7 +117,7 @@ public class ActivityLogService : IActivityLogService
 
     public async Task<IEnumerable<ActivityLogDto>> GetLogsByEntityAsync(string entityName, string entityId)
     {
-        return await _logRepository.Query()
+        return await TenantScoped()
             .Where(l => l.EntityName == entityName && l.EntityId == entityId)
             .OrderByDescending(l => l.Timestamp)
             .Select(l => MapToDto(l))
@@ -112,7 +126,7 @@ public class ActivityLogService : IActivityLogService
 
     public async Task<IEnumerable<ActivityLogDto>> GetLogsByUserAsync(int userId, DateTime? fromDate = null, DateTime? toDate = null)
     {
-        var query = _logRepository.Query().Where(l => l.UserId == userId);
+        var query = TenantScoped().Where(l => l.UserId == userId);
 
         if (fromDate.HasValue)
             query = query.Where(l => l.Timestamp >= fromDate.Value);
@@ -130,12 +144,17 @@ public class ActivityLogService : IActivityLogService
     public async Task<ActivityLogDto?> GetByIdAsync(long id)
     {
         var log = await _logRepository.GetByIdAsync(id);
-        return log != null ? MapToDto(log) : null;
+        // Never expose a log entry belonging to another pharmacy.
+        if (log == null || log.Pharmacy_ID != _currentTenant.TenantId)
+        {
+            return null;
+        }
+        return MapToDto(log);
     }
 
     public async Task<ActivityLogSummary> GetSummaryAsync(DateTime? fromDate = null, DateTime? toDate = null)
     {
-        var query = _logRepository.Query();
+        var query = TenantScoped();
 
         if (fromDate.HasValue)
             query = query.Where(l => l.Timestamp >= fromDate.Value);

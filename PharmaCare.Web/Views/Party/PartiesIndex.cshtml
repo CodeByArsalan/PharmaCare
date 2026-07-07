@@ -29,7 +29,7 @@
 <div class="card mb-4 shadow-sm border-0">
     <div class="card-body bg-light">
         <form method="get" asp-action="PartiesIndex" class="row gx-3 gy-2 align-items-end">
-            <div class="col-md-5">
+            <div class="col-md-4">
                 <label class="form-label small fw-bold text-muted">Search</label>
                 <input type="text" name="search" class="form-control" value="@search" placeholder="Name, phone or email..." />
             </div>
@@ -50,7 +50,7 @@
                     <option value="0" selected="@(selectedStatus == 0)">Inactive</option>
                 </select>
             </div>
-            <div class="col-md-auto">
+            <div class="col-md-2 d-grid">
                 <button type="submit" class="btn btn-primary"><i class="fas fa-search me-1"></i> Search</button>
             </div>
         </form>
@@ -63,16 +63,17 @@
         {
             @await Html.PartialAsync("_PagerTop", Model)
         }
+        <div class="table-responsive">
         <table class="table table-hover mb-0">
             <thead>
                 <tr>
-                    <th style="width: 60px;">S.No</th>
-                    <th>Name</th>
-                    <th>Type</th>
-                    <th>Phone</th>
-                    <th>Email</th>
-                    <th>Status</th>
-                    <th class="text-end">Actions</th>
+                    <th scope="col" style="width: 60px;">S.No</th>
+                    <th scope="col">Name</th>
+                    <th scope="col">Type</th>
+                    <th scope="col">Phone</th>
+                    <th scope="col">Email</th>
+                    <th scope="col">Status</th>
+                    <th scope="col" class="text-end">Actions</th>
                 </tr>
             </thead>
             <tbody>
@@ -111,10 +112,10 @@
                                 }
                             </td>
                             <td class="text-end">
-                                <a asp-action="EditParty" asp-route-id="@item.PartyID.EncryptId()" class="btn btn-sm btn-outline-primary">
+                                <a asp-action="EditParty" asp-route-id="@item.PartyID.EncryptId()" class="btn btn-sm btn-outline-primary" title="Edit party" aria-label="Edit party">
                                     <i class="fas fa-edit"></i>
                                 </a>
-                                <button type="button" class="btn btn-sm btn-outline-danger btn-delete"
+                                <button type="button" class="btn btn-sm btn-outline-danger btn-delete" title="Delete party" aria-label="Delete party"
                                         data-id="@item.PartyID.EncryptId()" data-name="@item.Name">
                                     <i class="fas fa-trash"></i>
                                 </button>
@@ -135,6 +136,7 @@
                 }
             </tbody>
         </table>
+        </div>
     </div>
 
     @if (Model.TotalCount > 0)

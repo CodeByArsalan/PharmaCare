@@ -1,14 +1,18 @@
 using System.ComponentModel.DataAnnotations;
 using System.ComponentModel.DataAnnotations.Schema;
 using PharmaCare.Domain.Entities.Configuration;
+using PharmaCare.Domain.Entities.Base;
 
 namespace PharmaCare.Domain.Entities.Transactions;
 
 /// <summary>
 /// Stock Detail - Line items for stock transactions.
 /// </summary>
-public class StockDetail
+public class StockDetail : ITenantEntity
 {
+    // Tenant (pharmacy) that owns this row. Auto-filtered and stamped by the DbContext.
+    public int Pharmacy_ID { get; set; }
+
     [Key]
     public int StockDetailID { get; set; }
 

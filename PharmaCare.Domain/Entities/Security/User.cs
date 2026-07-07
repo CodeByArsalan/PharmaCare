@@ -15,6 +15,18 @@ public class User : IdentityUser<int>
 
     public bool IsActive { get; set; } = true;
 
+    /// <summary>
+    /// The pharmacy (tenant) this user belongs to. NULL only for platform super-admins,
+    /// who operate above individual pharmacies. Normal users always belong to exactly one.
+    /// </summary>
+    public int? Pharmacy_ID { get; set; }
+
+    /// <summary>
+    /// True for the cross-pharmacy platform administrator(s). Platform admins have a NULL
+    /// Pharmacy_ID and use the platform-admin area rather than the tenant business UI.
+    /// </summary>
+    public bool IsPlatformAdmin { get; set; }
+
     // Audit Trail
     public DateTime CreatedAt { get; set; }
     public int CreatedBy { get; set; }

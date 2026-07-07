@@ -22,14 +22,15 @@
 
 <div class="card">
     <div class="card-body p-0">
+        <div class="table-responsive">
         <table class="table mb-0">
             <thead>
                 <tr>
-                    <th>Name</th>
-                    <th>Parent Category</th>
-                    <th>Default Account</th>
-                    <th>Status</th>
-                    <th class="text-end">Actions</th>
+                    <th scope="col">Name</th>
+                    <th scope="col">Parent Category</th>
+                    <th scope="col">Default Account</th>
+                    <th scope="col">Status</th>
+                    <th scope="col" class="text-end">Actions</th>
                 </tr>
             </thead>
             <tbody>
@@ -53,11 +54,11 @@
                             </td>
                             <td class="text-end">
                                 <a asp-action="EditExpenseCategory" asp-route-id="@Utility.EncryptId(item.ExpenseCategoryID)"
-                                   class="btn btn-sm btn-outline-primary">
+                                   class="btn btn-sm btn-outline-primary" title="Edit category" aria-label="Edit category">
                                     <i class="fas fa-edit"></i>
                                 </a>
                                 <button type="button" class="btn btn-sm btn-outline-danger btn-delete"
-                                        data-id="@Utility.EncryptId(item.ExpenseCategoryID)" data-name="@item.Name">
+                                        data-id="@Utility.EncryptId(item.ExpenseCategoryID)" data-name="@item.Name" title="Delete category" aria-label="Delete category">
                                     <i class="fas fa-trash"></i>
                                 </button>
                             </td>
@@ -77,6 +78,7 @@
                 }
             </tbody>
         </table>
+        </div>
     </div>
 </div>
 

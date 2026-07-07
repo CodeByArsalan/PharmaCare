@@ -86,18 +86,19 @@
                 {
                     @await Html.PartialAsync("_PagerTop", Model.Products)
                 }
+                <div class="table-responsive">
                 <table class="table table-hover mb-0">
                     <thead>
                         <tr>
-                            <th style="width: 60px;">S.No</th>
-                            <th>Category</th>
-                            <th>SubCategory</th>
-                            <th>Short Code</th>
-                            <th>Product Name</th>
-                            <th>Opening Price</th>
-                            <th>Opening Qty</th>
-                            <th>Status</th>
-                            <th class="text-end">Actions</th>
+                            <th scope="col" style="width: 60px;">S.No</th>
+                            <th scope="col">Category</th>
+                            <th scope="col">SubCategory</th>
+                            <th scope="col">Short Code</th>
+                            <th scope="col">Product Name</th>
+                            <th scope="col" class="text-end">Opening Price</th>
+                            <th scope="col">Opening Qty</th>
+                            <th scope="col">Status</th>
+                            <th scope="col" class="text-end">Actions</th>
                         </tr>
                     </thead>
                     <tbody>
@@ -114,7 +115,7 @@
                                 <td>@(item.SubCategory?.Name ?? "-")</td>
                                 <td>@(item.ShortCode ?? "-")</td>
                                 <td><strong>@item.Name</strong></td>
-                                <td>@item.OpeningPrice.ToString("N2")</td>
+                                <td class="text-end">@item.OpeningPrice.ToString("N2")</td>
                                 <td>
                                     @if (item.UnitsInPack > 1)
                                     {
@@ -138,10 +139,13 @@
                                     }
                                 </td>
                                 <td class="text-end">
-                                    <a asp-action="EditProduct" asp-route-id="@item.ProductID.EncryptId()" class="btn btn-sm btn-outline-primary">
+                                    <a asp-action="EditProduct" asp-route-id="@item.ProductID.EncryptId()" class="btn btn-sm btn-outline-primary" title="Edit product" aria-label="Edit product">
                                         <i class="fas fa-edit"></i>
                                     </a>
-                                    <button type="button" class="btn btn-sm btn-outline-danger btn-delete" 
+                                    <a asp-action="PriceHistory" asp-route-id="@item.ProductID.EncryptId()" class="btn btn-sm btn-outline-secondary" title="Price history" aria-label="Price history">
+                                        <i class="fas fa-clock-rotate-left"></i>
+                                    </a>
+                                    <button type="button" class="btn btn-sm btn-outline-danger btn-delete" title="Delete product" aria-label="Delete product"
                                             data-id="@item.ProductID.EncryptId()" data-name="@item.Name">
                                         <i class="fas fa-trash"></i>
                                     </button>
@@ -150,6 +154,7 @@
                         }
                     </tbody>
                 </table>
+                </div>
             </div>
             @if (Model.Products.TotalCount > 0)
             {

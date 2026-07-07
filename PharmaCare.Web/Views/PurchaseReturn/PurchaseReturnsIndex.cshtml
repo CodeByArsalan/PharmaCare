@@ -40,7 +40,7 @@
                 <label class="form-label small fw-bold text-muted">To Date</label>
                 <input type="date" name="toDate" class="form-control" value="@(ViewBag.ToDate != null ? ((DateTime)ViewBag.ToDate).ToString("yyyy-MM-dd") : "")" />
             </div>
-            <div class="col-md-auto">
+            <div class="col-md-3 d-grid">
                 <button type="submit" class="btn btn-primary"><i class="fas fa-search me-1"></i> Search</button>
             </div>
         </form>
@@ -53,17 +53,18 @@
         {
             @await Html.PartialAsync("_PagerTop", Model)
         }
+        <div class="table-responsive">
         <table class="table table-hover mb-0" id="purchaseReturnsTable">
             <thead>
                 <tr>
-                    <th style="width: 50px;">S.No</th>
-                    <th>Return Number</th>
-                    <th>Date</th>
-                    <th>Supplier</th>
-                    <th>Reference GRN</th>
-                    <th class="text-end">Amount</th>
-                    <th>Status</th>
-                    <th class="text-end" style="width: 150px;">Actions</th>
+                    <th scope="col" style="width: 50px;">S.No</th>
+                    <th scope="col">Return Number</th>
+                    <th scope="col">Date</th>
+                    <th scope="col">Supplier</th>
+                    <th scope="col">Reference GRN</th>
+                    <th scope="col" class="text-end">Amount</th>
+                    <th scope="col">Status</th>
+                    <th scope="col" class="text-end" style="width: 150px;">Actions</th>
                 </tr>
             </thead>
             <tbody>
@@ -90,13 +91,13 @@
                                 }
                             </td>
                             <td class="text-end">
-                                <a asp-action="ViewPurchaseReturn" asp-route-id="@item.StockMainID.EncryptId()" class="btn btn-sm btn-outline-info" title="View">
+                                <a asp-action="ViewPurchaseReturn" asp-route-id="@item.StockMainID.EncryptId()" class="btn btn-sm btn-outline-info" title="View" aria-label="View purchase return">
                                     <i class="fas fa-eye"></i>
                                 </a>
                                 @if (item.Status == "Approved")
                                 {
-                                    <button type="button" class="btn btn-sm btn-outline-danger btn-void" 
-                                            data-id="@item.StockMainID.EncryptId()" data-no="@item.TransactionNo" title="Void">
+                                    <button type="button" class="btn btn-sm btn-outline-danger btn-void" title="Void" aria-label="Void purchase return"
+                                            data-id="@item.StockMainID.EncryptId()" data-no="@item.TransactionNo">
                                         <i class="fas fa-ban"></i>
                                     </button>
                                 }
@@ -106,6 +107,7 @@
                 }
             </tbody>
         </table>
+        </div>
     </div>
 </div>
 
@@ -144,7 +146,7 @@
 @section Scripts {
     <script>
         document.addEventListener('DOMContentLoaded', function() {
-            $('.select2').select2({ theme: 'bootstrap-5' });
+            // Select2 is initialized globally by select2-global.js (width:100%) — no re-init here.
 
             if (!$.fn.DataTable.isDataTable('#purchaseReturnsTable')) {
                 $('#purchaseReturnsTable').DataTable({

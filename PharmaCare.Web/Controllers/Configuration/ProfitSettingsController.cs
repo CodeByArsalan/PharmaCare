@@ -45,6 +45,11 @@ public class ProfitSettingsController : BaseController
             ModelState.AddModelError(nameof(request.WholesaleProfitPercent), "Wholesale Profit % must be between 0 and 100.");
         }
 
+        if (request.PriceRoundingStep < 0)
+        {
+            ModelState.AddModelError(nameof(request.PriceRoundingStep), "Rounding step cannot be negative (use 0 to disable rounding).");
+        }
+
         if (!ModelState.IsValid)
         {
             return View(request);
@@ -52,7 +57,7 @@ public class ProfitSettingsController : BaseController
 
         try
         {
-            await _profitSettingsService.UpdateAsync(request.RetailProfitPercent, request.WholesaleProfitPercent, CurrentUserId);
+            await _profitSettingsService.UpdateAsync(request.RetailProfitPercent, request.WholesaleProfitPercent, request.PriceRoundingStep, CurrentUserId);
             ShowMessage(MessageType.Success, "Profit settings updated successfully!");
             return RedirectToAction(nameof(Index));
         }

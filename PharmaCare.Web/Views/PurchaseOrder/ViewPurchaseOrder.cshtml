@@ -95,7 +95,7 @@
                     <tr>
                         <td>@(lineNo++)</td>
                         <td>@detail.Product?.Name</td>
-                        <td class="text-end">@detail.Quantity.ToString("N4")</td>
+                        <td class="text-end">@detail.Quantity.ToString("N0")</td>
                         <td class="text-end">@detail.UnitPrice.ToString("N2")</td>
                         @if (Model.StockDetails.Any(d => d.DiscountPercent > 0))
                         {
@@ -118,8 +118,8 @@
                     </tr>
                 }
                 <tr style="background-color: #0c4a6e; color: #f1f5f9;">
-                    <td colspan="@(Model.StockDetails.Any(d => d.DiscountPercent > 0) ? 5 : 4)" class="text-end"><strong>Total Amount:</strong></td>
-                    <td class="text-end"><strong>@Model.TotalAmount.ToString("N2")</strong></td>
+                    <td colspan="@(Model.StockDetails.Any(d => d.DiscountPercent > 0) ? 5 : 4)" class="text-end"><strong class="text-white">Total Amount:</strong></td>
+                    <td class="text-end"><strong class="text-white">@Model.TotalAmount.ToString("N2")</strong></td>
                 </tr>
             </tfoot>
         </table>

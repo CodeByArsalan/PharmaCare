@@ -17,4 +17,6 @@ public class ActivityLog
     public DateTime Timestamp { get; set; }
     public string? Description { get; set; }
     public int? StoreId { get; set; }
+    // Tenant (pharmacy) this log entry belongs to. Stamped by AuditSaveChangesInterceptor.
+    public int? Pharmacy_ID { get; set; }
 }

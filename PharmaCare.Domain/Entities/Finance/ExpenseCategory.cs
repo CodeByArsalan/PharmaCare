@@ -8,8 +8,11 @@ namespace PharmaCare.Domain.Entities.Finance;
 /// <summary>
 /// Expense Category with hierarchical structure.
 /// </summary>
-public class ExpenseCategory : BaseEntityWithStatus
+public class ExpenseCategory : BaseEntityWithStatus, ITenantEntity
 {
+    // Tenant (pharmacy) that owns this row. Auto-filtered and stamped by the DbContext.
+    public int Pharmacy_ID { get; set; }
+
     [Key]
     public int ExpenseCategoryID { get; set; }
 

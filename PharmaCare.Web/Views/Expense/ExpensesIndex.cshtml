@@ -37,7 +37,7 @@
                 <label class="form-label small fw-bold text-muted">To Date</label>
                 <input type="date" name="toDate" class="form-control" value="@(ViewBag.ToDate != null ? ((DateTime)ViewBag.ToDate).ToString("yyyy-MM-dd") : "")" />
             </div>
-            <div class="col-md-auto">
+            <div class="col-md-3 d-grid">
                 <button type="submit" class="btn btn-primary"><i class="fas fa-search me-1"></i> Search</button>
             </div>
         </form>
@@ -50,17 +50,18 @@
         {
             @await Html.PartialAsync("_PagerTop", Model)
         }
+        <div class="table-responsive">
         <table class="table mb-0" id="expensesTable">
             <thead>
                 <tr>
-                    <th>Date</th>
-                    <th>Category</th>
-                    <th>Description</th>
-                    <th>Vendor</th>
-                    <th>Source Account</th>
-                    <th class="text-end">Amount</th>
-                    <th>Status</th>
-                    <th class="text-end">Actions</th>
+                    <th scope="col">Date</th>
+                    <th scope="col">Category</th>
+                    <th scope="col">Description</th>
+                    <th scope="col">Vendor</th>
+                    <th scope="col">Source Account</th>
+                    <th scope="col" class="text-end">Amount</th>
+                    <th scope="col">Status</th>
+                    <th scope="col" class="text-end">Actions</th>
                 </tr>
             </thead>
             <tbody>
@@ -93,7 +94,7 @@
                             <td class="text-end">
                                 <div class="btn-group">
                                     <a asp-action="ViewExpense" asp-route-id="@Utility.EncryptId(item.ExpenseID)"
-                                       class="btn btn-sm btn-outline-primary" title="View">
+                                       class="btn btn-sm btn-outline-primary" title="View" aria-label="View expense">
                                         <i class="fas fa-eye"></i>
                                     </a>
                                     
@@ -101,7 +102,7 @@
                                     {
                                         <button type="button" class="btn btn-sm btn-outline-success btn-approve"
                                                 data-id="@Utility.EncryptId(item.ExpenseID)"
-                                                data-desc="@(item.Description ?? item.ExpenseCategory?.Name)" title="Approve">
+                                                data-desc="@(item.Description ?? item.ExpenseCategory?.Name)" title="Approve" aria-label="Approve expense">
                                             <i class="fas fa-check"></i>
                                         </button>
                                     }
@@ -110,7 +111,7 @@
                                     {
                                         <button type="button" class="btn btn-sm btn-outline-danger btn-void"
                                                 data-id="@Utility.EncryptId(item.ExpenseID)"
-                                                data-desc="@(item.Description ?? item.ExpenseCategory?.Name)" title="Void">
+                                                data-desc="@(item.Description ?? item.ExpenseCategory?.Name)" title="Void" aria-label="Void expense">
                                             <i class="fas fa-ban"></i>
                                         </button>
                                     }
@@ -121,6 +122,7 @@
                 }
             </tbody>
         </table>
+        </div>
         @if (Model.TotalCount > 0)
         {
             @await Html.PartialAsync("_Pager", Model)
@@ -143,7 +145,7 @@
 @section Scripts {
     <script>
         $(document).ready(function() {
-            $('.select2').select2({ theme: 'bootstrap-5' });
+            // Select2 is initialized globally by select2-global.js (width:100%) — no re-init here.
 
             if (!$.fn.DataTable.isDataTable('#expensesTable')) {
                 $('#expensesTable').DataTable({

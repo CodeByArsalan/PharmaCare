@@ -31,6 +31,11 @@ public interface IProductService
     Task<IEnumerable<PriceType>> GetPriceTypesAsync();
     Task<IEnumerable<ProductPrice>> GetProductPricesAsync(int productId);
     Task SaveProductPricesAsync(int productId, List<ProductPriceDto> prices, int userId);
+
+    /// <summary>
+    /// Full effective-dated sale-price change history for a product (newest first), for audit display.
+    /// </summary>
+    Task<IEnumerable<ProductPriceHistory>> GetPriceHistoryAsync(int productId);
     
     /// <summary>
     /// Gets products with calculated current stock based on transactions.

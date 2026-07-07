@@ -26,7 +26,8 @@ Console.WriteLine($"Scale: {scale} | DB: PharmaCareDB");
 Console.WriteLine("Starting in 3 seconds...");
 await Task.Delay(3000);
 
-using var db = new PharmaCareDBContext(dbOptions);
+// Seed everything under the default pharmacy (tenant 1) so the DbContext stamps/filters correctly.
+using var db = new PharmaCareDBContext(dbOptions, new LoadTestTenant(1));
 var rng = new Random(42);
 
 // ── HELPERS ──────────────────────────────────────────────
@@ -495,3 +496,17 @@ Console.WriteLine($"  Sales:      {db.StockMains.Count(s => s.TransactionType_ID
 Console.WriteLine($"  Payments:   {db.Payments.Count()}");
 Console.WriteLine($"  Expenses:   {db.Expenses.Count()}");
 Console.WriteLine("======================================");
+
+// ── TENANT CONTEXT (multi-tenancy) ───────────────────────
+// Fixed tenant used by the seeder so PharmaCareDBContext stamps Pharmacy_ID on inserts and
+// filters reads to a single pharmacy.
+sealed class LoadTestTenant : PharmaCare.Application.Interfaces.Tenancy.ICurrentTenant
+{
+    private readonly int _id;
+    public LoadTestTenant(int id) => _id = id;
+    public int? TenantId => _id;
+    public bool HasValue => true;
+    public void SetTenant(int pharmacyId) { }
+    public IDisposable BeginScope(int pharmacyId) => new Noop();
+    private sealed class Noop : IDisposable { public void Dispose() { } }
+}

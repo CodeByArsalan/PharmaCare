@@ -1,3 +1,4 @@
+@using PharmaCare.Web.Utilities
 @model PharmaCare.ViewModels.ProductViewModel
 @{
     ViewData["Title"] = "Edit Product";
@@ -79,7 +80,16 @@
 
             <div class="row mt-4">
                 <div class="col-12">
-                    <h5 class="mb-3">Pricing Configuration</h5>
+                    <div class="d-flex justify-content-between align-items-center mb-3">
+                        <h5 class="mb-0">Pricing Configuration</h5>
+                        <a asp-action="PriceHistory" asp-route-id="@Model.ProductID.EncryptId()" class="btn btn-sm btn-outline-secondary">
+                            <i class="fas fa-clock-rotate-left me-1"></i>View Price History
+                        </a>
+                    </div>
+                    <div class="alert alert-info py-2 small">
+                        <i class="fas fa-info-circle me-1"></i>
+                        Leave a price <strong>blank (0)</strong> to auto-calculate it from cost + the margin in Profit Settings (rounded to the configured step). A price <strong>below cost is rejected</strong>.
+                    </div>
                     <div class="table-responsive">
                         <table class="table table-bordered table-hover">
                             <thead class="table-dark">
