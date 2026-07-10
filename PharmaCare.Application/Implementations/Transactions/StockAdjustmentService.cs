@@ -142,16 +142,26 @@ public class StockAdjustmentService : TransactionServiceBase, IStockAdjustmentSe
                         throw new InvalidOperationException($"Insufficient stock for product ID {detail.Product_ID}. Current stock is {currentStock}.");
                 }
 
-                var cost = costPrices.ContainsKey(detail.Product_ID) ? costPrices[detail.Product_ID] : 0;
-                var lineTotal = cost * detail.Quantity;
-                detail.LineCost = lineTotal;
-                detail.LineTotal = lineTotal; // Used as valuation representation
-                totalAmount += lineTotal;
-
                 // Accounting logic per detail line
                 var product = productsList.First(p => p.ProductID == detail.Product_ID);
                 if (product.Category_ID == null)
                     throw new InvalidOperationException($"Product '{product.Name}' has no category assigned.");
+
+                // Cost basis: last approved GRN cost, falling back to the product's opening price
+                // (never 0 — a zero valuation would move stock with no accounting record).
+                var cost = costPrices.TryGetValue(detail.Product_ID, out var grnCost) && grnCost > 0
+                    ? grnCost
+                    : product.OpeningPrice;
+
+                if (cost <= 0)
+                    throw new InvalidOperationException(
+                        $"Cannot value '{product.Name}': no GRN cost or opening price is set. Enter a cost before adjusting.");
+
+                var lineTotal = cost * detail.Quantity;
+                detail.CostPrice = cost;
+                detail.LineCost = lineTotal;
+                detail.LineTotal = lineTotal; // Used as valuation representation
+                totalAmount += lineTotal;
                     
                 var category = categories.FirstOrDefault(c => c.CategoryID == product.Category_ID);
                 if (category == null || category.DamageAccount_ID == null || category.StockAccount_ID == null)
@@ -175,9 +185,13 @@ public class StockAdjustmentService : TransactionServiceBase, IStockAdjustmentSe
             adjustment.SubTotal = totalAmount;
             adjustment.TotalAmount = totalAmount;
 
-            // Accounting Voucher Creation
+            // Accounting Voucher Creation. Cost is enforced > 0 per line above, so a stock-moving
+            // adjustment always has a non-zero valuation and must post a voucher — never skip it.
             var voucherType = await _voucherTypeRepository.Query().FirstOrDefaultAsync(vt => vt.Code == JV_VOUCHER_CODE);
-            if (voucherType != null && totalAmount > 0)
+            if (voucherType == null)
+                throw new InvalidOperationException($"Voucher type '{JV_VOUCHER_CODE}' not found.");
+
+            if (totalAmount > 0)
             {
                 var voucher = new Voucher
                 {

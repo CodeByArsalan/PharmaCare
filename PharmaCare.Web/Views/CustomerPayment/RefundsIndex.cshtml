@@ -1,6 +1,10 @@
+@inject PharmaCare.Infrastructure.Interfaces.IComboboxRepository _combobox
 @model IEnumerable<PharmaCare.Domain.Entities.Finance.Payment>
 @{
     ViewData["Title"] = "Customer Refunds";
+    var selectedCustomer = ViewBag.SelectedCustomer as int?;
+    var fromDate = ViewBag.FromDate as DateTime?;
+    var toDate = ViewBag.ToDate as DateTime?;
 }
 
 <!-- Page Header -->
@@ -19,6 +23,31 @@
         <a asp-action="Refund" class="btn btn-danger">
             <i class="fas fa-plus me-2"></i>New Refund
         </a>
+    </div>
+</div>
+
+<div class="card mb-4">
+    <div class="card-body">
+        <form asp-action="RefundsIndex" method="get" class="row g-3 align-items-end">
+            <div class="col-md-4">
+                <label class="form-label">Customer</label>
+                <select name="customerId" asp-items='_combobox.GetActivePartiesByType("Customer", selectedCustomer)' class="form-select">
+                    <option value="">-- All Customers --</option>
+                </select>
+            </div>
+            <div class="col-md-3">
+                <label class="form-label">From Date</label>
+                <input type="date" name="fromDate" value="@(fromDate?.ToString("yyyy-MM-dd"))" class="form-control" />
+            </div>
+            <div class="col-md-3">
+                <label class="form-label">To Date</label>
+                <input type="date" name="toDate" value="@(toDate?.ToString("yyyy-MM-dd"))" class="form-control" />
+            </div>
+            <div class="col-md-2 d-flex gap-2">
+                <button type="submit" class="btn btn-primary flex-fill"><i class="fas fa-filter me-1"></i>Filter</button>
+                <a asp-action="RefundsIndex" class="btn btn-outline-secondary"><i class="fas fa-times"></i></a>
+            </div>
+        </form>
     </div>
 </div>
 

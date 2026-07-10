@@ -398,10 +398,16 @@ public class PurchaseOrderService : IPurchaseOrderService
                 ? PaymentStatus.Paid.ToString()
                 : (po.PaidAmount <= 0 ? PaymentStatus.Unpaid.ToString() : PaymentStatus.Partial.ToString());
 
-            // Auto-mark as Completed if all items are fully received
+            // Auto-mark as Completed if all items are fully received; and conversely re-open a
+            // previously-Completed PO if a GRN against it was later voided or reduced so that
+            // outstanding quantity exists again (otherwise it disappears from the GRN screen).
             if (po.Status == "Approved" && remainingTotal <= 0)
             {
                 po.Status = "Completed";
+            }
+            else if (po.Status == "Completed" && remainingTotal > 0)
+            {
+                po.Status = "Approved";
             }
         }
     }

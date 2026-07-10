@@ -1,5 +1,6 @@
 using Microsoft.EntityFrameworkCore;
 using PharmaCare.Application.Interfaces;
+using PharmaCare.Application.Interfaces.Accounting;
 using PharmaCare.Application.Interfaces.Finance;
 using PharmaCare.Domain.Entities.Accounting;
 using PharmaCare.Domain.Entities.Configuration;
@@ -25,6 +26,7 @@ public class SupplierCreditNoteService : ISupplierCreditNoteService
     private readonly IRepository<VoucherType> _voucherTypeRepository;
     private readonly IRepository<StockMain> _stockMainRepository;
     private readonly IUnitOfWork _unitOfWork;
+    private readonly IFinancialPeriodService _financialPeriodService;
 
     public SupplierCreditNoteService(
         IRepository<SupplierCreditNote> repository,
@@ -33,7 +35,8 @@ public class SupplierCreditNoteService : ISupplierCreditNoteService
         IRepository<Voucher> voucherRepository,
         IRepository<VoucherType> voucherTypeRepository,
         IRepository<StockMain> stockMainRepository,
-        IUnitOfWork unitOfWork)
+        IUnitOfWork unitOfWork,
+        IFinancialPeriodService financialPeriodService)
     {
         _repository = repository;
         _partyRepository = partyRepository;
@@ -42,14 +45,27 @@ public class SupplierCreditNoteService : ISupplierCreditNoteService
         _voucherTypeRepository = voucherTypeRepository;
         _stockMainRepository = stockMainRepository;
         _unitOfWork = unitOfWork;
+        _financialPeriodService = financialPeriodService;
     }
 
-    public async Task<IEnumerable<SupplierCreditNote>> GetAllAsync()
+    public async Task<IEnumerable<SupplierCreditNote>> GetAllAsync(int? supplierId = null, DateTime? fromDate = null, DateTime? toDate = null)
     {
-        return await _repository.Query()
+        var query = _repository.Query()
             .Include(c => c.Party)
             .Include(c => c.SourceStockMain)
             .Include(c => c.Voucher)
+            .AsQueryable();
+
+        if (supplierId.HasValue && supplierId.Value > 0)
+            query = query.Where(c => c.Party_ID == supplierId.Value);
+
+        if (fromDate.HasValue)
+            query = query.Where(c => c.CreditDate >= fromDate.Value.Date);
+
+        if (toDate.HasValue)
+            query = query.Where(c => c.CreditDate <= toDate.Value.Date.AddDays(1).AddTicks(-1));
+
+        return await query
             .OrderByDescending(c => c.CreditDate)
             .ThenByDescending(c => c.SupplierCreditNoteID)
             .ToListAsync();
@@ -98,6 +114,9 @@ public class SupplierCreditNoteService : ISupplierCreditNoteService
             if (creditNote.Party_ID <= 0)
                 throw new InvalidOperationException("Supplier is required.");
 
+            if (await _financialPeriodService.IsPeriodLockedAsync(creditNote.CreditDate))
+                throw new InvalidOperationException("The financial period for this credit note date is closed.");
+
             var supplier = await _partyRepository.Query()
                 .Include(p => p.Account)
                 .FirstOrDefaultAsync(p => p.PartyID == creditNote.Party_ID);
@@ -108,6 +127,18 @@ public class SupplierCreditNoteService : ISupplierCreditNoteService
             if (supplier.Account == null)
                 throw new InvalidOperationException($"Supplier '{supplier.Name}' does not have a linked account.");
 
+            if (!creditNote.AdjustmentAccount_ID.HasValue || creditNote.AdjustmentAccount_ID.Value <= 0)
+                throw new InvalidOperationException("An adjustment (contra) account is required for the credit note.");
+
+            var adjustmentAccount = await _accountRepository.Query()
+                .FirstOrDefaultAsync(a => a.AccountID == creditNote.AdjustmentAccount_ID.Value && a.IsActive);
+
+            if (adjustmentAccount == null)
+                throw new InvalidOperationException("The selected adjustment account was not found or is inactive.");
+
+            if (adjustmentAccount.AccountID == supplier.Account.AccountID)
+                throw new InvalidOperationException("The adjustment account must be different from the supplier account.");
+
             creditNote.CreditNoteNo = await GenerateCreditNoteNoAsync();
             creditNote.AppliedAmount = 0;
             creditNote.BalanceAmount = creditNote.TotalAmount;
@@ -115,9 +146,9 @@ public class SupplierCreditNoteService : ISupplierCreditNoteService
             creditNote.CreatedAt = DateTime.Now;
             creditNote.CreatedBy = userId;
 
-            // Journal Entry: DR Supplier Account, CR Purchase Returns / Adjustment account
-            // We use Supplier's linked account on both sides to simply reduce payable.
-            // Businesses can customise the CR account — we credit supplier account directly.
+            // Journal Entry: DR Supplier Account (reduce payable), CR the chosen adjustment/contra
+            // account (Purchase Returns & Allowances, rebate income, etc.) so the voucher produces
+            // real ledger movement rather than a self-cancelling supplier DR/CR.
             var voucherType = await _voucherTypeRepository.Query()
                 .FirstOrDefaultAsync(vt => vt.Code == JV_VOUCHER_CODE);
 
@@ -147,15 +178,13 @@ public class SupplierCreditNoteService : ISupplierCreditNoteService
                             Description = $"Supplier CN {creditNote.CreditNoteNo} — reduces payable",
                             Party_ID = supplier.PartyID
                         },
-                        // CR: Supplier Account again (netting) or a dedicated CN account
-                        // Using supplier account credit to net off — adjust in chart of accounts as needed
+                        // CR: Adjustment / contra account (real ledger movement)
                         new VoucherDetail
                         {
-                            Account_ID = supplier.Account.AccountID,
+                            Account_ID = adjustmentAccount.AccountID,
                             DebitAmount = 0,
                             CreditAmount = creditNote.TotalAmount,
-                            Description = $"Supplier CN received from {supplier.Name}",
-                            Party_ID = supplier.PartyID
+                            Description = $"Supplier CN {creditNote.CreditNoteNo} — {adjustmentAccount.Name}"
                         }
                     }
                 };
@@ -191,6 +220,9 @@ public class SupplierCreditNoteService : ISupplierCreditNoteService
 
             if (cn == null || cn.Status == "Void")
                 return false;
+
+            if (await _financialPeriodService.IsPeriodLockedAsync(cn.CreditDate))
+                throw new InvalidOperationException("The financial period for this credit note date is closed.");
 
             if (cn.AppliedAmount > 0)
                 throw new InvalidOperationException("Cannot void a credit note that has been partially applied.");

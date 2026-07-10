@@ -225,15 +225,6 @@ public class SupplierPaymentController : BaseController
         return await GetAccountsByMethod(method ?? "Cash");
     }
 
-    /// Singular alias to handle potential typos in views.
-    [HttpGet]
-    [LinkedToPage("SupplierPayment", "PaymentsIndex")]
-    public async Task<IActionResult> GetAccountByType(string method, int? typeId)
-    {
-        return await GetAccountsByType(method, typeId);
-    }
-
-
     /// Voids a supplier payment.
     [HttpPost]
     [ValidateAntiForgeryToken]
@@ -258,6 +249,77 @@ public class SupplierPaymentController : BaseController
         }
 
         return RedirectToAction(nameof(PaymentsIndex));
+    }
+
+    /// Shows the supplier advance refund form.
+    [LinkedToPage("SupplierPayment", "PaymentsIndex", PermissionType = "create")]
+    public async Task<IActionResult> RefundAdvance(int? supplierId)
+    {
+        ViewBag.Suppliers = await GetPartySelectListAsync(_partyService, "Supplier", supplierId);
+        ViewBag.SelectedSupplier = supplierId;
+
+        decimal advance = 0;
+        if (supplierId.HasValue && supplierId.Value > 0)
+        {
+            advance = await _purchaseService.GetSupplierAdvanceAsync(supplierId.Value);
+        }
+        ViewBag.AvailableAdvance = advance;
+
+        return View(new Payment
+        {
+            Party_ID = supplierId ?? 0,
+            Amount = advance,
+            PaymentDate = DateTime.Now,
+            PaymentMethod = "Cash"
+        });
+    }
+
+    /// Returns a supplier's available on-account advance (AJAX).
+    [HttpGet]
+    [LinkedToPage("SupplierPayment", "PaymentsIndex")]
+    public async Task<IActionResult> GetSupplierAdvance(int supplierId)
+    {
+        var advance = supplierId > 0 ? await _purchaseService.GetSupplierAdvanceAsync(supplierId) : 0;
+        return Json(new { advance });
+    }
+
+    /// Processes a supplier advance refund.
+    [HttpPost]
+    [ValidateAntiForgeryToken]
+    [LinkedToPage("SupplierPayment", "PaymentsIndex", PermissionType = "create")]
+    public async Task<IActionResult> RefundAdvance(Payment payment)
+    {
+        CleanNavigationModelState("Party", "StockMain", "Account", "Voucher", "PaymentType", "Reference");
+
+        if (payment.Party_ID <= 0)
+        {
+            ModelState.AddModelError(nameof(payment.Party_ID), "Supplier is required.");
+        }
+        if (payment.Amount <= 0)
+        {
+            ModelState.AddModelError(nameof(payment.Amount), "Refund amount must be greater than zero.");
+        }
+
+        if (ModelState.IsValid)
+        {
+            try
+            {
+                await _paymentService.CreateSupplierRefundAsync(payment, CurrentUserId);
+                ShowMessage(MessageType.Success, "Supplier advance refunded successfully!");
+                return RedirectToAction(nameof(PaymentsIndex));
+            }
+            catch (Exception ex)
+            {
+                ShowMessage(MessageType.Error, ex.Message);
+            }
+        }
+
+        ViewBag.Suppliers = await GetPartySelectListAsync(_partyService, "Supplier", payment.Party_ID);
+        ViewBag.SelectedSupplier = payment.Party_ID;
+        ViewBag.AvailableAdvance = payment.Party_ID > 0
+            ? await _purchaseService.GetSupplierAdvanceAsync(payment.Party_ID)
+            : 0m;
+        return View(payment);
     }
 
     private async Task RefreshGrnOutstandingAsync(Domain.Entities.Transactions.StockMain grn)

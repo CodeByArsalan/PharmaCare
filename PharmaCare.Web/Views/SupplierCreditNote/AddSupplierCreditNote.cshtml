@@ -46,6 +46,14 @@
                                 <option value="">-- None --</option>
                             </select>
                         </div>
+                        <div class="col-md-6">
+                            <label class="form-label">Adjustment Account <span class="text-danger">*</span></label>
+                            <select asp-for="AdjustmentAccount_ID" asp-items="_combobox.GetActiveAccounts()" class="form-select" required>
+                                <option value="">-- Select Contra Account --</option>
+                            </select>
+                            <span asp-validation-for="AdjustmentAccount_ID" class="text-danger small"></span>
+                            <small class="text-muted">Credited by the note — e.g. Purchase Returns &amp; Allowances or rebate income.</small>
+                        </div>
                         <div class="col-12">
                             <label class="form-label">Remarks</label>
                             <textarea asp-for="Remarks" class="form-control" rows="2" placeholder="Reason for credit note (e.g. short delivery, damaged goods)"></textarea>
@@ -74,7 +82,7 @@
                 <table class="table table-sm table-borderless mb-0">
                     <tr><td class="text-muted">Journal Entry:</td><td></td></tr>
                     <tr><td><i class="fas fa-arrow-up text-success me-1"></i> DR</td><td>Supplier Account (Payable ↓)</td></tr>
-                    <tr><td><i class="fas fa-arrow-down text-danger me-1"></i> CR</td><td>Supplier Account (CN offset)</td></tr>
+                    <tr><td><i class="fas fa-arrow-down text-danger me-1"></i> CR</td><td>Adjustment Account (contra)</td></tr>
                 </table>
             </div>
         </div>

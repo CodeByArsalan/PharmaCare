@@ -1,0 +1,143 @@
+@model PharmaCare.Domain.Entities.Finance.Payment
+@inject PharmaCare.Infrastructure.Interfaces.IComboboxRepository _combobox
+@{
+    ViewData["Title"] = "Refund Supplier Advance";
+    var suppliers = ViewBag.Suppliers as Microsoft.AspNetCore.Mvc.Rendering.SelectList;
+    var availableAdvance = (decimal)(ViewBag.AvailableAdvance ?? 0m);
+}
+
+<div class="page-header">
+    <h4 class="page-title">
+        <i class="fas fa-hand-holding-usd"></i>
+        Refund Supplier Advance
+    </h4>
+    <a asp-action="PaymentsIndex" class="btn btn-outline-secondary">
+        <i class="fas fa-arrow-left me-2"></i>Back to Payments
+    </a>
+</div>
+
+<div class="row g-4">
+    <div class="col-md-4">
+        <div class="card mb-4">
+            <div class="card-header">
+                <h6 class="mb-0"><i class="fas fa-info-circle me-2"></i>How It Works</h6>
+            </div>
+            <div class="card-body">
+                <div class="alert alert-info mb-3">
+                    <i class="fas fa-lightbulb me-2"></i>
+                    A refund records money the supplier returns to you from an unused advance
+                    (e.g. after voiding a paid GRN). It is capped at the supplier's available advance.
+                </div>
+                <table class="table table-sm table-borderless mb-0">
+                    <tr><td class="text-muted">Available Advance:</td>
+                        <td><strong class="text-success fs-5" id="availableAdvance">@availableAdvance.ToString("N2")</strong></td></tr>
+                    <tr><td class="text-muted">Journal Entry:</td><td></td></tr>
+                    <tr><td><i class="fas fa-arrow-up text-success me-1"></i> DR</td><td>Cash / Bank (money in)</td></tr>
+                    <tr><td><i class="fas fa-arrow-down text-danger me-1"></i> CR</td><td>Supplier Account (advance ↓)</td></tr>
+                </table>
+            </div>
+        </div>
+    </div>
+
+    <div class="col-md-8">
+        <div class="card">
+            <div class="card-header">
+                <h6 class="mb-0"><i class="fas fa-credit-card me-2"></i>Refund Details</h6>
+            </div>
+            <div class="card-body">
+                <form asp-action="RefundAdvance" method="post">
+                    <div class="row g-3">
+                        <div class="col-md-6">
+                            <label class="form-label">Supplier <span class="text-danger">*</span></label>
+                            <select asp-for="Party_ID" asp-items="suppliers" class="form-select" id="supplierSelect" required>
+                                <option value="">-- Select Supplier --</option>
+                            </select>
+                            <span asp-validation-for="Party_ID" class="text-danger small"></span>
+                        </div>
+                        <div class="col-md-6">
+                            <label class="form-label">Refund Date <span class="text-danger">*</span></label>
+                            <input asp-for="PaymentDate" type="date" class="form-control" required />
+                            <span asp-validation-for="PaymentDate" class="text-danger small"></span>
+                        </div>
+                        <div class="col-md-6">
+                            <label class="form-label">Refund Amount <span class="text-danger">*</span></label>
+                            <div class="input-group">
+                                <span class="input-group-text">PKR</span>
+                                <input asp-for="Amount" type="number" step="0.01" min="0.01"
+                                       class="form-control fs-5" id="refundAmount" required />
+                            </div>
+                            <div class="form-text">Max: <span id="maxAdvance">@availableAdvance.ToString("N2")</span></div>
+                            <span asp-validation-for="Amount" class="text-danger small"></span>
+                        </div>
+                        <div class="col-md-6">
+                            <label class="form-label">Payment Method <span class="text-danger">*</span></label>
+                            <select asp-for="PaymentMethod" asp-items="_combobox.GetPaymentMethods()" class="form-select" id="paymentMethod" required>
+                            </select>
+                        </div>
+                        <div class="col-md-6">
+                            <label class="form-label">Account (received into) <span class="text-danger">*</span></label>
+                            <select asp-for="Account_ID" asp-items="_combobox.GetCashBankAccounts()" class="form-select" required>
+                                <option value="">-- Select Account --</option>
+                            </select>
+                            <span asp-validation-for="Account_ID" class="text-danger small"></span>
+                        </div>
+                        <div class="col-12">
+                            <label class="form-label">Remarks</label>
+                            <textarea asp-for="Remarks" class="form-control" rows="2" placeholder="Optional remarks"></textarea>
+                        </div>
+                    </div>
+
+                    <hr class="my-4" />
+
+                    <div class="text-end">
+                        <a asp-action="PaymentsIndex" class="btn btn-outline-secondary me-2">Cancel</a>
+                        <button type="submit" class="btn btn-success">
+                            <i class="fas fa-check me-2"></i>Record Refund
+                        </button>
+                    </div>
+                </form>
+            </div>
+        </div>
+    </div>
+</div>
+
+@section Scripts {
+    <script>
+        $(document).ready(function () {
+            const $supplier = $('#supplierSelect');
+            const $account = $('#Account_ID');
+            const $method = $('#paymentMethod');
+
+            function refreshAdvance() {
+                const supplierId = $supplier.val();
+                if (!supplierId) { return; }
+                fetch(`@Url.Action("GetSupplierAdvance")?supplierId=${supplierId}`)
+                    .then(r => r.json())
+                    .then(d => {
+                        const adv = Number(d.advance || 0);
+                        $('#availableAdvance').text(adv.toFixed(2));
+                        $('#maxAdvance').text(adv.toFixed(2));
+                        $('#refundAmount').attr('max', adv.toFixed(2)).val(adv.toFixed(2));
+                    })
+                    .catch(() => { });
+            }
+
+            $supplier.on('change', refreshAdvance);
+
+            $method.on('change', function () {
+                const method = $(this).val();
+                $account.html('<option value="">Loading...</option>');
+                fetch(`@Url.Action("GetAccountsByMethod")?method=${method}`)
+                    .then(r => r.json())
+                    .then(data => {
+                        $account.html('<option value="">-- Select Account --</option>');
+                        data.forEach(a => $account.append(`<option value="${a.id}">${a.name}</option>`));
+                        if ($account.hasClass('select2-hidden-accessible')) { $account.trigger('change'); }
+                    })
+                    .catch(() => $account.html('<option value="">Error loading accounts</option>'));
+            });
+
+            if ($method.val()) { $method.trigger('change'); }
+        });
+    </script>
+}

@@ -1,7 +1,11 @@
 @using PharmaCare.Web.Utilities
+@inject PharmaCare.Infrastructure.Interfaces.IComboboxRepository _combobox
 @model IEnumerable<PharmaCare.Domain.Entities.Finance.SupplierCreditNote>
 @{
     ViewData["Title"] = "Supplier Credit Notes";
+    var selectedSupplier = ViewBag.SelectedSupplier as int?;
+    var fromDate = ViewBag.FromDate as DateTime?;
+    var toDate = ViewBag.ToDate as DateTime?;
 }
 
 <div class="page-header d-flex justify-content-between align-items-center">
@@ -11,6 +15,31 @@
     <a asp-action="AddSupplierCreditNote" class="btn btn-success">
         <i class="fas fa-plus me-2"></i>New Credit Note
     </a>
+</div>
+
+<div class="card mb-4">
+    <div class="card-body">
+        <form asp-action="SupplierCreditNotesIndex" method="get" class="row g-3 align-items-end">
+            <div class="col-md-4">
+                <label class="form-label">Supplier</label>
+                <select name="supplierId" asp-items='_combobox.GetActivePartiesByType("Supplier", selectedSupplier)' class="form-select">
+                    <option value="">-- All Suppliers --</option>
+                </select>
+            </div>
+            <div class="col-md-3">
+                <label class="form-label">From Date</label>
+                <input type="date" name="fromDate" value="@(fromDate?.ToString("yyyy-MM-dd"))" class="form-control" />
+            </div>
+            <div class="col-md-3">
+                <label class="form-label">To Date</label>
+                <input type="date" name="toDate" value="@(toDate?.ToString("yyyy-MM-dd"))" class="form-control" />
+            </div>
+            <div class="col-md-2 d-flex gap-2">
+                <button type="submit" class="btn btn-primary flex-fill"><i class="fas fa-filter me-1"></i>Filter</button>
+                <a asp-action="SupplierCreditNotesIndex" class="btn btn-outline-secondary"><i class="fas fa-times"></i></a>
+            </div>
+        </form>
+    </div>
 </div>
 
 <div class="card">

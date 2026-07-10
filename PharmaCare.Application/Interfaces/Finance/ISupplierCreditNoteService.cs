@@ -8,7 +8,7 @@ namespace PharmaCare.Application.Interfaces.Finance;
 /// </summary>
 public interface ISupplierCreditNoteService
 {
-    Task<IEnumerable<SupplierCreditNote>> GetAllAsync();
+    Task<IEnumerable<SupplierCreditNote>> GetAllAsync(int? supplierId = null, DateTime? fromDate = null, DateTime? toDate = null);
     Task<IEnumerable<SupplierCreditNote>> GetOpenAsync(int? supplierId = null);
     Task<SupplierCreditNote?> GetByIdAsync(int id);
 

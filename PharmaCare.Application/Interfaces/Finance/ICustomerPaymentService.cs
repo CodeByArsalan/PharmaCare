@@ -44,7 +44,7 @@ public interface ICustomerPaymentService
     /// <summary>
     /// Gets all customer refunds.
     /// </summary>
-    Task<IEnumerable<Payment>> GetAllRefundsAsync();
+    Task<IEnumerable<Payment>> GetAllRefundsAsync(int? customerId = null, DateTime? fromDate = null, DateTime? toDate = null);
 
     /// <summary>
     /// Voids a customer receipt and reverses accounting impact.
