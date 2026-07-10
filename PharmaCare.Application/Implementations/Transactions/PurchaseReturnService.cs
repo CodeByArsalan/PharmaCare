@@ -112,57 +112,63 @@ public class PurchaseReturnService : TransactionServiceBase, IPurchaseReturnServ
     public async Task<StockMain> CreateAsync(StockMain purchaseReturn, int userId)
     {
         await ValidatePeriodAsync(purchaseReturn.TransactionDate);
-        // Get the PRTN transaction type
-        var transactionType = await _transactionTypeRepository.Query()
-            .FirstOrDefaultAsync(t => t.Code == TRANSACTION_TYPE_CODE);
 
-        if (transactionType == null)
-            throw new InvalidOperationException($"Transaction type '{TRANSACTION_TYPE_CODE}' not found.");
-
-        if (!purchaseReturn.ReferenceStockMain_ID.HasValue)
+        // Whole operation (stock row + PRV voucher + reference GRN recalc) is atomic: a failure
+        // must never leave a stock-moving return without its accounting voucher.
+        return await ExecuteInTransactionAsync(async () =>
         {
-            throw new InvalidOperationException("Reference GRN is required for purchase return.");
-        }
+            // Get the PRTN transaction type
+            var transactionType = await _transactionTypeRepository.Query()
+                .FirstOrDefaultAsync(t => t.Code == TRANSACTION_TYPE_CODE);
 
-        if (!purchaseReturn.Party_ID.HasValue || purchaseReturn.Party_ID.Value <= 0)
-        {
-            throw new InvalidOperationException("Supplier is required for purchase return.");
-        }
+            if (transactionType == null)
+                throw new InvalidOperationException($"Transaction type '{TRANSACTION_TYPE_CODE}' not found.");
 
-        NormalizeReturnLines(purchaseReturn);
+            if (!purchaseReturn.ReferenceStockMain_ID.HasValue)
+            {
+                throw new InvalidOperationException("Reference GRN is required for purchase return.");
+            }
 
-        purchaseReturn.TransactionType_ID = transactionType.TransactionTypeID;
-        purchaseReturn.TransactionNo = await GenerateTransactionNoAsync(PREFIX);
-        purchaseReturn.Status = "Approved"; // Returns are immediately approved (stock impact)
-        purchaseReturn.PaymentStatus = "Unpaid";
-        purchaseReturn.CreatedAt = DateTime.Now;
-        purchaseReturn.CreatedBy = userId;
+            if (!purchaseReturn.Party_ID.HasValue || purchaseReturn.Party_ID.Value <= 0)
+            {
+                throw new InvalidOperationException("Supplier is required for purchase return.");
+            }
 
-        // Calculate totals
-        CalculateTotals(purchaseReturn);
+            NormalizeReturnLines(purchaseReturn);
 
-        // Server-side validation against reference GRN and already-returned quantities
-        await ValidateReturnQuantitiesAsync(purchaseReturn);
+            purchaseReturn.TransactionType_ID = transactionType.TransactionTypeID;
+            purchaseReturn.TransactionNo = await GenerateTransactionNoAsync(PREFIX);
+            purchaseReturn.Status = "Approved"; // Returns are immediately approved (stock impact)
+            purchaseReturn.PaymentStatus = "Unpaid";
+            purchaseReturn.CreatedAt = DateTime.Now;
+            purchaseReturn.CreatedBy = userId;
 
-        await _stockMainRepository.AddAsync(purchaseReturn);
-        await _unitOfWork.SaveChangesAsync();
+            // Calculate totals
+            CalculateTotals(purchaseReturn);
 
-        // Create accounting entries (PRV voucher)
-        var voucher = await CreatePurchaseReturnVoucherAsync(purchaseReturn, userId);
+            // Server-side validation against reference GRN and already-returned quantities
+            await ValidateReturnQuantitiesAsync(purchaseReturn);
 
-        // Link voucher to the purchase return
-        purchaseReturn.Voucher = voucher;
-        _stockMainRepository.Update(purchaseReturn);
+            await _stockMainRepository.AddAsync(purchaseReturn);
+            await _unitOfWork.SaveChangesAsync();
 
-        // Recalculate the reference GRN's balance/status if linked
-        if (purchaseReturn.ReferenceStockMain_ID.HasValue)
-        {
-            await RecalculateReferenceGrnBalanceAsync(purchaseReturn.ReferenceStockMain_ID.Value);
-        }
+            // Create accounting entries (PRV voucher)
+            var voucher = await CreatePurchaseReturnVoucherAsync(purchaseReturn, userId);
 
-        await _unitOfWork.SaveChangesAsync();
+            // Link voucher to the purchase return
+            purchaseReturn.Voucher = voucher;
+            _stockMainRepository.Update(purchaseReturn);
 
-        return purchaseReturn;
+            // Recalculate the reference GRN's balance/status if linked
+            if (purchaseReturn.ReferenceStockMain_ID.HasValue)
+            {
+                await RecalculateReferenceGrnBalanceAsync(purchaseReturn.ReferenceStockMain_ID.Value);
+            }
+
+            await _unitOfWork.SaveChangesAsync();
+
+            return purchaseReturn;
+        });
     }
 
     /// <summary>
@@ -251,7 +257,7 @@ public class PurchaseReturnService : TransactionServiceBase, IPurchaseReturnServ
         }
 
         await _voucherRepository.AddAsync(voucher);
-        await _unitOfWork.SaveChangesAsync();
+        // Saved by the caller's transaction (CreateAsync) so the return + voucher commit atomically.
 
         return voucher;
     }

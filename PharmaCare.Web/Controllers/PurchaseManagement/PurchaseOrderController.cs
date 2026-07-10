@@ -65,6 +65,7 @@ public class PurchaseOrderController : BaseController
         return View(po);
     }
 
+    [LinkedToPage("PurchaseOrder", "PurchaseOrdersIndex", PermissionType = "create")]
     public async Task<IActionResult> AddPurchaseOrder()
     {
         await LoadDropdownsAsync();
@@ -77,6 +78,7 @@ public class PurchaseOrderController : BaseController
 
     [HttpPost]
     [ValidateAntiForgeryToken]
+    [LinkedToPage("PurchaseOrder", "PurchaseOrdersIndex", PermissionType = "create")]
     public async Task<IActionResult> AddPurchaseOrder(PurchaseOrderCreateRequest request, int? PaymentAccountId, string? PaymentMethod)
     {
         if (request.PaidAmount > 0 && (!PaymentAccountId.HasValue || PaymentAccountId.Value <= 0))
@@ -134,6 +136,7 @@ public class PurchaseOrderController : BaseController
         return View(MapToStockMain(request));
     }
 
+    [LinkedToPage("PurchaseOrder", "PurchaseOrdersIndex", PermissionType = "edit")]
     public async Task<IActionResult> EditPurchaseOrder(string id)
     {
         int poId = Utility.DecryptId(id);
@@ -162,6 +165,7 @@ public class PurchaseOrderController : BaseController
 
     [HttpPost]
     [ValidateAntiForgeryToken]
+    [LinkedToPage("PurchaseOrder", "PurchaseOrdersIndex", PermissionType = "edit")]
     public async Task<IActionResult> EditPurchaseOrder(PurchaseOrderCreateRequest request)
     {
         if (ModelState.IsValid)
@@ -185,6 +189,7 @@ public class PurchaseOrderController : BaseController
 
     [HttpPost]
     [ValidateAntiForgeryToken]
+    [LinkedToPage("PurchaseOrder", "PurchaseOrdersIndex", PermissionType = "edit")]
     public async Task<IActionResult> Approve(string id)
     {
         int poId = Utility.DecryptId(id);
@@ -209,6 +214,7 @@ public class PurchaseOrderController : BaseController
 
     [HttpPost]
     [ValidateAntiForgeryToken]
+    [LinkedToPage("PurchaseOrder", "PurchaseOrdersIndex", PermissionType = "delete")]
     public async Task<IActionResult> Delete(string id)
     {
         int poId = Utility.DecryptId(id);
@@ -239,6 +245,7 @@ public class PurchaseOrderController : BaseController
     }
 
     [HttpGet]
+    [LinkedToPage("PurchaseOrder", "PurchaseOrdersIndex")]
     public async Task<IActionResult> GetProducts()
     {
         var products = await _productService.GetAllAsync();

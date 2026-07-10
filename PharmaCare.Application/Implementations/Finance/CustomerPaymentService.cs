@@ -564,12 +564,23 @@ public class CustomerPaymentService : BaseAccountingService, ICustomerPaymentSer
     /// <summary>
     /// Gets all customer refunds.
     /// </summary>
-    public async Task<IEnumerable<Payment>> GetAllRefundsAsync()
+    public async Task<IEnumerable<Payment>> GetAllRefundsAsync(int? customerId = null, DateTime? fromDate = null, DateTime? toDate = null)
     {
-        return await _paymentRepository.Query()
+        var query = _paymentRepository.Query()
             .Include(p => p.Party)
             .Include(p => p.Account)
-            .Where(p => p.PaymentType == RefundPaymentType)
+            .Where(p => p.PaymentType == RefundPaymentType);
+
+        if (customerId.HasValue && customerId.Value > 0)
+            query = query.Where(p => p.Party_ID == customerId.Value);
+
+        if (fromDate.HasValue)
+            query = query.Where(p => p.PaymentDate >= fromDate.Value.Date);
+
+        if (toDate.HasValue)
+            query = query.Where(p => p.PaymentDate <= toDate.Value.Date.AddDays(1).AddTicks(-1));
+
+        return await query
             .OrderByDescending(p => p.PaymentDate)
             .ThenByDescending(p => p.PaymentID)
             .ToListAsync();

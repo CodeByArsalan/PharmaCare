@@ -59,4 +59,9 @@ public interface IPaymentService
     /// </summary>
     Task<bool> VoidPaymentAsync(int paymentId, string reason, int userId);
 
+    /// <summary>
+    /// Refunds a supplier advance (money returned by the supplier). Bounded by the supplier's
+    /// available on-account advance. Posts a REFUND payment and a cash/bank receipt voucher.
+    /// </summary>
+    Task<Payment> CreateSupplierRefundAsync(Payment payment, int userId);
 }

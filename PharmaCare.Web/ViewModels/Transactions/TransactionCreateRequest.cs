@@ -65,6 +65,10 @@ public class PurchaseCreateRequest
     /// Used for Edit — 0 for new GRN.
     /// </summary>
     public int StockMainID { get; set; }
+
+    /// <summary>Optimistic-concurrency token round-tripped from the edit form (base64 rowversion).</summary>
+    public byte[]? RowVersion { get; set; }
+
     [DataType(DataType.Date)]
     public DateTime TransactionDate { get; set; } = DateTime.Now;
 

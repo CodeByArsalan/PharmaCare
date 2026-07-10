@@ -863,6 +863,14 @@ public class PurchaseService : TransactionServiceBase, IPurchaseService
         if (existing.Status != "Approved")
             throw new InvalidOperationException("Only approved purchases can be edited.");
 
+        // Optimistic concurrency: reject the edit if the row changed since the form was loaded.
+        if (purchase.RowVersion is { Length: > 0 }
+            && !existing.RowVersion.SequenceEqual(purchase.RowVersion))
+        {
+            throw new DbUpdateConcurrencyException(
+                "This purchase was modified by another user after you opened it. Reload and try again.");
+        }
+
         // Block editing if active returns exist
         var hasActiveReturns = await _stockMainRepository.Query()
             .Include(s => s.TransactionType)
@@ -881,60 +889,84 @@ public class PurchaseService : TransactionServiceBase, IPurchaseService
         if (hasDirectPayments)
             throw new InvalidOperationException("Cannot edit this purchase — payments have been made against it. Void the payments first.");
 
-        // Update header fields
-        existing.Party_ID = purchase.Party_ID;
-        existing.TransactionDate = purchase.TransactionDate;
-        existing.Remarks = purchase.Remarks;
-        existing.UpdatedAt = DateTime.Now;
-        existing.UpdatedBy = userId;
-
-        // Normalize and validate lines
+        // Normalize and validate lines before touching the ledger.
         NormalizePurchaseLines(purchase);
 
-        if (existing.ReferenceStockMain_ID.HasValue)
+        // A closed financial period must block the edit for BOTH the original date
+        // (the ledger we are about to reverse) and the new date (what we re-post to).
+        var originalTransactionDate = existing.TransactionDate;
+        await ValidatePeriodAsync(originalTransactionDate);
+        if (purchase.TransactionDate.Date != originalTransactionDate.Date)
         {
-            var po = await _stockMainRepository.Query()
-                .Include(s => s.TransactionType)
-                .Include(s => s.StockDetails)
-                .FirstOrDefaultAsync(s => s.StockMainID == existing.ReferenceStockMain_ID.Value
-                                       && s.TransactionType!.Code == PO_TRANSACTION_TYPE_CODE);
+            await ValidatePeriodAsync(purchase.TransactionDate);
+        }
 
-            if (po != null)
+        return await ExecuteInTransactionAsync(async () =>
+        {
+            // Update header fields
+            existing.Party_ID = purchase.Party_ID;
+            existing.TransactionDate = purchase.TransactionDate;
+            existing.Remarks = purchase.Remarks;
+            existing.UpdatedAt = DateTime.Now;
+            existing.UpdatedBy = userId;
+
+            if (existing.ReferenceStockMain_ID.HasValue)
             {
-                await ValidateGrnAgainstPurchaseOrderAsync(purchase, po);
+                var po = await _stockMainRepository.Query()
+                    .Include(s => s.TransactionType)
+                    .Include(s => s.StockDetails)
+                    .FirstOrDefaultAsync(s => s.StockMainID == existing.ReferenceStockMain_ID.Value
+                                           && s.TransactionType!.Code == PO_TRANSACTION_TYPE_CODE);
+
+                if (po != null)
+                {
+                    await ValidateGrnAgainstPurchaseOrderAsync(purchase, po);
+                }
             }
-        }
 
-        // Clear and re-add details
-        existing.StockDetails.Clear();
-        foreach (var detail in purchase.StockDetails)
-        {
-            existing.StockDetails.Add(new StockDetail
+            // Clear and re-add details
+            existing.StockDetails.Clear();
+            foreach (var detail in purchase.StockDetails)
             {
-                Product_ID = detail.Product_ID,
-                Quantity = detail.Quantity,
-                UnitPrice = detail.UnitPrice,
-                CostPrice = detail.CostPrice,
-                DiscountPercent = detail.DiscountPercent,
-                DiscountAmount = detail.DiscountAmount,
-                LineTotal = detail.LineTotal,
-                LineCost = detail.LineCost,
-                Remarks = detail.Remarks
-            });
-        }
+                existing.StockDetails.Add(new StockDetail
+                {
+                    Product_ID = detail.Product_ID,
+                    Quantity = detail.Quantity,
+                    UnitPrice = detail.UnitPrice,
+                    CostPrice = detail.CostPrice,
+                    DiscountPercent = detail.DiscountPercent,
+                    DiscountAmount = detail.DiscountAmount,
+                    LineTotal = detail.LineTotal,
+                    LineCost = detail.LineCost,
+                    Remarks = detail.Remarks
+                });
+            }
 
-        // Recalculate totals (preserve existing paid/balance)
-        CalculateTotals(existing);
+            // Recalculate totals (preserve existing paid/balance)
+            CalculateTotals(existing);
+            existing.BalanceAmount = Math.Max(0, existing.TotalAmount - existing.PaidAmount);
+            existing.PaymentStatus = CalculatePaymentStatus(existing.PaidAmount, existing.BalanceAmount);
 
-        // Recalculate balance based on current paid amount
-        existing.BalanceAmount = Math.Max(0, existing.TotalAmount - existing.PaidAmount);
-        existing.PaymentStatus = existing.BalanceAmount <= 0 ? "Paid"
-            : existing.PaidAmount > 0 ? "Partial" : "Unpaid";
+            // Persist the header/detail changes first so derived stock reflects the edit.
+            _stockMainRepository.Update(existing);
+            await _unitOfWork.SaveChangesAsync();
 
-        _stockMainRepository.Update(existing);
-        await _unitOfWork.SaveChangesAsync();
+            // The original Purchase Voucher is now stale (wrong amount/supplier/stock accounts).
+            // Reverse it and re-post a fresh voucher so the GL stays in sync with the edited GRN.
+            await CreateReversalVouchersForSourceAsync(
+                "StockMain", existing.StockMainID, userId, $"GRN {existing.TransactionNo} edited.");
 
-        return existing;
+            var repostedVoucher = await CreatePurchaseVoucherAsync(existing, userId);
+            existing.Voucher = repostedVoucher;
+
+            // An edit that reduces received quantity may re-open a previously-Completed PO.
+            await ReopenReferencedPurchaseOrderIfNeededAsync(existing.ReferenceStockMain_ID, userId);
+
+            _stockMainRepository.Update(existing);
+            await _unitOfWork.SaveChangesAsync();
+
+            return existing;
+        });
     }
 
     public async Task<bool> VoidAsync(int id, string reason, int userId)
@@ -965,14 +997,91 @@ public class PurchaseService : TransactionServiceBase, IPurchaseService
             purchase.VoidedAt = DateTime.Now;
             purchase.VoidedBy = userId;
 
-            // Reverse all posted vouchers linked to this StockMain (purchase + payments, if any)
-            await CreateReversalVouchersForSourceAsync("StockMain", purchase.StockMainID, userId, reason);
+            // Reverse ONLY the purchase (inventory / accounts-payable) voucher. Any money that was
+            // actually paid against this GRN is NOT clawed back — instead it is converted into a
+            // supplier advance (see below) that can be refunded or auto-adjusted against a future GRN.
+            // The Purchase Voucher (PV) is the one linked on StockMain.Voucher_ID; payment vouchers
+            // (CP/BP) are linked from their Payment rows and are deliberately left intact.
+            if (purchase.Voucher_ID.HasValue)
+            {
+                await CreateReversalVoucherAsync(purchase.Voucher_ID, userId, reason, "StockMain", purchase.StockMainID);
+            }
+            else
+            {
+                // Legacy safety net: if the PV link is missing, reverse by source but keep going.
+                await CreateReversalVouchersForSourceAsync("StockMain", purchase.StockMainID, userId, reason);
+            }
+
+            // Convert payments made against this GRN into a supplier-level advance, and retire the
+            // inert ADJUSTMENT markers (the prior advance they consumed is restored automatically
+            // because this GRN's TotalAmount is now excluded from the supplier balance).
+            var linkedPayments = await _paymentRepository.Query()
+                .Where(p => p.StockMain_ID == purchase.StockMainID && !p.IsVoided)
+                .ToListAsync();
+
+            foreach (var payment in linkedPayments)
+            {
+                if (payment.PaymentType == PaymentType.ADJUSTMENT.ToString())
+                {
+                    payment.IsVoided = true;
+                }
+                else
+                {
+                    // Detach to a supplier-level on-account advance (StockMain_ID = null keeps it
+                    // counted in the supplier balance so it is available to refund / adjust later).
+                    payment.StockMain_ID = null;
+                    payment.Remarks = string.IsNullOrWhiteSpace(payment.Remarks)
+                        ? $"Converted to supplier advance on void of {purchase.TransactionNo}"
+                        : $"{payment.Remarks} | Converted to supplier advance on void of {purchase.TransactionNo}";
+                }
+
+                _paymentRepository.Update(payment);
+            }
+
+            // A GRN void frees up any PO quantity it had received.
+            await ReopenReferencedPurchaseOrderIfNeededAsync(purchase.ReferenceStockMain_ID, userId);
 
             _stockMainRepository.Update(purchase);
             await _unitOfWork.SaveChangesAsync();
 
             return true;
         });
+    }
+
+    /// <summary>
+    /// Re-opens a referenced Purchase Order that had been auto-Completed, when a GRN against it is
+    /// voided or reduced so that outstanding quantity exists again. Over-receipt is blocked, so any
+    /// Completed PO whose GRN is voided/reduced necessarily has remaining quantity to receive.
+    /// </summary>
+    private async Task ReopenReferencedPurchaseOrderIfNeededAsync(int? referenceStockMainId, int userId)
+    {
+        if (!referenceStockMainId.HasValue)
+        {
+            return;
+        }
+
+        var po = await _stockMainRepository.Query()
+            .Include(s => s.TransactionType)
+            .FirstOrDefaultAsync(s => s.StockMainID == referenceStockMainId.Value
+                                   && s.TransactionType!.Code == PO_TRANSACTION_TYPE_CODE);
+
+        if (po != null && string.Equals(po.Status, "Completed", StringComparison.OrdinalIgnoreCase))
+        {
+            po.Status = "Approved";
+            po.UpdatedAt = DateTime.Now;
+            po.UpdatedBy = userId;
+            _stockMainRepository.Update(po);
+        }
+    }
+
+    /// <summary>
+    /// Returns the supplier's available on-account advance (money we have paid that is not yet
+    /// consumed by purchases) — i.e. Max(0, -balance). Used to bound supplier refunds.
+    /// </summary>
+    public async Task<decimal> GetSupplierAdvanceAsync(int supplierId)
+    {
+        var balance = await GetSupplierBalanceAsync(supplierId);
+        return Math.Max(0, -balance);
     }
 
     private async Task<decimal> GetSupplierBalanceAsync(int supplierId, int? excludeTransactionId = null)
@@ -1005,14 +1114,39 @@ public class PurchaseService : TransactionServiceBase, IPurchaseService
             .SumAsync(s => s.TotalAmount);
             
         // Payments (Debit)
-        var payments = await _paymentRepository.Query()
+        var paymentsQuery = _paymentRepository.Query()
             .Include(p => p.StockMain)
             .Where(p => p.Party_ID == supplierId
                         && p.PaymentType == PaymentType.PAYMENT.ToString()
-                        && (!p.StockMain_ID.HasValue || p.StockMain == null || p.StockMain.Status != "Void"))
-            .SumAsync(p => p.Amount);
+                        && (!p.StockMain_ID.HasValue || p.StockMain == null || p.StockMain.Status != "Void"));
 
-        return balance + purchases - returns - payments;
+        // When excluding a transaction (e.g. computing the advance available to auto-adjust a GRN
+        // being created), also exclude that transaction's OWN payments. Advance transferred onto the
+        // GRN is already applied to it via PaidAmount; counting it here too would double-credit it.
+        if (excludeTransactionId.HasValue)
+        {
+            paymentsQuery = paymentsQuery.Where(p => p.StockMain_ID != excludeTransactionId.Value);
+        }
+
+        var payments = await paymentsQuery.SumAsync(p => p.Amount);
+
+        // Refunds received back from the supplier (e.g. an advance refunded) undo a prior payment,
+        // so they move the balance back up (reduce our advance).
+        var refundsQuery = _paymentRepository.Query()
+            .Include(p => p.StockMain)
+            .Where(p => p.Party_ID == supplierId
+                        && p.PaymentType == PaymentType.REFUND.ToString()
+                        && !p.IsVoided
+                        && (!p.StockMain_ID.HasValue || p.StockMain == null || p.StockMain.Status != "Void"));
+
+        if (excludeTransactionId.HasValue)
+        {
+            refundsQuery = refundsQuery.Where(p => p.StockMain_ID != excludeTransactionId.Value);
+        }
+
+        var refunds = await refundsQuery.SumAsync(p => p.Amount);
+
+        return balance + purchases - returns - payments + refunds;
     }
 
     private async Task ValidateGrnAgainstPurchaseOrderAsync(StockMain purchase, StockMain purchaseOrder)

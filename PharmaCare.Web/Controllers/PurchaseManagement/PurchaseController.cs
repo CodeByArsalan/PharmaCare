@@ -1,6 +1,7 @@
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.Mvc.Rendering;
+using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Logging;
 using PharmaCare.Application.Interfaces.Accounting;
 using PharmaCare.Application.Interfaces.Configuration;
@@ -52,6 +53,7 @@ public class PurchaseController : BaseController
         return View(pagedResult);
     }
 
+    [LinkedToPage("Purchase", "PurchasesIndex", PermissionType = "create")]
     public IActionResult AddPurchase()
     {
         // await LoadDropdownsAsync(); // REMOVED
@@ -64,24 +66,26 @@ public class PurchaseController : BaseController
 
     [HttpPost]
     [ValidateAntiForgeryToken]
+    [LinkedToPage("Purchase", "PurchasesIndex", PermissionType = "create")]
     public async Task<IActionResult> AddPurchase(PurchaseCreateRequest request, int? PaymentAccountId, decimal transferredAdvanceAmount = 0)
     {
         CleanNavigationModelState("Party", "StockDetails", "PurchaseOrders");
         if (!request.Party_ID.HasValue || request.Party_ID.Value <= 0)
         {
-            ShowMessage(MessageType.Error, "Supplier is required.");
+            ModelState.AddModelError(nameof(request.Party_ID), "Supplier is required.");
         }
 
         if (request.StockDetails == null || request.StockDetails.Count == 0)
         {
-            ShowMessage(MessageType.Error, "At least one item is required.");
+            ModelState.AddModelError(nameof(request.StockDetails), "At least one item is required.");
+        }
+
+        if (!ModelState.IsValid)
+        {
+            return View(MapToStockMain(request));
         }
 
         var purchase = MapToStockMain(request);
-        if (!ModelState.IsValid)
-        {
-            return View(purchase);
-        }
 
         try
         {
@@ -143,6 +147,7 @@ public class PurchaseController : BaseController
 
     [HttpPost]
     [ValidateAntiForgeryToken]
+    [LinkedToPage("Purchase", "PurchasesIndex", PermissionType = "edit")]
     public async Task<IActionResult> EditPurchase(PurchaseCreateRequest request)
     {
         CleanNavigationModelState("Party", "StockDetails", "PurchaseOrders");
@@ -186,6 +191,10 @@ public class PurchaseController : BaseController
             await _purchaseService.UpdateAsync(purchase, CurrentUserId);
             ShowMessage(MessageType.Success, "Purchase updated successfully!");
             return RedirectToAction(nameof(PurchasesIndex));
+        }
+        catch (DbUpdateConcurrencyException ex)
+        {
+            ShowMessage(MessageType.Error, ex.Message);
         }
         catch (InvalidOperationException ex)
         {
@@ -301,13 +310,14 @@ public class PurchaseController : BaseController
         return new StockMain
         {
             StockMainID = request.StockMainID,
+            RowVersion = request.RowVersion ?? Array.Empty<byte>(),
             TransactionDate = request.TransactionDate,
             Party_ID = request.Party_ID,
             ReferenceStockMain_ID = request.ReferenceStockMain_ID,
             DiscountPercent = request.DiscountPercent,
             PaidAmount = request.PaidAmount,
             Remarks = request.Remarks,
-            StockDetails = request.StockDetails.Select(d => new StockDetail
+            StockDetails = (request.StockDetails ?? new()).Select(d => new StockDetail
             {
                 Product_ID = d.Product_ID,
                 Quantity = d.Quantity,

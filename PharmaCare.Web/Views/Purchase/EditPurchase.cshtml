@@ -19,6 +19,7 @@
     <div class="card-body">
         <form asp-action="EditPurchase" method="post" id="purchaseForm">
             <input type="hidden" name="StockMainID" value="@Model.StockMainID" />
+            <input type="hidden" name="RowVersion" value="@(Model.RowVersion is { Length: > 0 } ? Convert.ToBase64String(Model.RowVersion) : "")" />
 
             <!-- Header Section -->
             <div class="row g-3 mb-4">

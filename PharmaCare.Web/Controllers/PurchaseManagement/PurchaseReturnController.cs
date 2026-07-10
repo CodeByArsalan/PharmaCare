@@ -4,6 +4,7 @@ using Microsoft.AspNetCore.Mvc.Rendering;
 using PharmaCare.Application.Interfaces.Configuration;
 using PharmaCare.Application.Interfaces.Transactions;
 using PharmaCare.Domain.Entities.Transactions;
+using PharmaCare.Web.Filters;
 using PharmaCare.Web.Utilities;
 using PharmaCare.Web.ViewModels.Transactions;
 
@@ -96,6 +97,7 @@ public class PurchaseReturnController : BaseController
 
     [HttpPost]
     [ValidateAntiForgeryToken]
+    [LinkedToPage("PurchaseReturn", "PurchaseReturnsIndex", PermissionType = "delete")]
     public async Task<IActionResult> Void(string id, string voidReason)
     {
         int purchaseReturnId = Utility.DecryptId(id);
@@ -125,6 +127,7 @@ public class PurchaseReturnController : BaseController
     }
 
     [HttpGet]
+    [LinkedToPage("PurchaseReturn", "PurchaseReturnsIndex")]
     public async Task<IActionResult> GetGrns(int? supplierId)
     {
         var grns = await _purchaseReturnService.GetGrnsForReturnAsync(supplierId);
@@ -150,6 +153,7 @@ public class PurchaseReturnController : BaseController
     }
 
     [HttpGet]
+    [LinkedToPage("PurchaseReturn", "PurchaseReturnsIndex")]
     public async Task<IActionResult> GetProducts()
     {
         var products = await _productService.GetAllAsync();

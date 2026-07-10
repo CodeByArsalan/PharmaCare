@@ -19,9 +19,12 @@ public class SupplierCreditNoteController : BaseController
         _service = service;
     }
 
-    public async Task<IActionResult> SupplierCreditNotesIndex()
+    public async Task<IActionResult> SupplierCreditNotesIndex(int? supplierId, DateTime? fromDate, DateTime? toDate)
     {
-        var notes = await _service.GetAllAsync();
+        var notes = await _service.GetAllAsync(supplierId, fromDate, toDate);
+        ViewBag.SelectedSupplier = supplierId;
+        ViewBag.FromDate = fromDate;
+        ViewBag.ToDate = toDate;
         return View(notes);
     }
 
@@ -36,6 +39,7 @@ public class SupplierCreditNoteController : BaseController
     {
         ModelState.Remove("Party");
         ModelState.Remove("SourceStockMain");
+        ModelState.Remove("AdjustmentAccount");
         ModelState.Remove("Voucher");
         ModelState.Remove("CreditNoteNo");
 

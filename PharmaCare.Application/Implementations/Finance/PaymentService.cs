@@ -2,6 +2,7 @@ using Microsoft.EntityFrameworkCore;
 using PharmaCare.Application.Interfaces;
 using PharmaCare.Application.Interfaces.Accounting;
 using PharmaCare.Application.Interfaces.Finance;
+using PharmaCare.Application.Interfaces.Transactions;
 using PharmaCare.Domain.Entities.Accounting;
 using PharmaCare.Domain.Entities.Configuration;
 using PharmaCare.Domain.Entities.Finance;
@@ -29,7 +30,14 @@ public class PaymentService : BaseAccountingService, IPaymentService
     private const string PREFIX = "PAY";
     private const string CASH_PAYMENT_VOUCHER_CODE = "CP"; // Cash Payment Voucher
     private const string BANK_PAYMENT_VOUCHER_CODE = "BP"; // Bank Payment Voucher
+    private const string CASH_RECEIPT_VOUCHER_CODE = "CR"; // Cash Receipt Voucher (refund in)
+    private const string BANK_RECEIPT_VOUCHER_CODE = "BR"; // Bank Receipt Voucher (refund in)
+    private const int CashAccountTypeId = 1;
+    private const int BankAccountTypeId = 2;
     private static readonly string SupplierPaymentType = PaymentType.PAYMENT.ToString();
+    private static readonly string RefundPaymentType = PaymentType.REFUND.ToString();
+
+    private readonly IPurchaseService _purchaseService;
 
     public PaymentService(
         IRepository<Payment> paymentRepository,
@@ -40,7 +48,8 @@ public class PaymentService : BaseAccountingService, IPaymentService
         IRepository<Party> partyRepository,
         IRepository<Account> accountRepository,
         IUnitOfWork unitOfWork,
-        IFinancialPeriodService financialPeriodService)
+        IFinancialPeriodService financialPeriodService,
+        IPurchaseService purchaseService)
         : base(unitOfWork, voucherRepository)
     {
         _paymentRepository = paymentRepository;
@@ -50,6 +59,7 @@ public class PaymentService : BaseAccountingService, IPaymentService
         _partyRepository = partyRepository;
         _accountRepository = accountRepository;
         _financialPeriodService = financialPeriodService;
+        _purchaseService = purchaseService;
     }
 
     public async Task<IEnumerable<Payment>> GetAllSupplierPaymentsAsync()
@@ -505,7 +515,112 @@ public class PaymentService : BaseAccountingService, IPaymentService
         return voucher;
     }
 
+    /// <summary>
+    /// Refunds a supplier advance (money the supplier returns to us).
+    /// DR: Cash/Bank Account — money received back
+    /// CR: Supplier Account — reduces the on-account advance
+    /// Bounded by the supplier's available advance; posts a REFUND payment + receipt voucher.
+    /// </summary>
+    public async Task<Payment> CreateSupplierRefundAsync(Payment payment, int userId)
+    {
+        if (await _financialPeriodService.IsPeriodLockedAsync(payment.PaymentDate))
+            throw new InvalidOperationException("The financial period for this refund date is closed.");
 
+        return await ExecuteInTransactionAsync(async () =>
+        {
+            if (payment.Amount <= 0)
+                throw new InvalidOperationException("Refund amount must be greater than zero.");
+
+            var partyId = payment.Party_ID;
+            if (partyId <= 0)
+                throw new InvalidOperationException("Supplier is required for a refund.");
+
+            var supplier = await _partyRepository.Query()
+                .Include(p => p.Account)
+                .FirstOrDefaultAsync(p => p.PartyID == partyId);
+
+            if (supplier == null)
+                throw new InvalidOperationException("Supplier not found.");
+            if (supplier.Account_ID == null || supplier.Account == null)
+                throw new InvalidOperationException($"Supplier '{supplier.Name}' does not have a linked account.");
+
+            // Bound the refund by the supplier's available on-account advance.
+            var advance = await _purchaseService.GetSupplierAdvanceAsync(partyId);
+            if (advance <= 0)
+                throw new InvalidOperationException($"Supplier '{supplier.Name}' has no available advance to refund.");
+            if (payment.Amount > advance)
+                throw new InvalidOperationException(
+                    $"Refund ({payment.Amount:N2}) exceeds the supplier's available advance ({advance:N2}).");
+
+            var refundAccount = await _accountRepository.Query()
+                .FirstOrDefaultAsync(a => a.AccountID == payment.Account_ID);
+            if (refundAccount == null)
+                throw new InvalidOperationException("Refund account not found.");
+            if (refundAccount.AccountType_ID != CashAccountTypeId && refundAccount.AccountType_ID != BankAccountTypeId)
+                throw new InvalidOperationException("Refund account must be a Cash or Bank account.");
+
+            var isBank = refundAccount.AccountType_ID == BankAccountTypeId;
+
+            payment.Party_ID = partyId;
+            payment.StockMain_ID = null;
+            payment.Reference = await GenerateReferenceNoAsync(_paymentRepository, PREFIX);
+            payment.PaymentType = RefundPaymentType;
+            payment.PaymentMethod = isBank ? PaymentMethod.Bank.ToString() : PaymentMethod.Cash.ToString();
+            payment.IsVoided = false;
+            payment.Remarks = string.IsNullOrWhiteSpace(payment.Remarks)
+                ? $"Advance refund from {supplier.Name}"
+                : payment.Remarks;
+            payment.CreatedAt = DateTime.Now;
+            payment.CreatedBy = userId;
+
+            var voucherCode = isBank ? BANK_RECEIPT_VOUCHER_CODE : CASH_RECEIPT_VOUCHER_CODE;
+            var voucherType = await _voucherTypeRepository.Query()
+                .FirstOrDefaultAsync(vt => vt.Code == voucherCode);
+            if (voucherType == null)
+                throw new InvalidOperationException($"Voucher type '{voucherCode}' not found.");
+
+            var voucher = new Voucher
+            {
+                VoucherType_ID = voucherType.VoucherTypeID,
+                VoucherNo = await GenerateVoucherNoAsync(voucherCode),
+                VoucherDate = payment.PaymentDate,
+                TotalDebit = payment.Amount,
+                TotalCredit = payment.Amount,
+                Status = "Posted",
+                SourceTable = "Payment",
+                Narration = $"Supplier advance refund from {supplier.Name}. Ref: {payment.Reference}",
+                CreatedAt = DateTime.Now,
+                CreatedBy = userId,
+                VoucherDetails = new List<VoucherDetail>
+                {
+                    // Debit: Cash/Bank Account — money received back
+                    new VoucherDetail
+                    {
+                        Account_ID = refundAccount.AccountID,
+                        DebitAmount = payment.Amount,
+                        CreditAmount = 0,
+                        Description = $"Advance refund via {payment.PaymentMethod}"
+                    },
+                    // Credit: Supplier Account — reduces the advance
+                    new VoucherDetail
+                    {
+                        Account_ID = supplier.Account.AccountID,
+                        DebitAmount = 0,
+                        CreditAmount = payment.Amount,
+                        Description = $"Advance refund from {supplier.Name}",
+                        Party_ID = partyId
+                    }
+                }
+            };
+
+            await _voucherRepository.AddAsync(voucher);
+            payment.Voucher = voucher;
+            await _paymentRepository.AddAsync(payment);
+            await _unitOfWork.SaveChangesAsync();
+
+            return payment;
+        });
+    }
 
     /// <summary>
     /// Gets all payments for a specific party/supplier.

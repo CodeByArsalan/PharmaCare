@@ -80,7 +80,7 @@ public class StockAdjustmentController : BaseController
 
     [HttpPost]
     [ValidateAntiForgeryToken]
-    //[LinkedToPage("StockAdjustment", "AdjustmentIndex", PermissionType = "delete")]
+    [LinkedToPage("StockAdjustment", "AdjustmentIndex", PermissionType = "delete")]
     public async Task<IActionResult> Void(string id, string voidReason)
     {
         int adjId = Utility.DecryptId(id);

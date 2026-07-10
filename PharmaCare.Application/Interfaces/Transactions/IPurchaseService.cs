@@ -47,4 +47,10 @@ public interface IPurchaseService
     /// Voids a purchase/GRN.
     /// </summary>
     Task<bool> VoidAsync(int id, string reason, int userId);
+
+    /// <summary>
+    /// Gets the supplier's available on-account advance (money paid but not yet consumed by
+    /// purchases). Used to bound supplier refunds.
+    /// </summary>
+    Task<decimal> GetSupplierAdvanceAsync(int supplierId);
 }

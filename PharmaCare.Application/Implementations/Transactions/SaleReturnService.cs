@@ -683,6 +683,13 @@ public class SaleReturnService : TransactionServiceBase, ISaleReturnService
                 .Where(c => c.SourceStockMain_ID == saleReturn.StockMainID && c.Status != "Void")
                 .ToListAsync();
 
+            // Accounting model: a sale-return credit note is a subsidiary open-item that tracks the
+            // customer's overpayment. The credit itself already lives in the customer's AR account
+            // (the Sale Return Voucher CREDITS the customer for the full return amount), so the
+            // credit note deliberately carries NO voucher of its own. Voiding the return reverses
+            // that Sale Return Voucher below, which unwinds the GL credit; here we only need to void
+            // the tracking record. An applied credit must be unapplied first so we never strand an
+            // allocation on another invoice.
             foreach (var creditNote in creditNotes)
             {
                 if (creditNote.AppliedAmount > 0)
@@ -697,11 +704,6 @@ public class SaleReturnService : TransactionServiceBase, ISaleReturnService
                 creditNote.VoidedBy = userId;
                 creditNote.UpdatedAt = DateTime.Now;
                 creditNote.UpdatedBy = userId;
-
-                if (creditNote.Voucher_ID.HasValue)
-                {
-                    await CreateReversalVoucherAsync(creditNote.Voucher_ID.Value, userId, reason, "StockMain", saleReturn.StockMainID);
-                }
 
                 _creditNoteRepository.Update(creditNote);
             }

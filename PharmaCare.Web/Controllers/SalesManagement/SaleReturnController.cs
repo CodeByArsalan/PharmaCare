@@ -1,9 +1,11 @@
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.Mvc.Rendering;
+using Microsoft.Extensions.Logging;
 using PharmaCare.Application.Interfaces.Configuration;
 using PharmaCare.Application.Interfaces.Transactions;
 using PharmaCare.Domain.Entities.Transactions;
+using PharmaCare.Web.Filters;
 using PharmaCare.Web.Utilities;
 
 namespace PharmaCare.Web.Controllers.SalesManagement;
@@ -17,15 +19,18 @@ public class SaleReturnController : BaseController
     private readonly ISaleReturnService _saleReturnService;
     private readonly IPartyService _partyService;
     private readonly IProductService _productService;
+    private readonly ILogger<SaleReturnController> _logger;
 
     public SaleReturnController(
         ISaleReturnService saleReturnService,
         IPartyService partyService,
-        IProductService productService)
+        IProductService productService,
+        ILogger<SaleReturnController> logger)
     {
         _saleReturnService = saleReturnService;
         _partyService = partyService;
         _productService = productService;
+        _logger = logger;
     }
 
     /// <summary>
@@ -110,9 +115,14 @@ public class SaleReturnController : BaseController
                 ShowMessage(MessageType.Success, "Sale Return created successfully!");
                 return RedirectToAction(nameof(SaleReturnsIndex));
             }
+            catch (Exception ex) when (ex is InvalidOperationException or ArgumentException)
+            {
+                ShowMessage(MessageType.Error, ex.Message);
+            }
             catch (Exception ex)
             {
-                ShowMessage(MessageType.Error, "Validation Error: " + ex.Message);
+                _logger.LogError(ex, "Failed to create sale return for user {UserId}.", CurrentUserId);
+                ShowMessage(MessageType.Error, "An unexpected error occurred while creating the sale return.");
             }
         }
 
@@ -147,6 +157,7 @@ public class SaleReturnController : BaseController
     /// </summary>
     [HttpPost]
     [ValidateAntiForgeryToken]
+    [LinkedToPage("SaleReturn", "SaleReturnsIndex", PermissionType = "delete")]
     public async Task<IActionResult> Void(string id, string voidReason)
     {
         int saleReturnId = Utility.DecryptId(id);
@@ -178,6 +189,7 @@ public class SaleReturnController : BaseController
     /// Gets sales available for return for a customer.
     /// </summary>
     [HttpGet]
+    [LinkedToPage("SaleReturn", "SaleReturnsIndex")]
     public async Task<IActionResult> GetSales(int? customerId)
     {
         var sales = await _saleReturnService.GetSalesForReturnAsync(customerId);
@@ -207,6 +219,7 @@ public class SaleReturnController : BaseController
     /// Gets products as JSON for AJAX dropdown.
     /// </summary>
     [HttpGet]
+    [LinkedToPage("SaleReturn", "SaleReturnsIndex")]
     public async Task<IActionResult> GetProducts()
     {
         var products = await _productService.GetAllAsync();

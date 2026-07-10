@@ -31,6 +31,15 @@ public class SupplierCreditNote : BaseEntity, ITenantEntity
     public int? SourceStockMain_ID { get; set; }
     public StockMain? SourceStockMain { get; set; }
 
+    /// <summary>
+    /// Contra (adjustment) account credited when the note is posted — e.g. Purchase Returns &amp;
+    /// Allowances, rebate / other income. This is the offset to the supplier payable debit so the
+    /// voucher produces real ledger movement (not a self-cancelling supplier DR/CR).
+    /// </summary>
+    [ForeignKey("AdjustmentAccount")]
+    public int? AdjustmentAccount_ID { get; set; }
+    public Account? AdjustmentAccount { get; set; }
+
     [Column(TypeName = "decimal(18,2)")]
     public decimal TotalAmount { get; set; }
 

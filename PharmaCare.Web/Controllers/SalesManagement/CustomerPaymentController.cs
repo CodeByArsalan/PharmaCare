@@ -190,19 +190,14 @@ public class CustomerPaymentController : BaseController
         return await GetAccountsByMethod(method ?? "Cash");
     }
 
-    /// Singular alias to handle potential typos in views.
-    [HttpGet]
-    [LinkedToPage("CustomerPayment", "ReceiptsIndex")]
-    public async Task<IActionResult> GetAccountByType(string method, int? typeId)
-    {
-        return await GetAccountsByType(method, typeId);
-    }
-
     /// Displays list of all customer refunds.
     [LinkedToPage("CustomerPayment", "ReceiptsIndex")]
-    public async Task<IActionResult> RefundsIndex()
+    public async Task<IActionResult> RefundsIndex(int? customerId, DateTime? fromDate, DateTime? toDate)
     {
-        var refunds = await _customerPaymentService.GetAllRefundsAsync();
+        var refunds = await _customerPaymentService.GetAllRefundsAsync(customerId, fromDate, toDate);
+        ViewBag.SelectedCustomer = customerId;
+        ViewBag.FromDate = fromDate;
+        ViewBag.ToDate = toDate;
         return View(refunds);
     }
 

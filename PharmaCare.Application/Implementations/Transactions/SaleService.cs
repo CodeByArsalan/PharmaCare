@@ -187,6 +187,11 @@ public class SaleService : TransactionServiceBase, ISaleService
         {
             NormalizeSaleLines(sale);
 
+            // Authoritative margin gate: re-derive cost from the last approved GRN (fallback opening
+            // price), normalise CostPrice/LineCost server-side, and reject any below-cost line. This
+            // lives in the service so the invariant holds for EVERY caller, not just the web form.
+            await EnforceAuthoritativeCostsAndMarginAsync(sale);
+
             // Get the SALE transaction type
             var transactionType = await _transactionTypeRepository.Query()
                 .FirstOrDefaultAsync(t => t.Code == TRANSACTION_TYPE_CODE);
@@ -693,6 +698,34 @@ public class SaleService : TransactionServiceBase, ISaleService
         }
     }
 
+    /// <summary>
+    /// Re-derives authoritative unit costs (last approved GRN cost, fallback opening price),
+    /// overwrites client-supplied CostPrice/LineCost so COGS can't be understated, and rejects any
+    /// line whose selling price is below cost. Authoritative gate for all callers of CreateAsync.
+    /// </summary>
+    private async Task EnforceAuthoritativeCostsAndMarginAsync(StockMain sale)
+    {
+        var authoritativeCosts = await _productService.GetLastGrnCostPricesAsync();
+
+        foreach (var detail in sale.StockDetails)
+        {
+            var cost = authoritativeCosts.TryGetValue(detail.Product_ID, out var lc)
+                ? lc
+                : detail.CostPrice;
+
+            detail.CostPrice = cost;
+            detail.LineCost = Math.Round(detail.Quantity * cost, 2);
+
+            if (detail.UnitPrice < cost)
+            {
+                var product = await _productRepository.GetByIdAsync(detail.Product_ID);
+                throw new InvalidOperationException(
+                    $"Sale price ({detail.UnitPrice:N2}) for '{product?.Name ?? "ID " + detail.Product_ID}' " +
+                    $"is below its cost ({cost:N2}). Below-cost sales are not allowed.");
+            }
+        }
+    }
+
     private static void NormalizeSaleLines(StockMain sale)
     {
         if (sale.StockDetails == null || sale.StockDetails.Count == 0)
@@ -731,43 +764,6 @@ public class SaleService : TransactionServiceBase, ISaleService
             detail.LineTotal = Math.Round(grossAmount - lineDiscount, 2);
             detail.LineCost = Math.Round(detail.Quantity * detail.CostPrice, 2);
         }
-    }
-
-    private static List<decimal> AllocateNetSalesByLine(StockMain sale)
-    {
-        var allocations = new List<decimal>();
-        if (sale.StockDetails == null || sale.StockDetails.Count == 0)
-        {
-            return allocations;
-        }
-
-        var details = sale.StockDetails.ToList();
-
-        var grossSubTotal = details.Sum(d => d.LineTotal);
-        if (grossSubTotal <= 0 || sale.TotalAmount <= 0)
-        {
-            allocations.AddRange(Enumerable.Repeat(0m, details.Count));
-            return allocations;
-        }
-
-        var remaining = sale.TotalAmount;
-        for (var i = 0; i < details.Count; i++)
-        {
-            decimal netAmount;
-            if (i == details.Count - 1)
-            {
-                netAmount = Math.Round(remaining, 2);
-            }
-            else
-            {
-                netAmount = Math.Round((details[i].LineTotal / grossSubTotal) * sale.TotalAmount, 2);
-                remaining -= netAmount;
-            }
-
-            allocations.Add(Math.Max(0, netAmount));
-        }
-
-        return allocations;
     }
 
     private async Task CreateReversalVouchersForLinkedReceiptsAsync(int saleId, int userId, string reason)

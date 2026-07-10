@@ -34,10 +34,10 @@ namespace PharmaCare.AuditTests
         public List<PharmaCare.Application.DTOs.Security.SidebarMenuItemDTO> GetSidebarMenu() => new List<PharmaCare.Application.DTOs.Security.SidebarMenuItemDTO>();
     }
 
-    // Pins all DbContext reads/writes in this harness to the default pharmacy (tenant 1).
+    // Pins all DbContext reads/writes in this harness to the pharmacy that owns the seeded data.
     public class MockCurrentTenant : PharmaCare.Application.Interfaces.Tenancy.ICurrentTenant
     {
-        public int? TenantId => 1;
+        public int? TenantId => 8;
         public bool HasValue => true;
         public void SetTenant(int pharmacyId) { }
         public IDisposable BeginScope(int pharmacyId) => new Noop();
