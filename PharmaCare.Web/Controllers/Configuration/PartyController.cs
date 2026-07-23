@@ -8,10 +8,12 @@ namespace PharmaCare.Web.Controllers.Configuration;
 public class PartyController : BaseController
 {
     private readonly IPartyService _partyService;
+    private readonly ILogger<PartyController> _logger;
 
-    public PartyController(IPartyService partyService)
+    public PartyController(IPartyService partyService, ILogger<PartyController> logger)
     {
         _partyService = partyService;
+        _logger = logger;
     }
 
     public async Task<IActionResult> PartiesIndex(string? search, string? partyType, int? status, int page = 1, int pageSize = 25)
@@ -33,13 +35,26 @@ public class PartyController : BaseController
     }
     [HttpPost]
     [ValidateAntiForgeryToken]
-    public async Task<IActionResult> AddParty(Party party)
+    public async Task<IActionResult> AddParty(
+        [Bind("PartyType,IsWholeSale,Name,Phone,ContactNumber,Email,OpeningBalance,AccountNumber,IBAN,CreditLimit,Address")] Party party)
     {
         if (ModelState.IsValid)
         {
-            await _partyService.CreateAsync(party, CurrentUserId);
-            ShowMessage(MessageType.Success, "Party created successfully!");
-            return RedirectToAction("PartiesIndex");
+            try
+            {
+                await _partyService.CreateAsync(party, CurrentUserId);
+                ShowMessage(MessageType.Success, "Party created successfully!");
+                return RedirectToAction("PartiesIndex");
+            }
+            catch (InvalidOperationException ex)
+            {
+                ShowMessage(MessageType.Error, ex.Message);
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "Error creating party");
+                ShowMessage(MessageType.Error, "An unexpected error occurred while saving the party.");
+            }
         }
         return View(party);
     }
@@ -56,20 +71,33 @@ public class PartyController : BaseController
     }
     [HttpPost]
     [ValidateAntiForgeryToken]
-    public async Task<IActionResult> EditParty(string id, Party party)
+    public async Task<IActionResult> EditParty(string id,
+        [Bind("PartyID,PartyType,IsWholeSale,Name,Phone,ContactNumber,Email,OpeningBalance,AccountNumber,IBAN,CreditLimit,Address,IsActive")] Party party)
     {
         int partyId = Utility.DecryptId(id);
         if (partyId != party.PartyID) return NotFound();
 
         if (ModelState.IsValid)
         {
-            var updated = await _partyService.UpdateAsync(party, CurrentUserId);
-            if (!updated)
+            try
             {
-                return NotFound();
+                var updated = await _partyService.UpdateAsync(party, CurrentUserId);
+                if (!updated)
+                {
+                    return NotFound();
+                }
+                ShowMessage(MessageType.Success, "Party updated successfully!");
+                return RedirectToAction("PartiesIndex");
             }
-            ShowMessage(MessageType.Success, "Party updated successfully!");
-            return RedirectToAction("PartiesIndex");
+            catch (InvalidOperationException ex)
+            {
+                ShowMessage(MessageType.Error, ex.Message);
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "Error updating party {PartyId}", party.PartyID);
+                ShowMessage(MessageType.Error, "An unexpected error occurred while saving the party.");
+            }
         }
         return View(party);
     }
@@ -80,8 +108,16 @@ public class PartyController : BaseController
         int partyId = Utility.DecryptId(id);
         if (partyId == 0) return NotFound();
 
-        await _partyService.ToggleStatusAsync(partyId, CurrentUserId);
-        ShowMessage(MessageType.Success, "Party status updated successfully!");
+        try
+        {
+            await _partyService.ToggleStatusAsync(partyId, CurrentUserId);
+            ShowMessage(MessageType.Success, "Party status updated successfully!");
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Error toggling party {PartyId}", partyId);
+            ShowMessage(MessageType.Error, "Could not change the party's status. Please try again.");
+        }
         return RedirectToAction("PartiesIndex");
     }
 }

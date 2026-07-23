@@ -117,6 +117,11 @@ public class StockAdjustmentService : TransactionServiceBase, IStockAdjustmentSe
 
             // Fetch current stock, costs, and categories
             var productIds = adjustment.StockDetails.Select(d => d.Product_ID).ToList();
+
+            // Serialize against concurrent stock movements so the write-off availability
+            // check below operates on stock that cannot change under us.
+            await LockProductStockAsync(productIds);
+
             var stockDict = await _productService.GetStockStatusAsync(productIds);
             var costPrices = await _productService.GetLastGrnCostPricesAsync();
             
@@ -244,6 +249,7 @@ public class StockAdjustmentService : TransactionServiceBase, IStockAdjustmentSe
                     .ToListAsync();
                     
                 var productIds = details.Select(d => d.Product_ID).Distinct().ToList();
+                await LockProductStockAsync(productIds); // race-safe: serialize vs concurrent sales
                 var stockDict = await _productService.GetStockStatusAsync(productIds);
                 foreach (var detail in details)
                 {

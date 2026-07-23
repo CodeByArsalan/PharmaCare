@@ -1,4 +1,4 @@
-@model PharmaCare.Application.ViewModels.Report.CashFlowReportVM
+﻿@model PharmaCare.Application.ViewModels.Report.CashFlowReportVM
 @{
     ViewData["Title"] = "Cash Flow";
 }
@@ -75,7 +75,7 @@
 </div>
 
 @section Scripts {
-    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <script src="~/lib/chartjs/chart.umd.min.js"></script>
     <script>
         const dailyData = @Html.Raw(System.Text.Json.JsonSerializer.Serialize(Model.DailyData));
         new Chart(document.getElementById('cashFlowChart'), {

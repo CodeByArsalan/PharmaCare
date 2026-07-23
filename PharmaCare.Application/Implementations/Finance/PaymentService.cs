@@ -1,5 +1,6 @@
 using Microsoft.EntityFrameworkCore;
 using PharmaCare.Application.Interfaces;
+using PharmaCare.Application.Utilities;
 using PharmaCare.Application.Interfaces.Accounting;
 using PharmaCare.Application.Interfaces.Finance;
 using PharmaCare.Application.Interfaces.Transactions;
@@ -32,8 +33,8 @@ public class PaymentService : BaseAccountingService, IPaymentService
     private const string BANK_PAYMENT_VOUCHER_CODE = "BP"; // Bank Payment Voucher
     private const string CASH_RECEIPT_VOUCHER_CODE = "CR"; // Cash Receipt Voucher (refund in)
     private const string BANK_RECEIPT_VOUCHER_CODE = "BR"; // Bank Receipt Voucher (refund in)
-    private const int CashAccountTypeId = 1;
-    private const int BankAccountTypeId = 2;
+    private const int CashAccountTypeId = AccountingConstants.CashAccountTypeId;
+    private const int BankAccountTypeId = AccountingConstants.BankAccountTypeId;
     private static readonly string SupplierPaymentType = PaymentType.PAYMENT.ToString();
     private static readonly string RefundPaymentType = PaymentType.REFUND.ToString();
 
@@ -422,27 +423,7 @@ public class PaymentService : BaseAccountingService, IPaymentService
             .GroupBy(x => x.Product_ID)
             .ToDictionary(g => g.Key, g => g.Sum(x => x.Quantity));
 
-        decimal remainingTotal = 0;
-        foreach (var detailGroup in purchaseOrder.StockDetails.GroupBy(d => d.Product_ID))
-        {
-            var orderedQty = detailGroup.Sum(d => d.Quantity);
-            receivedLookup.TryGetValue(detailGroup.Key, out var receivedQty);
-            var remainingQty = Math.Max(0, orderedQty - receivedQty);
-            if (remainingQty <= 0)
-            {
-                continue;
-            }
-
-            var sourceLine = detailGroup.First();
-            var unitRate = sourceLine.Quantity > 0 ? (sourceLine.LineTotal / sourceLine.Quantity) : sourceLine.UnitPrice;
-            remainingTotal += Math.Round(remainingQty * unitRate, 2);
-        }
-
-        if (purchaseOrder.DiscountPercent > 0)
-        {
-            remainingTotal -= Math.Round(remainingTotal * purchaseOrder.DiscountPercent / 100, 2);
-        }
-
+        var remainingTotal = PurchaseOrderMath.RemainingTotal(purchaseOrder, receivedLookup);
         return Math.Max(0, Math.Round(remainingTotal - paidAmount, 2));
     }
 

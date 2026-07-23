@@ -21,6 +21,7 @@ namespace PharmaCare.Web.Controllers.Accounting
         }
 
         [HttpPost]
+        [ValidateAntiForgeryToken]
         public async Task<IActionResult> Create(FinancialPeriod period)
         {
             try
@@ -36,6 +37,7 @@ namespace PharmaCare.Web.Controllers.Accounting
         }
 
         [HttpPost]
+        [ValidateAntiForgeryToken]
         public async Task<IActionResult> Close(int id, string? remarks)
         {
             try
@@ -54,6 +56,7 @@ namespace PharmaCare.Web.Controllers.Accounting
         }
 
         [HttpPost]
+        [ValidateAntiForgeryToken]
         public async Task<IActionResult> Open(int id)
         {
             try

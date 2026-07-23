@@ -9,10 +9,12 @@ namespace PharmaCare.Web.Controllers.Accounting;
 public class AccountSubHeadController : BaseController
 {
     private readonly IAccountSubHeadService _accountSubHeadService;
+    private readonly ILogger<AccountSubHeadController> _logger;
 
-    public AccountSubHeadController(IAccountSubHeadService accountSubHeadService)
+    public AccountSubHeadController(IAccountSubHeadService accountSubHeadService, ILogger<AccountSubHeadController> logger)
     {
         _accountSubHeadService = accountSubHeadService;
+        _logger = logger;
     }
 
     public async Task<IActionResult> AccountSubHeadsIndex()
@@ -33,9 +35,21 @@ public class AccountSubHeadController : BaseController
     {
         if (ModelState.IsValid)
         {
-            await _accountSubHeadService.CreateAsync(accountSubHead);
-            ShowMessage(MessageType.Success, "Account Sub-Head created successfully!");
-            return RedirectToAction("AccountSubHeadsIndex");
+            try
+            {
+                await _accountSubHeadService.CreateAsync(accountSubHead);
+                ShowMessage(MessageType.Success, "Account Sub-Head created successfully!");
+                return RedirectToAction("AccountSubHeadsIndex");
+            }
+            catch (InvalidOperationException ex)
+            {
+                ShowMessage(MessageType.Error, ex.Message);
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "Error creating account sub-head");
+                ShowMessage(MessageType.Error, "An unexpected error occurred while saving the account sub-head.");
+            }
         }
         await LoadHeadsDropdown();
         return View(accountSubHead);
@@ -63,13 +77,25 @@ public class AccountSubHeadController : BaseController
 
         if (ModelState.IsValid)
         {
-            var updated = await _accountSubHeadService.UpdateAsync(accountSubHead);
-            if (!updated)
+            try
             {
-                return NotFound();
+                var updated = await _accountSubHeadService.UpdateAsync(accountSubHead);
+                if (!updated)
+                {
+                    return NotFound();
+                }
+                ShowMessage(MessageType.Success, "Account Sub-Head updated successfully!");
+                return RedirectToAction("AccountSubHeadsIndex");
             }
-            ShowMessage(MessageType.Success, "Account Sub-Head updated successfully!");
-            return RedirectToAction("AccountSubHeadsIndex");
+            catch (InvalidOperationException ex)
+            {
+                ShowMessage(MessageType.Error, ex.Message);
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "Error updating account sub-head {AccountSubheadId}", accountSubHead.AccountSubheadID);
+                ShowMessage(MessageType.Error, "An unexpected error occurred while saving the account sub-head.");
+            }
         }
         await LoadHeadsDropdown();
         return View(accountSubHead);
@@ -82,8 +108,16 @@ public class AccountSubHeadController : BaseController
         int accountSubHeadId = Utility.DecryptId(id);
         if (accountSubHeadId == 0) return NotFound();
 
-        await _accountSubHeadService.DeleteAsync(accountSubHeadId);
-        ShowMessage(MessageType.Success, "Account Sub-Head deleted successfully!");
+        try
+        {
+            await _accountSubHeadService.DeleteAsync(accountSubHeadId);
+            ShowMessage(MessageType.Success, "Account Sub-Head deleted successfully!");
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Error deleting account sub-head {AccountSubheadId}", accountSubHeadId);
+            ShowMessage(MessageType.Error, "Could not delete the account sub-head. Please try again.");
+        }
         return RedirectToAction("AccountSubHeadsIndex");
     }
 

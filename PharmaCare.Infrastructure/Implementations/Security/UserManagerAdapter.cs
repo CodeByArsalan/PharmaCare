@@ -33,4 +33,9 @@ public class UserManagerAdapter : IUserManager
     {
         return await _userManager.FindByIdAsync(id.ToString());
     }
+
+    public async Task UpdateSecurityStampAsync(User user)
+    {
+        await _userManager.UpdateSecurityStampAsync(user);
+    }
 }

@@ -3,6 +3,7 @@ using PharmaCare.Application.DTOs;
 using PharmaCare.Application.DTOs.Transactions;
 using PharmaCare.Application.Interfaces;
 using PharmaCare.Application.Interfaces.Transactions;
+using PharmaCare.Application.Utilities;
 using PharmaCare.Domain.Entities.Transactions;
 
 namespace PharmaCare.Application.Implementations.Transactions;
@@ -99,7 +100,7 @@ public class JournalVoucherService : IJournalVoucherService
              throw new InvalidOperationException("Voucher amount must be greater than zero.");
 
         // SANITY CHECK: Prevent nonsensical amounts
-        if (calculatedTotalDebit > 100000000) // 100 Million limit
+        if (calculatedTotalDebit > AccountingConstants.MaxTransactionAmount)
              throw new InvalidOperationException("Voucher amount exceeds sanity limit (100 Million).");
 
         // 2. Map ViewModel to Entity
@@ -196,24 +197,7 @@ public class JournalVoucherService : IJournalVoucherService
 
     public async Task<string> GenerateVoucherNoAsync()
     {
-        // Simple generation: JV-yyyyMMdd-XXXX
-        var prefix = $"JV-{DateTime.Now:yyyyMMdd}-";
-        
-        var lastVoucher = await _voucherRepository.Query()
-            .Where(v => v.VoucherNo.StartsWith(prefix))
-            .OrderByDescending(v => v.VoucherNo)
-            .FirstOrDefaultAsync();
-
-        int nextNum = 1;
-        if (lastVoucher != null)
-        {
-            var parts = lastVoucher.VoucherNo.Split('-');
-            if (parts.Length > 2 && int.TryParse(parts.Last(), out int lastNum))
-            {
-                nextNum = lastNum + 1;
-            }
-        }
-
-        return $"{prefix}{nextNum:D4}";
+        // Shared generator: JV-yyyyMMdd-XXXX (serialized when called inside a transaction)
+        return await _voucherRepository.GenerateVoucherNoAsync("JV", _unitOfWork);
     }
 }

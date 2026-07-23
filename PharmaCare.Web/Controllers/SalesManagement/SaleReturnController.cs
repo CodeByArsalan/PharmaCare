@@ -70,7 +70,8 @@ public class SaleReturnController : BaseController
     /// </summary>
     [HttpPost]
     [ValidateAntiForgeryToken]
-    public async Task<IActionResult> AddSaleReturn(StockMain saleReturn)
+    public async Task<IActionResult> AddSaleReturn(
+        [Bind("Party_ID,TransactionDate,ReferenceStockMain_ID,Remarks,SubTotal,TotalAmount,DiscountPercent,DiscountAmount,StockDetails")] StockMain saleReturn)
     {
         // Remove validation for navigation properties
         ModelState.Remove("TransactionType");

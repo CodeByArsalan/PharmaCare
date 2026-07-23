@@ -36,9 +36,15 @@ export const options = {
   insecureSkipTLSVerify: true,
 };
 
-const BASE = 'https://localhost:44302';
-const EMAIL    = 'arsalan@gmail.com';
-const PASSWORD = 'Admin@123';        // ← UPDATE IF DIFFERENT
+// Credentials come from the environment — never commit real logins:
+//   k6 run -e K6_EMAIL=you@example.com -e K6_PASSWORD=... load_test.js
+const BASE     = __ENV.K6_BASE_URL || 'https://localhost:44302';
+const EMAIL    = __ENV.K6_EMAIL    || '';
+const PASSWORD = __ENV.K6_PASSWORD || '';
+
+if (!EMAIL || !PASSWORD) {
+  throw new Error('Set K6_EMAIL and K6_PASSWORD environment variables (k6 run -e K6_EMAIL=... -e K6_PASSWORD=...).');
+}
 
 // ── CSRF EXTRACTION ───────────────────────────────────────
 function getCsrf(html) {

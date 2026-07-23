@@ -145,6 +145,20 @@ public class HomeController : BaseController
     [HttpGet]
     public async Task<IActionResult> GetChartData(string period)
     {
+        // Same gate as the chart section of Index: this endpoint returns tenant-wide
+        // sales/purchase totals, which not every authenticated user may see. The Home
+        // controller is exempt from the page-authorization filter, so gate it here.
+        var canViewFinancials = HasPermission("FinancialReport", "FinancialReportIndex", "view")
+            || HasPermission("JournalVoucher", "JournalVoucherIndex", "view")
+            || IsInRole("Admin", "Administrator")
+            || CurrentUserRoleNames.Any(r => r.Contains("Admin", StringComparison.OrdinalIgnoreCase));
+
+        if (!canViewFinancials)
+        {
+            return StatusCode(StatusCodes.Status403Forbidden,
+                new { message = "You do not have permission to view financial chart data." });
+        }
+
         var filter = new DateRangeFilter();
         if (period == "7d") { filter.FromDate = DateTime.Today.AddDays(-6); filter.ToDate = DateTime.Today; }
         else if (period == "30d") { filter.FromDate = DateTime.Today.AddDays(-29); filter.ToDate = DateTime.Today; }

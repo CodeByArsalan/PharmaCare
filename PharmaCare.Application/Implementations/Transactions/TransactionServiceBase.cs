@@ -1,6 +1,7 @@
 using Microsoft.EntityFrameworkCore;
 using PharmaCare.Application.Interfaces;
 using PharmaCare.Application.Interfaces.Accounting;
+using PharmaCare.Application.Interfaces.Configuration;
 using PharmaCare.Domain.Entities.Accounting;
 using PharmaCare.Domain.Entities.Transactions;
 using PharmaCare.Application.Utilities;
@@ -79,28 +80,60 @@ public abstract class TransactionServiceBase
     }
 
     /// <summary>
+    /// Serializes concurrent stock-affecting transactions on the given products. Stock-on-hand
+    /// is computed from movement history, so availability checks are read-then-write and can be
+    /// raced past by parallel transactions; taking these transaction-scoped locks first makes the
+    /// check safe. Must be called inside ExecuteInTransactionAsync, before reading stock.
+    /// </summary>
+    protected Task LockProductStockAsync(IEnumerable<int> productIds)
+        => _unitOfWork.AcquireResourceLocksAsync("product-stock", productIds);
+
+    /// <summary>
+    /// Locks the given products, then verifies that removing <paramref name="removalByProduct"/>
+    /// units (all values positive) leaves no product with negative stock-on-hand. Used by every
+    /// operation that takes stock OUT — sales are covered separately, but voids/edits that unwind
+    /// received or returned stock must also prove the goods are still on the shelf.
+    /// Must be called inside ExecuteInTransactionAsync.
+    /// </summary>
+    protected async Task EnsureRemovalLeavesNonNegativeStockAsync(
+        IProductService productService,
+        Dictionary<int, decimal> removalByProduct,
+        string operationLabel)
+    {
+        if (removalByProduct.Count == 0) return;
+
+        var productIds = removalByProduct.Keys.ToList();
+        await LockProductStockAsync(productIds);
+
+        var stockNow = await productService.GetStockStatusAsync(productIds);
+        foreach (var (productId, removal) in removalByProduct)
+        {
+            if (removal <= 0) continue;
+
+            var onHand = stockNow.TryGetValue(productId, out var s) ? s : 0;
+            if (removal > onHand)
+            {
+                throw new InvalidOperationException(
+                    $"Cannot {operationLabel}: product ID {productId} has {onHand} in stock but this would remove {removal}. " +
+                    "Stock would go negative — void or adjust the dependent transactions first.");
+            }
+        }
+    }
+
+    /// <summary>
     /// Generates a new transaction number in the format PREFIX-YYYYMMDD-XXXX.
     /// </summary>
     protected async Task<string> GenerateTransactionNoAsync(string prefix)
     {
-        var datePrefix = $"{prefix}-{DateTime.Now:yyyyMMdd}-";
+        var datePrefix = DocumentNumberSequence.DatePrefix(prefix);
+        await DocumentNumberSequence.SerializeAsync(_unitOfWork, datePrefix);
 
         var lastTransaction = await _stockMainRepository.Query()
             .Where(s => s.TransactionNo.StartsWith(datePrefix))
             .OrderByDescending(s => s.TransactionNo)
             .FirstOrDefaultAsync();
 
-        int nextNum = 1;
-        if (lastTransaction != null)
-        {
-            var parts = lastTransaction.TransactionNo.Split('-');
-            if (parts.Length > 2 && int.TryParse(parts.Last(), out int lastNum))
-            {
-                nextNum = lastNum + 1;
-            }
-        }
-
-        return $"{datePrefix}{nextNum:D4}";
+        return DocumentNumberSequence.Next(datePrefix, lastTransaction?.TransactionNo);
     }
 
     /// <summary>
@@ -108,7 +141,7 @@ public abstract class TransactionServiceBase
     /// </summary>
     protected async Task<string> GenerateVoucherNoAsync(string prefix)
     {
-        return await _voucherRepository.GenerateVoucherNoAsync(prefix);
+        return await _voucherRepository.GenerateVoucherNoAsync(prefix, _unitOfWork);
     }
 
     /// <summary>

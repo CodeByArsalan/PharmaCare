@@ -33,7 +33,8 @@ public class StockAdjustmentController : BaseController
 
     [HttpPost]
     [ValidateAntiForgeryToken]
-    public async Task<IActionResult> AddAdjustment(StockMain adjustment, string detailsJson)
+    public async Task<IActionResult> AddAdjustment(
+        [Bind("TransactionDate,AdjustmentType,AdjustmentReason,Remarks")] StockMain adjustment, string detailsJson)
     {
         ModelState.Remove("TransactionType");
         ModelState.Remove("TransactionNo");

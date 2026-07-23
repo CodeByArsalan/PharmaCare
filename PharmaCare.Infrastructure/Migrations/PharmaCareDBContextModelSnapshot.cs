@@ -198,7 +198,9 @@ namespace PharmaCare.Infrastructure.Migrations
 
                     b.HasIndex("Pharmacy_ID");
 
-                    b.HasIndex("Pharmacy_ID", "Code");
+                    b.HasIndex("Pharmacy_ID", "Code")
+                        .IsUnique()
+                        .HasFilter("[Code] IS NOT NULL");
 
                     b.ToTable("AccountHeads", (string)null);
                 });
@@ -232,7 +234,9 @@ namespace PharmaCare.Infrastructure.Migrations
 
                     b.HasIndex("Pharmacy_ID");
 
-                    b.HasIndex("Pharmacy_ID", "Code");
+                    b.HasIndex("Pharmacy_ID", "Code")
+                        .IsUnique()
+                        .HasFilter("[Code] IS NOT NULL");
 
                     b.ToTable("AccountSubheads", (string)null);
                 });
@@ -660,6 +664,11 @@ namespace PharmaCare.Infrastructure.Migrations
                     b.HasIndex("Pharmacy_ID");
 
                     b.HasIndex("PriceType_ID");
+
+                    b.HasIndex("Product_ID", "PriceType_ID")
+                        .IsUnique()
+                        .HasDatabaseName("UX_ProductPriceHistories_OpenRow")
+                        .HasFilter("[EffectiveTo] IS NULL");
 
                     b.HasIndex("Product_ID", "PriceType_ID", "EffectiveTo");
 

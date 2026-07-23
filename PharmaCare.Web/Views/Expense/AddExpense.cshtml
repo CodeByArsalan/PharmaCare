@@ -31,7 +31,7 @@
                 </div>
 
                 <div class="col-md-6">
-                    <label class="form-label">Amount (PKR) <span class="text-danger">*</span></label>
+                    <label class="form-label">Amount (@CurrencyDisplay.Symbol) <span class="text-danger">*</span></label>
                     <input asp-for="Amount" type="number" step="0.01" min="0.01" class="form-control" placeholder="0.00" required />
                 </div>
 
@@ -73,6 +73,7 @@
 </div>
 
 @section Scripts {
+    <partial name="_ValidationScriptsPartial" />
     <script>
         // Any future script can go here. Category's expense account is handled by the backend.
     </script>

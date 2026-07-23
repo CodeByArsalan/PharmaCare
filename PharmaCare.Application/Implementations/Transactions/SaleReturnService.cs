@@ -1,7 +1,9 @@
 using Microsoft.EntityFrameworkCore;
 using PharmaCare.Application.Interfaces;
 using PharmaCare.Application.Interfaces.Accounting;
+using PharmaCare.Application.Interfaces.Configuration;
 using PharmaCare.Application.Interfaces.Transactions;
+using PharmaCare.Application.Utilities;
 using PharmaCare.Domain.Entities.Accounting;
 using PharmaCare.Domain.Entities.Configuration;
 using PharmaCare.Domain.Entities.Finance;
@@ -19,6 +21,7 @@ public class SaleReturnService : TransactionServiceBase, ISaleReturnService
     private readonly IRepository<Product> _productRepository;
     private readonly IRepository<Party> _partyRepository;
     private readonly IRepository<CreditNote> _creditNoteRepository;
+    private readonly IProductService _productService;
 
     private const string TRANSACTION_TYPE_CODE = "SRTN";
     private const string SALE_TRANSACTION_TYPE_CODE = "SALE";
@@ -33,6 +36,7 @@ public class SaleReturnService : TransactionServiceBase, ISaleReturnService
         IRepository<Product> productRepository,
         IRepository<Party> partyRepository,
         IRepository<CreditNote> creditNoteRepository,
+        IProductService productService,
         IUnitOfWork unitOfWork,
         IFinancialPeriodService financialPeriodService)
         : base(stockMainRepository, voucherRepository, unitOfWork, financialPeriodService)
@@ -42,6 +46,7 @@ public class SaleReturnService : TransactionServiceBase, ISaleReturnService
         _productRepository = productRepository;
         _partyRepository = partyRepository;
         _creditNoteRepository = creditNoteRepository;
+        _productService = productService;
     }
 
     public async Task<IEnumerable<StockMain>> GetAllAsync()
@@ -604,23 +609,15 @@ public class SaleReturnService : TransactionServiceBase, ISaleReturnService
 
     private async Task<string> GenerateCreditNoteNoAsync()
     {
-        var datePrefix = $"CN-{DateTime.Now:yyyyMMdd}-";
+        var datePrefix = DocumentNumberSequence.DatePrefix("CN");
+        await DocumentNumberSequence.SerializeAsync(_unitOfWork, datePrefix);
+
         var lastCreditNote = await _creditNoteRepository.Query()
             .Where(c => c.CreditNoteNo.StartsWith(datePrefix))
             .OrderByDescending(c => c.CreditNoteNo)
             .FirstOrDefaultAsync();
 
-        var nextNum = 1;
-        if (lastCreditNote?.CreditNoteNo != null)
-        {
-            var parts = lastCreditNote.CreditNoteNo.Split('-');
-            if (parts.Length > 2 && int.TryParse(parts.Last(), out var lastNum))
-            {
-                nextNum = lastNum + 1;
-            }
-        }
-
-        return $"{datePrefix}{nextNum:D4}";
+        return DocumentNumberSequence.Next(datePrefix, lastCreditNote?.CreditNoteNo);
     }
 
     private async Task RecalculateSaleBalanceIncludingReturnsAsync(StockMain sale, int userId, int? excludeReturnId = null)
@@ -678,6 +675,13 @@ public class SaleReturnService : TransactionServiceBase, ISaleReturnService
             }
 
             await ValidatePeriodAsync(saleReturn.TransactionDate);
+
+            // Voiding a sale return takes the returned goods back OUT of stock — verify they
+            // are still on hand (they may have been re-sold since the return was accepted).
+            var removalByProduct = saleReturn.StockDetails
+                .GroupBy(d => d.Product_ID)
+                .ToDictionary(g => g.Key, g => Math.Abs(g.Sum(x => x.Quantity)));
+            await EnsureRemovalLeavesNonNegativeStockAsync(_productService, removalByProduct, "void this sale return");
 
             var creditNotes = await _creditNoteRepository.Query()
                 .Where(c => c.SourceStockMain_ID == saleReturn.StockMainID && c.Status != "Void")

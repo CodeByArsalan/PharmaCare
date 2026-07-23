@@ -4,6 +4,7 @@ using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.ChangeTracking;
 using Microsoft.EntityFrameworkCore.Diagnostics;
 using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.Logging;
 using PharmaCare.Domain.Entities.Base;
 using PharmaCare.Domain.Entities.Logging;
 using PharmaCare.Domain.Enums;
@@ -18,6 +19,7 @@ public class AuditSaveChangesInterceptor : SaveChangesInterceptor
 {
     private readonly IHttpContextAccessor _httpContextAccessor;
     private readonly IServiceProvider _serviceProvider;
+    private readonly ILogger<AuditSaveChangesInterceptor> _logger;
 
     // Track audit entries during the save operation
     private List<AuditEntry> _pendingAuditEntries = new();
@@ -50,10 +52,12 @@ public class AuditSaveChangesInterceptor : SaveChangesInterceptor
 
     public AuditSaveChangesInterceptor(
         IHttpContextAccessor httpContextAccessor,
-        IServiceProvider serviceProvider)
+        IServiceProvider serviceProvider,
+        ILogger<AuditSaveChangesInterceptor> logger)
     {
         _httpContextAccessor = httpContextAccessor;
         _serviceProvider = serviceProvider;
+        _logger = logger;
     }
 
     public override InterceptionResult<int> SavingChanges(
@@ -77,7 +81,26 @@ public class AuditSaveChangesInterceptor : SaveChangesInterceptor
         SaveChangesCompletedEventData eventData,
         int result)
     {
-        OnAfterSaveChanges().GetAwaiter().GetResult();
+        // Sync save path must stay fully synchronous — blocking on the async writer here
+        // risks thread-pool starvation/deadlocks on every SaveChanges call.
+        try
+        {
+            using var scope = _serviceProvider.CreateScope();
+            var logContext = scope.ServiceProvider.GetService<LogDbContext>();
+            if (logContext != null && StagePendingAuditLogs(logContext))
+            {
+                logContext.SaveChanges();
+            }
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Failed to write {Count} audit log entries; the business transaction itself was committed.", _pendingAuditEntries.Count);
+        }
+        finally
+        {
+            _pendingAuditEntries.Clear();
+        }
+
         return base.SavedChanges(eventData, result);
     }
 
@@ -86,7 +109,24 @@ public class AuditSaveChangesInterceptor : SaveChangesInterceptor
         int result,
         CancellationToken cancellationToken = default)
     {
-        await OnAfterSaveChanges();
+        try
+        {
+            using var scope = _serviceProvider.CreateScope();
+            var logContext = scope.ServiceProvider.GetService<LogDbContext>();
+            if (logContext != null && StagePendingAuditLogs(logContext))
+            {
+                await logContext.SaveChangesAsync(cancellationToken);
+            }
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Failed to write {Count} audit log entries; the business transaction itself was committed.", _pendingAuditEntries.Count);
+        }
+        finally
+        {
+            _pendingAuditEntries.Clear();
+        }
+
         return await base.SavedChangesAsync(eventData, result, cancellationToken);
     }
 
@@ -160,58 +200,44 @@ public class AuditSaveChangesInterceptor : SaveChangesInterceptor
         }
     }
 
-    private async Task OnAfterSaveChanges()
+    /// <summary>
+    /// Materializes the pending audit entries as ActivityLog rows on <paramref name="logContext"/>.
+    /// Returns false when there is nothing to save.
+    /// </summary>
+    private bool StagePendingAuditLogs(LogDbContext logContext)
     {
-        if (_pendingAuditEntries.Count == 0) return;
+        if (_pendingAuditEntries.Count == 0) return false;
 
-        try
+        foreach (var auditEntry in _pendingAuditEntries)
         {
-            // Create a new scope to get LogDbContext
-            using var scope = _serviceProvider.CreateScope();
-            var logContext = scope.ServiceProvider.GetService<LogDbContext>();
-
-            if (logContext == null) return;
-
-            foreach (var auditEntry in _pendingAuditEntries)
+            // For newly created entities, we need to get the ID after save
+            if (auditEntry.ActivityType == ActivityType.Create && auditEntry.Entry != null)
             {
-                // For newly created entities, we need to get the ID after save
-                if (auditEntry.ActivityType == ActivityType.Create && auditEntry.Entry != null)
-                {
-                    auditEntry.EntityId = GetPrimaryKeyValue(auditEntry.Entry);
-                    auditEntry.NewValues = GetPropertyValues(auditEntry.Entry, EntityState.Added);
-                }
-
-                var activityLog = new ActivityLog
-                {
-                    UserId = auditEntry.UserId,
-                    UserName = auditEntry.UserName,
-                    ActivityType = auditEntry.ActivityType,
-                    EntityName = auditEntry.EntityName,
-                    EntityId = auditEntry.EntityId,
-                    OldValues = auditEntry.OldValues,
-                    NewValues = auditEntry.NewValues,
-                    IpAddress = auditEntry.IpAddress,
-                    UserAgent = auditEntry.UserAgent,
-                    Timestamp = DateTime.Now,
-                    StoreId = auditEntry.StoreId,
-                    Pharmacy_ID = auditEntry.Pharmacy_ID,
-                    Description = GenerateDescription(auditEntry)
-                };
-
-                logContext.ActivityLogs.Add(activityLog);
+                auditEntry.EntityId = GetPrimaryKeyValue(auditEntry.Entry);
+                auditEntry.NewValues = GetPropertyValues(auditEntry.Entry, EntityState.Added);
             }
 
-            await logContext.SaveChangesAsync();
+            var activityLog = new ActivityLog
+            {
+                UserId = auditEntry.UserId,
+                UserName = auditEntry.UserName,
+                ActivityType = auditEntry.ActivityType,
+                EntityName = auditEntry.EntityName,
+                EntityId = auditEntry.EntityId,
+                OldValues = auditEntry.OldValues,
+                NewValues = auditEntry.NewValues,
+                IpAddress = auditEntry.IpAddress,
+                UserAgent = auditEntry.UserAgent,
+                Timestamp = DateTime.Now,
+                StoreId = auditEntry.StoreId,
+                Pharmacy_ID = auditEntry.Pharmacy_ID,
+                Description = GenerateDescription(auditEntry)
+            };
+
+            logContext.ActivityLogs.Add(activityLog);
         }
-        catch (Exception)
-        {
-            // Log failures should not affect main application
-            // Consider adding a fallback logging mechanism here
-        }
-        finally
-        {
-            _pendingAuditEntries.Clear();
-        }
+
+        return true;
     }
 
     private int GetCurrentUserId(HttpContext? httpContext)

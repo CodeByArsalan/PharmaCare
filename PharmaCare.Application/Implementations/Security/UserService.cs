@@ -150,6 +150,14 @@ public class UserService : IUserService
         user.UpdatedBy = updatedBy;
 
         await _unitOfWork.SaveChangesAsync();
+
+        if (!user.IsActive)
+        {
+            // Rotate the security stamp so existing auth cookies stop validating —
+            // otherwise a deactivated user keeps access until the 8h cookie expires.
+            await _userManager.UpdateSecurityStampAsync(user);
+        }
+
         return true;
     }
 

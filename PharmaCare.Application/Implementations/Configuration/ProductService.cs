@@ -3,6 +3,7 @@ using PharmaCare.Application.DTOs;
 using PharmaCare.Application.DTOs.Configuration;
 using PharmaCare.Application.Exceptions;
 using PharmaCare.Application.Interfaces;
+using PharmaCare.Application.Utilities;
 using PharmaCare.Application.Interfaces.Configuration;
 using PharmaCare.Domain.Entities.Configuration;
 using PharmaCare.Domain.Entities.Transactions;
@@ -300,7 +301,7 @@ public class ProductService : IProductService
     public async Task SaveProductPricesAsync(int productId, List<ProductPriceDto> prices, int userId)
     {
         // PriceType id 2 == Wholesale, whose SalePrice is stored per box (not per unit).
-        const int wholesalePriceTypeId = 2;
+        const int wholesalePriceTypeId = AccountingConstants.WholesalePriceTypeId;
 
         var product = await _repository.Query().FirstOrDefaultAsync(p => p.ProductID == productId);
         if (product == null)

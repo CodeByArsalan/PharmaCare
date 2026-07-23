@@ -84,11 +84,11 @@
                 <div class="row text-center">
                     <div class="col-6">
                         <div class="text-muted mb-1">Total Debit</div>
-                        <div class="fs-4 fw-bold text-success">PKR @Model.TotalDebit.ToString("N2")</div>
+                        <div class="fs-4 fw-bold text-success">@CurrencyDisplay.Symbol @Model.TotalDebit.ToString("N2")</div>
                     </div>
                     <div class="col-6">
                         <div class="text-muted mb-1">Total Credit</div>
-                        <div class="fs-4 fw-bold text-primary">PKR @Model.TotalCredit.ToString("N2")</div>
+                        <div class="fs-4 fw-bold text-primary">@CurrencyDisplay.Symbol @Model.TotalCredit.ToString("N2")</div>
                     </div>
                 </div>
                 <hr />
@@ -119,8 +119,8 @@
                     <th>#</th>
                     <th>Account</th>
                     <th>Description</th>
-                    <th class="text-end">Debit (PKR)</th>
-                    <th class="text-end">Credit (PKR)</th>
+                    <th class="text-end">Debit (@CurrencyDisplay.Symbol)</th>
+                    <th class="text-end">Credit (@CurrencyDisplay.Symbol)</th>
                 </tr>
             </thead>
             <tbody>

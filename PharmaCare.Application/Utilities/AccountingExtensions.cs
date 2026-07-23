@@ -9,27 +9,20 @@ public static class AccountingExtensions
     /// <summary>
     /// Generates a unique voucher number based on a prefix.
     /// Format: [PREFIX]-[YYYYMMDD]-[SEQ]
+    /// When called inside a transaction, generation is serialized per prefix (per tenant)
+    /// so concurrent transactions cannot produce the same number.
     /// </summary>
-    public static async Task<string> GenerateVoucherNoAsync(this IRepository<Voucher> voucherRepository, string prefix)
+    public static async Task<string> GenerateVoucherNoAsync(this IRepository<Voucher> voucherRepository, string prefix, IUnitOfWork unitOfWork)
     {
-        var datePrefix = $"{prefix}-{DateTime.Now:yyyyMMdd}-";
+        var datePrefix = DocumentNumberSequence.DatePrefix(prefix);
+        await DocumentNumberSequence.SerializeAsync(unitOfWork, datePrefix);
 
         var lastVoucher = await voucherRepository.Query()
             .Where(v => v.VoucherNo != null && v.VoucherNo.StartsWith(datePrefix))
             .OrderByDescending(v => v.VoucherNo)
             .FirstOrDefaultAsync();
 
-        int nextNum = 1;
-        if (lastVoucher != null && lastVoucher.VoucherNo != null)
-        {
-            var parts = lastVoucher.VoucherNo.Split('-');
-            if (parts.Length > 2 && int.TryParse(parts.Last(), out int lastNum))
-            {
-                nextNum = lastNum + 1;
-            }
-        }
-
-        return $"{datePrefix}{nextNum:D4}";
+        return DocumentNumberSequence.Next(datePrefix, lastVoucher?.VoucherNo);
     }
 
     /// <summary>

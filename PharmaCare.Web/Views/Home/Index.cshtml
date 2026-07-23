@@ -1,4 +1,4 @@
-@model PharmaCare.Application.ViewModels.Report.DashboardVM
+﻿@model PharmaCare.Application.ViewModels.Report.DashboardVM
 @{
     ViewData["Title"] = "Dashboard";
     bool showSales = Model.CanViewSales || Model.CanViewFinancials;
@@ -11,7 +11,7 @@
     <div>
         <h1 class="page-title">
             <i class="fas fa-home"></i>
-            Good @(DateTime.Now.Hour < 12 ? "Morning" : DateTime.Now.Hour < 17 ? "Afternoon" : "Evening")! 👋
+            Good @(DateTime.Now.Hour < 12 ? "Morning" : DateTime.Now.Hour < 17 ? "Afternoon" : "Evening")! ðŸ‘‹
         </h1>
         <p class="text-secondary mt-1 mb-0">Here's what's happening with your pharmacy today.</p>
     </div>
@@ -41,7 +41,7 @@
                     <i class="fas fa-shopping-cart text-primary"></i>
                 </div>
                 <div class="stat-label">Today's Sales</div>
-                <div class="stat-value">PKR <span class="counter-animate" data-target="@(Model.TodaySales)">@Model.TodaySales.ToString("N0")</span></div>
+                <div class="stat-value">@CurrencyDisplay.Symbol <span class="counter-animate" data-target="@(Model.TodaySales)">@Model.TodaySales.ToString("N0")</span></div>
                 <div class="stat-change positive">
                     <i class="fas fa-arrow-up"></i> @Model.TodayOrders orders
                 </div>
@@ -54,7 +54,7 @@
                     <i class="fas fa-money-bill-wave text-success"></i>
                 </div>
                 <div class="stat-label">Cash Collected</div>
-                <div class="stat-value">PKR <span class="counter-animate" data-target="@(Model.CashCollected)">@Model.CashCollected.ToString("N0")</span></div>
+                <div class="stat-value">@CurrencyDisplay.Symbol <span class="counter-animate" data-target="@(Model.CashCollected)">@Model.CashCollected.ToString("N0")</span></div>
                 <div class="stat-change positive">
                     <i class="fas fa-cash-register"></i> From today's sales
                 </div>
@@ -70,7 +70,7 @@
                     <i class="fas fa-coins text-warning"></i>
                 </div>
                 <div class="stat-label">Gross Profit</div>
-                <div class="stat-value">PKR <span class="counter-animate" data-target="@(Model.GrossProfit)">@Model.GrossProfit.ToString("N0")</span></div>
+                <div class="stat-value">@CurrencyDisplay.Symbol <span class="counter-animate" data-target="@(Model.GrossProfit)">@Model.GrossProfit.ToString("N0")</span></div>
                 <div class="stat-change positive">
                     <i class="fas fa-chart-pie"></i> Today's Margin
                 </div>
@@ -153,24 +153,24 @@
                 <div class="chart-body">
                     <div class="mini-statement-row">
                         <span>Net Revenue</span>
-                        <span class="text-success">PKR @Model.TodayProfitLoss.NetRevenue.ToString("N0")</span>
+                        <span class="text-success">@CurrencyDisplay.Symbol @Model.TodayProfitLoss.NetRevenue.ToString("N0")</span>
                     </div>
                     <div class="mini-statement-row">
                         <span>Cost of Goods (COGS)</span>
-                        <span class="text-danger">-PKR @Model.TodayProfitLoss.COGS.ToString("N0")</span>
+                        <span class="text-danger">-@CurrencyDisplay.Symbol @Model.TodayProfitLoss.COGS.ToString("N0")</span>
                     </div>
                     <div class="mini-statement-row total">
                         <span>Gross Profit</span>
-                        <span class="text-primary">PKR @Model.TodayProfitLoss.GrossProfit.ToString("N0")</span>
+                        <span class="text-primary">@CurrencyDisplay.Symbol @Model.TodayProfitLoss.GrossProfit.ToString("N0")</span>
                     </div>
                     <div class="mini-statement-row mt-2">
                         <span>Total Expenses</span>
-                        <span class="text-danger">-PKR @Model.TodayProfitLoss.TotalExpenses.ToString("N0")</span>
+                        <span class="text-danger">-@CurrencyDisplay.Symbol @Model.TodayProfitLoss.TotalExpenses.ToString("N0")</span>
                     </div>
                     <div class="mini-statement-row total">
                         <span>Net Profit</span>
                         <span class="@(Model.TodayProfitLoss.NetProfit >= 0 ? "text-success" : "text-danger")">
-                            PKR @Model.TodayProfitLoss.NetProfit.ToString("N0")
+                            @CurrencyDisplay.Symbol @Model.TodayProfitLoss.NetProfit.ToString("N0")
                         </span>
                     </div>
                 </div>
@@ -187,16 +187,16 @@
                 <div class="chart-body">
                     <div class="mini-statement-row">
                         <span>Total Cash In</span>
-                        <span class="text-success">PKR @Model.TodayCashFlow.TotalCashIn.ToString("N0")</span>
+                        <span class="text-success">@CurrencyDisplay.Symbol @Model.TodayCashFlow.TotalCashIn.ToString("N0")</span>
                     </div>
                     <div class="mini-statement-row">
                         <span>Total Cash Out</span>
-                        <span class="text-danger">-PKR @Model.TodayCashFlow.TotalCashOut.ToString("N0")</span>
+                        <span class="text-danger">-@CurrencyDisplay.Symbol @Model.TodayCashFlow.TotalCashOut.ToString("N0")</span>
                     </div>
                     <div class="mini-statement-row total">
                         <span>Net Cash Flow</span>
                         <span class="@((Model.TodayCashFlow.TotalCashIn - Model.TodayCashFlow.TotalCashOut) >= 0 ? "text-success" : "text-danger")">
-                            PKR @((Model.TodayCashFlow.TotalCashIn - Model.TodayCashFlow.TotalCashOut).ToString("N0"))
+                            @CurrencyDisplay.Symbol @((Model.TodayCashFlow.TotalCashIn - Model.TodayCashFlow.TotalCashOut).ToString("N0"))
                         </span>
                     </div>
                 </div>
@@ -320,7 +320,7 @@
 }
 
 @section Scripts {
-    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <script src="~/lib/chartjs/chart.umd.min.js"></script>
     <script>
         document.addEventListener('DOMContentLoaded', function() {
             // Animate Numbers
@@ -385,7 +385,7 @@
                             labels: labels,
                             datasets: [
                                 {
-                                    label: 'Sales (PKR)',
+                                    label: 'Sales (' + appCurrency() + ')',
                                     data: salesData,
                                     borderColor: salesColor,
                                     backgroundColor: gradientSales,
@@ -398,7 +398,7 @@
                                     tension: 0.4
                                 },
                                 {
-                                    label: 'Purchases (PKR)',
+                                    label: 'Purchases (' + appCurrency() + ')',
                                     data: purchaseData,
                                     borderColor: purchaseColor,
                                     backgroundColor: gradientPurchases,
@@ -425,7 +425,7 @@
                                     displayColors: true,
                                     callbacks: {
                                         label: function(context) {
-                                            return context.dataset.label + ': PKR ' + context.parsed.y.toLocaleString();
+                                            return context.dataset.label + ': ' + appCurrency() + ' ' + context.parsed.y.toLocaleString();
                                         }
                                     }
                                 }
@@ -499,7 +499,7 @@
                                 padding: 10,
                                 callbacks: {
                                     label: function(context) {
-                                        return ' ' + context.label + ': PKR ' + context.parsed.toLocaleString();
+                                        return ' ' + context.label + ': ' + appCurrency() + ' ' + context.parsed.toLocaleString();
                                     }
                                 }
                             }
@@ -536,7 +536,7 @@
                                 padding: 10,
                                 callbacks: {
                                     label: function(context) {
-                                        return ' PKR ' + context.parsed.x.toLocaleString();
+                                        return ' ' + appCurrency() + ' ' + context.parsed.x.toLocaleString();
                                     }
                                 }
                             }

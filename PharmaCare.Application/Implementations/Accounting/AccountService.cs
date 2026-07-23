@@ -1,5 +1,6 @@
 using Microsoft.EntityFrameworkCore;
 using PharmaCare.Application.Interfaces;
+using PharmaCare.Application.Utilities;
 using PharmaCare.Application.Interfaces.Accounting;
 using PharmaCare.Domain.Entities.Accounting;
 
@@ -151,13 +152,13 @@ public class AccountService : IAccountService
             // Unified logic for Bank/Cheque
             if (methodLower == "bank" || methodLower == "cheque")
             {
-                return typeName.Contains("bank") || typeCode.Contains("bank") || a.AccountType_ID == 2;
+                return typeName.Contains("bank") || typeCode.Contains("bank") || a.AccountType_ID == AccountingConstants.BankAccountTypeId;
             }
             
             // Logic for Cash
             if (methodLower == "cash")
             {
-                return typeName.Contains("cash") || typeCode.Contains("cash") || a.AccountType_ID == 1;
+                return typeName.Contains("cash") || typeCode.Contains("cash") || a.AccountType_ID == AccountingConstants.CashAccountTypeId;
             }
 
             return false;

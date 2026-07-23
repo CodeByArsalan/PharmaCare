@@ -1,6 +1,7 @@
 using Microsoft.EntityFrameworkCore;
 using PharmaCare.Application.Interfaces;
 using PharmaCare.Application.Interfaces.Accounting;
+using PharmaCare.Application.Interfaces.Configuration;
 using PharmaCare.Application.Interfaces.Transactions;
 using PharmaCare.Domain.Entities.Accounting;
 using PharmaCare.Domain.Entities.Configuration;
@@ -19,6 +20,7 @@ public class PurchaseReturnService : TransactionServiceBase, IPurchaseReturnServ
     private readonly IRepository<VoucherType> _voucherTypeRepository;
     private readonly IRepository<Party> _partyRepository;
     private readonly IRepository<Product> _productRepository;
+    private readonly IProductService _productService;
 
     private const string TRANSACTION_TYPE_CODE = "PRTN";
     private const string GRN_TRANSACTION_TYPE_CODE = "GRN";
@@ -32,6 +34,7 @@ public class PurchaseReturnService : TransactionServiceBase, IPurchaseReturnServ
         IRepository<VoucherType> voucherTypeRepository,
         IRepository<Party> partyRepository,
         IRepository<Product> productRepository,
+        IProductService productService,
         IUnitOfWork unitOfWork,
         IFinancialPeriodService financialPeriodService)
         : base(stockMainRepository, voucherRepository, unitOfWork, financialPeriodService)
@@ -40,6 +43,7 @@ public class PurchaseReturnService : TransactionServiceBase, IPurchaseReturnServ
         _voucherTypeRepository = voucherTypeRepository;
         _partyRepository = partyRepository;
         _productRepository = productRepository;
+        _productService = productService;
     }
 
     public async Task<IEnumerable<StockMain>> GetAllAsync()
@@ -135,6 +139,10 @@ public class PurchaseReturnService : TransactionServiceBase, IPurchaseReturnServ
             }
 
             NormalizeReturnLines(purchaseReturn);
+
+            // Serialize against concurrent stock movements: a purchase return removes stock,
+            // so the availability check in ValidateReturnQuantitiesAsync must not race a sale.
+            await LockProductStockAsync(purchaseReturn.StockDetails.Select(d => d.Product_ID));
 
             purchaseReturn.TransactionType_ID = transactionType.TransactionTypeID;
             purchaseReturn.TransactionNo = await GenerateTransactionNoAsync(PREFIX);
@@ -444,9 +452,16 @@ public class PurchaseReturnService : TransactionServiceBase, IPurchaseReturnServ
             .GroupBy(d => d.Product_ID)
             .ToDictionary(g => g.Key, g => g.Sum(x => x.Quantity));
 
+        // Math.Abs: by the time this runs, NormalizeReturnLines has already stored the
+        // quantities as negatives (stock reduction) — comparing the raw negative sum against
+        // the positive available quantity would silently pass every over-return.
         var requestedByProduct = purchaseReturn.StockDetails
             .GroupBy(d => d.Product_ID)
-            .ToDictionary(g => g.Key, g => g.Sum(x => x.Quantity));
+            .ToDictionary(g => g.Key, g => Math.Abs(g.Sum(x => x.Quantity)));
+
+        // Stock actually on hand right now — returned goods must still be in inventory.
+        // Without this, returning items that were already sold drives stock negative.
+        var currentStock = await _productService.GetStockStatusAsync(requestedByProduct.Keys.ToList());
 
         // Validate each requested product quantity in aggregate to handle duplicate lines safely.
         foreach (var requested in requestedByProduct)
@@ -472,6 +487,16 @@ public class PurchaseReturnService : TransactionServiceBase, IPurchaseReturnServ
                     $"Return quantity ({requestedQty}) for product '{productName}' " +
                     $"exceeds available quantity ({availableForReturn}). " +
                     $"GRN Qty: {grnQty}, Already Returned: {previouslyReturned}.");
+            }
+
+            var onHand = currentStock.TryGetValue(productId, out var stock) ? stock : 0;
+            if (requestedQty > onHand)
+            {
+                var productName = grn.StockDetails.FirstOrDefault(d => d.Product_ID == productId)?.Product?.Name ?? $"ID:{productId}";
+                throw new InvalidOperationException(
+                    $"Return quantity ({requestedQty}) for product '{productName}' " +
+                    $"exceeds current stock on hand ({onHand}). Goods that have already been " +
+                    $"sold or adjusted out cannot be returned to the supplier.");
             }
         }
     }
