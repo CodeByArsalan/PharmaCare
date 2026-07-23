@@ -51,7 +51,7 @@ public class PharmacyService : IPharmacyService
 
         pharmacy.Status = status;
         pharmacy.IsActive = string.Equals(status, "Active", StringComparison.OrdinalIgnoreCase);
-        pharmacy.UpdatedAt = DateTime.Now;
+        pharmacy.UpdatedAt = AppTime.Now;
         pharmacy.UpdatedBy = userId;
         _repository.Update(pharmacy);
         await _unitOfWork.SaveChangesAsync();

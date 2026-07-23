@@ -182,7 +182,7 @@ public static class DbInitializer
             IsActive = true,
             Pharmacy_ID = null,
             IsPlatformAdmin = true,
-            CreatedAt = DateTime.Now,
+            CreatedAt = AppTime.Now,
             CreatedBy = 0
         };
 

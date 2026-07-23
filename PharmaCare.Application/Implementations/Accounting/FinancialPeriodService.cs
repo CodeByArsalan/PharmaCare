@@ -47,7 +47,7 @@ public class FinancialPeriodService : IFinancialPeriodService
         if (hasOverlap)
             throw new InvalidOperationException("This period overlaps with an existing financial period.");
 
-        period.CreatedAt = DateTime.Now;
+        period.CreatedAt = AppTime.Now;
         period.CreatedBy = userId;
         period.IsClosed = false;
 
@@ -62,10 +62,10 @@ public class FinancialPeriodService : IFinancialPeriodService
         if (period == null) return false;
 
         period.IsClosed = true;
-        period.ClosedAt = DateTime.Now;
+        period.ClosedAt = AppTime.Now;
         period.ClosedBy = userId;
         period.Remarks = remarks;
-        period.UpdatedAt = DateTime.Now;
+        period.UpdatedAt = AppTime.Now;
         period.UpdatedBy = userId;
 
         _periodRepository.Update(period);
@@ -81,7 +81,7 @@ public class FinancialPeriodService : IFinancialPeriodService
         period.IsClosed = false;
         period.ClosedAt = null;
         period.ClosedBy = null;
-        period.UpdatedAt = DateTime.Now;
+        period.UpdatedAt = AppTime.Now;
         period.UpdatedBy = userId;
 
         _periodRepository.Update(period);

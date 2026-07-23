@@ -116,7 +116,7 @@ public class PurchaseOrderService : IPurchaseOrderService
         purchaseOrder.TransactionNo = await GenerateTransactionNoAsync();
         purchaseOrder.Status = "Draft";
         purchaseOrder.PaymentStatus = "Unpaid";
-        purchaseOrder.CreatedAt = DateTime.Now;
+        purchaseOrder.CreatedAt = AppTime.Now;
         purchaseOrder.CreatedBy = userId;
 
         NormalizePurchaseOrderLines(purchaseOrder);
@@ -145,7 +145,7 @@ public class PurchaseOrderService : IPurchaseOrderService
         existing.DiscountPercent = purchaseOrder.DiscountPercent;
         existing.DiscountAmount = purchaseOrder.DiscountAmount;
         existing.Remarks = purchaseOrder.Remarks;
-        existing.UpdatedAt = DateTime.Now;
+        existing.UpdatedAt = AppTime.Now;
         existing.UpdatedBy = userId;
 
         NormalizePurchaseOrderLines(purchaseOrder);
@@ -187,7 +187,7 @@ public class PurchaseOrderService : IPurchaseOrderService
             return false;
 
         purchaseOrder.Status = "Approved";
-        purchaseOrder.UpdatedAt = DateTime.Now;
+        purchaseOrder.UpdatedAt = AppTime.Now;
         purchaseOrder.UpdatedBy = userId;
 
         _stockMainRepository.Update(purchaseOrder);
@@ -225,7 +225,7 @@ public class PurchaseOrderService : IPurchaseOrderService
             throw new InvalidOperationException("Cannot cancel this Purchase Order because it has active payment(s). Void the payment(s) first.");
 
         purchaseOrder.Status = "Void";
-        purchaseOrder.VoidedAt = DateTime.Now;
+        purchaseOrder.VoidedAt = AppTime.Now;
         purchaseOrder.VoidedBy = userId;
         purchaseOrder.VoidReason = "Cancelled by user";
 

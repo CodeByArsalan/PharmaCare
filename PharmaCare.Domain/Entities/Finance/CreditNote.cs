@@ -43,7 +43,7 @@ public class CreditNote : BaseEntity, ITenantEntity
     [ConcurrencyCheck]
     public decimal BalanceAmount { get; set; }
 
-    public DateTime CreditDate { get; set; } = DateTime.Now;
+    public DateTime CreditDate { get; set; } = AppTime.Now;
 
     /// <summary>
     /// Open, Applied, Void

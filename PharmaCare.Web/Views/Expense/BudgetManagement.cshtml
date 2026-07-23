@@ -35,7 +35,7 @@
                 </div>
                 <div class="col-auto">
                     <select name="year" class="form-select form-select-sm" onchange="this.form.submit()">
-                        @for (int y = DateTime.Now.Year - 1; y <= DateTime.Now.Year + 1; y++)
+                        @for (int y = AppTime.Now.Year - 1; y <= AppTime.Now.Year + 1; y++)
                         {
                             <option value="@y" selected="@(y == currentYear)">@y</option>
                         }

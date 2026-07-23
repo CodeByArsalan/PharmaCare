@@ -9,6 +9,10 @@
   </ItemGroup>
 
   <ItemGroup>
+    <Using Include="PharmaCare.Domain" />
+  </ItemGroup>
+
+  <ItemGroup>
     <None Update="appsettings.json">
       <CopyToOutputDirectory>Always</CopyToOutputDirectory>
     </None>

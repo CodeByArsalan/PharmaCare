@@ -98,7 +98,7 @@ public class PartyService : IPartyService
 
     public async Task<Party> CreateAsync(Party party, int userId)
     {
-        party.CreatedAt = DateTime.Now;
+        party.CreatedAt = AppTime.Now;
         party.CreatedBy = userId;
         party.IsActive = true;
 
@@ -134,7 +134,7 @@ public class PartyService : IPartyService
                 AccountType_ID = accountType.AccountTypeID,
                 IsSystemAccount = false,
                 IsActive = true,
-                CreatedAt = DateTime.Now,
+                CreatedAt = AppTime.Now,
                 CreatedBy = userId
             };
 
@@ -174,7 +174,7 @@ public class PartyService : IPartyService
         if (existing.Account != null && existing.Name != party.Name)
         {
             existing.Account.Name = party.Name;
-            existing.Account.UpdatedAt = DateTime.Now;
+            existing.Account.UpdatedAt = AppTime.Now;
             existing.Account.UpdatedBy = userId;
         }
 
@@ -189,7 +189,7 @@ public class PartyService : IPartyService
         existing.OpeningBalance = party.OpeningBalance;
         existing.CreditLimit = party.CreditLimit;
         existing.IsActive = party.IsActive;
-        existing.UpdatedAt = DateTime.Now;
+        existing.UpdatedAt = AppTime.Now;
         existing.UpdatedBy = userId;
 
         _repository.Update(existing);
@@ -216,7 +216,7 @@ public class PartyService : IPartyService
             return false;
 
         party.IsActive = !party.IsActive;
-        party.UpdatedAt = DateTime.Now;
+        party.UpdatedAt = AppTime.Now;
         party.UpdatedBy = userId;
 
         _repository.Update(party);

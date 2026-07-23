@@ -56,7 +56,7 @@ public class SaleController : BaseController
     {
         return View(new StockMain
         {
-            TransactionDate = DateTime.Now
+            TransactionDate = AppTime.Now
         });
     }
 

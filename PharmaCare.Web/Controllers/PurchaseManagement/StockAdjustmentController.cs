@@ -28,7 +28,7 @@ public class StockAdjustmentController : BaseController
 
     public IActionResult AddAdjustment()
     {
-        return View(new StockMain { TransactionDate = DateTime.Today });
+        return View(new StockMain { TransactionDate = AppTime.Today });
     }
 
     [HttpPost]

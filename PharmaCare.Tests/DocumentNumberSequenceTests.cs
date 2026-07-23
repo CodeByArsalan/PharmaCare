@@ -11,7 +11,7 @@ public class DocumentNumberSequenceTests
 
         Assert.StartsWith("SALE-", prefix);
         Assert.EndsWith("-", prefix);
-        Assert.Equal($"SALE-{DateTime.Now:yyyyMMdd}-", prefix);
+        Assert.Equal($"SALE-{AppTime.Now:yyyyMMdd}-", prefix);
     }
 
     [Fact]

@@ -31,7 +31,7 @@ public class PaymentAllocation : BaseEntity, ITenantEntity
     [Column(TypeName = "decimal(18,2)")]
     public decimal Amount { get; set; }
 
-    public DateTime AllocationDate { get; set; } = DateTime.Now;
+    public DateTime AllocationDate { get; set; } = AppTime.Now;
 
     [StringLength(20)]
     public string SourceType { get; set; } = "Receipt";

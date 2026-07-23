@@ -40,8 +40,8 @@ public class ActivityLogController : BaseController
         else
         {
             // Initial load: Set default dates to Today for UI, but return empty results
-            filter.FromDate = DateTime.Today;
-            filter.ToDate = DateTime.Today;
+            filter.FromDate = AppTime.Today;
+            filter.ToDate = AppTime.Today;
 
             result = new ActivityLogPagedResult
             {
@@ -91,7 +91,7 @@ public class ActivityLogController : BaseController
         if (uid == 0)
             return RedirectToAction(nameof(Index));
 
-        var logs = await _activityLogService.GetLogsByUserAsync(uid, DateTime.Today.AddDays(-30));
+        var logs = await _activityLogService.GetLogsByUserAsync(uid, AppTime.Today.AddDays(-30));
         
         ViewBag.UserId = uid;
         
@@ -100,7 +100,7 @@ public class ActivityLogController : BaseController
 
     public async Task<IActionResult> Dashboard()
     {
-        var summary = await _activityLogService.GetSummaryAsync(DateTime.Today.AddDays(-30));
+        var summary = await _activityLogService.GetSummaryAsync(AppTime.Today.AddDays(-30));
         return View(summary);
     }
 

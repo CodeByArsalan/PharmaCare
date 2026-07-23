@@ -7,6 +7,11 @@
   </PropertyGroup>
 
   <ItemGroup>
+    <!-- AppTime (the pinned business clock) is used pervasively — import once for the project. -->
+    <Using Include="PharmaCare.Domain" />
+  </ItemGroup>
+
+  <ItemGroup>
     <Compile Remove="Models\**" />
     <Compile Remove="wwwroot\sneat\**" />
     <Content Remove="Models\**" />

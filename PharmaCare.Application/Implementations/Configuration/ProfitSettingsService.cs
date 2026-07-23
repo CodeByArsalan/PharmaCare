@@ -37,7 +37,7 @@ public class ProfitSettingsService : IProfitSettingsService
                 RetailProfitPercent = 20,
                 WholesaleProfitPercent = 10,
                 PriceRoundingStep = 1.00m,
-                UpdatedAt = DateTime.Now,
+                UpdatedAt = AppTime.Now,
                 UpdatedBy = 1 // System user
             };
             await _repository.AddAsync(settings);
@@ -54,7 +54,7 @@ public class ProfitSettingsService : IProfitSettingsService
         settings.RetailProfitPercent = retailProfitPercent;
         settings.WholesaleProfitPercent = wholesaleProfitPercent;
         settings.PriceRoundingStep = priceRoundingStep < 0 ? 0 : priceRoundingStep;
-        settings.UpdatedAt = DateTime.Now;
+        settings.UpdatedAt = AppTime.Now;
         settings.UpdatedBy = userId;
 
         _repository.Update(settings);

@@ -71,7 +71,7 @@ public class PurchaseOrderController : BaseController
         await LoadDropdownsAsync();
         return View(new StockMain
         {
-            TransactionDate = DateTime.Now,
+            TransactionDate = AppTime.Now,
             StockDetails = new List<StockDetail> { new StockDetail() }
         });
     }
@@ -304,7 +304,7 @@ public class PurchaseOrderController : BaseController
             StockMain_ID = po.StockMainID,
             Party_ID = po.Party_ID ?? 0,
             Amount = po.BalanceAmount,
-            PaymentDate = DateTime.Now,
+            PaymentDate = AppTime.Now,
             PaymentMethod = "Cash"
         });
     }

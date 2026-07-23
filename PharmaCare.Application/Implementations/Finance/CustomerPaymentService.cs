@@ -314,7 +314,7 @@ public class CustomerPaymentService : BaseAccountingService, ICustomerPaymentSer
             payment.Party_ID = stockMain.Party_ID.Value;
             payment.PaymentMethod = NormalizePaymentMethod(payment.PaymentMethod, receiptAccount.AccountType_ID);
             payment.IsVoided = false;
-            payment.CreatedAt = DateTime.Now;
+            payment.CreatedAt = AppTime.Now;
             payment.CreatedBy = userId;
 
             // Create accounting voucher
@@ -339,7 +339,7 @@ public class CustomerPaymentService : BaseAccountingService, ICustomerPaymentSer
                 Amount = payment.Amount,
                 SourceType = "Receipt",
                 AllocationDate = payment.PaymentDate,
-                CreatedAt = DateTime.Now,
+                CreatedAt = AppTime.Now,
                 CreatedBy = userId
             });
             _stockMainRepository.Update(stockMain);
@@ -369,7 +369,7 @@ public class CustomerPaymentService : BaseAccountingService, ICustomerPaymentSer
             : (sale.PaidAmount > 0
                 ? PharmaCare.Domain.Enums.PaymentStatus.Partial.ToString()
                 : PharmaCare.Domain.Enums.PaymentStatus.Unpaid.ToString());
-        sale.UpdatedAt = DateTime.Now;
+        sale.UpdatedAt = AppTime.Now;
         sale.UpdatedBy = userId;
     }
 
@@ -409,7 +409,7 @@ public class CustomerPaymentService : BaseAccountingService, ICustomerPaymentSer
             SourceTable = "StockMain",
             SourceID = payment.StockMain_ID,
             Narration = $"Receipt from customer: {customerName}. Ref: {payment.Reference}",
-            CreatedAt = DateTime.Now,
+            CreatedAt = AppTime.Now,
             CreatedBy = userId,
             VoucherDetails = new List<VoucherDetail>
             {
@@ -504,7 +504,7 @@ public class CustomerPaymentService : BaseAccountingService, ICustomerPaymentSer
             payment.Remarks = string.IsNullOrWhiteSpace(payment.Remarks)
                 ? $"Refund to {customer.Name}"
                 : payment.Remarks;
-            payment.CreatedAt = DateTime.Now;
+            payment.CreatedAt = AppTime.Now;
             payment.CreatedBy = userId;
 
             // Look up correct VoucherType based on account type
@@ -530,7 +530,7 @@ public class CustomerPaymentService : BaseAccountingService, ICustomerPaymentSer
                 Status = "Posted",
                 SourceTable = "Payment",
                 Narration = $"Customer refund to {customer.Name}. Ref: {payment.Reference}",
-                CreatedAt = DateTime.Now,
+                CreatedAt = AppTime.Now,
                 CreatedBy = userId,
                 VoucherDetails = new List<VoucherDetail>
                 {
@@ -715,7 +715,7 @@ public class CustomerPaymentService : BaseAccountingService, ICustomerPaymentSer
             creditNote.AppliedAmount = Math.Round(creditNote.AppliedAmount + amount, 2);
             creditNote.BalanceAmount = Math.Round(Math.Max(0, creditNote.TotalAmount - creditNote.AppliedAmount), 2);
             creditNote.Status = creditNote.BalanceAmount <= 0 ? "Applied" : "Open";
-            creditNote.UpdatedAt = DateTime.Now;
+            creditNote.UpdatedAt = AppTime.Now;
             creditNote.UpdatedBy = userId;
             _creditNoteRepository.Update(creditNote);
 
@@ -725,9 +725,9 @@ public class CustomerPaymentService : BaseAccountingService, ICustomerPaymentSer
                 StockMain_ID = sale.StockMainID,
                 Amount = amount,
                 SourceType = "CreditNote",
-                AllocationDate = DateTime.Now,
+                AllocationDate = AppTime.Now,
                 Remarks = $"Applied {creditNote.CreditNoteNo} against {sale.TransactionNo}",
-                CreatedAt = DateTime.Now,
+                CreatedAt = AppTime.Now,
                 CreatedBy = userId
             });
 
@@ -767,9 +767,9 @@ public class CustomerPaymentService : BaseAccountingService, ICustomerPaymentSer
 
             receipt.IsVoided = true;
             receipt.VoidReason = reason.Trim();
-            receipt.VoidedAt = DateTime.Now;
+            receipt.VoidedAt = AppTime.Now;
             receipt.VoidedBy = userId;
-            receipt.UpdatedAt = DateTime.Now;
+            receipt.UpdatedAt = AppTime.Now;
             receipt.UpdatedBy = userId;
             _paymentRepository.Update(receipt);
 
@@ -820,9 +820,9 @@ public class CustomerPaymentService : BaseAccountingService, ICustomerPaymentSer
 
             refund.IsVoided = true;
             refund.VoidReason = reason.Trim();
-            refund.VoidedAt = DateTime.Now;
+            refund.VoidedAt = AppTime.Now;
             refund.VoidedBy = userId;
-            refund.UpdatedAt = DateTime.Now;
+            refund.UpdatedAt = AppTime.Now;
             refund.UpdatedBy = userId;
             _paymentRepository.Update(refund);
 

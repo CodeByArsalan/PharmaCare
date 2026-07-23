@@ -34,7 +34,7 @@ var rng = new Random(42);
 decimal RandDec(decimal min, decimal max) =>
     Math.Round(min + (decimal)rng.NextDouble() * (max - min), 2);
 DateTime RandDate(int daysBack = 365) =>
-    DateTime.Now.AddDays(-rng.Next(1, daysBack));
+    AppTime.Now.AddDays(-rng.Next(1, daysBack));
 
 async Task SaveBatch<T>(List<T> items, string label) where T : class
 {
@@ -125,7 +125,7 @@ if (existingSubs.Count < 10)
             if (!existingSubs.Any(s => s.Name == fullName && s.Category_ID == cat.CategoryID))
                 subsToAdd.Add(new SubCategory {
                     Name = fullName, Category_ID = cat.CategoryID,
-                    IsActive = true, CreatedAt = DateTime.Now, CreatedBy = 1
+                    IsActive = true, CreatedAt = AppTime.Now, CreatedBy = 1
                 });
         }
     if (subsToAdd.Count > 0)
@@ -142,11 +142,11 @@ Console.WriteLine("\n[Step 2] Expense Categories...");
 if (!db.ExpenseCategories.Any())
 {
     db.ExpenseCategories.AddRange(
-        new ExpenseCategory { Name = "Utilities",  DefaultExpenseAccount_ID = expAccId, IsActive = true, CreatedAt = DateTime.Now, CreatedBy = 1 },
-        new ExpenseCategory { Name = "Rent",        DefaultExpenseAccount_ID = expAccId, IsActive = true, CreatedAt = DateTime.Now, CreatedBy = 1 },
-        new ExpenseCategory { Name = "Salaries",    DefaultExpenseAccount_ID = expAccId, IsActive = true, CreatedAt = DateTime.Now, CreatedBy = 1 },
-        new ExpenseCategory { Name = "Transport",   DefaultExpenseAccount_ID = expAccId, IsActive = true, CreatedAt = DateTime.Now, CreatedBy = 1 },
-        new ExpenseCategory { Name = "Marketing",   DefaultExpenseAccount_ID = expAccId, IsActive = true, CreatedAt = DateTime.Now, CreatedBy = 1 }
+        new ExpenseCategory { Name = "Utilities",  DefaultExpenseAccount_ID = expAccId, IsActive = true, CreatedAt = AppTime.Now, CreatedBy = 1 },
+        new ExpenseCategory { Name = "Rent",        DefaultExpenseAccount_ID = expAccId, IsActive = true, CreatedAt = AppTime.Now, CreatedBy = 1 },
+        new ExpenseCategory { Name = "Salaries",    DefaultExpenseAccount_ID = expAccId, IsActive = true, CreatedAt = AppTime.Now, CreatedBy = 1 },
+        new ExpenseCategory { Name = "Transport",   DefaultExpenseAccount_ID = expAccId, IsActive = true, CreatedAt = AppTime.Now, CreatedBy = 1 },
+        new ExpenseCategory { Name = "Marketing",   DefaultExpenseAccount_ID = expAccId, IsActive = true, CreatedAt = AppTime.Now, CreatedBy = 1 }
     );
     await db.SaveChangesAsync();
     Console.WriteLine("  ExpenseCategories: 5 added");
@@ -177,7 +177,7 @@ if (existingProductCount < productCount)
             OpeningPrice = RandDec(10, 500), OpeningQuantity = rng.Next(50, 1000),
             ReorderLevel = rng.Next(10, 50),
             UnitsInPack = packSizes[rng.Next(packSizes.Length)],
-            IsActive = true, CreatedAt = DateTime.Now, CreatedBy = 1
+            IsActive = true, CreatedAt = AppTime.Now, CreatedBy = 1
         });
     }
     await SaveBatch(prods, "Products");
@@ -208,7 +208,7 @@ if (existingPartyCount < targetPartyCount)
             IsWholeSale = i % 5 == 0,
             CreditLimit = RandDec(10000, 200000),
             Account_ID = arAccId,
-            IsActive = true, CreatedAt = DateTime.Now, CreatedBy = 1
+            IsActive = true, CreatedAt = AppTime.Now, CreatedBy = 1
         });
 
     for (int i = existingSupps + 1; i <= existingSupps + addSupps; i++)
@@ -216,7 +216,7 @@ if (existingPartyCount < targetPartyCount)
             Name = $"Test Supplier {i:D4}", PartyType = "Supplier",
             Phone = $"03{rng.Next(100000000, 999999999)}",
             Account_ID = apAccId,
-            IsActive = true, CreatedAt = DateTime.Now, CreatedBy = 1
+            IsActive = true, CreatedAt = AppTime.Now, CreatedBy = 1
         });
 
     if (partiesToAdd.Count > 0)
@@ -420,7 +420,7 @@ var unpaidSales = db.StockMains
 var receipts = new List<Payment>();
 foreach (var sale in unpaidSales)
 {
-    var pDate  = DateTime.Now.AddDays(-rng.Next(0, 60));
+    var pDate  = AppTime.Now.AddDays(-rng.Next(0, 60));
     var method = rng.Next(0, 2) == 0 ? "Cash" : "Bank";
     // Receipt Double-Entry:
     //   DR: Cash/Bank Account    — money received

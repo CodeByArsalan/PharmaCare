@@ -59,7 +59,7 @@ public class PurchaseController : BaseController
         // await LoadDropdownsAsync(); // REMOVED
         return View(new StockMain
         {
-            TransactionDate = DateTime.Now,
+            TransactionDate = AppTime.Now,
             StockDetails = new List<StockDetail> { new StockDetail() }
         });
     }

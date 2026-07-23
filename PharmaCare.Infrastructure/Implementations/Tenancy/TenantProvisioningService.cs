@@ -66,7 +66,7 @@ public class TenantProvisioningService : ITenantProvisioningService
                 Phone = request.Phone,
                 Address = request.Address,
                 IsActive = true,
-                CreatedAt = DateTime.Now,
+                CreatedAt = AppTime.Now,
                 CreatedBy = actingUserId
             };
             _context.Pharmacies.Add(pharmacy);
@@ -90,7 +90,7 @@ public class TenantProvisioningService : ITenantProvisioningService
                     IsActive = true,
                     Pharmacy_ID = pharmacy.PharmacyID,
                     IsPlatformAdmin = false,
-                    CreatedAt = DateTime.Now,
+                    CreatedAt = AppTime.Now,
                     CreatedBy = actingUserId
                 };
 
@@ -169,7 +169,7 @@ public class TenantProvisioningService : ITenantProvisioningService
             AccountType_ID = Type(typeCode),
             IsSystemAccount = true,
             IsActive = true,
-            CreatedAt = DateTime.Now,
+            CreatedAt = AppTime.Now,
             CreatedBy = userId
         };
 
@@ -190,29 +190,29 @@ public class TenantProvisioningService : ITenantProvisioningService
     private void SeedPriceTypesAndSettings(int userId)
     {
         _context.PriceTypes.AddRange(
-            new PriceType { PriceTypeName = "Retail", IsActive = true, CreatedAt = DateTime.Now, CreatedBy = userId },
-            new PriceType { PriceTypeName = "Wholesale", IsActive = true, CreatedAt = DateTime.Now, CreatedBy = userId });
+            new PriceType { PriceTypeName = "Retail", IsActive = true, CreatedAt = AppTime.Now, CreatedBy = userId },
+            new PriceType { PriceTypeName = "Wholesale", IsActive = true, CreatedAt = AppTime.Now, CreatedBy = userId });
 
         _context.ProfitSettings.Add(new ProfitSettings
         {
             RetailProfitPercent = 20m,
             WholesaleProfitPercent = 10m,
             PriceRoundingStep = 1.00m,
-            UpdatedAt = DateTime.Now,
+            UpdatedAt = AppTime.Now,
             UpdatedBy = userId
         });
     }
 
     private void SeedFinancialPeriod(int userId)
     {
-        var year = DateTime.Now.Year;
+        var year = AppTime.Now.Year;
         _context.FinancialPeriods.Add(new FinancialPeriod
         {
             Name = $"FY {year}",
             StartDate = new DateTime(year, 1, 1),
             EndDate = new DateTime(year, 12, 31),
             IsClosed = false,
-            CreatedAt = DateTime.Now,
+            CreatedAt = AppTime.Now,
             CreatedBy = userId
         });
     }
@@ -225,7 +225,7 @@ public class TenantProvisioningService : ITenantProvisioningService
             Description = "Full access to all pharmacy functions.",
             IsSystemRole = true,
             IsActive = true,
-            CreatedAt = DateTime.Now,
+            CreatedAt = AppTime.Now,
             CreatedBy = userId
         };
         _context.Roles_Custom.Add(adminRole);

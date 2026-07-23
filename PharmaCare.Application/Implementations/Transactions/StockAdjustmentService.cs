@@ -112,7 +112,7 @@ public class StockAdjustmentService : TransactionServiceBase, IStockAdjustmentSe
             adjustment.TransactionType_ID = transactionType.TransactionTypeID;
             adjustment.TransactionNo = await GenerateTransactionNoAsync(PREFIX);
             adjustment.Status = "Approved";
-            adjustment.CreatedAt = DateTime.Now;
+            adjustment.CreatedAt = AppTime.Now;
             adjustment.CreatedBy = userId;
 
             // Fetch current stock, costs, and categories
@@ -208,7 +208,7 @@ public class StockAdjustmentService : TransactionServiceBase, IStockAdjustmentSe
                     Status = "Posted",
                     SourceTable = "StockMain",
                     Narration = $"Stock {adjustment.AdjustmentType}: {adjustment.AdjustmentReason} ({adjustment.TransactionNo})",
-                    CreatedAt = DateTime.Now,
+                    CreatedAt = AppTime.Now,
                     CreatedBy = userId,
                     VoucherDetails = voucherDetails
                 };
@@ -261,9 +261,9 @@ public class StockAdjustmentService : TransactionServiceBase, IStockAdjustmentSe
 
             adj.Status = "Void";
             adj.VoidReason = reason.Trim();
-            adj.VoidedAt = DateTime.Now;
+            adj.VoidedAt = AppTime.Now;
             adj.VoidedBy = userId;
-            adj.UpdatedAt = DateTime.Now;
+            adj.UpdatedAt = AppTime.Now;
             adj.UpdatedBy = userId;
             _stockMainRepository.Update(adj);
 

@@ -51,7 +51,7 @@ public class HomeController : BaseController
             // 1. Fetch today's sales summary
             if (vm.CanViewSales || vm.CanViewFinancials)
             {
-                var dailySummary = await _salesReportService.GetDailySalesSummaryAsync(DateTime.Today);
+                var dailySummary = await _salesReportService.GetDailySalesSummaryAsync(AppTime.Today);
                 vm.TodaySalesSummary = dailySummary;
                 vm.TodaySales = dailySummary.TotalSales;
                 vm.TodayOrders = dailySummary.TransactionCount;
@@ -64,7 +64,7 @@ public class HomeController : BaseController
             // 2. Fetch weekly sales and purchases for chart
             if (vm.CanViewFinancials)
             {
-                var weekFilter = new DateRangeFilter { FromDate = DateTime.Today.AddDays(-6), ToDate = DateTime.Today };
+                var weekFilter = new DateRangeFilter { FromDate = AppTime.Today.AddDays(-6), ToDate = AppTime.Today };
                 var weeklyReport = await _salesReportService.GetSalesReportAsync(weekFilter);
                 var weeklyPurchaseReport = await _purchaseReportService.GetPurchaseReportAsync(weekFilter);
                 
@@ -79,7 +79,7 @@ public class HomeController : BaseController
                     .ToList();
 
                 var last7Days = Enumerable.Range(0, 7)
-                    .Select(i => DateTime.Today.AddDays(-6 + i))
+                    .Select(i => AppTime.Today.AddDays(-6 + i))
                     .ToList();
 
                 var chartLabels = last7Days.Select(d => d.ToString("ddd")).ToList();
@@ -108,7 +108,7 @@ public class HomeController : BaseController
             // 5. Fetch Top 5 Products by Revenue (This Month)
             if (vm.CanViewSales || vm.CanViewFinancials)
             {
-                var monthFilter = new DateRangeFilter { FromDate = new DateTime(DateTime.Today.Year, DateTime.Today.Month, 1), ToDate = DateTime.Today };
+                var monthFilter = new DateRangeFilter { FromDate = new DateTime(AppTime.Today.Year, AppTime.Today.Month, 1), ToDate = AppTime.Today };
                 var salesByProduct = await _salesReportService.GetSalesByProductAsync(monthFilter);
                 vm.TopProducts = salesByProduct.Rows.OrderByDescending(r => r.Revenue).Take(5).ToList();
                 
@@ -119,7 +119,7 @@ public class HomeController : BaseController
             // 6. Fetch Customer Outstanding Balance Summary
             if (vm.CanViewFinancials)
             {
-                var customerBalances = await _salesReportService.GetCustomerBalanceSummaryAsync(DateTime.Today);
+                var customerBalances = await _salesReportService.GetCustomerBalanceSummaryAsync(AppTime.Today);
                 vm.TopOutstandingCustomers = customerBalances.Rows.OrderByDescending(r => r.BalanceDue).Take(5).ToList();
                 
                 vm.TopCustomersLabelsJson = System.Text.Json.JsonSerializer.Serialize(vm.TopOutstandingCustomers.Select(c => c.CustomerName));
@@ -129,7 +129,7 @@ public class HomeController : BaseController
             // 7. Today's Profit/Loss and Cash Flow
             if (vm.CanViewFinancials)
             {
-                var todayFilter = new DateRangeFilter { FromDate = DateTime.Today, ToDate = DateTime.Today };
+                var todayFilter = new DateRangeFilter { FromDate = AppTime.Today, ToDate = AppTime.Today };
                 vm.TodayProfitLoss = await _financialReportService.GetProfitLossAsync(todayFilter);
                 vm.TodayCashFlow = await _financialReportService.GetCashFlowReportAsync(todayFilter);
             }
@@ -160,11 +160,11 @@ public class HomeController : BaseController
         }
 
         var filter = new DateRangeFilter();
-        if (period == "7d") { filter.FromDate = DateTime.Today.AddDays(-6); filter.ToDate = DateTime.Today; }
-        else if (period == "30d") { filter.FromDate = DateTime.Today.AddDays(-29); filter.ToDate = DateTime.Today; }
-        else if (period == "month") { filter.FromDate = new DateTime(DateTime.Today.Year, DateTime.Today.Month, 1); filter.ToDate = DateTime.Today; }
-        else if (period == "year") { filter.FromDate = new DateTime(DateTime.Today.Year, 1, 1); filter.ToDate = DateTime.Today; }
-        else { filter.FromDate = DateTime.Today.AddDays(-6); filter.ToDate = DateTime.Today; }
+        if (period == "7d") { filter.FromDate = AppTime.Today.AddDays(-6); filter.ToDate = AppTime.Today; }
+        else if (period == "30d") { filter.FromDate = AppTime.Today.AddDays(-29); filter.ToDate = AppTime.Today; }
+        else if (period == "month") { filter.FromDate = new DateTime(AppTime.Today.Year, AppTime.Today.Month, 1); filter.ToDate = AppTime.Today; }
+        else if (period == "year") { filter.FromDate = new DateTime(AppTime.Today.Year, 1, 1); filter.ToDate = AppTime.Today; }
+        else { filter.FromDate = AppTime.Today.AddDays(-6); filter.ToDate = AppTime.Today; }
 
         var salesReport = await _salesReportService.GetSalesReportAsync(filter);
         var purchaseReport = await _purchaseReportService.GetPurchaseReportAsync(filter);

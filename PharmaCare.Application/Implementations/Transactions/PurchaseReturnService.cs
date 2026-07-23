@@ -148,7 +148,7 @@ public class PurchaseReturnService : TransactionServiceBase, IPurchaseReturnServ
             purchaseReturn.TransactionNo = await GenerateTransactionNoAsync(PREFIX);
             purchaseReturn.Status = "Approved"; // Returns are immediately approved (stock impact)
             purchaseReturn.PaymentStatus = "Unpaid";
-            purchaseReturn.CreatedAt = DateTime.Now;
+            purchaseReturn.CreatedAt = AppTime.Now;
             purchaseReturn.CreatedBy = userId;
 
             // Calculate totals
@@ -238,7 +238,7 @@ public class PurchaseReturnService : TransactionServiceBase, IPurchaseReturnServ
             SourceTable = "StockMain",
             SourceID = purchaseReturn.StockMainID,
             Narration = $"Purchase return to {supplier.Name}. Return: {purchaseReturn.TransactionNo}",
-            CreatedAt = DateTime.Now,
+            CreatedAt = AppTime.Now,
             CreatedBy = userId
         };
 
@@ -368,7 +368,7 @@ public class PurchaseReturnService : TransactionServiceBase, IPurchaseReturnServ
 
         purchaseReturn.Status = "Void";
         purchaseReturn.VoidReason = reason;
-        purchaseReturn.VoidedAt = DateTime.Now;
+        purchaseReturn.VoidedAt = AppTime.Now;
         purchaseReturn.VoidedBy = userId;
 
         // Create reversal voucher if original voucher exists

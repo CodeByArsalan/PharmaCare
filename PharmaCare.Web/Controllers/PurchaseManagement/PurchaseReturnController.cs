@@ -48,7 +48,7 @@ public class PurchaseReturnController : BaseController
         //await LoadDropdownsAsync();
         return View(new StockMain
         {
-            TransactionDate = DateTime.Now,
+            TransactionDate = AppTime.Now,
             StockDetails = new List<StockDetail> { new StockDetail() }
         });
     }

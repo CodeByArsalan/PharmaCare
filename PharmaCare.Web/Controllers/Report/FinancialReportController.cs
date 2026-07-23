@@ -33,14 +33,14 @@ public class FinancialReportController : BaseController
 
     public async Task<IActionResult> ReceivablesAging(DateTime? asOfDate)
     {
-        var date = asOfDate ?? DateTime.Today;
+        var date = asOfDate ?? AppTime.Today;
         var vm = await _financialReportService.GetReceivablesAgingAsync(date);
         return View(vm);
     }
 
     public async Task<IActionResult> PayablesAging(DateTime? asOfDate)
     {
-        var date = asOfDate ?? DateTime.Today;
+        var date = asOfDate ?? AppTime.Today;
         var vm = await _financialReportService.GetPayablesAgingAsync(date);
         return View(vm);
     }
@@ -54,7 +54,7 @@ public class FinancialReportController : BaseController
 
     public async Task<IActionResult> TrialBalance(DateTime? asOfDate)
     {
-        var date = asOfDate ?? DateTime.Today;
+        var date = asOfDate ?? AppTime.Today;
         var vm = await _financialReportService.GetTrialBalanceAsync(date);
         return View(vm);
     }

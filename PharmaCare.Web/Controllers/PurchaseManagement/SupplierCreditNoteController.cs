@@ -30,7 +30,7 @@ public class SupplierCreditNoteController : BaseController
 
     public IActionResult AddSupplierCreditNote()
     {
-        return View(new SupplierCreditNote { CreditDate = DateTime.Today });
+        return View(new SupplierCreditNote { CreditDate = AppTime.Today });
     }
 
     [HttpPost]

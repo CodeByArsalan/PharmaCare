@@ -16,7 +16,7 @@ public class JournalVoucherViewModel
     [Required]
     [DataType(DataType.Date)]
     [Display(Name = "Voucher Date")]
-    public DateTime VoucherDate { get; set; } = DateTime.Today;
+    public DateTime VoucherDate { get; set; } = AppTime.Today;
 
     [Required]
     [StringLength(500)]

@@ -163,7 +163,7 @@ public class ProductService : IProductService
 
     public async Task<Product> CreateAsync(Product product, int userId)
     {
-        product.CreatedAt = DateTime.Now;
+        product.CreatedAt = AppTime.Now;
         product.CreatedBy = userId;
         product.IsActive = true;
 
@@ -199,7 +199,7 @@ public class ProductService : IProductService
         existing.ReorderLevel = product.ReorderLevel;
         existing.UnitsInPack = product.UnitsInPack;
         existing.IsActive = product.IsActive;
-        existing.UpdatedAt = DateTime.Now;
+        existing.UpdatedAt = AppTime.Now;
         existing.UpdatedBy = userId;
 
         _repository.Update(existing);
@@ -226,7 +226,7 @@ public class ProductService : IProductService
             return false;
 
         product.IsActive = !product.IsActive;
-        product.UpdatedAt = DateTime.Now;
+        product.UpdatedAt = AppTime.Now;
         product.UpdatedBy = userId;
 
         _repository.Update(product);
@@ -322,7 +322,7 @@ public class ProductService : IProductService
             .Where(h => h.Product_ID == productId && h.EffectiveTo == null)
             .ToListAsync();
 
-        var now = DateTime.Now;
+        var now = AppTime.Now;
 
         foreach (var priceDto in prices)
         {

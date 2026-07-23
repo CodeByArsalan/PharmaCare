@@ -56,7 +56,7 @@ public class ActivityLogService : IActivityLogService
             NewValues = newValues,
             IpAddress = httpContext?.Connection?.RemoteIpAddress?.ToString(),
             UserAgent = GetUserAgent(httpContext),
-            Timestamp = DateTime.Now,
+            Timestamp = AppTime.Now,
             Description = description ?? GenerateDescription(activityType, entityName, entityId),
             StoreId = null,
             Pharmacy_ID = _currentTenant.TenantId
@@ -162,7 +162,7 @@ public class ActivityLogService : IActivityLogService
         if (toDate.HasValue)
             query = query.Where(l => l.Timestamp <= toDate.Value);
 
-        var today = DateTime.Today;
+        var today = AppTime.Today;
 
         var summary = new ActivityLogSummary
         {

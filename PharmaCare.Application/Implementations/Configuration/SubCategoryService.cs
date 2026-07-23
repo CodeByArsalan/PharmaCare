@@ -39,7 +39,7 @@ public class SubCategoryService : ISubCategoryService
 
     public async Task<SubCategory> CreateAsync(SubCategory subCategory, int userId)
     {
-        subCategory.CreatedAt = DateTime.Now;
+        subCategory.CreatedAt = AppTime.Now;
         subCategory.CreatedBy = userId;
         subCategory.IsActive = true;
 
@@ -58,7 +58,7 @@ public class SubCategoryService : ISubCategoryService
         existing.Name = subCategory.Name;
         existing.Category_ID = subCategory.Category_ID;
         existing.IsActive = subCategory.IsActive;
-        existing.UpdatedAt = DateTime.Now;
+        existing.UpdatedAt = AppTime.Now;
         existing.UpdatedBy = userId;
 
         _repository.Update(existing);
@@ -74,7 +74,7 @@ public class SubCategoryService : ISubCategoryService
             return false;
 
         subCategory.IsActive = !subCategory.IsActive;
-        subCategory.UpdatedAt = DateTime.Now;
+        subCategory.UpdatedAt = AppTime.Now;
         subCategory.UpdatedBy = userId;
 
         _repository.Update(subCategory);

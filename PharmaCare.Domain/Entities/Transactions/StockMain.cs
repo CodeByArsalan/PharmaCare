@@ -32,7 +32,7 @@ public class StockMain : BaseEntity, ITenantEntity
     [StringLength(50)]
     public string TransactionNo { get; set; } = string.Empty;
 
-    public DateTime TransactionDate { get; set; } = DateTime.Now;
+    public DateTime TransactionDate { get; set; } = AppTime.Now;
 
     // ========== PARTY ==========
     [ForeignKey("Party")]

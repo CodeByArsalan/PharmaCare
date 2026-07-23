@@ -201,7 +201,7 @@ public class InventoryReportService : IInventoryReportService
     public async Task<DeadStockReportVM> GetDeadStockReportAsync(DateRangeFilter filter)
     {
         var thresholdDays = filter.ThresholdDays ?? 30;
-        var cutoffDate = DateTime.Today.AddDays(-thresholdDays);
+        var cutoffDate = AppTime.Today.AddDays(-thresholdDays);
 
         // Get current stock first
         var stockReport = await GetCurrentStockReportAsync(filter);
@@ -220,7 +220,7 @@ public class InventoryReportService : IInventoryReportService
             .Select(r =>
             {
                 var found = lastSaleDates.TryGetValue(r.ProductId, out var lastDate);
-                var daysSince = found ? (int)(DateTime.Today - lastDate).TotalDays : 9999;
+                var daysSince = found ? (int)(AppTime.Today - lastDate).TotalDays : 9999;
                 return new DeadStockRow
                 {
                     ProductId = r.ProductId,

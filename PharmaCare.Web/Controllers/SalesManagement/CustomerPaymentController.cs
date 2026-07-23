@@ -98,7 +98,7 @@ public class CustomerPaymentController : BaseController
             StockMain_ID = id,
             Party_ID = sale.Party_ID.Value,
             Amount = sale.BalanceAmount,
-            PaymentDate = DateTime.Now,
+            PaymentDate = AppTime.Now,
             PaymentMethod = "Cash"
         });
     }
@@ -303,7 +303,7 @@ public class CustomerPaymentController : BaseController
         // Custom dropdown loading removed - use IComboboxRepository in View
         return View(new Payment
         {
-            PaymentDate = DateTime.Now,
+            PaymentDate = AppTime.Now,
             PaymentMethod = "Cash"
         });
     }

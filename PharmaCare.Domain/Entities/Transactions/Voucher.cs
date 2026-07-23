@@ -27,7 +27,7 @@ public class Voucher : ITenantEntity
     [StringLength(50)]
     public string VoucherNo { get; set; } = string.Empty;
 
-    public DateTime VoucherDate { get; set; } = DateTime.Now;
+    public DateTime VoucherDate { get; set; } = AppTime.Now;
 
 
     // ========== TOTALS (must balance) ==========
@@ -77,7 +77,7 @@ public class Voucher : ITenantEntity
     public Voucher? ReversesVoucher { get; set; }
 
     // ========== AUDIT ==========
-    public DateTime CreatedAt { get; set; } = DateTime.Now;
+    public DateTime CreatedAt { get; set; } = AppTime.Now;
     public int CreatedBy { get; set; }
 
     // ========== NAVIGATION ==========

@@ -35,7 +35,7 @@ public class StockDetailCreateRequest
 public class SaleCreateRequest
 {
     [DataType(DataType.Date)]
-    public DateTime TransactionDate { get; set; } = DateTime.Now;
+    public DateTime TransactionDate { get; set; } = AppTime.Now;
 
     public int? Party_ID { get; set; }
     public int? PriceTypeId { get; set; }
@@ -70,7 +70,7 @@ public class PurchaseCreateRequest
     public byte[]? RowVersion { get; set; }
 
     [DataType(DataType.Date)]
-    public DateTime TransactionDate { get; set; } = DateTime.Now;
+    public DateTime TransactionDate { get; set; } = AppTime.Now;
 
     public int? Party_ID { get; set; }
 
@@ -97,7 +97,7 @@ public class PurchaseOrderCreateRequest
     public int StockMainID { get; set; }
 
     [DataType(DataType.Date)]
-    public DateTime TransactionDate { get; set; } = DateTime.Now;
+    public DateTime TransactionDate { get; set; } = AppTime.Now;
 
     public int? Party_ID { get; set; }
 
@@ -117,7 +117,7 @@ public class PurchaseOrderCreateRequest
 public class PurchaseReturnCreateRequest
 {
     [DataType(DataType.Date)]
-    public DateTime TransactionDate { get; set; } = DateTime.Now;
+    public DateTime TransactionDate { get; set; } = AppTime.Now;
 
     public int? Party_ID { get; set; }
 

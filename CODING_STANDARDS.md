@@ -48,13 +48,12 @@ Services are located in `PharmaCare.Application.Implementations.<Module>`.
   - `CreateAsync(Entity entity, int userId)`: Sets audit fields (`CreatedBy`, `CreatedAt`) and saves via `_unitOfWork`.
   - `UpdateAsync(Entity entity, int userId)`: Updates specific fields, sets `UpdatedAt/By`, and saves.
   - `ToggleStatusAsync(int id, int userId)`: Toggles `IsActive` instead of hard delete.
-- **Timestamps**: `DateTime.Now` (server local time) is the convention for ALL timestamps —
-  audit fields, transaction dates, and the `yyyyMMdd` part of document numbers.
-  ⚠ CONSTRAINT: this assumes the server and every pharmacy share ONE timezone (deployment
-  target undecided as of 2026-07). If production ever hosts in a different region or serves
-  pharmacies across timezones, migrate to UTC storage BEFORE launch there — converting
-  accumulated local-time data later is ambiguous and painful. Do not mix `DateTime.UtcNow`
-  into isolated spots; the value of this convention is its consistency.
+- **Timestamps**: `AppTime.Now` / `AppTime.Today` (NEVER `DateTime.Now`/`DateTime.Today`) for
+  ALL timestamps — audit fields, transaction dates, report "today", and the `yyyyMMdd` part of
+  document numbers. `AppTime` (in `PharmaCare.Domain`) is pinned to the business timezone —
+  Pakistan time (`Asia/Karachi`), configurable via the `AppTime:TimeZone` setting — so behaviour
+  is identical no matter where the server is hosted. `DateTime.UtcNow` appears ONLY inside
+  `AppTime` itself. Stored values are Pakistan wall-clock time (Kind = Unspecified).
 
 **Example:**
 ```csharp
@@ -71,7 +70,7 @@ public class PartyService : IPartyService
 
     public async Task<Party> CreateAsync(Party party, int userId)
     {
-        party.CreatedAt = DateTime.Now;
+        party.CreatedAt = AppTime.Now;
         party.CreatedBy = userId;
         party.IsActive = true;
         await _repository.AddAsync(party);

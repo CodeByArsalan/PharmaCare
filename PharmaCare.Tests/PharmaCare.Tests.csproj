@@ -1,4 +1,4 @@
-<Project Sdk="Microsoft.NET.Sdk">
+﻿<Project Sdk="Microsoft.NET.Sdk">
 
   <PropertyGroup>
     <TargetFramework>net8.0</TargetFramework>
@@ -23,6 +23,10 @@
   <ItemGroup>
     <ProjectReference Include="..\PharmaCare.Application\PharmaCare.Application.csproj" />
     <ProjectReference Include="..\PharmaCare.Domain\PharmaCare.Domain.csproj" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <Using Include="PharmaCare.Domain" />
   </ItemGroup>
 
 </Project>

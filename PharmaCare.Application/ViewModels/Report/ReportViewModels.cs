@@ -11,11 +11,11 @@ public class DateRangeFilter
 {
     [Display(Name = "From Date")]
     [DataType(DataType.Date)]
-    public DateTime FromDate { get; set; } = DateTime.Today.AddMonths(-1);
+    public DateTime FromDate { get; set; } = AppTime.Today.AddMonths(-1);
 
     [Display(Name = "To Date")]
     [DataType(DataType.Date)]
-    public DateTime ToDate { get; set; } = DateTime.Today;
+    public DateTime ToDate { get; set; } = AppTime.Today;
 
     public int? CategoryId { get; set; }
     public int? SubCategoryId { get; set; }
@@ -35,7 +35,7 @@ public class DateRangeFilter
 /// </summary>
 public class DailySalesSummaryVM
 {
-    public DateTime Date { get; set; } = DateTime.Today;
+    public DateTime Date { get; set; } = AppTime.Today;
     public decimal TotalSales { get; set; }
     public decimal TotalReturns { get; set; }
     public decimal NetSales { get; set; }
@@ -342,7 +342,7 @@ public class DailyCashFlowData
 /// </summary>
 public class ReceivablesAgingVM
 {
-    public DateTime AsOfDate { get; set; } = DateTime.Today;
+    public DateTime AsOfDate { get; set; } = AppTime.Today;
     public List<AgingRow> Rows { get; set; } = new();
     public decimal TotalCurrent { get; set; }
     public decimal Total31_60 { get; set; }
@@ -356,7 +356,7 @@ public class ReceivablesAgingVM
 /// </summary>
 public class PayablesAgingVM
 {
-    public DateTime AsOfDate { get; set; } = DateTime.Today;
+    public DateTime AsOfDate { get; set; } = AppTime.Today;
     public List<AgingRow> Rows { get; set; } = new();
     public decimal TotalCurrent { get; set; }
     public decimal Total31_60 { get; set; }
@@ -404,7 +404,7 @@ public class ExpenseReportRow
 /// </summary>
 public class TrialBalanceVM
 {
-    public DateTime AsOfDate { get; set; } = DateTime.Today;
+    public DateTime AsOfDate { get; set; } = AppTime.Today;
     public List<TrialBalanceRow> Rows { get; set; } = new();
     public decimal TotalDebit { get; set; }
     public decimal TotalCredit { get; set; }
@@ -479,7 +479,7 @@ public class PartyLedgerRow
 /// </summary>
 public class CustomerBalanceSummaryVM
 {
-    public DateTime AsOfDate { get; set; } = DateTime.Today;
+    public DateTime AsOfDate { get; set; } = AppTime.Today;
     public List<CustomerBalanceRow> Rows { get; set; } = new();
     public decimal TotalSales { get; set; }
     public decimal TotalReceipts { get; set; }

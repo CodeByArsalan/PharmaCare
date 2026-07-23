@@ -43,7 +43,7 @@ public class CategoryService : ICategoryService
 
     public async Task<Category> CreateAsync(Category category, int userId)
     {
-        category.CreatedAt = DateTime.Now;
+        category.CreatedAt = AppTime.Now;
         category.CreatedBy = userId;
         category.IsActive = true;
 
@@ -65,7 +65,7 @@ public class CategoryService : ICategoryService
         existing.COGSAccount_ID = category.COGSAccount_ID;
         existing.DamageAccount_ID = category.DamageAccount_ID;
         existing.IsActive = category.IsActive;
-        existing.UpdatedAt = DateTime.Now;
+        existing.UpdatedAt = AppTime.Now;
         existing.UpdatedBy = userId;
 
         _repository.Update(existing);
@@ -81,7 +81,7 @@ public class CategoryService : ICategoryService
             return false;
 
         category.IsActive = !category.IsActive;
-        category.UpdatedAt = DateTime.Now;
+        category.UpdatedAt = AppTime.Now;
         category.UpdatedBy = userId;
 
         _repository.Update(category);

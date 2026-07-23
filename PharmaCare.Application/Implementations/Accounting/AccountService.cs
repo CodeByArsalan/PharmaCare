@@ -49,7 +49,7 @@ public class AccountService : IAccountService
 
     public async Task<Account> CreateAsync(Account account, int userId)
     {
-        account.CreatedAt = DateTime.Now;
+        account.CreatedAt = AppTime.Now;
         account.CreatedBy = userId;
         account.IsActive = true; 
 
@@ -73,7 +73,7 @@ public class AccountService : IAccountService
         // Based on CategoryService, UpdateAsync includes IsActive update.
         existing.IsActive = account.IsActive; 
         
-        existing.UpdatedAt = DateTime.Now;
+        existing.UpdatedAt = AppTime.Now;
         existing.UpdatedBy = userId;
 
         _repository.Update(existing);
@@ -87,7 +87,7 @@ public class AccountService : IAccountService
         if (account == null) return false;
 
         account.IsActive = !account.IsActive;
-        account.UpdatedAt = DateTime.Now;
+        account.UpdatedAt = AppTime.Now;
         account.UpdatedBy = userId;
 
         _repository.Update(account);

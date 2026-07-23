@@ -233,6 +233,10 @@ Utility.Initialize(app.Services.GetRequiredService<IDataProtectionProvider>());
 // Wire the display currency (symbol/code) from the "Currency" config section.
 CurrencyDisplay.Initialize(app.Configuration);
 
+// Pin the business clock (AppTime.Now/Today) to the configured timezone — Pakistan time by
+// default — so timestamps and daily document numbers do not shift with the server's OS clock.
+AppTime.Initialize(app.Configuration["AppTime:TimeZone"]);
+
 // Security response headers applied to every response.
 // In Development, connect-src is relaxed to allow Visual Studio's Browser Link / hot-reload
 // (ws/wss + localhost) and CDN sourcemaps; production keeps the strict "connect-src 'self'".

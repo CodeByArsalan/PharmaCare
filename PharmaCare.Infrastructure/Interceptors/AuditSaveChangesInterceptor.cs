@@ -228,7 +228,7 @@ public class AuditSaveChangesInterceptor : SaveChangesInterceptor
                 NewValues = auditEntry.NewValues,
                 IpAddress = auditEntry.IpAddress,
                 UserAgent = auditEntry.UserAgent,
-                Timestamp = DateTime.Now,
+                Timestamp = AppTime.Now,
                 StoreId = auditEntry.StoreId,
                 Pharmacy_ID = auditEntry.Pharmacy_ID,
                 Description = GenerateDescription(auditEntry)

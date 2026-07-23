@@ -6,6 +6,10 @@
     <ProjectReference Include="..\PharmaCare.Domain\PharmaCare.Domain.csproj" />
   </ItemGroup>
 
+  <ItemGroup>
+    <Using Include="PharmaCare.Domain" />
+  </ItemGroup>
+
   <!-- EF Core SqlServer and Microsoft.Extensions.DependencyInjection flow transitively
        (at the solution-wide 8.0.x versions) through the Infrastructure project reference —
        do not pin cross-major versions here. -->

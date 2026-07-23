@@ -13,5 +13,5 @@ public static class UniqueIdGenerator
     /// <param name="prefix">The prefix for the identifier (e.g., "GRN", "PO", "S")</param>
     /// <returns>A unique identifier string</returns>
     public static string Generate(string prefix)
-        => $"{prefix}-{DateTime.Now:yyyyMMddHHmmssfff}";
+        => $"{prefix}-{AppTime.Now:yyyyMMddHHmmssfff}";
 }

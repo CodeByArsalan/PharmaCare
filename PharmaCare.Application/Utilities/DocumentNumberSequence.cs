@@ -12,7 +12,7 @@ namespace PharmaCare.Application.Utilities;
 /// </summary>
 public static class DocumentNumberSequence
 {
-    public static string DatePrefix(string prefix) => $"{prefix}-{DateTime.Now:yyyyMMdd}-";
+    public static string DatePrefix(string prefix) => $"{prefix}-{AppTime.Now:yyyyMMdd}-";
 
     /// <summary>
     /// Serializes number generation for one date-prefix (per tenant) via a transaction-scoped

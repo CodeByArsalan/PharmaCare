@@ -50,7 +50,7 @@ public static class AccountingExtensions
         {
             VoucherType_ID = originalVoucher.VoucherType_ID,
             VoucherNo = $"REV-{originalVoucher.VoucherNo}",
-            VoucherDate = DateTime.Now,
+            VoucherDate = AppTime.Now,
             TotalDebit = originalVoucher.TotalCredit,
             TotalCredit = originalVoucher.TotalDebit,
             Status = "Posted",
@@ -58,7 +58,7 @@ public static class AccountingExtensions
             SourceID = sourceIdOverride ?? originalVoucher.SourceID,
             Narration = $"Reversal of {originalVoucher.VoucherNo} - Void: {reason}",
             ReversesVoucher_ID = originalVoucher.VoucherID,
-            CreatedAt = DateTime.Now,
+            CreatedAt = AppTime.Now,
             CreatedBy = userId
         };
 

@@ -156,7 +156,7 @@ public class SaleReturnService : TransactionServiceBase, ISaleReturnService
             saleReturn.TransactionType_ID = transactionType.TransactionTypeID;
             saleReturn.TransactionNo = await GenerateTransactionNoAsync(PREFIX);
             saleReturn.Status = "Approved";
-            saleReturn.CreatedAt = DateTime.Now;
+            saleReturn.CreatedAt = AppTime.Now;
             saleReturn.CreatedBy = userId;
             saleReturn.Party_ID = originalSale.Party_ID; // Same party as original sale
 
@@ -348,7 +348,7 @@ public class SaleReturnService : TransactionServiceBase, ISaleReturnService
             SourceTable = "StockMain",
             SourceID = saleReturn.StockMainID,
             Narration = $"Sale Return from {customerName}. Ref: {saleReturn.TransactionNo}",
-            CreatedAt = DateTime.Now,
+            CreatedAt = AppTime.Now,
             CreatedBy = userId,
             VoucherDetails = voucherDetails
         };
@@ -600,7 +600,7 @@ public class SaleReturnService : TransactionServiceBase, ISaleReturnService
             CreditDate = saleReturn.TransactionDate,
             Status = "Open",
             Remarks = $"Credit from sale return {saleReturn.TransactionNo}",
-            CreatedAt = DateTime.Now,
+            CreatedAt = AppTime.Now,
             CreatedBy = userId
         };
 
@@ -640,7 +640,7 @@ public class SaleReturnService : TransactionServiceBase, ISaleReturnService
         sale.PaymentStatus = sale.BalanceAmount <= 0
             ? "Paid"
             : (sale.PaidAmount > 0 ? "Partial" : "Unpaid");
-        sale.UpdatedAt = DateTime.Now;
+        sale.UpdatedAt = AppTime.Now;
         sale.UpdatedBy = userId;
     }
 
@@ -704,9 +704,9 @@ public class SaleReturnService : TransactionServiceBase, ISaleReturnService
 
                 creditNote.Status = "Void";
                 creditNote.VoidReason = $"Sale Return voided: {reason}";
-                creditNote.VoidedAt = DateTime.Now;
+                creditNote.VoidedAt = AppTime.Now;
                 creditNote.VoidedBy = userId;
-                creditNote.UpdatedAt = DateTime.Now;
+                creditNote.UpdatedAt = AppTime.Now;
                 creditNote.UpdatedBy = userId;
 
                 _creditNoteRepository.Update(creditNote);
@@ -714,7 +714,7 @@ public class SaleReturnService : TransactionServiceBase, ISaleReturnService
 
             saleReturn.Status = "Void";
             saleReturn.VoidReason = reason;
-            saleReturn.VoidedAt = DateTime.Now;
+            saleReturn.VoidedAt = AppTime.Now;
             saleReturn.VoidedBy = userId;
 
             // Create reversal voucher if original voucher exists

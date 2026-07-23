@@ -158,7 +158,7 @@ public class ExpenseService : IExpenseService
                 throw new InvalidOperationException("Expense amount exceeds sanity limit (100 Million).");
 
             // Set audit fields
-            expense.CreatedAt = DateTime.Now;
+            expense.CreatedAt = AppTime.Now;
             expense.CreatedBy = userId;
             expense.Status = TransactionStatus.Draft;
 
@@ -195,7 +195,7 @@ public class ExpenseService : IExpenseService
             expense.Voucher_ID = voucher.VoucherID;
             expense.Status = TransactionStatus.Approved;
             expense.ApprovedBy_ID = userId;
-            expense.ApprovedAt = DateTime.Now;
+            expense.ApprovedAt = AppTime.Now;
 
             _expenseRepository.Update(expense);
             await _unitOfWork.SaveChangesAsync();
@@ -241,7 +241,7 @@ public class ExpenseService : IExpenseService
 
             // Update status and audit fields
             expense.Status = TransactionStatus.Void;
-            expense.UpdatedAt = DateTime.Now;
+            expense.UpdatedAt = AppTime.Now;
             expense.UpdatedBy = userId;
             _expenseRepository.Update(expense);
 
@@ -274,7 +274,7 @@ public class ExpenseService : IExpenseService
 
     public async Task<ExpenseCategory> CreateCategoryAsync(ExpenseCategory category, int userId)
     {
-        category.CreatedAt = DateTime.Now;
+        category.CreatedAt = AppTime.Now;
         category.CreatedBy = userId;
         category.IsActive = true;
 
@@ -291,7 +291,7 @@ public class ExpenseService : IExpenseService
         existing.Name = category.Name;
         existing.Parent_ID = category.Parent_ID;
         existing.DefaultExpenseAccount_ID = category.DefaultExpenseAccount_ID;
-        existing.UpdatedAt = DateTime.Now;
+        existing.UpdatedAt = AppTime.Now;
         existing.UpdatedBy = userId;
 
         _categoryRepository.Update(existing);
@@ -305,7 +305,7 @@ public class ExpenseService : IExpenseService
         if (category == null) return;
 
         category.IsActive = !category.IsActive;
-        category.UpdatedAt = DateTime.Now;
+        category.UpdatedAt = AppTime.Now;
         category.UpdatedBy = userId;
 
         _categoryRepository.Update(category);
@@ -352,7 +352,7 @@ public class ExpenseService : IExpenseService
             SourceTable = "Expense",
             SourceID = expense.ExpenseID,
             Narration = $"Expense: {expense.Description ?? "N/A"}. Vendor: {expense.VendorName ?? "N/A"}. Ref: {expense.Reference ?? "N/A"}",
-            CreatedAt = DateTime.Now,
+            CreatedAt = AppTime.Now,
             CreatedBy = userId,
             VoucherDetails = new List<VoucherDetail>
             {
@@ -398,7 +398,7 @@ public class ExpenseService : IExpenseService
         {
             VoucherType_ID = reversalVoucherType.VoucherTypeID,
             VoucherNo = voucherNo,
-            VoucherDate = DateTime.Now,
+            VoucherDate = AppTime.Now,
             TotalDebit = originalVoucher.TotalCredit,
             TotalCredit = originalVoucher.TotalDebit,
             Status = "Posted",
@@ -406,7 +406,7 @@ public class ExpenseService : IExpenseService
             SourceID = originalVoucher.SourceID,
             Narration = $"REVERSAL of {originalVoucher.VoucherNo}. Reason: {reason}",
             ReversesVoucher_ID = originalVoucher.VoucherID,
-            CreatedAt = DateTime.Now,
+            CreatedAt = AppTime.Now,
             CreatedBy = userId,
             VoucherDetails = originalVoucher.VoucherDetails.Select(d => new VoucherDetail
             {
@@ -479,7 +479,7 @@ public class ExpenseService : IExpenseService
             {
                 existing.BudgetAmount = budgetDto.BudgetAmount;
                 existing.Remarks = budgetDto.Remarks;
-                existing.UpdatedAt = DateTime.Now;
+                existing.UpdatedAt = AppTime.Now;
                 existing.UpdatedBy = userId;
                 _budgetRepository.Update(existing);
             }
@@ -492,7 +492,7 @@ public class ExpenseService : IExpenseService
                     Month = month,
                     BudgetAmount = budgetDto.BudgetAmount,
                     Remarks = budgetDto.Remarks,
-                    CreatedAt = DateTime.Now,
+                    CreatedAt = AppTime.Now,
                     CreatedBy = userId
                 };
                 await _budgetRepository.AddAsync(newBudget);

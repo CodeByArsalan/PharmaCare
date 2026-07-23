@@ -189,7 +189,7 @@ public class PurchaseService : TransactionServiceBase, IPurchaseService
             purchase.TransactionType_ID = transactionType.TransactionTypeID;
             purchase.TransactionNo = await GenerateTransactionNoAsync(PREFIX);
             purchase.Status = "Approved"; // GRN is immediately approved (stock impact)
-            purchase.CreatedAt = DateTime.Now;
+            purchase.CreatedAt = AppTime.Now;
             purchase.CreatedBy = userId;
 
             // Calculate totals
@@ -246,7 +246,7 @@ public class PurchaseService : TransactionServiceBase, IPurchaseService
                     referencePo.PaidAmount = Math.Max(0, referencePo.PaidAmount - transferredFromPo);
                     referencePo.BalanceAmount = Math.Max(0, referencePo.TotalAmount - referencePo.PaidAmount);
                     referencePo.PaymentStatus = CalculatePaymentStatus(referencePo.PaidAmount, referencePo.BalanceAmount);
-                    referencePo.UpdatedAt = DateTime.Now;
+                    referencePo.UpdatedAt = AppTime.Now;
                     referencePo.UpdatedBy = userId;
                     _stockMainRepository.Update(referencePo);
                 }
@@ -387,7 +387,7 @@ public class PurchaseService : TransactionServiceBase, IPurchaseService
                     ChequeDate = payment.ChequeDate,
                     Remarks = transferNote,
                     Voucher_ID = transferredVoucherId,
-                    CreatedAt = DateTime.Now,
+                    CreatedAt = AppTime.Now,
                     CreatedBy = userId
                 };
 
@@ -450,7 +450,7 @@ public class PurchaseService : TransactionServiceBase, IPurchaseService
             SourceTable = "StockMain",
             SourceID = newSourceStockMainId,
             Narration = transferNote,
-            CreatedAt = DateTime.Now,
+            CreatedAt = AppTime.Now,
             CreatedBy = userId
         };
 
@@ -552,7 +552,7 @@ public class PurchaseService : TransactionServiceBase, IPurchaseService
             PaymentMethod = PaymentMethod.Adjustment.ToString(),
             Reference = paymentReference + "-ADJ",
             Remarks = $"Adjusted against Advance for {purchase.TransactionNo}",
-            CreatedAt = DateTime.Now,
+            CreatedAt = AppTime.Now,
             CreatedBy = userId
         };
 
@@ -617,7 +617,7 @@ public class PurchaseService : TransactionServiceBase, IPurchaseService
             SourceTable = "StockMain",
             SourceID = purchase.StockMainID,
             Narration = $"Purchase from {supplier.Name}. GRN: {purchase.TransactionNo}",
-            CreatedAt = DateTime.Now,
+            CreatedAt = AppTime.Now,
             CreatedBy = userId
         };
 
@@ -696,7 +696,7 @@ public class PurchaseService : TransactionServiceBase, IPurchaseService
             SourceTable = "StockMain",
             SourceID = purchase.StockMainID,
             Narration = $"Payment against purchase {purchase.TransactionNo} to {supplier.Name}",
-            CreatedAt = DateTime.Now,
+            CreatedAt = AppTime.Now,
             CreatedBy = userId,
             VoucherDetails = new List<VoucherDetail>
             {
@@ -735,7 +735,7 @@ public class PurchaseService : TransactionServiceBase, IPurchaseService
             Reference = paymentReference,
             Remarks = $"Initial payment for purchase {purchase.TransactionNo}",
             Voucher = voucher,
-            CreatedAt = DateTime.Now,
+            CreatedAt = AppTime.Now,
             CreatedBy = userId
         };
 
@@ -918,7 +918,7 @@ public class PurchaseService : TransactionServiceBase, IPurchaseService
             existing.Party_ID = purchase.Party_ID;
             existing.TransactionDate = purchase.TransactionDate;
             existing.Remarks = purchase.Remarks;
-            existing.UpdatedAt = DateTime.Now;
+            existing.UpdatedAt = AppTime.Now;
             existing.UpdatedBy = userId;
 
             if (existing.ReferenceStockMain_ID.HasValue)
@@ -1013,7 +1013,7 @@ public class PurchaseService : TransactionServiceBase, IPurchaseService
 
             purchase.Status = "Void";
             purchase.VoidReason = reason;
-            purchase.VoidedAt = DateTime.Now;
+            purchase.VoidedAt = AppTime.Now;
             purchase.VoidedBy = userId;
 
             // Reverse ONLY the purchase (inventory / accounts-payable) voucher. Any money that was
@@ -1087,7 +1087,7 @@ public class PurchaseService : TransactionServiceBase, IPurchaseService
         if (po != null && string.Equals(po.Status, "Completed", StringComparison.OrdinalIgnoreCase))
         {
             po.Status = "Approved";
-            po.UpdatedAt = DateTime.Now;
+            po.UpdatedAt = AppTime.Now;
             po.UpdatedBy = userId;
             _stockMainRepository.Update(po);
         }

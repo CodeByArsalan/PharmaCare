@@ -91,7 +91,7 @@ public class SupplierPaymentController : BaseController
             StockMain_ID = id,
             Party_ID = grn.Party_ID ?? 0,
             Amount = grn.BalanceAmount,
-            PaymentDate = DateTime.Now,
+            PaymentDate = AppTime.Now,
             PaymentMethod = "Cash"
         });
     }
@@ -270,7 +270,7 @@ public class SupplierPaymentController : BaseController
         {
             Party_ID = supplierId ?? 0,
             Amount = advance,
-            PaymentDate = DateTime.Now,
+            PaymentDate = AppTime.Now,
             PaymentMethod = "Cash"
         });
     }

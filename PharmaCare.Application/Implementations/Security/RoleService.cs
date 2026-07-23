@@ -39,7 +39,7 @@ public class RoleService : IRoleService
 
     public async Task<bool> CreateRoleAsync(Role role, int createdBy)
     {
-        role.CreatedAt = DateTime.Now;
+        role.CreatedAt = AppTime.Now;
         role.CreatedBy = createdBy;
         role.IsActive = true;
 
@@ -55,7 +55,7 @@ public class RoleService : IRoleService
 
         existingRole.Name = role.Name;
         existingRole.Description = role.Description;
-        existingRole.UpdatedAt = DateTime.Now;
+        existingRole.UpdatedAt = AppTime.Now;
         existingRole.UpdatedBy = updatedBy;
 
         await _unitOfWork.SaveChangesAsync();
@@ -68,7 +68,7 @@ public class RoleService : IRoleService
         if (role == null || role.IsSystemRole) return false;
 
         role.IsActive = !role.IsActive;
-        role.UpdatedAt = DateTime.Now;
+        role.UpdatedAt = AppTime.Now;
         role.UpdatedBy = updatedBy;
 
         await _unitOfWork.SaveChangesAsync();

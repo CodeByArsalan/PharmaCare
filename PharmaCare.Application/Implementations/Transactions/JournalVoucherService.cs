@@ -114,7 +114,7 @@ public class JournalVoucherService : IJournalVoucherService
             TotalDebit = calculatedTotalDebit,
             TotalCredit = calculatedTotalCredit,
             IsReversed = false,
-            CreatedAt = DateTime.Now,
+            CreatedAt = AppTime.Now,
             CreatedBy = userId
         };
 
@@ -154,7 +154,7 @@ public class JournalVoucherService : IJournalVoucherService
         {
             VoucherType_ID = original.VoucherType_ID,
             VoucherNo = await GenerateVoucherNoAsync(),
-            VoucherDate = DateTime.Now, // Reversal date is NOW
+            VoucherDate = AppTime.Now, // Reversal date is NOW
             Narration = $"Reversal of {original.VoucherNo} - {reason}",
             Status = "Posted", // The reversal itself is a valid posted transaction
             TotalDebit = original.TotalCredit, // Swapped for header? Usually header totals are just sum of lines. 
@@ -163,7 +163,7 @@ public class JournalVoucherService : IJournalVoucherService
             TotalCredit = original.TotalDebit, 
             IsReversed = false,
             ReversesVoucher_ID = original.VoucherID,
-            CreatedAt = DateTime.Now,
+            CreatedAt = AppTime.Now,
             CreatedBy = userId
         };
         

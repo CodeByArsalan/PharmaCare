@@ -282,7 +282,7 @@ public class PaymentService : BaseAccountingService, IPaymentService
 
             if (string.Equals(payment.PaymentMethod, "Cheque", StringComparison.OrdinalIgnoreCase) && payment.ChequeDate.HasValue)
             {
-                if (payment.ChequeDate.Value > DateTime.Now.AddMonths(6))
+                if (payment.ChequeDate.Value > AppTime.Now.AddMonths(6))
                     throw new InvalidOperationException("Cheque date cannot be more than 6 months in the future.");
             }
 
@@ -336,7 +336,7 @@ public class PaymentService : BaseAccountingService, IPaymentService
             // Generate reference number
             payment.Reference = await GenerateReferenceNoAsync(_paymentRepository, PREFIX);
             payment.PaymentType = SupplierPaymentType; // Supplier payment
-            payment.CreatedAt = DateTime.Now;
+            payment.CreatedAt = AppTime.Now;
             payment.CreatedBy = userId;
 
             // Create accounting voucher
@@ -355,7 +355,7 @@ public class PaymentService : BaseAccountingService, IPaymentService
             stockMain.PaymentStatus = stockMain.BalanceAmount <= 0
                 ? PaymentStatus.Paid.ToString()
                 : (stockMain.PaidAmount <= 0 ? PaymentStatus.Unpaid.ToString() : PaymentStatus.Partial.ToString());
-            stockMain.UpdatedAt = DateTime.Now;
+            stockMain.UpdatedAt = AppTime.Now;
             stockMain.UpdatedBy = userId;
 
             await _paymentRepository.AddAsync(payment);
@@ -467,7 +467,7 @@ public class PaymentService : BaseAccountingService, IPaymentService
             SourceTable = "StockMain",
             SourceID = payment.StockMain_ID, // Link to the purchase transaction
             Narration = $"Payment to supplier: {supplierName}. Ref: {payment.Reference}",
-            CreatedAt = DateTime.Now,
+            CreatedAt = AppTime.Now,
             CreatedBy = userId,
             VoucherDetails = new List<VoucherDetail>
             {
@@ -551,7 +551,7 @@ public class PaymentService : BaseAccountingService, IPaymentService
             payment.Remarks = string.IsNullOrWhiteSpace(payment.Remarks)
                 ? $"Advance refund from {supplier.Name}"
                 : payment.Remarks;
-            payment.CreatedAt = DateTime.Now;
+            payment.CreatedAt = AppTime.Now;
             payment.CreatedBy = userId;
 
             var voucherCode = isBank ? BANK_RECEIPT_VOUCHER_CODE : CASH_RECEIPT_VOUCHER_CODE;
@@ -570,7 +570,7 @@ public class PaymentService : BaseAccountingService, IPaymentService
                 Status = "Posted",
                 SourceTable = "Payment",
                 Narration = $"Supplier advance refund from {supplier.Name}. Ref: {payment.Reference}",
-                CreatedAt = DateTime.Now,
+                CreatedAt = AppTime.Now,
                 CreatedBy = userId,
                 VoucherDetails = new List<VoucherDetail>
                 {
@@ -644,7 +644,7 @@ public class PaymentService : BaseAccountingService, IPaymentService
             payment.IsVoided = true;
             payment.VoidReason = reason;
             payment.VoidedBy = userId;
-            payment.VoidedAt = DateTime.Now;
+            payment.VoidedAt = AppTime.Now;
             _paymentRepository.Update(payment);
 
             // Create reversal voucher if original voucher exists

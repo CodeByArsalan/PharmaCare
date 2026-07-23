@@ -91,8 +91,8 @@ WHERE Timestamp < @cutoff;";
         using var scope = _scopeFactory.CreateScope();
         var db = scope.ServiceProvider.GetRequiredService<LogDbContext>();
 
-        var hotCutoff = DateTime.Now.AddDays(-Math.Max(0, _options.HotRetentionDays));
-        var archiveCutoff = DateTime.Now.AddDays(-Math.Max(0, _options.ArchiveRetentionDays));
+        var hotCutoff = AppTime.Now.AddDays(-Math.Max(0, _options.HotRetentionDays));
+        var archiveCutoff = AppTime.Now.AddDays(-Math.Max(0, _options.ArchiveRetentionDays));
         int batch = Math.Max(1, _options.BatchSize);
 
         long movedTotal = await RunBatchedAsync(db, MoveSql, batch, hotCutoff, ct);

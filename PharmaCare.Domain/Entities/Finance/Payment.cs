@@ -49,7 +49,7 @@ public class Payment : BaseEntity, ITenantEntity
     [Column(TypeName = "decimal(18,2)")]
     public decimal Amount { get; set; }
 
-    public DateTime PaymentDate { get; set; } = DateTime.Now;
+    public DateTime PaymentDate { get; set; } = AppTime.Now;
 
     /// <summary>
     /// Cash, Bank, Cheque

@@ -42,7 +42,7 @@ public class ExpenseController : BaseController
         await LoadExpenseDropdownsAsync();
         return View(new Expense
         {
-            ExpenseDate = DateTime.Now
+            ExpenseDate = AppTime.Now
         });
     }
 
@@ -306,8 +306,8 @@ public class ExpenseController : BaseController
     [HttpGet]
     public async Task<IActionResult> BudgetManagement(int? year, int? month)
     {
-        var targetYear = year ?? DateTime.Now.Year;
-        var targetMonth = month ?? DateTime.Now.Month;
+        var targetYear = year ?? AppTime.Now.Year;
+        var targetMonth = month ?? AppTime.Now.Month;
 
         var budgets = await _expenseService.GetBudgetsAsync(targetYear, targetMonth);
         

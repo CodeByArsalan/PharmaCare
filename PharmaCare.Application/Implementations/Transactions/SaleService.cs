@@ -207,7 +207,7 @@ public class SaleService : TransactionServiceBase, ISaleService
             sale.TransactionType_ID = transactionType.TransactionTypeID;
             sale.TransactionNo = await GenerateTransactionNoAsync(PREFIX);
             sale.Status = TransactionStatus.Approved.ToString(); // Sales are immediately approved (stock impact)
-            sale.CreatedAt = DateTime.Now;
+            sale.CreatedAt = AppTime.Now;
             sale.CreatedBy = userId;
 
             // Calculate totals
@@ -474,7 +474,7 @@ public class SaleService : TransactionServiceBase, ISaleService
             SourceTable = "StockMain",
             SourceID = sale.StockMainID,
             Narration = $"Sale to {customerName}. Invoice: {sale.TransactionNo}",
-            CreatedAt = DateTime.Now,
+            CreatedAt = AppTime.Now,
             CreatedBy = userId,
             VoucherDetails = voucherDetails
         };
@@ -551,7 +551,7 @@ public class SaleService : TransactionServiceBase, ISaleService
             SourceTable = "StockMain",
             SourceID = sale.StockMainID, // Now available since StockMain is saved first
             Narration = $"Payment received from {customerName} for {sale.TransactionNo}",
-            CreatedAt = DateTime.Now,
+            CreatedAt = AppTime.Now,
             CreatedBy = userId,
             VoucherDetails = voucherDetails
         };
@@ -598,7 +598,7 @@ public class SaleService : TransactionServiceBase, ISaleService
             Reference = $"REC-{sale.TransactionNo}",
             Remarks = $"Initial payment captured during sale {sale.TransactionNo}",
             Voucher = paymentVoucher,
-            CreatedAt = DateTime.Now,
+            CreatedAt = AppTime.Now,
             CreatedBy = userId
         };
 
@@ -612,7 +612,7 @@ public class SaleService : TransactionServiceBase, ISaleService
             SourceType = "Receipt",
             AllocationDate = sale.TransactionDate,
             Remarks = $"Initial payment captured during sale {sale.TransactionNo}",
-            CreatedAt = DateTime.Now,
+            CreatedAt = AppTime.Now,
             CreatedBy = userId
         });
     }
@@ -664,7 +664,7 @@ public class SaleService : TransactionServiceBase, ISaleService
 
             sale.Status = TransactionStatus.Void.ToString();
             sale.VoidReason = reason;
-            sale.VoidedAt = DateTime.Now;
+            sale.VoidedAt = AppTime.Now;
             sale.VoidedBy = userId;
 
             // Reverse all posted vouchers linked to this StockMain (invoice + payments, if any)
@@ -802,7 +802,7 @@ public class SaleService : TransactionServiceBase, ISaleService
             return;
         }
 
-        var now = DateTime.Now;
+        var now = AppTime.Now;
         foreach (var receipt in linkedReceipts)
         {
             receipt.IsVoided = true;

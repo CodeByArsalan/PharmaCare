@@ -73,7 +73,7 @@ public class UserService : IUserService
         }
 
         user.UserName = user.Email;
-        user.CreatedAt = DateTime.Now;
+        user.CreatedAt = AppTime.Now;
         user.CreatedBy = createdBy;
         user.IsActive = true;
         // New users always belong to the current pharmacy (never platform admins here).
@@ -111,7 +111,7 @@ public class UserService : IUserService
         existingUser.Email = user.Email;
         existingUser.UserName = user.Email;
         existingUser.PhoneNumber = user.PhoneNumber;
-        existingUser.UpdatedAt = DateTime.Now;
+        existingUser.UpdatedAt = AppTime.Now;
         existingUser.UpdatedBy = updatedBy;
 
         // Update password if provided
@@ -146,7 +146,7 @@ public class UserService : IUserService
         if (user == null || user.Pharmacy_ID != _currentTenant.TenantId) return false;
 
         user.IsActive = !user.IsActive;
-        user.UpdatedAt = DateTime.Now;
+        user.UpdatedAt = AppTime.Now;
         user.UpdatedBy = updatedBy;
 
         await _unitOfWork.SaveChangesAsync();

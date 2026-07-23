@@ -144,7 +144,7 @@ public class SupplierCreditNoteService : ISupplierCreditNoteService
             creditNote.AppliedAmount = 0;
             creditNote.BalanceAmount = creditNote.TotalAmount;
             creditNote.Status = "Open";
-            creditNote.CreatedAt = DateTime.Now;
+            creditNote.CreatedAt = AppTime.Now;
             creditNote.CreatedBy = userId;
 
             // Journal Entry: DR Supplier Account (reduce payable), CR the chosen adjustment/contra
@@ -166,7 +166,7 @@ public class SupplierCreditNoteService : ISupplierCreditNoteService
                     Status = "Posted",
                     SourceTable = "SupplierCreditNote",
                     Narration = $"Supplier credit note {creditNote.CreditNoteNo} from {supplier.Name}",
-                    CreatedAt = DateTime.Now,
+                    CreatedAt = AppTime.Now,
                     CreatedBy = userId,
                     VoucherDetails = new List<VoucherDetail>
                     {
@@ -230,9 +230,9 @@ public class SupplierCreditNoteService : ISupplierCreditNoteService
 
             cn.Status = "Void";
             cn.VoidReason = reason.Trim();
-            cn.VoidedAt = DateTime.Now;
+            cn.VoidedAt = AppTime.Now;
             cn.VoidedBy = userId;
-            cn.UpdatedAt = DateTime.Now;
+            cn.UpdatedAt = AppTime.Now;
             cn.UpdatedBy = userId;
             _repository.Update(cn);
 
@@ -243,14 +243,14 @@ public class SupplierCreditNoteService : ISupplierCreditNoteService
                 {
                     VoucherType_ID = cn.Voucher.VoucherType_ID,
                     VoucherNo = $"REV-{cn.Voucher.VoucherNo}",
-                    VoucherDate = DateTime.Now,
+                    VoucherDate = AppTime.Now,
                     TotalDebit = cn.Voucher.TotalCredit,
                     TotalCredit = cn.Voucher.TotalDebit,
                     Status = "Posted",
                     SourceTable = "SupplierCreditNote",
                     Narration = $"Reversal of {cn.Voucher.VoucherNo} — Void: {reason}",
                     ReversesVoucher_ID = cn.Voucher.VoucherID,
-                    CreatedAt = DateTime.Now,
+                    CreatedAt = AppTime.Now,
                     CreatedBy = userId
                 };
 
@@ -339,7 +339,7 @@ public class SupplierCreditNoteService : ISupplierCreditNoteService
             cn.AppliedAmount += amount;
             cn.BalanceAmount -= amount;
             cn.Status = cn.BalanceAmount <= 0 ? "Applied" : "Open";
-            cn.UpdatedAt = DateTime.Now;
+            cn.UpdatedAt = AppTime.Now;
             cn.UpdatedBy = userId;
 
             _repository.Update(cn);
@@ -351,7 +351,7 @@ public class SupplierCreditNoteService : ISupplierCreditNoteService
                 ? PaymentStatus.Paid.ToString()
                 : (grn.PaidAmount <= 0 ? PaymentStatus.Unpaid.ToString() : PaymentStatus.Partial.ToString());
             
-            grn.UpdatedAt = DateTime.Now;
+            grn.UpdatedAt = AppTime.Now;
             grn.UpdatedBy = userId;
 
             _stockMainRepository.Update(grn);

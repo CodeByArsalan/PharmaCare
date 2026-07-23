@@ -90,7 +90,7 @@ namespace PharmaCare.AuditTests
             Console.WriteLine("\n[1] Testing Discount Hardening...");
             var sale = new StockMain {
                 Party_ID = customer.PartyID,
-                TransactionDate = DateTime.Now,
+                TransactionDate = AppTime.Now,
                 DiscountPercent = 0,
                 DiscountAmount = 999, // SPOOF
                 StockDetails = new List<StockDetail> { new StockDetail { Product_ID = product.ProductID, Quantity = 1, UnitPrice = 1000 } }
@@ -105,7 +105,7 @@ namespace PharmaCare.AuditTests
                 Party_ID = customer.PartyID,
                 Account_ID = cashAccount.AccountID,
                 Amount = 1000000,
-                PaymentDate = DateTime.Now,
+                PaymentDate = AppTime.Now,
                 PaymentMethod = "Cash"
             };
             try {
@@ -119,7 +119,7 @@ namespace PharmaCare.AuditTests
             Console.WriteLine("\n[3] Testing Return Price Hardening...");
             var ret = new StockMain {
                 ReferenceStockMain_ID = resultSale.StockMainID,
-                TransactionDate = DateTime.Now,
+                TransactionDate = AppTime.Now,
                 StockDetails = new List<StockDetail> {
                     new StockDetail { Product_ID = product.ProductID, Quantity = 1, UnitPrice = 5000 } // SPOOF (Sold at 1000)
                 }

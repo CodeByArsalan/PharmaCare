@@ -19,7 +19,7 @@ public class SalesReportController : BaseController
 
     public async Task<IActionResult> DailySalesSummary(DateTime? date)
     {
-        var reportDate = date ?? DateTime.Today;
+        var reportDate = date ?? AppTime.Today;
         var vm = await _salesReportService.GetDailySalesSummaryAsync(reportDate);
         return View(vm);
     }
@@ -47,7 +47,7 @@ public class SalesReportController : BaseController
 
     public async Task<IActionResult> CustomerBalanceSummary(DateTime? asOfDate)
     {
-        var date = asOfDate ?? DateTime.Today;
+        var date = asOfDate ?? AppTime.Today;
         var vm = await _salesReportService.GetCustomerBalanceSummaryAsync(date);
         return View(vm);
     }
