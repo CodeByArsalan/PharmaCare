@@ -295,6 +295,13 @@ public class PharmaCareDBContext : IdentityUserContext<User, int>
 
             // Fast lookup of the currently-effective row per product + price type.
             entity.HasIndex(e => new { e.Product_ID, e.PriceType_ID, e.EffectiveTo });
+
+            // Invariant: at most ONE open (EffectiveTo IS NULL) row per product + price type.
+            // Without this, two open rows make "the current price" ambiguous.
+            entity.HasIndex(e => new { e.Product_ID, e.PriceType_ID })
+                .IsUnique()
+                .HasFilter("[EffectiveTo] IS NULL")
+                .HasDatabaseName("UX_ProductPriceHistories_OpenRow");
         });
 
         builder.Entity<ProfitSettings>(entity =>
@@ -318,7 +325,10 @@ public class PharmaCareDBContext : IdentityUserContext<User, int>
             entity.HasKey(e => e.AccountHeadID);
             entity.Property(e => e.HeadName).IsRequired().HasMaxLength(100);
             // Lookup by well-known code within a tenant (account resolution replaces hardcoded IDs).
-            entity.HasIndex(e => new { e.Pharmacy_ID, e.Code });
+            // UNIQUE (filtered): duplicate codes would make well-known-code resolution ambiguous.
+            entity.HasIndex(e => new { e.Pharmacy_ID, e.Code })
+                .IsUnique()
+                .HasFilter("[Code] IS NOT NULL");
             entity.HasOne(e => e.AccountFamily)
                 .WithMany(f => f.AccountHeads)
                 .HasForeignKey(e => e.AccountFamily_ID)
@@ -331,7 +341,10 @@ public class PharmaCareDBContext : IdentityUserContext<User, int>
             entity.HasKey(e => e.AccountSubheadID);
             entity.Property(e => e.SubheadName).IsRequired().HasMaxLength(100);
             // Lookup by well-known code within a tenant (account resolution replaces hardcoded IDs).
-            entity.HasIndex(e => new { e.Pharmacy_ID, e.Code });
+            // UNIQUE (filtered): duplicate codes would make well-known-code resolution ambiguous.
+            entity.HasIndex(e => new { e.Pharmacy_ID, e.Code })
+                .IsUnique()
+                .HasFilter("[Code] IS NOT NULL");
             entity.HasOne(e => e.AccountHead)
                 .WithMany(h => h.AccountSubheads)
                 .HasForeignKey(e => e.AccountHead_ID)

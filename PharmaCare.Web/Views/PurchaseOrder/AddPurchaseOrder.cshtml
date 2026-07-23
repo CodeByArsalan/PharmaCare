@@ -105,7 +105,7 @@
                         <div class="col-md-4">
                             <label class="form-label">Payment Amount</label>
                             <div class="input-group">
-                                <span class="input-group-text">PKR</span>
+                                <span class="input-group-text">@CurrencyDisplay.Symbol</span>
                                 <input type="number" name="PaidAmount" id="paidAmount" class="form-control" step="0.01" min="0" value="0" onchange="togglePaymentDetails()" />
                             </div>
                             <div class="form-text" id="maxPayableHint">Max: 0.00</div>
@@ -279,8 +279,8 @@
                     icon: 'warning',
                     title: 'Cannot Remove',
                     text: 'At least one line item is required.',
-                    background: '#1e293b',
-                    color: '#f1f5f9'
+                    background: 'var(--bg-card)',
+                    color: 'var(--text-primary)'
                 });
             }
         }

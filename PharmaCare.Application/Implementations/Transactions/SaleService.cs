@@ -1,5 +1,6 @@
 using Microsoft.EntityFrameworkCore;
 using PharmaCare.Application.Interfaces;
+using PharmaCare.Application.Utilities;
 using PharmaCare.Application.Interfaces.Accounting;
 using PharmaCare.Application.Interfaces.Configuration;
 using PharmaCare.Application.Interfaces.Transactions;
@@ -17,8 +18,8 @@ namespace PharmaCare.Application.Implementations.Transactions;
 /// </summary>
 public class SaleService : TransactionServiceBase, ISaleService
 {
-    private const int CashAccountTypeId = 1;
-    private const int BankAccountTypeId = 2;
+    private const int CashAccountTypeId = AccountingConstants.CashAccountTypeId;
+    private const int BankAccountTypeId = AccountingConstants.BankAccountTypeId;
 
     private readonly IRepository<TransactionType> _transactionTypeRepository;
     private readonly IRepository<VoucherType> _voucherTypeRepository;
@@ -186,6 +187,10 @@ public class SaleService : TransactionServiceBase, ISaleService
         return await ExecuteInTransactionAsync(async () =>
         {
             NormalizeSaleLines(sale);
+
+            // Serialize competing sales/adjustments/returns of the same products so the
+            // stock-availability check below cannot be raced past by a parallel transaction.
+            await LockProductStockAsync(sale.StockDetails.Select(d => d.Product_ID));
 
             // Authoritative margin gate: re-derive cost from the last approved GRN (fallback opening
             // price), normalise CostPrice/LineCost server-side, and reject any below-cost line. This

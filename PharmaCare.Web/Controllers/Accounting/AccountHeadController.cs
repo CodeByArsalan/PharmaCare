@@ -9,10 +9,12 @@ namespace PharmaCare.Web.Controllers.Accounting;
 public class AccountHeadController : BaseController
 {
     private readonly IAccountHeadService _accountHeadService;
+    private readonly ILogger<AccountHeadController> _logger;
 
-    public AccountHeadController(IAccountHeadService accountHeadService)
+    public AccountHeadController(IAccountHeadService accountHeadService, ILogger<AccountHeadController> logger)
     {
         _accountHeadService = accountHeadService;
+        _logger = logger;
     }
 
     public async Task<IActionResult> AccountHeadsIndex()
@@ -33,9 +35,21 @@ public class AccountHeadController : BaseController
     {
         if (ModelState.IsValid)
         {
-            await _accountHeadService.CreateAsync(accountHead);
-            ShowMessage(MessageType.Success, "Account Head created successfully!");
-            return RedirectToAction("AccountHeadsIndex");
+            try
+            {
+                await _accountHeadService.CreateAsync(accountHead);
+                ShowMessage(MessageType.Success, "Account Head created successfully!");
+                return RedirectToAction("AccountHeadsIndex");
+            }
+            catch (InvalidOperationException ex)
+            {
+                ShowMessage(MessageType.Error, ex.Message);
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "Error creating account head");
+                ShowMessage(MessageType.Error, "An unexpected error occurred while saving the account head.");
+            }
         }
         await LoadFamiliesDropdown();
         return View(accountHead);
@@ -63,13 +77,25 @@ public class AccountHeadController : BaseController
 
         if (ModelState.IsValid)
         {
-            var updated = await _accountHeadService.UpdateAsync(accountHead);
-            if (!updated)
+            try
             {
-                return NotFound();
+                var updated = await _accountHeadService.UpdateAsync(accountHead);
+                if (!updated)
+                {
+                    return NotFound();
+                }
+                ShowMessage(MessageType.Success, "Account Head updated successfully!");
+                return RedirectToAction("AccountHeadsIndex");
             }
-            ShowMessage(MessageType.Success, "Account Head updated successfully!");
-            return RedirectToAction("AccountHeadsIndex");
+            catch (InvalidOperationException ex)
+            {
+                ShowMessage(MessageType.Error, ex.Message);
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "Error updating account head {AccountHeadId}", accountHead.AccountHeadID);
+                ShowMessage(MessageType.Error, "An unexpected error occurred while saving the account head.");
+            }
         }
         await LoadFamiliesDropdown();
         return View(accountHead);
@@ -82,8 +108,16 @@ public class AccountHeadController : BaseController
         int accountHeadId = Utility.DecryptId(id);
         if (accountHeadId == 0) return NotFound();
 
-        await _accountHeadService.DeleteAsync(accountHeadId);
-        ShowMessage(MessageType.Success, "Account Head deleted successfully!");
+        try
+        {
+            await _accountHeadService.DeleteAsync(accountHeadId);
+            ShowMessage(MessageType.Success, "Account Head deleted successfully!");
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Error deleting account head {AccountHeadId}", accountHeadId);
+            ShowMessage(MessageType.Error, "Could not delete the account head. Please try again.");
+        }
         return RedirectToAction("AccountHeadsIndex");
     }
 

@@ -155,8 +155,18 @@ public static class DbInitializer
         }
 
         var config = sp.GetRequiredService<IConfiguration>();
-        var email = config["PlatformAdmin:Email"] ?? "superadmin@pharmacare.local";
-        var password = config["PlatformAdmin:Password"] ?? "ChangeMe!123";
+        var email = config["PlatformAdmin:Email"];
+        var password = config["PlatformAdmin:Password"];
+
+        // No baked-in fallback credentials: a well-known default here would hand over the
+        // whole platform. Without explicit config we create nothing and surface a critical log.
+        if (string.IsNullOrWhiteSpace(email) || string.IsNullOrWhiteSpace(password))
+        {
+            logger.LogCritical(
+                "No platform super-admin exists and PlatformAdmin:Email / PlatformAdmin:Password are not configured. " +
+                "Set them via user-secrets, environment variables, or appsettings and restart — until then no one can manage pharmacies.");
+            return;
+        }
 
         var userManager = sp.GetRequiredService<UserManager<User>>();
         if (await userManager.FindByEmailAsync(email) != null)
@@ -179,7 +189,7 @@ public static class DbInitializer
         var result = await userManager.CreateAsync(admin, password);
         if (result.Succeeded)
         {
-            logger.LogWarning("Created initial platform super-admin '{Email}'. Change the default password immediately.", email);
+            logger.LogInformation("Created initial platform super-admin '{Email}' from configuration.", email);
         }
         else
         {

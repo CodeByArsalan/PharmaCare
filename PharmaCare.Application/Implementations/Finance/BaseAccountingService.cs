@@ -26,24 +26,15 @@ public abstract class BaseAccountingService
     /// </summary>
     protected async Task<string> GenerateReferenceNoAsync(IRepository<Payment> paymentRepository, string prefix)
     {
-        var datePrefix = $"{prefix}-{DateTime.Now:yyyyMMdd}-";
+        var datePrefix = DocumentNumberSequence.DatePrefix(prefix);
+        await DocumentNumberSequence.SerializeAsync(_unitOfWork, datePrefix);
 
         var lastPayment = await paymentRepository.Query()
             .Where(p => p.Reference != null && p.Reference.StartsWith(datePrefix))
             .OrderByDescending(p => p.Reference)
             .FirstOrDefaultAsync();
 
-        int nextNum = 1;
-        if (lastPayment != null && lastPayment.Reference != null)
-        {
-            var parts = lastPayment.Reference.Split('-');
-            if (parts.Length > 2 && int.TryParse(parts.Last(), out int lastNum))
-            {
-                nextNum = lastNum + 1;
-            }
-        }
-
-        return $"{datePrefix}{nextNum:D4}";
+        return DocumentNumberSequence.Next(datePrefix, lastPayment?.Reference);
     }
 
     /// <summary>
@@ -52,7 +43,7 @@ public abstract class BaseAccountingService
     /// </summary>
     protected async Task<string> GenerateVoucherNoAsync(string prefix)
     {
-        return await _voucherRepository.GenerateVoucherNoAsync(prefix);
+        return await _voucherRepository.GenerateVoucherNoAsync(prefix, _unitOfWork);
     }
 
     /// <summary>

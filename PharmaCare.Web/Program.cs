@@ -98,6 +98,13 @@ builder.Services.AddDefaultIdentity<User>(options =>
     .AddClaimsPrincipalFactory<PharmaCare.Infrastructure.Implementations.Tenancy.TenantClaimsPrincipalFactory>()
     .AddEntityFrameworkStores<PharmaCareDBContext>();
 
+// Re-validate the security stamp every 5 minutes (default is 30): deactivating a user or
+// suspending a pharmacy rotates their stamp, so revocation takes effect within this window.
+builder.Services.Configure<SecurityStampValidatorOptions>(options =>
+{
+    options.ValidationInterval = TimeSpan.FromMinutes(5);
+});
+
 // Configure Authentication Cookie for "Remember Me" functionality
 builder.Services.ConfigureApplicationCookie(options =>
 {
@@ -223,6 +230,9 @@ var app = builder.Build();
 // Wire the static URL-ID protector (Utility.EncryptId/DecryptId) to Data Protection.
 Utility.Initialize(app.Services.GetRequiredService<IDataProtectionProvider>());
 
+// Wire the display currency (symbol/code) from the "Currency" config section.
+CurrencyDisplay.Initialize(app.Configuration);
+
 // Security response headers applied to every response.
 // In Development, connect-src is relaxed to allow Visual Studio's Browser Link / hot-reload
 // (ws/wss + localhost) and CDN sourcemaps; production keeps the strict "connect-src 'self'".
@@ -236,14 +246,17 @@ app.Use(async (context, next) =>
     headers["X-XSS-Protection"] = "0"; // Deprecated header; explicitly disabled in favor of CSP.
 
     var connectSrc = cspIsDevelopment
-        ? "connect-src 'self' ws: wss: http://localhost:* https://localhost:* https://cdn.jsdelivr.net; "
+        ? "connect-src 'self' ws: wss: http://localhost:* https://localhost:*; "
         : "connect-src 'self'; ";
 
+    // All frontend assets are vendored under wwwroot/lib, so no external script/style/font
+    // origins are allowed. 'unsafe-inline' for scripts remains until inline <script> blocks
+    // move to nonce-based CSP (deliberately deferred).
     headers["Content-Security-Policy"] =
         "default-src 'self'; " +
-        "script-src 'self' 'unsafe-inline' https://cdn.jsdelivr.net; " +
-        "style-src 'self' 'unsafe-inline' https://cdn.jsdelivr.net https://fonts.googleapis.com; " +
-        "font-src 'self' https://fonts.gstatic.com data:; " +
+        "script-src 'self' 'unsafe-inline'; " +
+        "style-src 'self' 'unsafe-inline'; " +
+        "font-src 'self' data:; " +
         "img-src 'self' data:; " +
         connectSrc +
         "frame-ancestors 'none'; " +
@@ -262,9 +275,9 @@ if (!app.Environment.IsDevelopment())
 
 app.UseStatusCodePagesWithReExecute("/Home/Error", "?statusCode={0}");
 
-// Set global culture to use PKR
+// Set global culture; currency symbol comes from the "Currency" config section.
 var defaultCulture = new System.Globalization.CultureInfo("en-US");
-defaultCulture.NumberFormat.CurrencySymbol = "PKR ";
+defaultCulture.NumberFormat.CurrencySymbol = CurrencyDisplay.Symbol + " ";
 var localizationOptions = new RequestLocalizationOptions
 {
     DefaultRequestCulture = new Microsoft.AspNetCore.Localization.RequestCulture(defaultCulture),

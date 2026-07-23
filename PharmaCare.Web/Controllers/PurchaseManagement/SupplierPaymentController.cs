@@ -99,7 +99,8 @@ public class SupplierPaymentController : BaseController
     /// Processes a payment.
     [HttpPost]
     [ValidateAntiForgeryToken]
-    public async Task<IActionResult> MakePayment(Payment payment)
+    public async Task<IActionResult> MakePayment(
+        [Bind("StockMain_ID,Party_ID,Amount,PaymentDate,PaymentMethod,Account_ID,ChequeNo,ChequeDate,Remarks")] Payment payment)
     {
         var grn = await _purchaseService.GetByIdAsync(payment.StockMain_ID ?? 0);
         if (grn == null)
@@ -287,7 +288,8 @@ public class SupplierPaymentController : BaseController
     [HttpPost]
     [ValidateAntiForgeryToken]
     [LinkedToPage("SupplierPayment", "PaymentsIndex", PermissionType = "create")]
-    public async Task<IActionResult> RefundAdvance(Payment payment)
+    public async Task<IActionResult> RefundAdvance(
+        [Bind("Party_ID,PaymentDate,Amount,PaymentMethod,Account_ID,Remarks")] Payment payment)
     {
         CleanNavigationModelState("Party", "StockMain", "Account", "Voucher", "PaymentType", "Reference");
 

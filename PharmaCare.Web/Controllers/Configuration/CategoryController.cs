@@ -9,10 +9,12 @@ namespace PharmaCare.Web.Controllers.Configuration;
 public class CategoryController : BaseController
 {
     private readonly ICategoryService _categoryService;
+    private readonly ILogger<CategoryController> _logger;
 
-    public CategoryController(ICategoryService categoryService)
+    public CategoryController(ICategoryService categoryService, ILogger<CategoryController> logger)
     {
         _categoryService = categoryService;
+        _logger = logger;
     }
 
 
@@ -28,15 +30,27 @@ public class CategoryController : BaseController
     }
     [HttpPost]
     [ValidateAntiForgeryToken]
-    public async Task<IActionResult> AddCategory(Category category)
+    public async Task<IActionResult> AddCategory(
+        [Bind("Name,SaleAccount_ID,StockAccount_ID,COGSAccount_ID,DamageAccount_ID")] Category category)
     {
         if (ModelState.IsValid)
         {
-            await _categoryService.CreateAsync(category, CurrentUserId);
-            ShowMessage(MessageType.Success, "Category created successfully!");
-            return RedirectToAction("CategoriesIndex");
+            try
+            {
+                await _categoryService.CreateAsync(category, CurrentUserId);
+                ShowMessage(MessageType.Success, "Category created successfully!");
+                return RedirectToAction("CategoriesIndex");
+            }
+            catch (InvalidOperationException ex)
+            {
+                ShowMessage(MessageType.Error, ex.Message);
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "Error creating category");
+                ShowMessage(MessageType.Error, "An unexpected error occurred while saving the category.");
+            }
         }
-        // await LoadAccountsDropdowns(); // Removed
         return View(category);
     }
 
@@ -55,22 +69,34 @@ public class CategoryController : BaseController
 
     [HttpPost]
     [ValidateAntiForgeryToken]
-    public async Task<IActionResult> EditCategory(string id, Category category)
+    public async Task<IActionResult> EditCategory(string id,
+        [Bind("CategoryID,Name,SaleAccount_ID,StockAccount_ID,COGSAccount_ID,DamageAccount_ID,IsActive")] Category category)
     {
         int categoryId = Utility.DecryptId(id);
         if (categoryId != category.CategoryID) return NotFound();
 
         if (ModelState.IsValid)
         {
-            var updated = await _categoryService.UpdateAsync(category, CurrentUserId);
-            if (!updated)
+            try
             {
-                return NotFound();
+                var updated = await _categoryService.UpdateAsync(category, CurrentUserId);
+                if (!updated)
+                {
+                    return NotFound();
+                }
+                ShowMessage(MessageType.Success, "Category updated successfully!");
+                return RedirectToAction("CategoriesIndex");
             }
-            ShowMessage(MessageType.Success, "Category updated successfully!");
-            return RedirectToAction("CategoriesIndex");
+            catch (InvalidOperationException ex)
+            {
+                ShowMessage(MessageType.Error, ex.Message);
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "Error updating category {CategoryId}", category.CategoryID);
+                ShowMessage(MessageType.Error, "An unexpected error occurred while saving the category.");
+            }
         }
-        // await LoadAccountsDropdowns(); // Removed
         return View(category);
     }
     [HttpPost]
@@ -80,8 +106,16 @@ public class CategoryController : BaseController
         int categoryId = Utility.DecryptId(id);
         if (categoryId == 0) return NotFound();
 
-        await _categoryService.ToggleStatusAsync(categoryId, CurrentUserId);
-        ShowMessage(MessageType.Success, "Category status updated successfully!");
+        try
+        {
+            await _categoryService.ToggleStatusAsync(categoryId, CurrentUserId);
+            ShowMessage(MessageType.Success, "Category status updated successfully!");
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Error toggling category {CategoryId}", categoryId);
+            ShowMessage(MessageType.Error, "Could not change the category's status. Please try again.");
+        }
         return RedirectToAction("CategoriesIndex");
     }
     // private async Task LoadAccountsDropdowns() { ... } // Removed

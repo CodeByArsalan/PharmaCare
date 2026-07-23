@@ -2,6 +2,7 @@ using Microsoft.EntityFrameworkCore;
 using PharmaCare.Application.DTOs;
 using PharmaCare.Application.Interfaces;
 using PharmaCare.Application.Interfaces.Transactions;
+using PharmaCare.Application.Utilities;
 using PharmaCare.Domain.Entities.Finance;
 using PharmaCare.Domain.Entities.Transactions;
 using PharmaCare.Domain.Enums;
@@ -255,24 +256,15 @@ public class PurchaseOrderService : IPurchaseOrderService
 
     private async Task<string> GenerateTransactionNoAsync()
     {
-        var datePrefix = $"{PREFIX}-{DateTime.Now:yyyyMMdd}-";
+        var datePrefix = DocumentNumberSequence.DatePrefix(PREFIX);
+        await DocumentNumberSequence.SerializeAsync(_unitOfWork, datePrefix);
 
         var lastTransaction = await _stockMainRepository.Query()
             .Where(s => s.TransactionNo.StartsWith(datePrefix))
             .OrderByDescending(s => s.TransactionNo)
             .FirstOrDefaultAsync();
 
-        int nextNum = 1;
-        if (lastTransaction != null)
-        {
-            var parts = lastTransaction.TransactionNo.Split('-');
-            if (parts.Length > 2 && int.TryParse(parts.Last(), out int lastNum))
-            {
-                nextNum = lastNum + 1;
-            }
-        }
-
-        return $"{datePrefix}{nextNum:D4}";
+        return DocumentNumberSequence.Next(datePrefix, lastTransaction?.TransactionNo);
     }
 
     private void CalculateTotals(StockMain purchaseOrder)
@@ -389,7 +381,11 @@ public class PurchaseOrderService : IPurchaseOrderService
 
         foreach (var po in activePos)
         {
-            var remainingTotal = CalculateRemainingPoTotal(po, receivedLookup);
+            var receivedForPo = (po.StockDetails ?? new List<StockDetail>())
+                .Select(d => d.Product_ID)
+                .Distinct()
+                .ToDictionary(pid => pid, pid => receivedLookup.TryGetValue((po.StockMainID, pid), out var qty) ? qty : 0m);
+            var remainingTotal = PurchaseOrderMath.RemainingTotal(po, receivedForPo);
             paymentLookup.TryGetValue(po.StockMainID, out var paidAmount);
 
             po.PaidAmount = Math.Max(0, Math.Round(paidAmount, 2));
@@ -412,36 +408,4 @@ public class PurchaseOrderService : IPurchaseOrderService
         }
     }
 
-    private static decimal CalculateRemainingPoTotal(
-        StockMain purchaseOrder,
-        IDictionary<(int PoId, int ProductId), decimal> receivedLookup)
-    {
-        if (purchaseOrder.StockDetails == null || purchaseOrder.StockDetails.Count == 0)
-        {
-            return 0;
-        }
-
-        decimal remainingTotal = 0;
-        foreach (var detailGroup in purchaseOrder.StockDetails.GroupBy(d => d.Product_ID))
-        {
-            var orderedQty = detailGroup.Sum(d => d.Quantity);
-            receivedLookup.TryGetValue((purchaseOrder.StockMainID, detailGroup.Key), out var receivedQty);
-            var remainingQty = Math.Max(0, orderedQty - receivedQty);
-            if (remainingQty <= 0)
-            {
-                continue;
-            }
-
-            var sourceLine = detailGroup.First();
-            var unitRate = sourceLine.Quantity > 0 ? (sourceLine.LineTotal / sourceLine.Quantity) : sourceLine.UnitPrice;
-            remainingTotal += Math.Round(remainingQty * unitRate, 2);
-        }
-
-        if (purchaseOrder.DiscountPercent > 0)
-        {
-            remainingTotal -= Math.Round(remainingTotal * purchaseOrder.DiscountPercent / 100, 2);
-        }
-
-        return Math.Round(remainingTotal, 2);
-    }
 }

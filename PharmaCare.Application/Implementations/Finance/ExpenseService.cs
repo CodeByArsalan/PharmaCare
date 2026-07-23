@@ -2,6 +2,7 @@ using Microsoft.EntityFrameworkCore;
 using PharmaCare.Application.Interfaces;
 using PharmaCare.Application.Interfaces.Accounting;
 using PharmaCare.Application.Interfaces.Finance;
+using PharmaCare.Application.Utilities;
 using PharmaCare.Domain.Entities.Accounting;
 using PharmaCare.Domain.Entities.Finance;
 using PharmaCare.Domain.Entities.Transactions;
@@ -153,7 +154,7 @@ public class ExpenseService : IExpenseService
             if (expense.Amount <= 0)
                 throw new InvalidOperationException("Expense amount must be greater than zero.");
 
-            if (expense.Amount > 100000000) // 100 Million limit
+            if (expense.Amount > AccountingConstants.MaxTransactionAmount)
                 throw new InvalidOperationException("Expense amount exceeds sanity limit (100 Million).");
 
             // Set audit fields
@@ -424,24 +425,7 @@ public class ExpenseService : IExpenseService
 
     private async Task<string> GenerateVoucherNoAsync(string voucherTypeCode)
     {
-        var datePrefix = $"{voucherTypeCode}-{DateTime.Now:yyyyMMdd}-";
-
-        var lastVoucher = await _voucherRepository.Query()
-            .Where(v => v.VoucherNo.StartsWith(datePrefix))
-            .OrderByDescending(v => v.VoucherNo)
-            .FirstOrDefaultAsync();
-
-        int nextNum = 1;
-        if (lastVoucher != null)
-        {
-            var parts = lastVoucher.VoucherNo.Split('-');
-            if (parts.Length > 2 && int.TryParse(parts.Last(), out int lastNum))
-            {
-                nextNum = lastNum + 1;
-            }
-        }
-
-        return $"{datePrefix}{nextNum:D4}";
+        return await _voucherRepository.GenerateVoucherNoAsync(voucherTypeCode, _unitOfWork);
     }
 
     private async Task<T> ExecuteInTransactionAsync<T>(Func<Task<T>> operation)

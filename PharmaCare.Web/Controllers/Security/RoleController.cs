@@ -31,7 +31,7 @@ public class RoleController : BaseController
 
     [HttpPost]
     [ValidateAntiForgeryToken]
-    public async Task<IActionResult> AddRole(Role role)
+    public async Task<IActionResult> AddRole([Bind("Name,Description")] Role role)
     {
         if (!ModelState.IsValid)
         {
@@ -57,7 +57,7 @@ public class RoleController : BaseController
 
     [HttpPost]
     [ValidateAntiForgeryToken]
-    public async Task<IActionResult> EditRole(string id, Role role)
+    public async Task<IActionResult> EditRole(string id, [Bind("RoleID,Name,Description")] Role role)
     {
         int roleId = Utility.DecryptId(id);
         if (roleId != role.RoleID) return NotFound();

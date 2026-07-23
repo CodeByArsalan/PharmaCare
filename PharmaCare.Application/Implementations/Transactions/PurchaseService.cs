@@ -1,7 +1,9 @@
 using Microsoft.EntityFrameworkCore;
 using PharmaCare.Application.Interfaces;
 using PharmaCare.Application.Interfaces.Accounting;
+using PharmaCare.Application.Interfaces.Configuration;
 using PharmaCare.Application.Interfaces.Transactions;
+using PharmaCare.Application.Utilities;
 using PharmaCare.Domain.Entities.Accounting;
 using PharmaCare.Domain.Entities.Configuration;
 using PharmaCare.Domain.Entities.Finance;
@@ -22,6 +24,7 @@ public class PurchaseService : TransactionServiceBase, IPurchaseService
     private readonly IRepository<Product> _productRepository;
     private readonly IRepository<Account> _accountRepository;
     private readonly IRepository<Payment> _paymentRepository;
+    private readonly IProductService _productService;
 
     private const string TRANSACTION_TYPE_CODE = "GRN";
     private const string PO_TRANSACTION_TYPE_CODE = "PO";
@@ -39,6 +42,7 @@ public class PurchaseService : TransactionServiceBase, IPurchaseService
         IRepository<Product> productRepository,
         IRepository<Account> accountRepository,
         IRepository<Payment> paymentRepository,
+        IProductService productService,
         IUnitOfWork unitOfWork,
         IFinancialPeriodService financialPeriodService)
         : base(stockMainRepository, voucherRepository, unitOfWork, financialPeriodService)
@@ -49,6 +53,7 @@ public class PurchaseService : TransactionServiceBase, IPurchaseService
         _productRepository = productRepository;
         _accountRepository = accountRepository;
         _paymentRepository = paymentRepository;
+        _productService = productService;
     }
 
     public async Task<IEnumerable<StockMain>> GetAllAsync()
@@ -741,24 +746,15 @@ public class PurchaseService : TransactionServiceBase, IPurchaseService
 
     private async Task<string> GeneratePaymentReferenceAsync()
     {
-        var prefix = $"PAY-{DateTime.Now:yyyyMMdd}-";
+        var datePrefix = DocumentNumberSequence.DatePrefix("PAY");
+        await DocumentNumberSequence.SerializeAsync(_unitOfWork, datePrefix);
 
         var lastPayment = await _paymentRepository.Query()
-            .Where(p => p.Reference != null && p.Reference.StartsWith(prefix))
+            .Where(p => p.Reference != null && p.Reference.StartsWith(datePrefix))
             .OrderByDescending(p => p.Reference)
             .FirstOrDefaultAsync();
 
-        int nextNum = 1;
-        if (lastPayment?.Reference != null)
-        {
-            var parts = lastPayment.Reference.Split('-');
-            if (parts.Length > 2 && int.TryParse(parts.Last(), out int lastNum))
-            {
-                nextNum = lastNum + 1;
-            }
-        }
-
-        return $"{prefix}{nextNum:D4}";
+        return DocumentNumberSequence.Next(datePrefix, lastPayment?.Reference);
     }
 
     public async Task<IEnumerable<StockMain>> GetPurchaseOrdersForGrnAsync(int? supplierId = null)
@@ -903,6 +899,21 @@ public class PurchaseService : TransactionServiceBase, IPurchaseService
 
         return await ExecuteInTransactionAsync(async () =>
         {
+            // An edit that reduces received quantity removes stock that may already have been
+            // sold. Check the net reduction per product against current stock-on-hand (locked,
+            // so a concurrent sale cannot slip between the check and the save).
+            var oldQty = existing.StockDetails
+                .GroupBy(d => d.Product_ID)
+                .ToDictionary(g => g.Key, g => g.Sum(x => x.Quantity));
+            var newQty = purchase.StockDetails
+                .GroupBy(d => d.Product_ID)
+                .ToDictionary(g => g.Key, g => g.Sum(x => x.Quantity));
+            var reductionByProduct = oldQty.Keys.Union(newQty.Keys)
+                .Select(pid => (pid, reduction: oldQty.GetValueOrDefault(pid) - newQty.GetValueOrDefault(pid)))
+                .Where(x => x.reduction > 0)
+                .ToDictionary(x => x.pid, x => x.reduction);
+            await EnsureRemovalLeavesNonNegativeStockAsync(_productService, reductionByProduct, "reduce this purchase's received quantity");
+
             // Update header fields
             existing.Party_ID = purchase.Party_ID;
             existing.TransactionDate = purchase.TransactionDate;
@@ -975,12 +986,20 @@ public class PurchaseService : TransactionServiceBase, IPurchaseService
         {
             var purchase = await _stockMainRepository.Query()
                 .Include(s => s.TransactionType)
+                .Include(s => s.StockDetails)
                 .FirstOrDefaultAsync(s => s.StockMainID == id && s.TransactionType!.Code == TRANSACTION_TYPE_CODE);
 
             if (purchase == null || purchase.Status == "Void")
                 return false;
 
             await ValidatePeriodAsync(purchase.TransactionDate);
+
+            // Voiding a GRN removes the received stock — verify it is still on hand
+            // (goods already sold cannot be un-received without going negative).
+            var removalByProduct = purchase.StockDetails
+                .GroupBy(d => d.Product_ID)
+                .ToDictionary(g => g.Key, g => g.Sum(x => x.Quantity));
+            await EnsureRemovalLeavesNonNegativeStockAsync(_productService, removalByProduct, "void this purchase");
 
             // Block voiding if non-voided Purchase Returns reference this GRN
             var hasActiveReturns = await _stockMainRepository.Query()

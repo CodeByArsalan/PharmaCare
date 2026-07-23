@@ -1,6 +1,7 @@
 using Microsoft.EntityFrameworkCore;
 using PharmaCare.Application.DTOs.Finance;
 using PharmaCare.Application.Interfaces;
+using PharmaCare.Application.Utilities;
 using PharmaCare.Application.Interfaces.Accounting;
 using PharmaCare.Application.Interfaces.Finance;
 using PharmaCare.Domain.Entities.Accounting;
@@ -16,8 +17,8 @@ namespace PharmaCare.Application.Implementations.Finance;
 /// </summary>
 public class CustomerPaymentService : BaseAccountingService, ICustomerPaymentService
 {
-    private const int CashAccountTypeId = 1;
-    private const int BankAccountTypeId = 2;
+    private const int CashAccountTypeId = AccountingConstants.CashAccountTypeId;
+    private const int BankAccountTypeId = AccountingConstants.BankAccountTypeId;
 
     private readonly IRepository<Payment> _paymentRepository;
     private readonly IRepository<StockMain> _stockMainRepository;

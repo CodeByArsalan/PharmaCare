@@ -1,5 +1,6 @@
 using Microsoft.EntityFrameworkCore;
 using PharmaCare.Application.Interfaces;
+using PharmaCare.Application.Utilities;
 using PharmaCare.Application.Interfaces.Accounting;
 using PharmaCare.Application.Interfaces.Finance;
 using PharmaCare.Domain.Entities.Accounting;
@@ -283,38 +284,20 @@ public class SupplierCreditNoteService : ISupplierCreditNoteService
 
     private async Task<string> GenerateCreditNoteNoAsync()
     {
-        var datePrefix = $"{PREFIX}-{DateTime.Now:yyyyMMdd}-";
+        var datePrefix = DocumentNumberSequence.DatePrefix(PREFIX);
+        await DocumentNumberSequence.SerializeAsync(_unitOfWork, datePrefix);
+
         var last = await _repository.Query()
             .Where(c => c.CreditNoteNo.StartsWith(datePrefix))
             .OrderByDescending(c => c.CreditNoteNo)
             .FirstOrDefaultAsync();
 
-        int next = 1;
-        if (last != null)
-        {
-            var parts = last.CreditNoteNo.Split('-');
-            if (parts.Length > 2 && int.TryParse(parts.Last(), out int n))
-                next = n + 1;
-        }
-        return $"{datePrefix}{next:D4}";
+        return DocumentNumberSequence.Next(datePrefix, last?.CreditNoteNo);
     }
 
     private async Task<string> GenerateVoucherNoAsync()
     {
-        var datePrefix = $"JV-{DateTime.Now:yyyyMMdd}-";
-        var last = await _voucherRepository.Query()
-            .Where(v => v.VoucherNo.StartsWith(datePrefix))
-            .OrderByDescending(v => v.VoucherNo)
-            .FirstOrDefaultAsync();
-
-        int next = 1;
-        if (last != null)
-        {
-            var parts = last.VoucherNo.Split('-');
-            if (parts.Length > 2 && int.TryParse(parts.Last(), out int n))
-                next = n + 1;
-        }
-        return $"{datePrefix}{next:D4}";
+        return await _voucherRepository.GenerateVoucherNoAsync("JV", _unitOfWork);
     }
 
     public async Task<bool> ApplyToGrnAsync(int cnId, int grnId, decimal amount, int userId)

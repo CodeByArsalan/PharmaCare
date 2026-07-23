@@ -48,7 +48,8 @@ public class ExpenseController : BaseController
 
     [HttpPost]
     [ValidateAntiForgeryToken]
-    public async Task<IActionResult> AddExpense(Expense expense)
+    public async Task<IActionResult> AddExpense(
+        [Bind("ExpenseCategory_ID,ExpenseDate,Amount,SourceAccount_ID,VendorName,Reference,Description")] Expense expense)
     {
         // Remove navigation property validations
         ModelState.Remove("ExpenseCategory");
@@ -213,7 +214,8 @@ public class ExpenseController : BaseController
     /// </summary>
     [HttpPost]
     [ValidateAntiForgeryToken]
-    public async Task<IActionResult> AddExpenseCategory(ExpenseCategory category)
+    public async Task<IActionResult> AddExpenseCategory(
+        [Bind("Name,Parent_ID,DefaultExpenseAccount_ID")] ExpenseCategory category)
     {
         ModelState.Remove("ParentCategory");
         ModelState.Remove("DefaultExpenseAccount");
@@ -258,7 +260,8 @@ public class ExpenseController : BaseController
     /// </summary>
     [HttpPost]
     [ValidateAntiForgeryToken]
-    public async Task<IActionResult> EditExpenseCategory(string id, ExpenseCategory category)
+    public async Task<IActionResult> EditExpenseCategory(string id,
+        [Bind("ExpenseCategoryID,Name,Parent_ID,DefaultExpenseAccount_ID,IsActive")] ExpenseCategory category)
     {
         int categoryId = Utility.DecryptId(id);
         if (categoryId != category.ExpenseCategoryID) return NotFound();

@@ -60,7 +60,7 @@
                     </tr>
                     <tr>
                         <td class="text-muted">Amount</td>
-                        <td><span class="fs-5 fw-bold text-primary">PKR @Model.Amount.ToString("N2")</span></td>
+                        <td><span class="fs-5 fw-bold text-primary">@CurrencyDisplay.Symbol @Model.Amount.ToString("N2")</span></td>
                     </tr>
                     <tr>
                         <td class="text-muted">Vendor</td>

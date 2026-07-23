@@ -44,7 +44,7 @@
                         <div class="col-md-6">
                             <label class="form-label">PO Total Amount</label>
                             <div class="input-group">
-                                <span class="input-group-text">PKR</span>
+                                <span class="input-group-text">@CurrencyDisplay.Symbol</span>
                                 <input type="text" class="form-control" value="@po?.TotalAmount.ToString("N2")" readonly />
                             </div>
                         </div>
@@ -52,7 +52,7 @@
                         <div class="col-md-6">
                             <label class="form-label">PO Balance Amount</label>
                             <div class="input-group">
-                                <span class="input-group-text">PKR</span>
+                                <span class="input-group-text">@CurrencyDisplay.Symbol</span>
                                 <input type="text" class="form-control" value="@po?.BalanceAmount.ToString("N2")" readonly />
                             </div>
                         </div>
@@ -60,7 +60,7 @@
                         <div class="col-md-6">
                             <label class="form-label">Payment Amount <span class="text-danger">*</span></label>
                             <div class="input-group">
-                                <span class="input-group-text">PKR</span>
+                                <span class="input-group-text">@CurrencyDisplay.Symbol</span>
                                 <input asp-for="Amount" type="number" step="0.01" min="@minPayableAttr" max="@finalPayableAttr"
                                        class="form-control fs-5" id="paymentAmount"
                                        placeholder="Enter amount" required />

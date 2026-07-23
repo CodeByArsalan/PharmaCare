@@ -1,4 +1,4 @@
-@model PharmaCare.Application.ViewModels.Report.DailySalesSummaryVM
+﻿@model PharmaCare.Application.ViewModels.Report.DailySalesSummaryVM
 @{
     ViewData["Title"] = "Daily Sales Summary";
 }
@@ -110,7 +110,7 @@
 </div>
 
 @section Scripts {
-    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <script src="~/lib/chartjs/chart.umd.min.js"></script>
     <script>
         const hourlyData = @Html.Raw(System.Text.Json.JsonSerializer.Serialize(Model.HourlySales));
         const labels = hourlyData.map(h => h.hour + ':00');

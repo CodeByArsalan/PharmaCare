@@ -88,6 +88,7 @@
                 <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal" aria-label="Close"></button>
             </div>
             <form id="addPeriodForm">
+                @Html.AntiForgeryToken()
                 <div class="modal-body">
                     <div class="mb-3">
                         <label class="form-label font-weight-bold">Period Name (e.g., FY 2024-25)</label>
@@ -124,6 +125,10 @@
 @section Scripts {
     <script>
         $(document).ready(function () {
+            function antiForgeryToken() {
+                return $('input[name="__RequestVerificationToken"]').first().val();
+            }
+
             // Handle Add Period Form Submission
             $('#addPeriodForm').submit(function (e) {
                 e.preventDefault();
@@ -163,7 +168,7 @@
                     inputPlaceholder: 'Enter reason for closing...'
                 }).then((result) => {
                     if (result.isConfirmed) {
-                        $.post('/FinancialPeriod/Close', { id: id, remarks: result.value }, function (res) {
+                        $.post('/FinancialPeriod/Close', { id: id, remarks: result.value, __RequestVerificationToken: antiForgeryToken() }, function (res) {
                             if (res.success) {
                                 location.reload();
                             } else {
@@ -189,7 +194,7 @@
                     confirmButtonText: 'Yes, Open it!'
                 }).then((result) => {
                     if (result.isConfirmed) {
-                        $.post('/FinancialPeriod/Open', { id: id }, function (res) {
+                        $.post('/FinancialPeriod/Open', { id: id, __RequestVerificationToken: antiForgeryToken() }, function (res) {
                             if (res.success) {
                                 location.reload();
                             } else {

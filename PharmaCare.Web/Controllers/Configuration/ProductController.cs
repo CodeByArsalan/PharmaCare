@@ -11,10 +11,12 @@ namespace PharmaCare.Web.Controllers.Configuration;
 public class ProductController : BaseController
 {
     private readonly IProductService _productService;
+    private readonly ILogger<ProductController> _logger;
 
-    public ProductController(IProductService productService)
+    public ProductController(IProductService productService, ILogger<ProductController> logger)
     {
         _productService = productService;
+        _logger = logger;
     }
 
     public async Task<IActionResult> ProductsIndex(int? categoryId, int? subCategoryId, int? status, string? searchTerm, string? activeTab, int page = 1, int pageSize = 25)
@@ -78,25 +80,39 @@ public class ProductController : BaseController
     {
         if (ModelState.IsValid)
         {
-            // Calculate Total Opening Quantity
-            vm.OpeningQuantity = (vm.OpeningStockBoxes * vm.UnitsInPack) + vm.OpeningStockUnits;
-
-            // Create Product
-            var createdProduct = await _productService.CreateAsync(vm, CurrentUserId);
-
-            // Save Prices (below-cost prices are rejected by the service)
             try
             {
-                await _productService.SaveProductPricesAsync(createdProduct.ProductID, vm.ProductPrices, CurrentUserId);
-            }
-            catch (PricingValidationException ex)
-            {
-                ShowMessage(MessageType.Error, ex.Message + " The product was created — please correct its pricing.");
-                return RedirectToAction("EditProduct", new { id = Utility.EncryptId(createdProduct.ProductID) });
-            }
+                // Calculate Total Opening Quantity
+                vm.OpeningQuantity = (vm.OpeningStockBoxes * vm.UnitsInPack) + vm.OpeningStockUnits;
 
-            ShowMessage(MessageType.Success, "Product created successfully!");
-            return RedirectToAction("ProductsIndex", new { activeTab = "products" });
+                // Create Product
+                var createdProduct = await _productService.CreateAsync(vm, CurrentUserId);
+
+                // Save Prices (below-cost prices are rejected by the service)
+                try
+                {
+                    await _productService.SaveProductPricesAsync(createdProduct.ProductID, vm.ProductPrices, CurrentUserId);
+                }
+                catch (PricingValidationException ex)
+                {
+                    ShowMessage(MessageType.Error, ex.Message + " The product was created — please correct its pricing.");
+                    return RedirectToAction("EditProduct", new { id = Utility.EncryptId(createdProduct.ProductID) });
+                }
+
+                ShowMessage(MessageType.Success, "Product created successfully!");
+                return RedirectToAction("ProductsIndex", new { activeTab = "products" });
+            }
+            catch (InvalidOperationException ex)
+            {
+                ShowMessage(MessageType.Error, ex.Message);
+                return RedirectToAction("ProductsIndex", new { activeTab = "add" });
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "Error creating product");
+                ShowMessage(MessageType.Error, "An unexpected error occurred while saving the product.");
+                return RedirectToAction("ProductsIndex", new { activeTab = "add" });
+            }
         }
         
         // On validation failure, redirect back to the index with the "add" tab active
@@ -176,30 +192,42 @@ public class ProductController : BaseController
 
         if (ModelState.IsValid)
         {
-             // Calculate Total Opening Quantity on Edit (if needed to update inventory from here, 
-             // though usually Opening Stock is static after creation. 
-             // Assuming user can correct it here if they made a mistake)
-             vm.OpeningQuantity = (vm.OpeningStockBoxes * vm.UnitsInPack) + vm.OpeningStockUnits;
-
-            var updated = await _productService.UpdateAsync(vm, CurrentUserId);
-            if (!updated)
-            {
-                return NotFound();
-            }
-
-            // Save Prices (below-cost prices are rejected by the service)
             try
             {
-                await _productService.SaveProductPricesAsync(productId, vm.ProductPrices, CurrentUserId);
+                // Calculate Total Opening Quantity on Edit (if needed to update inventory from here,
+                // though usually Opening Stock is static after creation.
+                // Assuming user can correct it here if they made a mistake)
+                vm.OpeningQuantity = (vm.OpeningStockBoxes * vm.UnitsInPack) + vm.OpeningStockUnits;
+
+                var updated = await _productService.UpdateAsync(vm, CurrentUserId);
+                if (!updated)
+                {
+                    return NotFound();
+                }
+
+                // Save Prices (below-cost prices are rejected by the service)
+                try
+                {
+                    await _productService.SaveProductPricesAsync(productId, vm.ProductPrices, CurrentUserId);
+                }
+                catch (PricingValidationException ex)
+                {
+                    ShowMessage(MessageType.Error, ex.Message);
+                    return RedirectToAction("EditProduct", new { id });
+                }
+
+                ShowMessage(MessageType.Success, "Product updated successfully!");
+                return RedirectToAction("ProductsIndex");
             }
-            catch (PricingValidationException ex)
+            catch (InvalidOperationException ex)
             {
                 ShowMessage(MessageType.Error, ex.Message);
-                return RedirectToAction("EditProduct", new { id });
             }
-
-            ShowMessage(MessageType.Success, "Product updated successfully!");
-            return RedirectToAction("ProductsIndex");
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "Error updating product {ProductId}", vm.ProductID);
+                ShowMessage(MessageType.Error, "An unexpected error occurred while saving the product.");
+            }
         }
         
         return View(vm);
@@ -228,8 +256,16 @@ public class ProductController : BaseController
         int productId = Utility.DecryptId(id);
         if (productId == 0) return NotFound();
 
-        await _productService.ToggleStatusAsync(productId, CurrentUserId);
-        ShowMessage(MessageType.Success, "Product status updated successfully!");
+        try
+        {
+            await _productService.ToggleStatusAsync(productId, CurrentUserId);
+            ShowMessage(MessageType.Success, "Product status updated successfully!");
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Error toggling product {ProductId}", productId);
+            ShowMessage(MessageType.Error, "Could not change the product's status. Please try again.");
+        }
         return RedirectToAction("ProductsIndex");
     }
     [HttpGet]

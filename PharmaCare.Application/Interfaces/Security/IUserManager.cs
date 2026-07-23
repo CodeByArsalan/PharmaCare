@@ -22,4 +22,11 @@ public interface IUserManager
     /// Find user by ID.
     /// </summary>
     Task<User?> FindByIdAsync(int id);
+
+    /// <summary>
+    /// Rotates the user's security stamp, invalidating their existing auth cookies at the
+    /// next security-stamp validation. Call whenever access must be revoked mid-session
+    /// (deactivation, pharmacy suspension, role removal).
+    /// </summary>
+    Task UpdateSecurityStampAsync(User user);
 }

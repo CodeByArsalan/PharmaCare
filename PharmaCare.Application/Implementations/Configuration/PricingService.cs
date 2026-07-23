@@ -1,6 +1,7 @@
 using PharmaCare.Application.DTOs.Configuration;
 using PharmaCare.Application.Helpers;
 using PharmaCare.Application.Interfaces.Configuration;
+using PharmaCare.Application.Utilities;
 using PharmaCare.Domain.Entities.Configuration;
 using PharmaCare.Domain.Enums;
 
@@ -9,7 +10,7 @@ namespace PharmaCare.Application.Implementations.Configuration;
 /// <inheritdoc cref="IPricingService"/>
 public class PricingService : IPricingService
 {
-    public int WholesalePriceTypeId => 2;
+    public int WholesalePriceTypeId => AccountingConstants.WholesalePriceTypeId;
 
     public ResolvedPrice Resolve(int priceTypeId, decimal cost, int unitsInPack, decimal? explicitPrice, ProfitSettings settings)
     {

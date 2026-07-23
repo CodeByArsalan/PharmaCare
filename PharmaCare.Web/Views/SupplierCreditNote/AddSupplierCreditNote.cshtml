@@ -35,7 +35,7 @@
                         <div class="col-md-6">
                             <label class="form-label">Amount <span class="text-danger">*</span></label>
                             <div class="input-group">
-                                <span class="input-group-text">PKR</span>
+                                <span class="input-group-text">@CurrencyDisplay.Symbol</span>
                                 <input asp-for="TotalAmount" type="number" step="0.01" min="0.01" class="form-control" required />
                             </div>
                             <span asp-validation-for="TotalAmount" class="text-danger small"></span>

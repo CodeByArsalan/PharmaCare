@@ -18,14 +18,6 @@
     </a>
 </div>
 
-@if (TempData["Success"] != null)
-{
-    <div class="alert alert-success alert-dismissible fade show" role="alert">
-        <i class="fas fa-check-circle me-2"></i>@TempData["Success"]
-        <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
-    </div>
-}
-
 <div class="card mb-4 shadow-sm border-0">
     <div class="card-body bg-light">
         <form method="get" asp-action="PartiesIndex" class="row gx-3 gy-2 align-items-end">
@@ -166,8 +158,8 @@
                     cancelButtonColor: '#64748b',
                     confirmButtonText: 'Yes, delete it!',
                     cancelButtonText: 'Cancel',
-                    background: '#1e293b',
-                    color: '#f1f5f9'
+                    background: 'var(--bg-card)',
+                    color: 'var(--text-primary)'
                 }).then((result) => {
                     if (result.isConfirmed) {
                         const form = document.getElementById('deleteForm');

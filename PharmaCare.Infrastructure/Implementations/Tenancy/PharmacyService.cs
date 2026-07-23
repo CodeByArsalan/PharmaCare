@@ -1,6 +1,8 @@
+using Microsoft.AspNetCore.Identity;
 using Microsoft.EntityFrameworkCore;
 using PharmaCare.Application.Interfaces;
 using PharmaCare.Application.Interfaces.Tenancy;
+using PharmaCare.Domain.Entities.Security;
 using PharmaCare.Domain.Entities.Tenancy;
 
 namespace PharmaCare.Infrastructure.Implementations.Tenancy;
@@ -9,11 +11,13 @@ public class PharmacyService : IPharmacyService
 {
     private readonly IRepository<Pharmacy> _repository;
     private readonly IUnitOfWork _unitOfWork;
+    private readonly UserManager<User> _userManager;
 
-    public PharmacyService(IRepository<Pharmacy> repository, IUnitOfWork unitOfWork)
+    public PharmacyService(IRepository<Pharmacy> repository, IUnitOfWork unitOfWork, UserManager<User> userManager)
     {
         _repository = repository;
         _unitOfWork = unitOfWork;
+        _userManager = userManager;
     }
 
     public async Task<IEnumerable<Pharmacy>> GetAllAsync()
@@ -51,6 +55,20 @@ public class PharmacyService : IPharmacyService
         pharmacy.UpdatedBy = userId;
         _repository.Update(pharmacy);
         await _unitOfWork.SaveChangesAsync();
+
+        if (!pharmacy.IsActive)
+        {
+            // Suspension must take effect for already-signed-in staff, not just at next login:
+            // rotate every user's security stamp so their auth cookies stop validating.
+            var users = await _userManager.Users
+                .Where(u => u.Pharmacy_ID == pharmacyId)
+                .ToListAsync();
+            foreach (var user in users)
+            {
+                await _userManager.UpdateSecurityStampAsync(user);
+            }
+        }
+
         return true;
     }
 }

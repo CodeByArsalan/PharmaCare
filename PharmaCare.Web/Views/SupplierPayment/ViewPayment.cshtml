@@ -161,7 +161,7 @@
         <div class="amount-hero text-center">
             <div class="amount-label">Amount Paid</div>
             <h1 class="amount-value @(Model.IsVoided ? "text-decoration-line-through opacity-50" : "")">
-                <span class="fs-4 fw-normal opacity-50 me-1">PKR</span>@Model.Amount.ToString("N2")
+                <span class="fs-4 fw-normal opacity-50 me-1">@CurrencyDisplay.Symbol</span>@Model.Amount.ToString("N2")
             </h1>
             @if (Model.IsVoided)
             {
@@ -322,8 +322,8 @@
                 cancelButtonColor: '#64748b',
                 confirmButtonText: 'Void Payment Now',
                 cancelButtonText: 'Keep Payment',
-                background: '#1e293b',
-                color: '#f1f5f9',
+                background: 'var(--bg-card)',
+                color: 'var(--text-primary)',
                 customClass: {
                     title: 'text-white fw-bold',
                     popup: 'premium-swal shadow-lg'

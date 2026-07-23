@@ -191,8 +191,8 @@
                     cancelButtonColor: '#64748b',
                     confirmButtonText: 'Yes, approve it!',
                     cancelButtonText: 'Cancel',
-                    background: '#1e293b',
-                    color: '#f1f5f9'
+                    background: 'var(--bg-card)',
+                    color: 'var(--text-primary)'
                 }).then((result) => {
                     if (result.isConfirmed) {
                         document.getElementById('approveId').value = id;
@@ -217,8 +217,8 @@
                     cancelButtonColor: '#64748b',
                     confirmButtonText: 'Yes, cancel it!',
                     cancelButtonText: 'No',
-                    background: '#1e293b',
-                    color: '#f1f5f9'
+                    background: 'var(--bg-card)',
+                    color: 'var(--text-primary)'
                 }).then((result) => {
                     if (result.isConfirmed) {
                         document.getElementById('deleteId').value = id;
