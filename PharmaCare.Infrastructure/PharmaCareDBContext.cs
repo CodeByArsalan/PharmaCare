@@ -405,7 +405,10 @@ public class PharmaCareDBContext : IdentityUserContext<User, int>
                   .HasDatabaseName("IX_StockMains_Type_Date_Status");
             entity.ToTable(t =>
             {
-                t.HasCheckConstraint("CK_StockMains_Status_Valid", "[Status] IN ('Draft','Approved','Void')");
+                // 'Completed' is a real, persisted Purchase Order status: a PO auto-completes once
+                // every ordered line has been received, and re-opens if a GRN against it is later
+                // voided or reduced. PurchaseService owns both transitions.
+                t.HasCheckConstraint("CK_StockMains_Status_Valid", "[Status] IN ('Draft','Approved','Completed','Void')");
                 t.HasCheckConstraint("CK_StockMains_PaymentStatus_Valid", "[PaymentStatus] IN ('Unpaid','Partial','Paid')");
             });
 
@@ -434,6 +437,13 @@ public class PharmaCareDBContext : IdentityUserContext<User, int>
         {
             entity.ToTable("StockDetails");
             entity.HasKey(e => e.StockDetailID);
+
+            // Covers the per-product cost/stock lookups (ProductService.GetLastGrnCostPricesAsync
+            // and the stock-movement aggregates), which filter by tenant + product and pick the
+            // newest StockMain. Including CostPrice/Quantity keeps them index-only.
+            entity.HasIndex(e => new { e.Pharmacy_ID, e.Product_ID, e.StockMain_ID })
+                  .IncludeProperties(e => new { e.CostPrice, e.Quantity })
+                  .HasDatabaseName("IX_StockDetails_Product_StockMain");
             entity.HasOne(e => e.StockMain)
                 .WithMany(m => m.StockDetails)
                 .HasForeignKey(e => e.StockMain_ID)

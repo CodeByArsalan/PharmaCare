@@ -118,7 +118,7 @@ public class SaleReturnController : BaseController
             }
             catch (Exception ex) when (ex is InvalidOperationException or ArgumentException)
             {
-                ShowMessage(MessageType.Error, ex.Message);
+                ShowMessage(MessageType.Error, SafeErrorMessage(ex, "AddSaleReturn"));
             }
             catch (Exception ex)
             {

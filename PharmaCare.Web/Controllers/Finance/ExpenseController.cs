@@ -69,7 +69,7 @@ public class ExpenseController : BaseController
             }
             catch (Exception ex)
             {
-                ModelState.AddModelError("", "Error recording expense: " + ex.Message);
+                ModelState.AddModelError("", SafeErrorMessage(ex, "AddExpense"));
             }
         }
 
@@ -121,7 +121,7 @@ public class ExpenseController : BaseController
         }
         catch (Exception ex)
         {
-            ShowMessage(MessageType.Error, "Error approving expense: " + ex.Message);
+            ShowMessage(MessageType.Error, SafeErrorMessage(ex, "Approve"));
         }
 
         return RedirectToAction(nameof(ExpensesIndex));
@@ -158,7 +158,7 @@ public class ExpenseController : BaseController
         }
         catch (Exception ex)
         {
-            ShowMessage(MessageType.Error, "Error voiding expense: " + ex.Message);
+            ShowMessage(MessageType.Error, SafeErrorMessage(ex, "Void"));
         }
 
         return RedirectToAction(nameof(ExpensesIndex));
@@ -232,7 +232,7 @@ public class ExpenseController : BaseController
             }
             catch (Exception ex)
             {
-                ModelState.AddModelError("", "Error: " + ex.Message);
+                ModelState.AddModelError("", SafeErrorMessage(ex, "AddExpenseCategory"));
             }
         }
 
@@ -329,7 +329,7 @@ public class ExpenseController : BaseController
         }
         catch (Exception ex)
         {
-            ShowMessage(MessageType.Error, "Error saving budgets: " + ex.Message);
+            ShowMessage(MessageType.Error, SafeErrorMessage(ex, "BudgetManagement"));
             ViewBag.Year = year;
             ViewBag.Month = month;
             return View(budgets);

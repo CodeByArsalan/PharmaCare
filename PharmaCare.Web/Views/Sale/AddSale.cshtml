@@ -1042,10 +1042,21 @@
             }
         }
 
-        async function submitSaleFormInNewTab() {
+        async function submitSaleFormInNewTab(overrideCreditLimit) {
             const form = document.getElementById('saleForm');
             const formData = new FormData(form);
             const saveBtn = document.getElementById('confirmSaveBtn');
+
+            // Only ever set by an explicit operator confirmation below. The server re-checks that
+            // the user is actually allowed to override, so this flag alone proves nothing.
+            if (overrideCreditLimit) {
+                formData.set('overrideCreditLimit', 'true');
+            }
+
+            const resetBtn = () => {
+                saveBtn.disabled = false;
+                saveBtn.innerHTML = '<i class="fas fa-save me-1"></i>Save Sale';
+            };
 
             try {
                 saveBtn.disabled = true;
@@ -1063,16 +1074,48 @@
                     // Open receipt in new tab, redirect current tab to sales index
                     window.open(result.receiptUrl, '_blank');
                     window.location.href = result.salesIndexUrl;
-                } else {
-                    alert(result.message || 'Failed to save sale. Please try again.');
-                    saveBtn.disabled = false;
-                    saveBtn.innerHTML = '<i class="fas fa-save me-1"></i>Save Sale';
+                    return;
                 }
+
+                // Credit limit breach and this user is allowed to authorise it — offer the override.
+                if (result.creditLimitWarning) {
+                    resetBtn();
+                    const confirmed = await Swal.fire({
+                        icon: 'warning',
+                        title: 'Credit limit exceeded',
+                        text: result.message,
+                        showCancelButton: true,
+                        confirmButtonText: 'Authorise and continue',
+                        cancelButtonText: 'Cancel sale',
+                        confirmButtonColor: '#d97706',
+                        background: 'var(--bg-card)',
+                        color: 'var(--text-primary)'
+                    });
+
+                    if (confirmed.isConfirmed) {
+                        await submitSaleFormInNewTab(true);
+                    }
+                    return;
+                }
+
+                Swal.fire({
+                    icon: 'error',
+                    title: 'Could not save sale',
+                    text: result.message || 'Failed to save sale. Please try again.',
+                    background: 'var(--bg-card)',
+                    color: 'var(--text-primary)'
+                });
+                resetBtn();
             } catch (error) {
                 console.error('Error saving sale:', error);
-                alert('An error occurred while saving. Please try again.');
-                saveBtn.disabled = false;
-                saveBtn.innerHTML = '<i class="fas fa-save me-1"></i>Save Sale';
+                Swal.fire({
+                    icon: 'error',
+                    title: 'Could not save sale',
+                    text: 'An error occurred while saving. Please try again.',
+                    background: 'var(--bg-card)',
+                    color: 'var(--text-primary)'
+                });
+                resetBtn();
             }
         }
     </script>

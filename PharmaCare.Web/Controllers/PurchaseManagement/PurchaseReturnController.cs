@@ -68,7 +68,7 @@ public class PurchaseReturnController : BaseController
             }
             catch (Exception ex)
             {
-                ModelState.AddModelError("", "Error creating purchase return: " + ex.Message);
+                ModelState.AddModelError("", SafeErrorMessage(ex, "AddPurchaseReturn"));
             }
         }
 

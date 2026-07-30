@@ -2,6 +2,7 @@ using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.Mvc.Rendering;
 using Microsoft.Extensions.Logging;
+using PharmaCare.Application.Exceptions;
 using PharmaCare.Application.Interfaces.Configuration;
 using PharmaCare.Application.Interfaces.Transactions;
 using PharmaCare.Domain.Entities.Configuration;
@@ -62,7 +63,7 @@ public class SaleController : BaseController
 
     [HttpPost]
     [ValidateAntiForgeryToken]
-    public async Task<IActionResult> AddSale(SaleCreateRequest request, int? PaymentAccountId)
+    public async Task<IActionResult> AddSale(SaleCreateRequest request, int? PaymentAccountId, bool overrideCreditLimit = false)
     {
         var tenderedAmount = Math.Round(request.TenderedAmount ?? request.PaidAmount, 2, MidpointRounding.AwayFromZero);
         if (tenderedAmount < 0)
@@ -107,7 +108,8 @@ public class SaleController : BaseController
         if (selectedParty?.IsWholeSale == true)
         {
             var settings = await _profitSettingsService.GetAsync();
-            var wholesaleCosts = await _productService.GetLastGrnCostPricesAsync();
+            var wholesaleCosts = await _productService.GetLastGrnCostPricesAsync(
+                sale.StockDetails.Select(d => d.Product_ID));
             var productsWithStock = await _productService.GetProductsWithStockAsync(priceTypeId: _pricingService.WholesalePriceTypeId);
             var productLookup = productsWithStock.ToDictionary(
                 ps => ps.Product.ProductID,
@@ -134,7 +136,8 @@ public class SaleController : BaseController
 
         // Margin floor (hard block): re-derive authoritative costs and reject any below-cost line.
         // Also normalises CostPrice/LineCost server-side so client-supplied values can't understate COGS.
-        var authoritativeCosts = await _productService.GetLastGrnCostPricesAsync();
+        var authoritativeCosts = await _productService.GetLastGrnCostPricesAsync(
+            sale.StockDetails.Select(d => d.Product_ID));
         foreach (var detail in sale.StockDetails)
         {
             var cost = authoritativeCosts.TryGetValue(detail.Product_ID, out var lc) ? lc : detail.CostPrice;
@@ -168,7 +171,13 @@ public class SaleController : BaseController
                 sale.Party = party;
             }
 
-            await _saleService.CreateAsync(sale, CurrentUserId, PaymentAccountId);
+            // An override is only honoured for a user who may also void a sale — the same bar as
+            // reversing one. A posted flag alone is never enough.
+            var mayOverrideCreditLimit = HasPermission("Sale", "SalesIndex", "delete");
+
+            await _saleService.CreateAsync(sale, CurrentUserId, PaymentAccountId,
+                overrideCreditLimit && mayOverrideCreditLimit);
+
             TempData["ReceiptTenderedAmount"] = tenderedAmount.ToString();
 
             var encryptedId = Utility.EncryptId(sale.StockMainID);
@@ -183,6 +192,26 @@ public class SaleController : BaseController
 
             ShowMessage(MessageType.Success, "Sale created successfully!");
             return RedirectToAction(nameof(Receipt), new { id = encryptedId });
+        }
+        catch (CreditLimitExceededException ex)
+        {
+            // Overridable, so it is reported separately from a hard failure: the client may offer
+            // an authorised user the chance to confirm and re-submit. Users who cannot override
+            // just see the message.
+            _logger.LogWarning(ex, "Credit limit breach on sale for customer {CustomerId} by user {UserId}.",
+                request.Party_ID, CurrentUserId);
+
+            var canOverride = HasPermission("Sale", "SalesIndex", "delete");
+
+            if (Request.Headers.XRequestedWith == "XMLHttpRequest")
+            {
+                return Json(new { success = false, creditLimitWarning = canOverride, message = ex.Message });
+            }
+
+            ModelState.AddModelError(string.Empty, ex.Message);
+            ShowMessage(MessageType.Warning, ex.Message);
+            SetSaleFormState(request, PaymentAccountId);
+            return View(sale);
         }
         catch (Exception ex)
         {
@@ -261,7 +290,8 @@ public class SaleController : BaseController
         try
         {
             var productsWithStock = await _productService.GetProductsWithStockAsync(priceTypeId);
-            var lastGrnCosts = await _productService.GetLastGrnCostPricesAsync();
+            var lastGrnCosts = await _productService.GetLastGrnCostPricesAsync(
+                productsWithStock.Select(ps => ps.Product.ProductID));
             var profitSettings = await _profitSettingsService.GetAsync();
 
             // Default to retail (1) when no price type is specified.
@@ -293,8 +323,10 @@ public class SaleController : BaseController
         }
         catch (Exception ex)
         {
-            _logger.LogError(ex, "Error in GetProducts for priceTypeId {PriceTypeId}", priceTypeId);
-            return StatusCode(500, ex.Message + " | " + ex.InnerException?.Message);
+            // Never echo ex.Message/InnerException here — it can carry SQL text and server names,
+            // and this endpoint is reachable by every authenticated user. SafeErrorMessage logs
+            // the full exception and returns only what is safe to display.
+            return StatusCode(500, new { message = SafeErrorMessage(ex, $"Loading products (priceTypeId {priceTypeId})") });
         }
     }
 

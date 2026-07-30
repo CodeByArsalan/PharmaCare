@@ -9,8 +9,7 @@ public interface IAuthService
 {
     Task<AuthResult> LoginAsync(string email, string password, bool rememberMe);
     Task LogoutAsync();
-    Task<User?> GetCurrentUserAsync();
-    Task<int?> GetCurrentUserStoreIdAsync();
+    Task<User?> GetCurrentUserAsync();
     Task<bool> HasPermissionAsync(int userId, string controller, string action, string permissionType);
 }
 

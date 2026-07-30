@@ -25,7 +25,12 @@ public interface ISaleService
     /// <param name="sale">The sale entity.</param>
     /// <param name="userId">The user creating the sale.</param>
     /// <param name="paymentAccountId">Optional payment account ID for immediate payment.</param>
-    Task<StockMain> CreateAsync(StockMain sale, int userId, int? paymentAccountId = null);
+    /// <param name="overrideCreditLimit">
+    /// When false (default) the sale is rejected with <see cref="Exceptions.CreditLimitExceededException"/>
+    /// if the unpaid portion would push the customer past their credit limit. Pass true only after an
+    /// authorised user has explicitly confirmed the breach — the override is recorded on the sale.
+    /// </param>
+    Task<StockMain> CreateAsync(StockMain sale, int userId, int? paymentAccountId = null, bool overrideCreditLimit = false);
 
     /// <summary>
     /// Voids a sale.

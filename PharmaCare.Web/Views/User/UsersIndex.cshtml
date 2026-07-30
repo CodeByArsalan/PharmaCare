@@ -67,7 +67,7 @@
                                 <i class="fas fa-edit"></i>
                             </a>
                             <button type="button" class="btn btn-sm btn-outline-warning btn-toggle" 
-                                    data-id="@item.Id" data-name="@item.FullName" data-status="@(item.IsActive ? "deactivate" : "activate")" title="Toggle user status" aria-label="Toggle user status">
+                                    data-id="@item.Id.EncryptId()" data-name="@item.FullName" data-status="@(item.IsActive ? "deactivate" : "activate")" title="Toggle user status" aria-label="Toggle user status">
                                 <i class="fas fa-power-off"></i>
                             </button>
                         </td>

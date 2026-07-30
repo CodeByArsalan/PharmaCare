@@ -23,11 +23,11 @@ public class LogRetentionService : BackgroundService
 DELETE TOP (@batch) FROM ActivityLogs
 OUTPUT DELETED.ActivityLogID, DELETED.UserId, DELETED.UserName, DELETED.ActivityType,
        DELETED.EntityName, DELETED.EntityId, DELETED.OldValues, DELETED.NewValues,
-       DELETED.IpAddress, DELETED.UserAgent, DELETED.Timestamp, DELETED.Description, DELETED.StoreId,
+       DELETED.IpAddress, DELETED.UserAgent, DELETED.Timestamp, DELETED.Description,
        DELETED.Pharmacy_ID
   INTO ActivityLogsArchive (ActivityLogID, UserId, UserName, ActivityType,
        EntityName, EntityId, OldValues, NewValues,
-       IpAddress, UserAgent, Timestamp, Description, StoreId,
+       IpAddress, UserAgent, Timestamp, Description,
        Pharmacy_ID)
 WHERE Timestamp < @cutoff;";
 

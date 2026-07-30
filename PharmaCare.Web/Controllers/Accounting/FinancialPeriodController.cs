@@ -32,7 +32,7 @@ namespace PharmaCare.Web.Controllers.Accounting
             }
             catch (Exception ex)
             {
-                return Json(new { success = false, message = ex.Message });
+                return Json(new { success = false, message = SafeErrorMessage(ex, "Creating financial period") });
             }
         }
 
@@ -51,7 +51,7 @@ namespace PharmaCare.Web.Controllers.Accounting
             }
             catch (Exception ex)
             {
-                return Json(new { success = false, message = ex.Message });
+                return Json(new { success = false, message = SafeErrorMessage(ex, $"Closing financial period {id}") });
             }
         }
 
@@ -70,7 +70,7 @@ namespace PharmaCare.Web.Controllers.Accounting
             }
             catch (Exception ex)
             {
-                return Json(new { success = false, message = ex.Message });
+                return Json(new { success = false, message = SafeErrorMessage(ex, $"Opening financial period {id}") });
             }
         }
     }

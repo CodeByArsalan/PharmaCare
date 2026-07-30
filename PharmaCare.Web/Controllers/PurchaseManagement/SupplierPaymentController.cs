@@ -152,7 +152,7 @@ public class SupplierPaymentController : BaseController
             }
             catch (Exception ex)
             {
-                ModelState.AddModelError("", ex.Message);
+                ModelState.AddModelError("", SafeErrorMessage(ex, "MakePayment"));
             }
         }
 
@@ -246,7 +246,7 @@ public class SupplierPaymentController : BaseController
         }
         catch (Exception ex)
         {
-            ShowMessage(MessageType.Error, ex.Message);
+            ShowMessage(MessageType.Error, SafeErrorMessage(ex, "VoidPayment"));
         }
 
         return RedirectToAction(nameof(PaymentsIndex));
@@ -312,7 +312,7 @@ public class SupplierPaymentController : BaseController
             }
             catch (Exception ex)
             {
-                ShowMessage(MessageType.Error, ex.Message);
+                ShowMessage(MessageType.Error, SafeErrorMessage(ex, "RefundAdvance"));
             }
         }
 
@@ -411,7 +411,7 @@ public class SupplierPaymentController : BaseController
         }
         catch (Exception ex)
         {
-            ShowMessage(MessageType.Error, ex.Message);
+            ShowMessage(MessageType.Error, SafeErrorMessage(ex, "ApplyCredit"));
         }
 
         // We redirect back to the page with the referrer to maintain the selected supplier

@@ -91,16 +91,12 @@ public class ProductService : IProductService
                                      (p.ShortCode != null && p.ShortCode.ToLower().Contains(searchTerm)));
         }
 
-        // Apply sorting: Order by ProductID descending (newest first)
-        query = query.OrderByDescending(p => p.IsActive);
+        // Active products first, then newest. The ProductID tiebreak matters: without it the
+        // Take(50) below has no total order and returns an arbitrary subset of the active rows.
+        query = query.OrderByDescending(p => p.IsActive).ThenByDescending(p => p.ProductID);
 
-        // Limit results if no search/filter to verify "Top 50" requirement for default view
-        // But users might want to see all filtered results. 
-        // Instructions said: "Default Display: Initially display the top 50 products"
-        // So applied only when no filters are present? Or always top 50?
-        // Usually filtering implies seeing all matches. Limiting might confuse.
-        // I will limit to 50 only if no filters are provided (initial load).
-        
+        // Unfiltered this is the initial page load, which shows only the 50 newest products.
+        // Once the caller has filtered, they expect every match, so the cap is lifted.
         bool hasFilters = categoryId.HasValue || subCategoryId.HasValue || isActive.HasValue || !string.IsNullOrWhiteSpace(searchTerm);
 
         if (!hasFilters)
@@ -311,7 +307,7 @@ public class ProductService : IProductService
         var unitsInPack = product.UnitsInPack < 1 ? 1 : product.UnitsInPack;
 
         // Authoritative current cost, used both for the below-cost block and to stamp price history.
-        var costs = await GetLastGrnCostPricesAsync();
+        var costs = await GetLastGrnCostPricesAsync(new[] { productId });
         var cost = costs.TryGetValue(productId, out var c) ? c : product.OpeningPrice;
 
         var existingPrices = await _productPriceRepository.Query()
@@ -500,21 +496,44 @@ public class ProductService : IProductService
         return result;
     }
 
-    public async Task<Dictionary<int, decimal>> GetLastGrnCostPricesAsync()
+    public async Task<Dictionary<int, decimal>> GetLastGrnCostPricesAsync(IEnumerable<int>? productIds = null)
     {
-        var products = await _repository.Query()
+        // When the caller names its products, push that filter into BOTH queries. Unfiltered this
+        // reads every product and every GRN line in the tenant — acceptable for a screen that
+        // lists all products, wasteful for a sale of three items (which used to trigger it three
+        // times per POST).
+        var idFilter = productIds?.Distinct().ToList();
+        if (idFilter is { Count: 0 }) return new Dictionary<int, decimal>();
+
+        var productQuery = _repository.Query().AsNoTracking();
+        if (idFilter != null)
+        {
+            productQuery = productQuery.Where(p => idFilter.Contains(p.ProductID));
+        }
+
+        var products = await productQuery
             .Select(p => new { p.ProductID, p.OpeningPrice })
             .ToListAsync();
 
-        // Optimized GRN cost lookup
-        var latestGrnCosts = await _stockDetailRepository.Query()
-            .Where(sd => sd.StockMain!.Status == "Approved" && sd.StockMain.TransactionType!.Code == "GRN")
+        var grnLineQuery = _stockDetailRepository.Query()
+            .AsNoTracking()
+            .Where(sd => sd.StockMain!.Status == "Approved" && sd.StockMain.TransactionType!.Code == "GRN");
+        if (idFilter != null)
+        {
+            grnLineQuery = grnLineQuery.Where(sd => idFilter.Contains(sd.Product_ID));
+        }
+
+        var latestGrnCosts = await grnLineQuery
             .GroupBy(sd => sd.Product_ID)
             .Select(g => new
             {
                 ProductId = g.Key,
-                // Using Max(StockMainID) as chronological order of GRNs
-                LatestGrnCost = g.OrderByDescending(x => x.StockMain_ID).Select(x => (decimal?)x.CostPrice).FirstOrDefault()
+                // StockMain_ID stands in for chronological order of GRNs. StockDetailID breaks the
+                // tie when one GRN has several lines for the same product, so the result is stable.
+                LatestGrnCost = g.OrderByDescending(x => x.StockMain_ID)
+                                 .ThenByDescending(x => x.StockDetailID)
+                                 .Select(x => (decimal?)x.CostPrice)
+                                 .FirstOrDefault()
             })
             .ToListAsync();
 

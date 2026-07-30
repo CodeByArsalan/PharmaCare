@@ -151,11 +151,10 @@ public class JournalVoucherController : BaseController
             }
             catch (Exception ex)
             {
-                ModelState.AddModelError("", "Error creating voucher: " + ex.Message);
-                if (ex.InnerException != null)
-                {
-                    ModelState.AddModelError("", "Details: " + ex.InnerException.Message);
-                }
+                // The inner exception is the most likely place for SQL text and server details to
+                // surface, so it stays out of the response entirely — SafeErrorMessage logs the
+                // whole exception chain for diagnosis.
+                ModelState.AddModelError("", SafeErrorMessage(ex, "AddJournalVoucher"));
             }
         }
 

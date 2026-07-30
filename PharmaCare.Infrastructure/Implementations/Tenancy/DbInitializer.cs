@@ -10,10 +10,16 @@ using PharmaCare.Domain.Entities.Transactions;
 namespace PharmaCare.Infrastructure.Implementations.Tenancy;
 
 /// <summary>
-/// Idempotent startup initializer. Ensures the GLOBAL (cross-pharmacy) reference data exists —
-/// account types, transaction types, voucher types — which are not managed by EF migrations,
-/// ensures the separate log database has the Pharmacy_ID column, and creates a platform
-/// super-admin if none exists. Safe to run on every startup; it only fills gaps.
+/// Idempotent startup initializer for DATA that EF migrations do not own: the global
+/// (cross-pharmacy) reference tables — account types, transaction types, voucher types — the page
+/// catalog, and the first platform super-admin. Safe to run on every startup; it only fills gaps.
+///
+/// <para>
+/// Schema belongs to migrations, never here. An earlier version patched a missing column onto the
+/// log database with a raw ALTER TABLE at startup; because that change never reached the model
+/// snapshot, the next scaffolded migration mistook the column for a rename and would have destroyed
+/// data. Add a migration instead.
+/// </para>
 /// </summary>
 public static class DbInitializer
 {
@@ -29,8 +35,8 @@ public static class DbInitializer
             await SeedAccountTypesAsync(context);
             await SeedTransactionTypesAsync(context);
             await SeedVoucherTypesAsync(context);
+            await PageCatalog.SeedAsync(context, logger);
 
-            await EnsureLogPharmacyColumnAsync(sp, logger);
             await EnsurePlatformAdminAsync(sp, logger);
         }
         catch (Exception ex)
@@ -119,28 +125,6 @@ public static class DbInitializer
         {
             context.VoucherTypes.AddRange(toAdd);
             await context.SaveChangesAsync();
-        }
-    }
-
-    /// <summary>Adds the Pharmacy_ID column to the separate log database if missing (that DB is
-    /// not managed by the main migrations).</summary>
-    private static async Task EnsureLogPharmacyColumnAsync(IServiceProvider sp, ILogger logger)
-    {
-        try
-        {
-            var logContext = sp.GetService<LogDbContext>();
-            if (logContext == null) return;
-
-            foreach (var table in new[] { "ActivityLogs", "ActivityLogsArchive" })
-            {
-                await logContext.Database.ExecuteSqlRawAsync(
-                    $"IF COL_LENGTH('{table}', 'Pharmacy_ID') IS NULL " +
-                    $"ALTER TABLE [{table}] ADD [Pharmacy_ID] INT NULL;");
-            }
-        }
-        catch (Exception ex)
-        {
-            logger.LogWarning(ex, "Could not ensure Pharmacy_ID column on the log database.");
         }
     }
 

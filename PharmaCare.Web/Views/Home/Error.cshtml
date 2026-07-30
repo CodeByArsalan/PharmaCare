@@ -1,0 +1,71 @@
+@{
+    // Layout is deliberately NULL. This page is the last line of defence: it is reached from
+    // UseExceptionHandler and UseStatusCodePagesWithReExecute, so it must not depend on the
+    // session, the database, or _Layout's partials (_Sidebar/_Header both read the session).
+    // Only static assets are referenced. Do not add a Layout or an inject directive here.
+    Layout = null;
+
+    var statusCode = ViewData["StatusCode"] as int?;
+    var requestId = ViewData["RequestId"] as string;
+
+    var (heading, message) = statusCode switch
+    {
+        400 => ("Bad request", "The request could not be understood. Please go back and try again."),
+        401 => ("Not signed in", "Your session has ended. Please sign in again to continue."),
+        403 => ("Access denied", "You do not have permission to view this page. Contact your pharmacy administrator if you believe this is a mistake."),
+        408 => ("Request timed out", "The server took too long to respond. Please try again."),
+        429 => ("Too many requests", "You have made too many requests in a short time. Please wait a moment and try again."),
+        503 => ("Service unavailable", "The system is temporarily unavailable. Please try again shortly."),
+        _   => ("Something went wrong", "An unexpected error occurred and has been logged. No changes were saved. Please try again, or contact your administrator if the problem continues.")
+    };
+
+    ViewData["Title"] = heading;
+}
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>@heading - PharmaCare</title>
+    <link rel="stylesheet" href="~/lib/bootstrap/css/bootstrap.min.css" />
+    <link rel="stylesheet" href="~/lib/fontawesome/css/all.min.css" />
+    <link rel="stylesheet" href="~/css/site.css" />
+</head>
+<body>
+    <div class="container">
+        <div class="row min-vh-100 align-items-center justify-content-center text-center">
+            <div class="col-md-7 col-lg-5">
+                <div class="card shadow-lg border-0 bg-dark mb-4">
+                    <div class="card-body p-5">
+                        <i class="fas fa-triangle-exclamation text-warning fa-4x mb-4"></i>
+
+                        @if (statusCode.HasValue)
+                        {
+                            <h1 class="display-5 text-white fw-bold mb-3">@statusCode.Value</h1>
+                        }
+
+                        <h3 class="text-white mb-3">@heading</h3>
+                        <p class="text-muted mb-4">@message</p>
+
+                        <div class="d-flex justify-content-center gap-3 flex-wrap">
+                            <button type="button" class="btn btn-primary px-4" onclick="window.history.back()">
+                                <i class="fas fa-arrow-left me-2"></i> Go Back
+                            </button>
+                            <a href="~/" class="btn btn-outline-light px-4">
+                                <i class="fas fa-home me-2"></i> Dashboard
+                            </a>
+                        </div>
+
+                        @if (!string.IsNullOrEmpty(requestId))
+                        {
+                            <p class="text-muted small mt-4 mb-0">
+                                Reference: <code class="text-muted">@requestId</code>
+                            </p>
+                        }
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</body>
+</html>

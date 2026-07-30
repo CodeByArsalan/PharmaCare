@@ -103,8 +103,6 @@ public class SessionService : ISessionService
             Pharmacy_ID = user.Pharmacy_ID,
             PharmacyName = pharmacyName,
             IsPlatformAdmin = user.IsPlatformAdmin,
-            StoreId = null,
-            StoreName = null,
             RoleIds = roleIds,
             RoleNames = userRoles.Select(r => r.Name).ToList()
         };

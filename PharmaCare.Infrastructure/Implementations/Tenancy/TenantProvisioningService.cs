@@ -154,11 +154,14 @@ public class TenantProvisioningService : ITenantProvisioningService
         var inventorySub = new AccountSubhead { SubheadName = "Inventory", AccountHead_ID = currentAssets.AccountHeadID };
         var payablesSub = new AccountSubhead { SubheadName = "Trade Payables", Code = "AP_SUB", AccountHead_ID = currentLiabilities.AccountHeadID };
         var capitalSub = new AccountSubhead { SubheadName = "Capital", AccountHead_ID = capitalHead.AccountHeadID };
+        // Counter-account for party opening balances (see OpeningBalanceService). Seeded here so a
+        // new pharmacy has it up front; the service creates it on demand for older tenants.
+        var openingBalanceSub = new AccountSubhead { SubheadName = "Opening Balances", AccountHead_ID = capitalHead.AccountHeadID };
         var salesSub = new AccountSubhead { SubheadName = "Sales Revenue", AccountHead_ID = revenueHead.AccountHeadID };
         var costOfSalesSub = new AccountSubhead { SubheadName = "Cost of Sales", AccountHead_ID = expenseHead.AccountHeadID };
         var damageSub = new AccountSubhead { SubheadName = "Damage & Loss", AccountHead_ID = expenseHead.AccountHeadID };
         var discountSub = new AccountSubhead { SubheadName = "Discount Allowed", AccountHead_ID = expenseHead.AccountHeadID };
-        _context.AccountSubheads.AddRange(cashBankSub, receivablesSub, inventorySub, payablesSub, capitalSub, salesSub, costOfSalesSub, damageSub, discountSub);
+        _context.AccountSubheads.AddRange(cashBankSub, receivablesSub, inventorySub, payablesSub, capitalSub, openingBalanceSub, salesSub, costOfSalesSub, damageSub, discountSub);
         await _context.SaveChangesAsync();
 
         Account Acct(string name, AccountSubhead sub, AccountHead head, string typeCode) => new()
@@ -180,6 +183,7 @@ public class TenantProvisioningService : ITenantProvisioningService
             Acct("Bank Account", cashBankSub, currentAssets, "BANK"),
             Acct("Inventory / Stock", inventorySub, currentAssets, "STK"),
             Acct("Owner's Capital", capitalSub, capitalHead, "GEN"),
+            Acct("Opening Balance Equity", openingBalanceSub, capitalHead, "GEN"),
             Acct("Sales Revenue", salesSub, revenueHead, "SALE"),
             Acct("Cost of Goods Sold", costOfSalesSub, expenseHead, "COGS"),
             Acct("Damage & Loss", damageSub, expenseHead, "DMG"),

@@ -1,3 +1,4 @@
+using System.ComponentModel.DataAnnotations;
 using Microsoft.AspNetCore.Identity;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.RateLimiting;
@@ -145,21 +146,10 @@ public class AccountController : Controller
         return RedirectToAction("Login");
     }
 
-    // Public self-registration is disabled in the multi-tenant model: pharmacies and their
-    // users are provisioned by the platform super-admin. Users are always created under a
-    // specific pharmacy (see the platform-admin area and User management), never tenant-less.
-    [HttpGet]
-    public IActionResult Register()
-    {
-        return RedirectToAction(nameof(Login));
-    }
-
-    [HttpPost]
-    [ValidateAntiForgeryToken]
-    public IActionResult Register(RegisterViewModel model)
-    {
-        return RedirectToAction(nameof(Login));
-    }
+    // NOTE: there is deliberately no Register action. Public self-registration is disabled in the
+    // multi-tenant model — pharmacies and their users are provisioned by the platform super-admin,
+    // so a user is always created under a specific pharmacy, never tenant-less. The old actions
+    // only redirected back to Login, and the login page no longer links to them.
 
     [HttpGet]
     public IActionResult ChangePassword()
@@ -217,29 +207,42 @@ public class AccountController : Controller
 /// </summary>
 public class LoginViewModel
 {
+    [Required(ErrorMessage = "Email is required.")]
+    [EmailAddress(ErrorMessage = "Enter a valid email address.")]
+    [Display(Name = "Email")]
     public string Email { get; set; } = string.Empty;
+
+    [Required(ErrorMessage = "Password is required.")]
+    [DataType(DataType.Password)]
+    [Display(Name = "Password")]
     public string Password { get; set; } = string.Empty;
+
     public bool RememberMe { get; set; }
 }
 
 /// <summary>
-/// Register view model
-/// </summary>
-public class RegisterViewModel
-{
-    public string FullName { get; set; } = string.Empty;
-    public string Email { get; set; } = string.Empty;
-    public string Password { get; set; } = string.Empty;
-    public string ConfirmPassword { get; set; } = string.Empty;
-}
-
-/// <summary>
-/// Change password view model
+/// Change password view model.
+/// Deliberately carries NO password-strength rules: Identity's configured policy (see
+/// Program.cs) is the single authority and its failures are surfaced via ModelState by the
+/// controller. Duplicating length/complexity here would let the two drift apart.
+/// The confirmation match is the one rule Identity cannot enforce — it never sees this field.
 /// </summary>
 public class ChangePasswordViewModel
 {
+    [Required(ErrorMessage = "Current password is required.")]
+    [DataType(DataType.Password)]
+    [Display(Name = "Current Password")]
     public string CurrentPassword { get; set; } = string.Empty;
+
+    [Required(ErrorMessage = "New password is required.")]
+    [DataType(DataType.Password)]
+    [Display(Name = "New Password")]
     public string NewPassword { get; set; } = string.Empty;
+
+    [Required(ErrorMessage = "Please confirm your new password.")]
+    [DataType(DataType.Password)]
+    [Display(Name = "Confirm New Password")]
+    [Compare(nameof(NewPassword), ErrorMessage = "The new password and confirmation do not match.")]
     public string ConfirmNewPassword { get; set; } = string.Empty;
 }
 

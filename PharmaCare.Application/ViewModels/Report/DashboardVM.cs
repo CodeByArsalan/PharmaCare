@@ -41,4 +41,11 @@ public class DashboardVM
     // Tier 3 Data
     public ProfitLossVM TodayProfitLoss { get; set; } = new();
     public CashFlowReportVM TodayCashFlow { get; set; } = new();
+
+    /// <summary>
+    /// True when one or more dashboard queries failed and the figures below are incomplete.
+    /// Without this a failed load renders as a dashboard of zeros, which is indistinguishable
+    /// from a genuinely quiet day — the view shows a warning banner instead.
+    /// </summary>
+    public bool LoadFailed { get; set; }
 }

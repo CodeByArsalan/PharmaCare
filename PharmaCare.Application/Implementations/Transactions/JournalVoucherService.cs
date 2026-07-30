@@ -26,14 +26,13 @@ public class JournalVoucherService : IJournalVoucherService
 
     public async Task<IEnumerable<Voucher>> GetAllJournalVouchersAsync()
     {
-        // Get all vouchers of type 'JV'
-        // Include type to verify? Or just filter by non-auto-generated?
-        // Assuming "JV" is the code for manual journals.
-        
+        // "JV" is the voucher type for manual journals; every other type is machine-generated
+        // by a transaction service. The null-forgiving operator is safe inside the expression
+        // tree — it is translated to a SQL join, never dereferenced in memory.
         return await _voucherRepository.Query()
             .Include(v => v.VoucherType)
-            .Where(v => v.VoucherType.Code == "JV")
-            .OrderByDescending(v=>v.VoucherID)
+            .Where(v => v.VoucherType!.Code == "JV")
+            .OrderByDescending(v => v.VoucherID)
             .ToListAsync();
     }
 
@@ -42,7 +41,7 @@ public class JournalVoucherService : IJournalVoucherService
         var query = _voucherRepository.Query()
             .AsNoTracking()
             .Include(v => v.VoucherType)
-            .Where(v => v.VoucherType.Code == "JV");
+            .Where(v => v.VoucherType!.Code == "JV");
 
         if (!string.IsNullOrWhiteSpace(search))
         {

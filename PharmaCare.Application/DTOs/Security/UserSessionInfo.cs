@@ -15,8 +15,6 @@ public class UserSessionInfo
     public string? PharmacyName { get; set; }
     public bool IsPlatformAdmin { get; set; }
 
-    public int? StoreId { get; set; }
-    public string? StoreName { get; set; }
     public List<int> RoleIds { get; set; } = new();
     public List<string> RoleNames { get; set; } = new();
 }

@@ -62,9 +62,12 @@ public class FinancialReportService : IFinancialReportService
             .Where(b => b.Year == fromDate.Year && b.Month == fromDate.Month)
             .ToListAsync();
 
+        // Only APPROVED expenses hit the P&L: Draft rows are not yet incurred and Void rows have
+        // been reversed. Without this filter both inflate TotalExpenses and understate NetProfit.
         var expenseTotals = await _db.Expenses
             .AsNoTracking()
-            .Where(e => e.ExpenseDate >= fromDate && e.ExpenseDate < toDate)
+            .Where(e => e.ExpenseDate >= fromDate && e.ExpenseDate < toDate
+                        && e.Status == TransactionStatus.Approved)
             .GroupBy(e => new { Id = e.ExpenseCategory_ID, Name = e.ExpenseCategory != null ? e.ExpenseCategory.Name : "Uncategorized" })
             .Select(g => new
             {
@@ -107,11 +110,13 @@ public class FinancialReportService : IFinancialReportService
         var fromDate = filter.FromDate;
         var toDate = filter.ToDate.AddDays(1);
 
-        // Pre-aggregate payments once by day and type
+        // Pre-aggregate payments once by day and type.
+        // Voided payments never moved money — excluding them keeps cash in/out truthful.
         var dailyPaymentTotals = await _db.Payments
             .AsNoTracking()
             .Where(p => p.PaymentDate >= fromDate
                         && p.PaymentDate < toDate
+                        && !p.IsVoided
                         && p.PaymentMethod.ToUpper() != PaymentMethod.Adjustment.ToString().ToUpper()
                         && (p.PaymentType == PaymentType.RECEIPT.ToString() || p.PaymentType == PaymentType.PAYMENT.ToString()))
             .GroupBy(p => new { Date = p.PaymentDate.Date, p.PaymentType })
@@ -123,10 +128,12 @@ public class FinancialReportService : IFinancialReportService
             })
             .ToListAsync();
 
-        // Pre-aggregate expenses once by day
+        // Pre-aggregate expenses once by day (approved only — Draft has not been paid out,
+        // Void has been reversed).
         var dailyExpenseTotals = await _db.Expenses
             .AsNoTracking()
-            .Where(e => e.ExpenseDate >= fromDate && e.ExpenseDate < toDate)
+            .Where(e => e.ExpenseDate >= fromDate && e.ExpenseDate < toDate
+                        && e.Status == TransactionStatus.Approved)
             .GroupBy(e => e.ExpenseDate.Date)
             .Select(g => new
             {
@@ -283,11 +290,14 @@ public class FinancialReportService : IFinancialReportService
 
     public async Task<ExpenseReportVM> GetExpenseReportAsync(DateRangeFilter filter)
     {
+        // Approved only: this report totals actual spend and compares it against budget,
+        // so unapproved (Draft) and reversed (Void) rows must not appear.
         var query = _db.Expenses
             .Include(e => e.ExpenseCategory)
             .Include(e => e.SourceAccount)
             .Where(e => e.ExpenseDate >= filter.FromDate
-                        && e.ExpenseDate < filter.ToDate.AddDays(1));
+                        && e.ExpenseDate < filter.ToDate.AddDays(1)
+                        && e.Status == TransactionStatus.Approved);
 
         if (filter.ExpenseCategoryId.HasValue)
             query = query.Where(e => e.ExpenseCategory_ID == filter.ExpenseCategoryId.Value);
@@ -475,11 +485,14 @@ public class FinancialReportService : IFinancialReportService
                         && (relevantSaleCodes.Contains(s.TransactionType!.Code) || relevantReturnCodes.Contains(s.TransactionType!.Code)))
             .ToListAsync();
 
+        // !p.IsVoided covers payments voided in their own right (advances, refunds), which the
+        // linked-StockMain check below cannot catch because they have no StockMain.
         var priorPayments = await _db.Payments
             .Include(p => p.StockMain)
             .Where(p => p.Party_ID == filter.PartyId.Value
                         && p.PaymentDate < filter.FromDate
                         && p.PaymentType == paymentType
+                        && !p.IsVoided
                         && (!p.StockMain_ID.HasValue || p.StockMain == null || p.StockMain.Status != "Void"))
             .ToListAsync();
 
@@ -515,6 +528,7 @@ public class FinancialReportService : IFinancialReportService
                         && p.PaymentDate >= filter.FromDate
                         && p.PaymentDate < filter.ToDate.AddDays(1)
                         && p.PaymentType == paymentType
+                        && !p.IsVoided
                         && (!p.StockMain_ID.HasValue || p.StockMain == null || p.StockMain.Status != "Void"))
             .ToListAsync();
 
@@ -576,70 +590,5 @@ public class FinancialReportService : IFinancialReportService
             TotalCredit = rows.Sum(r => r.Credit),
             ClosingBalance = runningBalance
         };
-    }
-
-    public async Task<GlobalSearchResultVM> GlobalSearchAsync(string query)
-    {
-        if (string.IsNullOrWhiteSpace(query))
-            return new GlobalSearchResultVM { Query = query };
-
-        var vm = new GlobalSearchResultVM { Query = query };
-        var q = query.ToLower();
-
-        // 1. Products
-        var products = await _db.Products
-            .AsNoTracking()
-            .Where(p => p.Name.ToLower().Contains(q) || (p.ShortCode != null && p.ShortCode.ToLower().Contains(q)))
-            .Take(10)
-            .ToListAsync();
-
-        vm.Products = products.Select(p => new SearchResultItem
-        {
-            Type = "Product",
-            Title = p.Name,
-            Subtitle = $"Code: {p.ShortCode}",
-            Url = $"/Product/ViewProduct/{Convert.ToBase64String(System.Text.Encoding.ASCII.GetBytes(p.ProductID.ToString()))}",
-            BadgeClass = "bg-info"
-        }).ToList();
-
-        // 2. Parties
-        var parties = await _db.Parties
-            .AsNoTracking()
-            .Where(p => p.Name.ToLower().Contains(q) || (p.Phone != null && p.Phone.Contains(q)))
-            .Take(10)
-            .ToListAsync();
-
-        vm.Parties = parties.Select(p => new SearchResultItem
-        {
-            Type = p.PartyType,
-            Title = p.Name,
-            Subtitle = $"{p.PartyType} | {p.Phone}",
-            Url = p.PartyType == "Customer"
-                ? $"/CustomerPayment/CustomerLedger?customerId={p.PartyID}"
-                : $"/SupplierPayment/SupplierLedger?supplierId={p.PartyID}",
-            BadgeClass = p.PartyType == "Customer" ? "bg-primary" : "bg-warning text-dark"
-        }).ToList();
-
-        // 3. Transactions
-        var transactions = await _db.StockMains
-            .AsNoTracking()
-            .Include(s => s.TransactionType)
-            .Include(s => s.Party)
-            .Where(s => s.TransactionNo.ToLower().Contains(q))
-            .Take(10)
-            .ToListAsync();
-
-        vm.Transactions = transactions.Select(s => new SearchResultItem
-        {
-            Type = s.TransactionType != null ? s.TransactionType.Name : "Transaction",
-            Title = s.TransactionNo,
-            Subtitle = $"{s.TransactionDate:dd/MM/yyyy} | {s.Party?.Name} | {s.TotalAmount:N2}",
-            Url = s.TransactionType!.Code == "SALE"
-                ? $"/Sale/ViewSale/{Convert.ToBase64String(System.Text.Encoding.ASCII.GetBytes(s.StockMainID.ToString()))}"
-                : $"/Purchase/ViewPurchase/{Convert.ToBase64String(System.Text.Encoding.ASCII.GetBytes(s.StockMainID.ToString()))}",
-            BadgeClass = "bg-success"
-        }).ToList();
-
-        return vm;
     }
 }

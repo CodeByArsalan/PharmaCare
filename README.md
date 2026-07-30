@@ -1,96 +1,135 @@
 # PharmaCare 💊
-### Enterprise-Grade Pharmacy Management & POS Ecosystem
 
-PharmaCare is a comprehensive, premium-designed Point of Sale (POS) and inventory management ecosystem specifically tailored for modern pharmacies. It combines robust transaction logic with a state-of-the-art user interface to provide a seamless experience for pharmacists, administrators, and suppliers.
+A multi-tenant pharmacy Point of Sale, inventory and accounting system for retail pharmacies.
 
-![PharmaCare Dashboard Preview](PharmaCare.Web/wwwroot/assets/img/dashboard_preview.png) *(Note: Replace with actual screenshot path)*
-
----
-
-## ✨ Key Features
-
-### 🚀 Modern Premium UI/UX
-- **Ocean Blue & Emerald Aesthetic:** A professional, high-contrast design system featuring glassmorphism and smooth animations.
-- **Responsive Layout:** A fully adaptive interface with a collapsible sidebar and mobile-optimized dashboard.
-- **Dynamic Theming:** Built-in Dark and Light mode support with persistent user preferences.
-- **Micro-interactions:** Interactive charts, animated stat counters, and hover effects for an enterprise-level feel.
-
-### 📦 Supply Chain & Inventory
-- **Smart Purchase Management:** Track the journey from Purchase Orders to Goods Received Notes (GRN).
-- **Inventory Control:** Real-time stock tracking with low-stock alerts and expiration monitoring.
-- **Purchase Returns:** Automated return workflows with accurate cost-price preservation.
-
-### 💰 Finance & Ledger
-- **Supplier Payments:** Comprehensive payment tracking supporting advance payments, partial settlements, and full payouts.
-- **Consolidated Ledger:** Automatically synchronized financial accounts for all parties.
-- **Transaction Recalculation:** Intelligent balance recalculation logic to ensure data integrity across all orders.
-
-### 📊 Intelligence & Reporting
-- **Interactive Dashboard:** 7-day sales trends visualized via Chart.js with dynamic hover tooltips.
-- **Role-Based Access:** Secure modules for Administration, Configuration, and Transaction management.
+Every stock movement is also an accounting event: a sale doesn't just decrement stock, it posts a
+double-entry voucher (AR / Discount / Sales / COGS / Stock) alongside a separate cash or bank
+receipt. Nothing is ever hard-deleted — transactions are voided and reversed.
 
 ---
 
-## 🛠 Technology Stack
+## Scope
 
-- **Backend:** ASP.NET Core 8+ (MVC & Web API)
-- **Architecture:** Clean Architecture / N-Tier (Domain, Infrastructure, Application layers)
-- **Persistence:** Entity Framework Core with SQL Server
-- **Frontend:** 
-    - Bootstrap 5 & Vanilla CSS
-    - JavaScript (ES6+)
-    - Chart.js (Data Visualization)
-    - SweetAlert2 (Interactive Dialogs)
-    - DataTables (Advanced Grid Management)
+**What it does**
+
+- **Point of sale** — retail and wholesale pricing, walk-in or account customers, part payment,
+  printed receipt. Server-side gates on cost, discount and credit limit.
+- **Purchasing** — Purchase Order → Goods Received Note → Purchase Return, with partial receiving,
+  supplier advances and automatic advance offset.
+- **Inventory** — stock derived from movement history (never a stored balance), reorder alerts,
+  stock adjustments for damage/expiry/loss/bonus, dead-stock analysis.
+- **Accounting** — per-tenant chart of accounts, automatic double-entry posting for every
+  transaction, manual journal vouchers, financial-period locking.
+- **Finance** — customer receipts and refunds, supplier payments, credit notes both directions,
+  expenses with approval and budgets, reconciliation screens.
+- **Reporting** — 20+ reports: P&L, cash flow, trial balance, general ledger, receivables/payables
+  ageing, party ledgers, sales/purchase/inventory analysis.
+- **Administration** — page-level RBAC (per controller/action, per role), full audit trail written
+  to a separate database, multi-pharmacy tenancy with a platform super-admin.
+
+**What it does NOT do** — worth stating plainly, because pharmacy systems often imply these:
+
+- No prescription capture, dispensing workflow, or clinical records
+- No drug-interaction or allergy checking
+- No batch / lot / expiry-date tracking (expiry is handled as a stock-adjustment reason only)
+- No insurance or claims processing
+- No controlled-substance register
+- No external integrations — no payment gateway, drug database, email/SMS, or third-party auth
 
 ---
 
-## 🏗 Architecture Overview
+## Technology
 
-PharmaCare follows a decoupled **Clean Architecture** pattern to ensure scalability and maintainability:
+| Layer | Choice |
+|---|---|
+| Runtime | .NET 8.0 |
+| Web | ASP.NET Core MVC (Razor views; some AJAX JSON endpoints) |
+| Data | EF Core 8 + SQL Server |
+| Auth | ASP.NET Core Identity, cookie-based |
+| Frontend | Bootstrap 5.3, jQuery, DataTables, Select2, SweetAlert2, Chart.js |
+| Tests | xUnit |
 
-- **PharmaCare.Domain:** Enterprise entities, value objects, and repository interfaces.
-- **PharmaCare.Application:** Business logic, DTOs, and Service implementations.
-- **PharmaCare.Infrastructure:** Data access layer, EF Core patterns, and external services.
-- **PharmaCare.Web:** The user-facing web interface and API gateways.
+All frontend assets are vendored under `wwwroot/lib` — the POS works with no internet connection.
+
+## Architecture
+
+Clean Architecture; dependencies point inward.
+
+```
+PharmaCare.Domain          entities, enums, AppTime — depends on nothing
+PharmaCare.Application     service interfaces + implementations, DTOs, view models
+PharmaCare.Infrastructure  DbContext, repositories, unit of work, audit interceptor, reports
+PharmaCare.Web             controllers, views, filters, middleware
+PharmaCare.Tests           xUnit unit tests
+PharmaCare.AuditTests      console harness asserting financial-integrity rules (needs a database)
+PharmaCare.LoadTests       synthetic data seeder + k6 script
+```
+
+Conventions live in [CODING_STANDARDS.md](CODING_STANDARDS.md). Two that surprise people:
+
+- Foreign keys use an `_ID` suffix (`AccountHead_ID`) — deliberate, applied consistently.
+- Never use `DateTime.Now`. Use `AppTime.Now` / `AppTime.Today`, which is pinned to the business
+  timezone (Pakistan) so behaviour does not depend on where the server runs.
+
+### Multi-tenancy
+
+One pharmacy per tenant. Any entity implementing `ITenantEntity` automatically gets a required
+`Pharmacy_ID`, an index, a foreign key, and a global query filter — applied in a single loop in
+`PharmaCareDBContext`, so a new tenant-owned table cannot be forgotten. Writes are stamped
+automatically and a row can never change its owning pharmacy.
 
 ---
 
-## 🛠 Installation & Setup
+## Setup
 
-### Prerequisites
-- [.NET 8.0 SDK](https://dotnet.microsoft.com/download/dotnet/8.0)
-- [SQL Server](https://www.microsoft.com/sql-server/)
-- [Visual Studio 2022](https://visualstudio.microsoft.com/vs/)
+Prerequisites: .NET 8.0 SDK, SQL Server.
 
-### Getting Started
-1. **Clone the repository:**
-   ```bash
-   git clone https://github.com/Arsalan/PharmaCare.git
+1. **Configure connection strings.** Do not put them in `appsettings.json` — it is committed.
+   Use `appsettings.Development.json` (git-ignored), user-secrets, or environment variables:
+
    ```
-2. **Configure Database:**
-   Update the `ConnectionStrings` in `PharmaCare.Web/appsettings.json`.
-3. **Apply Migrations:**
-   ```bash
-   dotnet ef database update --project PharmaCare.Infrastructure --startup-project PharmaCare.Web
+   ConnectionStrings:PharmaCareDBConnectionString
+   ConnectionStrings:PharmaCareLogDBConnectionString
    ```
-4. **Run the application:**
+
+   The audit log lives in its own database.
+
+2. **Create the first platform administrator.** On first boot only, the app reads
+   `PlatformAdmin:Email` and `PlatformAdmin:Password`. Without them it creates no account and logs
+   a critical message — there are deliberately no default credentials.
+
+3. **Apply migrations:**
+
+   ```bash
+   dotnet ef database update --project PharmaCare.Infrastructure --startup-project PharmaCare.Web --context PharmaCareDBContext
+   ```
+
+4. **Run:**
+
    ```bash
    dotnet run --project PharmaCare.Web
    ```
 
+5. Sign in as the platform administrator and create a pharmacy. Provisioning seeds that tenant's
+   chart of accounts, price types, profit settings, financial period, an Administrator role with
+   full permissions, and its first admin user.
+
+### Tests
+
+```bash
+dotnet test PharmaCare.Tests/PharmaCare.Tests.csproj
+```
+
+`PharmaCare.AuditTests` and `PharmaCare.LoadTests` are console harnesses that require a live SQL
+Server and are not part of the unit-test suite.
+
 ---
 
-## 📸 Screenshots & Showcase
+## Notes for contributors
 
-| Dashboard | Purchase Management | POS Screen |
-| :--- | :--- | :--- |
-| ![Dashboard](PharmaCare.Web/wwwroot/assets/img/ss_dashboard.png) | ![Purchase](PharmaCare.Web/wwwroot/assets/img/ss_purchase.png) | ![POS](PharmaCare.Web/wwwroot/assets/img/ss_pos.png) |
-
----
-
-## 🤝 Contributing
-Contributions are welcome! Please read the `CONTRIBUTING.md` for details on our code of conduct and the process for submitting pull requests.
-
-## 📄 License
-This project is licensed under the MIT License - see the [LICENSE](LICENSE) file for details.
+- **Navigation and permissions are code, not data.** The `Pages` / `PageUrls` catalog is seeded from
+  `PageCatalog.cs` at startup. A controller action with no entry there and no `[LinkedToPage]`
+  attribute is unreachable — every user gets Access Denied. Add new actions to that manifest.
+- **Stock is derived, never stored.** It is computed from `StockDetail` rows signed by their
+  transaction type's `StockDirection`, counting approved transactions only.
+- **Money rules belong in services, not controllers**, so they hold for every caller.

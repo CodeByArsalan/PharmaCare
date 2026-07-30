@@ -35,8 +35,7 @@ public class SessionInitializationMiddleware
             path.Contains("/account/logout") ||
             path.StartsWith("/lib/") ||
             path.StartsWith("/css/") ||
-            path.StartsWith("/js/") ||
-            path.StartsWith("/assets/"))
+            path.StartsWith("/js/"))
         {
             await _next(context);
             return;
