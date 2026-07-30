@@ -1,4 +1,5 @@
 using Microsoft.EntityFrameworkCore;
+using PharmaCare.Application.Exceptions;
 using PharmaCare.Application.Interfaces;
 using PharmaCare.Application.Utilities;
 using PharmaCare.Application.Interfaces.Accounting;
@@ -181,7 +182,7 @@ public class SaleService : TransactionServiceBase, ISaleService
         return (Math.Round(outstandingBalance, 2), openInvoices);
     }
 
-    public async Task<StockMain> CreateAsync(StockMain sale, int userId, int? paymentAccountId = null)
+    public async Task<StockMain> CreateAsync(StockMain sale, int userId, int? paymentAccountId = null, bool overrideCreditLimit = false)
     {
         await ValidatePeriodAsync(sale.TransactionDate);
         return await ExecuteInTransactionAsync(async () =>
@@ -224,6 +225,10 @@ public class SaleService : TransactionServiceBase, ISaleService
 
             // Validate Sale (stock availability)
             await ValidateSaleAsync(sale);
+
+            // Credit limit gate. Lives here, after PaidAmount is final, so the check sees the real
+            // unpaid portion — and so it holds for every caller, not just the web form.
+            await EnforceCreditLimitAsync(sale, overrideCreditLimit);
 
             // Set payment status based on paid amount
             if (sale.PaidAmount >= sale.TotalAmount)
@@ -704,13 +709,45 @@ public class SaleService : TransactionServiceBase, ISaleService
     }
 
     /// <summary>
+    /// Rejects a sale whose unpaid portion would push the customer past their credit limit,
+    /// unless an authorised user has confirmed the override (which is recorded on the sale).
+    /// A limit of 0 means "no limit configured" and is not enforced.
+    /// </summary>
+    private async Task EnforceCreditLimitAsync(StockMain sale, bool overrideCreditLimit)
+    {
+        var additionalCredit = Math.Round(sale.TotalAmount - sale.PaidAmount, 2);
+
+        // Fully-paid sales extend no credit, so the limit cannot be breached by them.
+        if (additionalCredit <= 0 || !sale.Party_ID.HasValue) return;
+
+        var customer = sale.Party ?? await _partyRepository.GetByIdAsync(sale.Party_ID.Value);
+        if (customer == null || customer.CreditLimit <= 0) return;
+
+        var (currentOutstanding, _) = await GetCustomerOutstandingSummaryAsync(sale.Party_ID.Value);
+
+        if (currentOutstanding + additionalCredit <= customer.CreditLimit) return;
+
+        if (!overrideCreditLimit)
+        {
+            throw new CreditLimitExceededException(
+                customer.Name, customer.CreditLimit, currentOutstanding, additionalCredit);
+        }
+
+        // Approved breach — leave a trail on the record itself.
+        var note = $"Credit limit override: limit {customer.CreditLimit:N2}, " +
+                   $"outstanding after this sale {(currentOutstanding + additionalCredit):N2}";
+        sale.Remarks = string.IsNullOrWhiteSpace(sale.Remarks) ? note : $"{sale.Remarks} | {note}";
+    }
+
+    /// <summary>
     /// Re-derives authoritative unit costs (last approved GRN cost, fallback opening price),
     /// overwrites client-supplied CostPrice/LineCost so COGS can't be understated, and rejects any
     /// line whose selling price is below cost. Authoritative gate for all callers of CreateAsync.
     /// </summary>
     private async Task EnforceAuthoritativeCostsAndMarginAsync(StockMain sale)
     {
-        var authoritativeCosts = await _productService.GetLastGrnCostPricesAsync();
+        var authoritativeCosts = await _productService.GetLastGrnCostPricesAsync(
+            sale.StockDetails.Select(d => d.Product_ID));
 
         foreach (var detail in sale.StockDetails)
         {

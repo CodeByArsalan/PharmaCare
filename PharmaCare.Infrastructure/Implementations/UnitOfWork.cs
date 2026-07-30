@@ -3,6 +3,7 @@ using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Storage;
 using PharmaCare.Application.Interfaces;
 using PharmaCare.Application.Interfaces.Tenancy;
+using PharmaCare.Infrastructure.Interceptors;
 
 namespace PharmaCare.Infrastructure.Implementations;
 
@@ -22,12 +23,25 @@ IF @res < 0
 
     private readonly PharmaCareDBContext _context;
     private readonly ICurrentTenant _currentTenant;
+    private readonly AuditSaveChangesInterceptor? _auditInterceptor;
     private IDbContextTransaction? _transaction;
 
-    public UnitOfWork(PharmaCareDBContext context, ICurrentTenant currentTenant)
+    /// <param name="auditInterceptor">
+    /// Optional ONLY to support hosts that deliberately run without auditing (the AuditTests
+    /// console harness registers no interceptor and has no HTTP context). It cannot silently
+    /// disable auditing in the web app: Program.cs resolves this same scoped instance with
+    /// GetRequiredService while building the DbContext, so a missing registration fails at
+    /// startup long before this constructor runs. When present it is that same instance, so the
+    /// buffer it fills during this transaction is the one flushed or discarded below.
+    /// </param>
+    public UnitOfWork(
+        PharmaCareDBContext context,
+        ICurrentTenant currentTenant,
+        AuditSaveChangesInterceptor? auditInterceptor = null)
     {
         _context = context;
         _currentTenant = currentTenant;
+        _auditInterceptor = auditInterceptor;
     }
 
     public async Task<int> SaveChangesAsync()
@@ -38,6 +52,11 @@ IF @res < 0
     public async Task BeginTransactionAsync()
     {
         _transaction = await _context.Database.BeginTransactionAsync();
+
+        // Hold audit rows back until this transaction commits. The activity log is a separate
+        // database and cannot join this transaction, so writing per-SaveChanges would leave the
+        // log describing work that a later rollback undid.
+        _auditInterceptor?.BeginDeferral();
     }
 
     public async Task CommitTransactionAsync()
@@ -47,6 +66,9 @@ IF @res < 0
             await _transaction.CommitAsync();
             await _transaction.DisposeAsync();
             _transaction = null;
+
+            // Only now are the changes real, so the audit rows can be written.
+            if (_auditInterceptor != null) await _auditInterceptor.FlushDeferredAsync();
         }
     }
 
@@ -58,6 +80,10 @@ IF @res < 0
             await _transaction.DisposeAsync();
             _transaction = null;
         }
+
+        // Unconditional: if BeginTransactionAsync succeeded but the transaction handle is already
+        // gone, any buffered rows still describe work that did not happen.
+        _auditInterceptor?.DiscardDeferred();
     }
 
     public bool HasActiveTransaction => _transaction != null;
@@ -96,6 +122,13 @@ IF @res < 0
 
     public void Dispose()
     {
+        // A transaction still open at dispose was never committed, so it is being abandoned —
+        // drop any buffered audit rows rather than let them describe uncommitted work.
+        if (_transaction != null)
+        {
+            _auditInterceptor?.DiscardDeferred();
+        }
+
         _transaction?.Dispose();
     }
 }

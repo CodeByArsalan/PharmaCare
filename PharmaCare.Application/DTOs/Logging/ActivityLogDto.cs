@@ -19,7 +19,6 @@ public class ActivityLogDto
     public string? IpAddress { get; set; }
     public DateTime Timestamp { get; set; }
     public string? Description { get; set; }
-    public int? StoreId { get; set; }
 }
 
 /// <summary>
@@ -34,7 +33,6 @@ public class ActivityLogFilterDto
     public string? EntityId { get; set; }
     public DateTime? FromDate { get; set; }
     public DateTime? ToDate { get; set; }
-    public int? StoreId { get; set; }
     public int PageNumber { get; set; } = 1;
     public int PageSize { get; set; } = 50;
 }

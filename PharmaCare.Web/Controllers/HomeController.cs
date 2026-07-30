@@ -1,3 +1,4 @@
+using System.Diagnostics;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using PharmaCare.Application.Interfaces.Reports;
@@ -134,9 +135,13 @@ public class HomeController : BaseController
                 vm.TodayCashFlow = await _financialReportService.GetCashFlowReportAsync(todayFilter);
             }
         }
-        catch
+        catch (Exception ex)
         {
-            // Keep VM defaults on error
+            // Defaults are kept so the shell still renders, but the failure must be both logged
+            // and surfaced — a silent dashboard of zeros reads as a quiet day, not an outage.
+            Logger.LogError(ex, "Dashboard load failed for user {UserId} (pharmacy {PharmacyId}).",
+                CurrentUserId, CurrentPharmacyId);
+            vm.LoadFailed = true;
         }
 
         return View(vm);
@@ -182,6 +187,12 @@ public class HomeController : BaseController
         return Json(new { labels, salesData, purchaseData });
     }
 
+    /// <summary>
+    /// Terminal error page for BOTH pipeline hooks in Program.cs: UseExceptionHandler (unhandled
+    /// exception, statusCode is null) and UseStatusCodePagesWithReExecute (statusCode supplied).
+    /// The Error view is deliberately layout-free so it still renders when the failure is the
+    /// database or session itself — rendering _Layout here would re-throw inside the handler.
+    /// </summary>
     [ResponseCache(Duration = 0, Location = ResponseCacheLocation.None, NoStore = true)]
     [AllowAnonymous]
     public IActionResult Error(int? statusCode = null)
@@ -190,6 +201,10 @@ public class HomeController : BaseController
         {
             return View("NotFound");
         }
+
+        ViewData["StatusCode"] = statusCode;
+        // Correlates the page the user sees with the logged exception.
+        ViewData["RequestId"] = Activity.Current?.Id ?? HttpContext.TraceIdentifier;
         return View();
     }
 }

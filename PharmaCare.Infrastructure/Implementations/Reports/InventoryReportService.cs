@@ -1,4 +1,5 @@
 using Microsoft.EntityFrameworkCore;
+using PharmaCare.Application.Interfaces.Configuration;
 using PharmaCare.Application.Interfaces.Reports;
 using PharmaCare.Application.ViewModels.Report;
 using PharmaCare.Infrastructure;
@@ -8,16 +9,22 @@ namespace PharmaCare.Infrastructure.Implementations.Reports;
 public class InventoryReportService : IInventoryReportService
 {
     private readonly PharmaCareDBContext _db;
-    
-    // Transaction-type codes used for stock calculation
+    private readonly IProductService _productService;
+
+    // Transaction-type codes used ONLY to break the movement down into display columns.
+    // They must never decide the stock total itself — that is derived from StockDirection so a
+    // newly seeded transaction type cannot silently go missing (which is what happened to the
+    // SADJ+/SADJ- adjustments below).
     private static readonly string[] SaleCodes = { "SALE" };
     private static readonly string[] SaleReturnCodes = { "SRTN" };
-    private static readonly string[] PurchaseCodes = { "GRN" }; // Not used directly in logic below but good for consistency
+    private static readonly string[] PurchaseCodes = { "GRN" };
     private static readonly string[] PurchaseReturnCodes = { "PRTN" };
+    private static readonly string[] AdjustmentCodes = { "SADJ+", "SADJ-" };
 
-    public InventoryReportService(PharmaCareDBContext db)
+    public InventoryReportService(PharmaCareDBContext db, IProductService productService)
     {
         _db = db;
+        _productService = productService;
     }
 
     public async Task<CurrentStockReportVM> GetCurrentStockReportAsync(DateRangeFilter filter)
@@ -43,29 +50,53 @@ public class InventoryReportService : IInventoryReportService
 
         var productIds = products.Select(p => p.ProductID).ToList();
 
+        // Status == "Approved" (not != "Void") and AffectsStock/StockDirection are the SAME rules
+        // ProductService applies for POS availability. Anything else makes this report disagree
+        // with the quantity the till will actually sell.
+        // Grouped by product + transaction type, then aggregated in memory — the same shape
+        // ProductService.GetProductsWithStockAsync uses. Keeping the SQL to one simple GROUP BY
+        // avoids leaning on EF to translate several conditional aggregates over one group.
         var movementRows = await _db.StockDetails
             .AsNoTracking()
-            .Where(d => productIds.Contains(d.Product_ID) && d.StockMain!.Status != "Void")
-            .GroupBy(d => d.Product_ID)
+            .Where(d => productIds.Contains(d.Product_ID)
+                        && d.StockMain!.Status == "Approved"
+                        && d.StockMain.TransactionType!.AffectsStock
+                        && d.StockMain.TransactionType.IsActive)
+            .GroupBy(d => new
+            {
+                d.Product_ID,
+                Code = d.StockMain!.TransactionType!.Code,
+                d.StockMain.TransactionType.StockDirection
+            })
             .Select(g => new
             {
-                ProductId = g.Key,
-                PurchasedQty = g.Where(d => d.StockMain!.TransactionType!.StockDirection == 1 
-                                           && PurchaseCodes.Contains(d.StockMain.TransactionType!.Code))
-                    .Sum(d => (decimal?)d.Quantity) ?? 0,
-                SoldQty = g.Where(d => d.StockMain!.TransactionType!.StockDirection == -1
-                                       && SaleCodes.Contains(d.StockMain.TransactionType!.Code))
-                    .Sum(d => (decimal?)d.Quantity) ?? 0,
-                ReturnedInQty = g.Where(d => d.StockMain!.TransactionType!.StockDirection == 1
-                                             && SaleReturnCodes.Contains(d.StockMain.TransactionType!.Code))
-                    .Sum(d => (decimal?)d.Quantity) ?? 0,
-                ReturnedOutQty = g.Where(d => d.StockMain!.TransactionType!.StockDirection == -1
-                                              && PurchaseReturnCodes.Contains(d.StockMain.TransactionType!.Code))
-                    .Sum(d => (decimal?)Math.Abs(d.Quantity)) ?? 0
+                g.Key.Product_ID,
+                g.Key.Code,
+                g.Key.StockDirection,
+                Quantity = g.Sum(d => d.Quantity)
             })
             .ToListAsync();
 
-        var movementByProduct = movementRows.ToDictionary(m => m.ProductId);
+        var movementByProduct = movementRows
+            .GroupBy(m => m.Product_ID)
+            .ToDictionary(g => g.Key, g => new
+            {
+                // Authoritative total: every stock-affecting type, signed by its own direction.
+                NetQty = g.Sum(m => m.Quantity * m.StockDirection),
+
+                // Presentation-only breakdown.
+                PurchasedQty = g.Where(m => PurchaseCodes.Contains(m.Code)).Sum(m => m.Quantity),
+                SoldQty = g.Where(m => SaleCodes.Contains(m.Code)).Sum(m => m.Quantity),
+                ReturnedInQty = g.Where(m => SaleReturnCodes.Contains(m.Code)).Sum(m => m.Quantity),
+                ReturnedOutQty = g.Where(m => PurchaseReturnCodes.Contains(m.Code)).Sum(m => Math.Abs(m.Quantity)),
+                AdjustedQty = g.Where(m => AdjustmentCodes.Contains(m.Code)).Sum(m => m.Quantity * m.StockDirection)
+            });
+
+        // Value stock at what it actually cost (latest approved GRN, falling back to opening
+        // price) rather than the opening price alone, which ignored every purchase since.
+        // Reuses the single cost resolver rather than adding another implementation of it,
+        // scoped to the products this report actually covers (respects the category filter).
+        var costByProduct = await _productService.GetLastGrnCostPricesAsync(productIds);
 
         var rows = new List<CurrentStockRow>(products.Count);
         foreach (var p in products)
@@ -76,8 +107,10 @@ public class InventoryReportService : IInventoryReportService
             var soldQty = m?.SoldQty ?? 0;
             var returnedInQty = m?.ReturnedInQty ?? 0;
             var returnedOutQty = m?.ReturnedOutQty ?? 0;
+            var adjustedQty = m?.AdjustedQty ?? 0;
 
-            var currentStock = p.OpeningQty + purchasedQty - soldQty + returnedInQty - returnedOutQty;
+            var currentStock = p.OpeningQty + (m?.NetQty ?? 0);
+            var costPrice = costByProduct.TryGetValue(p.ProductID, out var c) ? c : p.OpeningPrice;
 
             rows.Add(new CurrentStockRow
             {
@@ -89,9 +122,10 @@ public class InventoryReportService : IInventoryReportService
                 SoldQty = soldQty,
                 ReturnedInQty = returnedInQty,
                 ReturnedOutQty = returnedOutQty,
+                AdjustedQty = adjustedQty,
                 CurrentStock = currentStock,
-                CostPrice = p.OpeningPrice,
-                StockValue = currentStock * p.OpeningPrice,
+                CostPrice = costPrice,
+                StockValue = Math.Round(currentStock * costPrice, 2),
                 ReorderLevel = p.ReorderLevel,
                 IsLowStock = currentStock <= p.ReorderLevel
             });
@@ -142,11 +176,14 @@ public class InventoryReportService : IInventoryReportService
         if (product == null)
             return new ProductMovementReportVM { Filter = filter };
 
-        // Get all movements for this product within date range
+        // Same movement rule as GetCurrentStockReportAsync and ProductService, so this report's
+        // closing balance reconciles with current stock and POS availability.
         var details = await _db.StockDetails
             .Include(d => d.StockMain).ThenInclude(s => s!.TransactionType)
             .Where(d => d.Product_ID == filter.ProductId.Value
-                        && d.StockMain!.Status != "Void"
+                        && d.StockMain!.Status == "Approved"
+                        && d.StockMain.TransactionType!.AffectsStock
+                        && d.StockMain.TransactionType.IsActive
                         && d.StockMain.TransactionDate >= filter.FromDate
                         && d.StockMain.TransactionDate < filter.ToDate.AddDays(1))
             .OrderBy(d => d.StockMain!.TransactionDate)
@@ -157,7 +194,9 @@ public class InventoryReportService : IInventoryReportService
         var priorDetails = await _db.StockDetails
             .Include(d => d.StockMain).ThenInclude(s => s!.TransactionType)
             .Where(d => d.Product_ID == filter.ProductId.Value
-                        && d.StockMain!.Status != "Void"
+                        && d.StockMain!.Status == "Approved"
+                        && d.StockMain.TransactionType!.AffectsStock
+                        && d.StockMain.TransactionType.IsActive
                         && d.StockMain.TransactionDate < filter.FromDate)
             .ToListAsync();
 
@@ -210,7 +249,7 @@ public class InventoryReportService : IInventoryReportService
         var lastSaleDates = await _db.StockDetails
             .Include(d => d.StockMain).ThenInclude(s => s!.TransactionType)
             .Where(d => SaleCodes.Contains(d.StockMain!.TransactionType!.Code)
-                        && d.StockMain.Status != "Void")
+                        && d.StockMain.Status == "Approved")
             .GroupBy(d => d.Product_ID)
             .Select(g => new { ProductId = g.Key, LastDate = g.Max(d => d.StockMain!.TransactionDate) })
             .ToDictionaryAsync(x => x.ProductId, x => x.LastDate);

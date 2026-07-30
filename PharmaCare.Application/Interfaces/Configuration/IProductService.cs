@@ -49,7 +49,14 @@ public interface IProductService
     Task<Dictionary<int, decimal>> GetStockStatusAsync(List<int> productIds);
     
     /// <summary>
-    /// Gets the most recent GRN cost price for each product. Falls back to OpeningPrice if no GRN exists.
+    /// Gets the most recent approved-GRN cost price per product, falling back to OpeningPrice
+    /// when the product has never been received.
     /// </summary>
-    Task<Dictionary<int, decimal>> GetLastGrnCostPricesAsync();
+    /// <param name="productIds">
+    /// Restricts the lookup to these products. ALWAYS pass them when the caller knows which
+    /// products it cares about — omitting them scans every product and every GRN line in the
+    /// tenant, which a transaction screen does not need and which grows without bound.
+    /// Pass null only for screens that genuinely list all products.
+    /// </param>
+    Task<Dictionary<int, decimal>> GetLastGrnCostPricesAsync(IEnumerable<int>? productIds = null);
 }

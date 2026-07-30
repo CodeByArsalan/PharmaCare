@@ -17,6 +17,18 @@
     </div>
 </div>
 
+@if (Model.LoadFailed)
+{
+    <div class="alert alert-warning d-flex align-items-center mt-3" role="alert">
+        <i class="fas fa-triangle-exclamation me-2"></i>
+        <div>
+            Some dashboard figures could not be loaded, so the numbers below may be incomplete or
+            show as zero. The error has been logged — please refresh, or contact your administrator
+            if this keeps happening.
+        </div>
+    </div>
+}
+
 @if (!showSales && !showInventory && !showFinancials)
 {
     <div class="row mt-4">

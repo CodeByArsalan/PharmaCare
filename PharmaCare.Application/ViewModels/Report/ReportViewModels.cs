@@ -208,8 +208,19 @@ public class CurrentStockRow
     public decimal SoldQty { get; set; }
     public decimal ReturnedInQty { get; set; }
     public decimal ReturnedOutQty { get; set; }
+
+    /// <summary>
+    /// Net effect of stock adjustments (write-ins minus write-offs: damaged, expired, lost, bonus).
+    /// Can be negative. Previously omitted entirely, which made CurrentStock disagree with the
+    /// quantity the POS would actually sell.
+    /// </summary>
+    public decimal AdjustedQty { get; set; }
+
     public decimal CurrentStock { get; set; }
+
+    /// <summary>Latest approved GRN cost for the product, falling back to its opening price.</summary>
     public decimal CostPrice { get; set; }
+
     public decimal StockValue { get; set; }
     public int ReorderLevel { get; set; }
     public bool IsLowStock { get; set; }
@@ -495,27 +506,6 @@ public class CustomerBalanceRow
     public decimal BalanceDue { get; set; }
     public decimal CreditLimit { get; set; }
     public bool IsOverLimit { get; set; }
-}
-
-// ===================== 6. SEARCH MODELS =====================
-
-public class GlobalSearchResultVM
-{
-    public string Query { get; set; } = string.Empty;
-    public List<SearchResultItem> Products { get; set; } = new();
-    public List<SearchResultItem> Parties { get; set; } = new();
-    public List<SearchResultItem> Transactions { get; set; } = new();
-
-    public int TotalResults => Products.Count + Parties.Count + Transactions.Count;
-}
-
-public class SearchResultItem
-{
-    public string Title { get; set; } = string.Empty;
-    public string Subtitle { get; set; } = string.Empty;
-    public string Url { get; set; } = string.Empty;
-    public string Type { get; set; } = string.Empty;
-    public string BadgeClass { get; set; } = "bg-secondary";
 }
 
 public class ExpenseBudgetVM

@@ -53,7 +53,7 @@ public class SupplierCreditNoteController : BaseController
             }
             catch (Exception ex)
             {
-                ModelState.AddModelError("", ex.Message);
+                ModelState.AddModelError("", SafeErrorMessage(ex, "AddSupplierCreditNote"));
             }
         }
 
@@ -98,7 +98,7 @@ public class SupplierCreditNoteController : BaseController
         }
         catch (Exception ex)
         {
-            ShowMessage(MessageType.Error, ex.Message);
+            ShowMessage(MessageType.Error, SafeErrorMessage(ex, "Void"));
         }
 
         return RedirectToAction(nameof(SupplierCreditNotesIndex));

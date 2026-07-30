@@ -136,18 +136,11 @@ public class UserController : BaseController
         return RedirectToAction("UsersIndex");
     }
 
+    // Takes the same tamper-proof id as every other action here. The duplicate Delete action that
+    // used to sit alongside this one did exactly the same thing and had no caller.
     [HttpPost]
     [ValidateAntiForgeryToken]
-    public async Task<IActionResult> ToggleStatus(int id)
-    {
-        await _userService.ToggleUserStatusAsync(id, CurrentUserId);
-        ShowMessage(MessageType.Success, "User status updated successfully!");
-        return RedirectToAction("UsersIndex");
-    }
-
-    [HttpPost]
-    [ValidateAntiForgeryToken]
-    public async Task<IActionResult> Delete(string id)
+    public async Task<IActionResult> ToggleStatus(string id)
     {
         int userId = Utility.DecryptId(id);
         if (userId == 0) return NotFound();

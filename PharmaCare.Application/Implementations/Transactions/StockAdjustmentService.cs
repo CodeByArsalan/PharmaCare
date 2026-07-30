@@ -123,7 +123,7 @@ public class StockAdjustmentService : TransactionServiceBase, IStockAdjustmentSe
             await LockProductStockAsync(productIds);
 
             var stockDict = await _productService.GetStockStatusAsync(productIds);
-            var costPrices = await _productService.GetLastGrnCostPricesAsync();
+            var costPrices = await _productService.GetLastGrnCostPricesAsync(productIds);
             
             // Categories needed for accounting rules
             var products = await _productRepository.Query().Where(p => productIds.Contains(p.ProductID)).ToListAsync();

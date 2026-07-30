@@ -8,7 +8,7 @@
     <meta name="app-currency-code" content="@CurrencyDisplay.Code" />
     <title>@ViewData["Title"] - PharmaCare</title>
     <!-- All frontend assets are vendored locally (wwwroot/lib) so the POS works without internet. -->
-    <link rel="stylesheet" href="~/assets/css/bootstrap.min.css" />
+    <link rel="stylesheet" href="~/lib/bootstrap/css/bootstrap.min.css" />
     <link rel="stylesheet" href="~/lib/fontawesome/css/all.min.css" />
     <link rel="stylesheet" href="~/lib/datatables-bs5/css/dataTables.bootstrap5.min.css" />
     <link rel="stylesheet" href="~/lib/select2/css/select2.min.css" />
@@ -43,7 +43,7 @@
         function appCurrencyCode() { return document.querySelector('meta[name="app-currency-code"]').content; }
     </script>
     <script src="~/lib/jquery/dist/jquery.min.js"></script>
-    <!-- Bootstrap production bundle, vendored locally. (The old ~/assets/js/bootstrap.js was a
+    <!-- Bootstrap production bundle, vendored locally. (The old webpack dev build that used to live
          webpack dev build using eval-based sourcemaps, which the CSP blocks — don't revive it.) -->
     <script src="~/lib/bootstrap/js/bootstrap.bundle.min.js"></script>
     <script src="~/lib/sweetalert2/sweetalert2.all.min.js"></script>

@@ -287,6 +287,11 @@ public class PurchaseService : TransactionServiceBase, IPurchaseService
             _stockMainRepository.Update(purchase);
             await _unitOfWork.SaveChangesAsync();
 
+            // Receiving goods is what completes a PO. Sync after the save so the received-quantity
+            // query includes this GRN's lines.
+            await SyncReferencedPurchaseOrderStatusAsync(purchase.ReferenceStockMain_ID, userId);
+            await _unitOfWork.SaveChangesAsync();
+
             return purchase;
         });
     }
@@ -970,10 +975,13 @@ public class PurchaseService : TransactionServiceBase, IPurchaseService
             var repostedVoucher = await CreatePurchaseVoucherAsync(existing, userId);
             existing.Voucher = repostedVoucher;
 
-            // An edit that reduces received quantity may re-open a previously-Completed PO.
-            await ReopenReferencedPurchaseOrderIfNeededAsync(existing.ReferenceStockMain_ID, userId);
-
             _stockMainRepository.Update(existing);
+            await _unitOfWork.SaveChangesAsync();
+
+            // Sync AFTER the save: the status depends on a query of received quantity, which must
+            // see this edit's new line quantities. Still inside the transaction, so it rolls back
+            // with everything else. An edit can reduce quantity (re-open) or complete the PO.
+            await SyncReferencedPurchaseOrderStatusAsync(existing.ReferenceStockMain_ID, userId);
             await _unitOfWork.SaveChangesAsync();
 
             return existing;
@@ -1057,10 +1065,12 @@ public class PurchaseService : TransactionServiceBase, IPurchaseService
                 _paymentRepository.Update(payment);
             }
 
-            // A GRN void frees up any PO quantity it had received.
-            await ReopenReferencedPurchaseOrderIfNeededAsync(purchase.ReferenceStockMain_ID, userId);
-
             _stockMainRepository.Update(purchase);
+            await _unitOfWork.SaveChangesAsync();
+
+            // Sync AFTER the save so the received-quantity query sees this GRN as Void and stops
+            // counting it — a void frees up the PO quantity it had received.
+            await SyncReferencedPurchaseOrderStatusAsync(purchase.ReferenceStockMain_ID, userId);
             await _unitOfWork.SaveChangesAsync();
 
             return true;
@@ -1068,11 +1078,16 @@ public class PurchaseService : TransactionServiceBase, IPurchaseService
     }
 
     /// <summary>
-    /// Re-opens a referenced Purchase Order that had been auto-Completed, when a GRN against it is
-    /// voided or reduced so that outstanding quantity exists again. Over-receipt is blocked, so any
-    /// Completed PO whose GRN is voided/reduced necessarily has remaining quantity to receive.
+    /// Sole owner of the referenced Purchase Order's Approved &lt;-&gt; Completed transition, in both
+    /// directions, persisted deliberately as part of the GRN operation that caused it:
+    /// <list type="bullet">
+    /// <item>Approved -> Completed once every ordered line has been fully received.</item>
+    /// <item>Completed -> Approved when a GRN is voided or reduced so quantity is outstanding again
+    /// (otherwise the PO would vanish from the GRN screen with goods still to receive).</item>
+    /// </list>
+    /// Must be called from inside the GRN transaction, before its SaveChanges.
     /// </summary>
-    private async Task ReopenReferencedPurchaseOrderIfNeededAsync(int? referenceStockMainId, int userId)
+    private async Task SyncReferencedPurchaseOrderStatusAsync(int? referenceStockMainId, int userId)
     {
         if (!referenceStockMainId.HasValue)
         {
@@ -1081,16 +1096,58 @@ public class PurchaseService : TransactionServiceBase, IPurchaseService
 
         var po = await _stockMainRepository.Query()
             .Include(s => s.TransactionType)
+            .Include(s => s.StockDetails)
             .FirstOrDefaultAsync(s => s.StockMainID == referenceStockMainId.Value
                                    && s.TransactionType!.Code == PO_TRANSACTION_TYPE_CODE);
 
-        if (po != null && string.Equals(po.Status, "Completed", StringComparison.OrdinalIgnoreCase))
+        // Draft/Void POs have no auto-status to maintain.
+        if (po == null
+            || (!string.Equals(po.Status, "Approved", StringComparison.OrdinalIgnoreCase)
+                && !string.Equals(po.Status, "Completed", StringComparison.OrdinalIgnoreCase)))
         {
-            po.Status = "Approved";
-            po.UpdatedAt = AppTime.Now;
-            po.UpdatedBy = userId;
-            _stockMainRepository.Update(po);
+            return;
         }
+
+        var receivedLines = await _stockMainRepository.Query()
+            .AsNoTracking()
+            .Include(s => s.TransactionType)
+            .Where(s => s.TransactionType!.Code == TRANSACTION_TYPE_CODE
+                     && s.Status != "Void"
+                     && s.ReferenceStockMain_ID == po.StockMainID)
+            .SelectMany(s => s.StockDetails.Select(d => new { d.Product_ID, d.Quantity }))
+            .ToListAsync();
+
+        var receivedByProduct = receivedLines
+            .GroupBy(x => x.Product_ID)
+            .ToDictionary(g => g.Key, g => g.Sum(x => x.Quantity));
+
+        // Completion is a QUANTITY question, not a money one — deliberately not
+        // PurchaseOrderMath.RemainingTotal, which measures the value of the outstanding portion
+        // (correct for the supplier advance cap, wrong here: a zero-priced bonus line contributes
+        // no value but is still goods that have not arrived).
+        var orderedByProduct = (po.StockDetails ?? new List<StockDetail>())
+            .GroupBy(d => d.Product_ID)
+            .ToDictionary(g => g.Key, g => g.Sum(d => d.Quantity));
+
+        // A PO with no lines is not "fully received" — guard against All() returning true on an
+        // empty sequence and silently completing it.
+        var fullyReceived = orderedByProduct.Count > 0
+            && orderedByProduct.All(o =>
+            {
+                receivedByProduct.TryGetValue(o.Key, out var receivedQty);
+                return receivedQty >= o.Value;
+            });
+
+        var desiredStatus = fullyReceived ? "Completed" : "Approved";
+        if (string.Equals(po.Status, desiredStatus, StringComparison.OrdinalIgnoreCase))
+        {
+            return;
+        }
+
+        po.Status = desiredStatus;
+        po.UpdatedAt = AppTime.Now;
+        po.UpdatedBy = userId;
+        _stockMainRepository.Update(po);
     }
 
     /// <summary>

@@ -305,9 +305,13 @@ public class SalesReportService : ISalesReportService
             })
             .ToListAsync();
 
+        // Voided receipts were never collected — counting them would understate what the
+        // customer still owes (and wrongly clear them against their credit limit).
         var receiptsByCustomer = await _db.Payments
             .AsNoTracking()
-            .Where(p => p.PaymentType == PaymentType.RECEIPT.ToString() && p.PaymentDate <= asOfDate)
+            .Where(p => p.PaymentType == PaymentType.RECEIPT.ToString()
+                        && p.PaymentDate <= asOfDate
+                        && !p.IsVoided)
             .GroupBy(p => p.Party_ID)
             .Select(g => new
             {

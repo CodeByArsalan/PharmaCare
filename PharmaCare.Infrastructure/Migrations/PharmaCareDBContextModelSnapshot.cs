@@ -1683,6 +1683,11 @@ namespace PharmaCare.Infrastructure.Migrations
 
                     b.HasIndex("StockMain_ID");
 
+                    b.HasIndex("Pharmacy_ID", "Product_ID", "StockMain_ID")
+                        .HasDatabaseName("IX_StockDetails_Product_StockMain");
+
+                    SqlServerIndexBuilderExtensions.IncludeProperties(b.HasIndex("Pharmacy_ID", "Product_ID", "StockMain_ID"), new[] { "CostPrice", "Quantity" });
+
                     b.ToTable("StockDetails", (string)null);
                 });
 
@@ -1807,7 +1812,7 @@ namespace PharmaCare.Infrastructure.Migrations
                         {
                             t.HasCheckConstraint("CK_StockMains_PaymentStatus_Valid", "[PaymentStatus] IN ('Unpaid','Partial','Paid')");
 
-                            t.HasCheckConstraint("CK_StockMains_Status_Valid", "[Status] IN ('Draft','Approved','Void')");
+                            t.HasCheckConstraint("CK_StockMains_Status_Valid", "[Status] IN ('Draft','Approved','Completed','Void')");
                         });
                 });
 

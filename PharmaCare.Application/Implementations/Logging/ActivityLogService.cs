@@ -58,7 +58,6 @@ public class ActivityLogService : IActivityLogService
             UserAgent = GetUserAgent(httpContext),
             Timestamp = AppTime.Now,
             Description = description ?? GenerateDescription(activityType, entityName, entityId),
-            StoreId = null,
             Pharmacy_ID = _currentTenant.TenantId
         };
 
@@ -91,9 +90,6 @@ public class ActivityLogService : IActivityLogService
 
         if (filter.ToDate.HasValue)
             query = query.Where(l => l.Timestamp <= filter.ToDate.Value);
-
-        if (filter.StoreId.HasValue)
-            query = query.Where(l => l.StoreId == filter.StoreId.Value);
 
         // Get total count
         var totalCount = await query.CountAsync();
@@ -207,8 +203,7 @@ public class ActivityLogService : IActivityLogService
             NewValues = log.NewValues,
             IpAddress = log.IpAddress,
             Timestamp = log.Timestamp,
-            Description = log.Description,
-            StoreId = log.StoreId
+            Description = log.Description
         };
     }
 

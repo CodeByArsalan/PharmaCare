@@ -23,6 +23,15 @@ public class AuditSaveChangesInterceptor : SaveChangesInterceptor
 
     // Track audit entries during the save operation
     private List<AuditEntry> _pendingAuditEntries = new();
+
+    // Audit rows built during an explicit business transaction, held back until it commits.
+    // The activity log lives in a SEPARATE database, so it cannot join the business transaction;
+    // writing on every SaveChanges meant a later rollback left log rows describing sales, GRNs and
+    // vouchers that never existed. UnitOfWork drives the deferral (see BeginDeferral/Flush/Discard).
+    private readonly List<ActivityLog> _deferredLogs = new();
+
+    /// <summary>True while audit rows are being buffered for an open business transaction.</summary>
+    public bool IsDeferring { get; private set; }
     private static readonly HashSet<string> ExcludedAuditProperties = new(StringComparer.OrdinalIgnoreCase)
     {
         "PasswordHash",
@@ -85,16 +94,29 @@ public class AuditSaveChangesInterceptor : SaveChangesInterceptor
         // risks thread-pool starvation/deadlocks on every SaveChanges call.
         try
         {
-            using var scope = _serviceProvider.CreateScope();
-            var logContext = scope.ServiceProvider.GetService<LogDbContext>();
-            if (logContext != null && StagePendingAuditLogs(logContext))
+            var logs = BuildActivityLogs();
+            if (logs.Count > 0)
             {
-                logContext.SaveChanges();
+                if (IsDeferring)
+                {
+                    // Inside a business transaction: hold until commit.
+                    _deferredLogs.AddRange(logs);
+                }
+                else
+                {
+                    using var scope = _serviceProvider.CreateScope();
+                    var logContext = scope.ServiceProvider.GetService<LogDbContext>();
+                    if (logContext != null)
+                    {
+                        logContext.ActivityLogs.AddRange(logs);
+                        logContext.SaveChanges();
+                    }
+                }
             }
         }
         catch (Exception ex)
         {
-            _logger.LogError(ex, "Failed to write {Count} audit log entries; the business transaction itself was committed.", _pendingAuditEntries.Count);
+            _logger.LogError(ex, "Failed to record {Count} audit log entries; the business change itself succeeded.", _pendingAuditEntries.Count);
         }
         finally
         {
@@ -111,16 +133,29 @@ public class AuditSaveChangesInterceptor : SaveChangesInterceptor
     {
         try
         {
-            using var scope = _serviceProvider.CreateScope();
-            var logContext = scope.ServiceProvider.GetService<LogDbContext>();
-            if (logContext != null && StagePendingAuditLogs(logContext))
+            var logs = BuildActivityLogs();
+            if (logs.Count > 0)
             {
-                await logContext.SaveChangesAsync(cancellationToken);
+                if (IsDeferring)
+                {
+                    // Inside a business transaction: hold until commit.
+                    _deferredLogs.AddRange(logs);
+                }
+                else
+                {
+                    using var scope = _serviceProvider.CreateScope();
+                    var logContext = scope.ServiceProvider.GetService<LogDbContext>();
+                    if (logContext != null)
+                    {
+                        logContext.ActivityLogs.AddRange(logs);
+                        await logContext.SaveChangesAsync(cancellationToken);
+                    }
+                }
             }
         }
         catch (Exception ex)
         {
-            _logger.LogError(ex, "Failed to write {Count} audit log entries; the business transaction itself was committed.", _pendingAuditEntries.Count);
+            _logger.LogError(ex, "Failed to record {Count} audit log entries; the business change itself succeeded.", _pendingAuditEntries.Count);
         }
         finally
         {
@@ -128,6 +163,57 @@ public class AuditSaveChangesInterceptor : SaveChangesInterceptor
         }
 
         return await base.SavedChangesAsync(eventData, result, cancellationToken);
+    }
+
+    /// <summary>
+    /// Starts buffering audit rows instead of writing them. Called by UnitOfWork when an explicit
+    /// business transaction opens.
+    /// </summary>
+    public void BeginDeferral()
+    {
+        IsDeferring = true;
+        _deferredLogs.Clear();
+    }
+
+    /// <summary>
+    /// Writes the buffered audit rows. Called by UnitOfWork AFTER the business transaction has
+    /// committed, so the log only ever describes changes that actually landed. A failure here
+    /// loses audit rows for an already-committed change, which is logged and not rethrown —
+    /// failing the caller at this point would misreport a successful business transaction.
+    /// </summary>
+    public async Task FlushDeferredAsync(CancellationToken cancellationToken = default)
+    {
+        IsDeferring = false;
+        if (_deferredLogs.Count == 0) return;
+
+        try
+        {
+            using var scope = _serviceProvider.CreateScope();
+            var logContext = scope.ServiceProvider.GetService<LogDbContext>();
+            if (logContext != null)
+            {
+                logContext.ActivityLogs.AddRange(_deferredLogs);
+                await logContext.SaveChangesAsync(cancellationToken);
+            }
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Failed to write {Count} buffered audit log entries after commit.", _deferredLogs.Count);
+        }
+        finally
+        {
+            _deferredLogs.Clear();
+        }
+    }
+
+    /// <summary>
+    /// Drops the buffered audit rows. Called by UnitOfWork on rollback — those changes never
+    /// happened, so they must not appear in the activity log.
+    /// </summary>
+    public void DiscardDeferred()
+    {
+        IsDeferring = false;
+        _deferredLogs.Clear();
     }
 
     private void OnBeforeSaveChanges(DbContext? context)
@@ -169,7 +255,6 @@ public class AuditSaveChangesInterceptor : SaveChangesInterceptor
                 UserName = userName,
                 IpAddress = ipAddress,
                 UserAgent = userAgent,
-                StoreId = null,
                 Pharmacy_ID = pharmacyId,
                 EntityName = entry.Entity.GetType().Name,
                 Entry = entry
@@ -201,12 +286,17 @@ public class AuditSaveChangesInterceptor : SaveChangesInterceptor
     }
 
     /// <summary>
-    /// Materializes the pending audit entries as ActivityLog rows on <paramref name="logContext"/>.
-    /// Returns false when there is nothing to save.
+    /// Materializes the pending audit entries as ActivityLog rows.
+    /// <para>
+    /// Built eagerly, right after the save, because the values are read from the tracked entities
+    /// (and database-generated keys are only available now). The resulting rows are safe to hold
+    /// in memory until the transaction commits.
+    /// </para>
     /// </summary>
-    private bool StagePendingAuditLogs(LogDbContext logContext)
+    private List<ActivityLog> BuildActivityLogs()
     {
-        if (_pendingAuditEntries.Count == 0) return false;
+        var logs = new List<ActivityLog>(_pendingAuditEntries.Count);
+        if (_pendingAuditEntries.Count == 0) return logs;
 
         foreach (var auditEntry in _pendingAuditEntries)
         {
@@ -229,15 +319,14 @@ public class AuditSaveChangesInterceptor : SaveChangesInterceptor
                 IpAddress = auditEntry.IpAddress,
                 UserAgent = auditEntry.UserAgent,
                 Timestamp = AppTime.Now,
-                StoreId = auditEntry.StoreId,
                 Pharmacy_ID = auditEntry.Pharmacy_ID,
                 Description = GenerateDescription(auditEntry)
             };
 
-            logContext.ActivityLogs.Add(activityLog);
+            logs.Add(activityLog);
         }
 
-        return true;
+        return logs;
     }
 
     private int GetCurrentUserId(HttpContext? httpContext)
@@ -422,7 +511,6 @@ public class AuditSaveChangesInterceptor : SaveChangesInterceptor
         public string? NewValues { get; set; }
         public string? IpAddress { get; set; }
         public string? UserAgent { get; set; }
-        public int? StoreId { get; set; }
         public int? Pharmacy_ID { get; set; }
         public EntityEntry? Entry { get; set; }
     }

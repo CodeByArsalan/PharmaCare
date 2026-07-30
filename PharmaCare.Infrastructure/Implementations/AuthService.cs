@@ -69,12 +69,6 @@ public class AuthService : IAuthService
         return await _userManager.FindByNameAsync(userId);
     }
 
-    public async Task<int?> GetCurrentUserStoreIdAsync()
-    {
-        // Store functionality removed - return null
-        return await Task.FromResult<int?>(null);
-    }
-
     public async Task<bool> HasPermissionAsync(int userId, string controller, string action, string permissionType)
     {
         // Get user's roles

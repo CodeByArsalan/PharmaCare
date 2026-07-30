@@ -168,6 +168,7 @@ builder.Services.AddScoped<IAccountHeadService, AccountHeadService>();
 builder.Services.AddScoped<IAccountSubHeadService, AccountSubHeadService>();
 builder.Services.AddScoped<IAccountService, AccountService>();
 builder.Services.AddScoped<IJournalVoucherService, JournalVoucherService>();
+builder.Services.AddScoped<IOpeningBalanceService, OpeningBalanceService>();
 builder.Services.AddScoped<IProfitSettingsService, ProfitSettingsService>();
 builder.Services.AddScoped<IPricingService, PricingService>();
 

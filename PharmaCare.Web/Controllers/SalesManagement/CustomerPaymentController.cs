@@ -122,7 +122,7 @@ public class CustomerPaymentController : BaseController
             }
             catch (Exception ex)
             {
-                ModelState.AddModelError("", ex.Message);
+                ModelState.AddModelError("", SafeErrorMessage(ex, "ReceivePayment"));
             }
         }
 
@@ -235,11 +235,12 @@ public class CustomerPaymentController : BaseController
         }
         catch (Exception ex)
         {
+            var message = SafeErrorMessage(ex, $"Applying credit note {creditNoteId} to sale {saleId}");
             if (Request.Headers["X-Requested-With"] == "XMLHttpRequest")
             {
-                return Json(new { success = false, message = ex.Message });
+                return Json(new { success = false, message });
             }
-            ShowMessage(MessageType.Error, ex.Message);
+            ShowMessage(MessageType.Error, message);
         }
 
         return RedirectToAction(nameof(Reconciliation), new { customerId });
@@ -264,7 +265,7 @@ public class CustomerPaymentController : BaseController
         }
         catch (Exception ex)
         {
-            ShowMessage(MessageType.Error, ex.Message);
+            ShowMessage(MessageType.Error, SafeErrorMessage(ex, "VoidReceipt"));
         }
 
         return RedirectToAction(nameof(ReceiptsIndex));
@@ -289,7 +290,7 @@ public class CustomerPaymentController : BaseController
         }
         catch (Exception ex)
         {
-            ShowMessage(MessageType.Error, ex.Message);
+            ShowMessage(MessageType.Error, SafeErrorMessage(ex, "VoidRefund"));
         }
 
         return RedirectToAction(nameof(RefundsIndex));
@@ -326,7 +327,7 @@ public class CustomerPaymentController : BaseController
             }
             catch (Exception ex)
             {
-                ModelState.AddModelError("", ex.Message);
+                ModelState.AddModelError("", SafeErrorMessage(ex, "Refund"));
             }
         }
 

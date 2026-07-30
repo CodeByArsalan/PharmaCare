@@ -29,8 +29,7 @@ public class ActivityLogController : BaseController
                         Request.Query.ContainsKey(nameof(ActivityLogFilterDto.UserName)) ||
                         Request.Query.ContainsKey(nameof(ActivityLogFilterDto.ActivityType)) ||
                         Request.Query.ContainsKey(nameof(ActivityLogFilterDto.EntityName)) ||
-                        Request.Query.ContainsKey(nameof(ActivityLogFilterDto.EntityId)) ||
-                        Request.Query.ContainsKey(nameof(ActivityLogFilterDto.StoreId));
+                        Request.Query.ContainsKey(nameof(ActivityLogFilterDto.EntityId));
 
         ActivityLogPagedResult result;
         if (isSearch)

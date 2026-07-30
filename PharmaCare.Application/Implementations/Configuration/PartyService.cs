@@ -1,6 +1,7 @@
 using Microsoft.EntityFrameworkCore;
 using PharmaCare.Application.DTOs;
 using PharmaCare.Application.Interfaces;
+using PharmaCare.Application.Interfaces.Accounting;
 using PharmaCare.Application.Interfaces.Configuration;
 using PharmaCare.Domain.Entities.Configuration;
 using PharmaCare.Application.Interfaces.Logging;
@@ -26,6 +27,7 @@ public class PartyService : IPartyService
     private readonly IRepository<PharmaCare.Domain.Entities.Accounting.AccountType> _accountTypeRepository;
     private readonly IActivityLogService _activityLogService;
     private readonly ISessionService _sessionService;
+    private readonly IOpeningBalanceService _openingBalanceService;
     private readonly IUnitOfWork _unitOfWork;
 
     public PartyService(
@@ -36,6 +38,7 @@ public class PartyService : IPartyService
         IRepository<PharmaCare.Domain.Entities.Accounting.AccountType> accountTypeRepository,
         IActivityLogService activityLogService,
         ISessionService sessionService,
+        IOpeningBalanceService openingBalanceService,
         IUnitOfWork unitOfWork)
     {
         _repository = repository;
@@ -45,6 +48,7 @@ public class PartyService : IPartyService
         _accountTypeRepository = accountTypeRepository;
         _activityLogService = activityLogService;
         _sessionService = sessionService;
+        _openingBalanceService = openingBalanceService;
         _unitOfWork = unitOfWork;
     }
 
@@ -98,6 +102,25 @@ public class PartyService : IPartyService
 
     public async Task<Party> CreateAsync(Party party, int userId)
     {
+        // The ledger account, the party row and the opening-balance voucher must all land or none
+        // of them: a party whose opening balance never reached the GL is exactly the sub-ledger /
+        // trial-balance mismatch this posting exists to prevent.
+        await _unitOfWork.BeginTransactionAsync();
+        try
+        {
+            var created = await CreateCoreAsync(party, userId);
+            await _unitOfWork.CommitTransactionAsync();
+            return created;
+        }
+        catch
+        {
+            await _unitOfWork.RollbackTransactionAsync();
+            throw;
+        }
+    }
+
+    private async Task<Party> CreateCoreAsync(Party party, int userId)
+    {
         party.CreatedAt = AppTime.Now;
         party.CreatedBy = userId;
         party.IsActive = true;
@@ -147,7 +170,11 @@ public class PartyService : IPartyService
 
         await _repository.AddAsync(party);
         await _unitOfWork.SaveChangesAsync();
-        
+
+        // Bring any opening balance onto the books (no-op when zero).
+        await _openingBalanceService.PostOpeningBalanceDeltaAsync(party, previousBalance: 0m, userId);
+        await _unitOfWork.SaveChangesAsync();
+
         var userName = _sessionService.GetCurrentUser()?.FullName ?? "Unknown User";
         await _activityLogService.LogActivityAsync(
             userId,
@@ -164,6 +191,32 @@ public class PartyService : IPartyService
 
     public async Task<bool> UpdateAsync(Party party, int userId)
     {
+        await _unitOfWork.BeginTransactionAsync();
+        try
+        {
+            var result = await UpdateCoreAsync(party, userId);
+            await _unitOfWork.CommitTransactionAsync();
+            return result;
+        }
+        catch
+        {
+            await _unitOfWork.RollbackTransactionAsync();
+            throw;
+        }
+    }
+
+    private async Task<bool> UpdateCoreAsync(Party party, int userId)
+    {
+        // Read the stored opening balance straight from the database, NOT from the entity loaded
+        // below: if the caller happens to hold and mutate the tracked instance, that instance
+        // already carries the new value and the delta would silently compute to zero, losing the
+        // ledger entry. A projection is never served from the change tracker.
+        var previousOpeningBalance = await _repository.Query()
+            .AsNoTracking()
+            .Where(p => p.PartyID == party.PartyID)
+            .Select(p => p.OpeningBalance)
+            .FirstOrDefaultAsync();
+
         var existing = await _repository.Query()
             .Include(p => p.Account)
             .FirstOrDefaultAsync(p => p.PartyID == party.PartyID);
@@ -194,7 +247,12 @@ public class PartyService : IPartyService
 
         _repository.Update(existing);
         await _unitOfWork.SaveChangesAsync();
-        
+
+        // Post only the CHANGE, so editing an unrelated field posts nothing and repeated edits
+        // never double up the balance.
+        await _openingBalanceService.PostOpeningBalanceDeltaAsync(existing, previousOpeningBalance, userId);
+        await _unitOfWork.SaveChangesAsync();
+
         var userName = _sessionService.GetCurrentUser()?.FullName ?? "Unknown User";
         await _activityLogService.LogActivityAsync(
             userId,

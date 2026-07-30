@@ -86,9 +86,16 @@ public class PurchaseOrderService : IPurchaseOrderService
         };
     }
 
+    /// <summary>
+    /// Read-only fetch for display. Deliberately NOT tracked: RecalculateOutstandingAsync below
+    /// writes derived money fields onto the instance, and on a tracked entity those would be
+    /// flushed to the database by whatever happens to call SaveChanges next in the same request.
+    /// Write operations use <see cref="GetTrackedByIdAsync"/> instead.
+    /// </summary>
     public async Task<StockMain?> GetByIdAsync(int id)
     {
         var purchaseOrder = await _stockMainRepository.Query()
+            .AsNoTracking()
             .Include(s => s.TransactionType)
             .Include(s => s.Party)
             .Include(s => s.StockDetails)
@@ -101,6 +108,20 @@ public class PurchaseOrderService : IPurchaseOrderService
         }
 
         return purchaseOrder;
+    }
+
+    /// <summary>
+    /// Tracked fetch used by the write operations in this service. No recalculation is applied,
+    /// so nothing derived can ride along into an unrelated save.
+    /// </summary>
+    private async Task<StockMain?> GetTrackedByIdAsync(int id)
+    {
+        return await _stockMainRepository.Query()
+            .Include(s => s.TransactionType)
+            .Include(s => s.Party)
+            .Include(s => s.StockDetails)
+                .ThenInclude(d => d.Product)
+            .FirstOrDefaultAsync(s => s.StockMainID == id && s.TransactionType!.Code == TRANSACTION_TYPE_CODE);
     }
 
     public async Task<StockMain> CreateAsync(StockMain purchaseOrder, int userId)
@@ -132,7 +153,7 @@ public class PurchaseOrderService : IPurchaseOrderService
 
     public async Task<StockMain> UpdateAsync(StockMain purchaseOrder, int userId)
     {
-        var existing = await GetByIdAsync(purchaseOrder.StockMainID);
+        var existing = await GetTrackedByIdAsync(purchaseOrder.StockMainID);
         if (existing == null)
             throw new InvalidOperationException("Purchase Order not found.");
 
@@ -179,7 +200,7 @@ public class PurchaseOrderService : IPurchaseOrderService
 
     public async Task<bool> ApproveAsync(int id, int userId)
     {
-        var purchaseOrder = await GetByIdAsync(id);
+        var purchaseOrder = await GetTrackedByIdAsync(id);
         if (purchaseOrder == null)
             return false;
 
@@ -198,7 +219,7 @@ public class PurchaseOrderService : IPurchaseOrderService
 
     public async Task<bool> ToggleStatusAsync(int id, int userId)
     {
-        var purchaseOrder = await GetByIdAsync(id);
+        var purchaseOrder = await GetTrackedByIdAsync(id);
         if (purchaseOrder == null)
             return false;
 
@@ -323,6 +344,16 @@ public class PurchaseOrderService : IPurchaseOrderService
         }
     }
 
+    /// <summary>
+    /// Refreshes the DERIVED money fields (PaidAmount / BalanceAmount / PaymentStatus) on the
+    /// supplied purchase orders from the authoritative Payment rows, for display.
+    /// <para>
+    /// This intentionally does NOT touch Status. Approved &lt;-&gt; Completed depends on received
+    /// quantity, which only changes when a GRN is created, edited, or voided — so PurchaseService
+    /// owns that transition and persists it deliberately. Deciding it here meant a read could
+    /// leave an entity dirty and have the new status flushed by an unrelated later save.
+    /// </para>
+    /// </summary>
     private async Task RecalculateOutstandingAsync(IList<StockMain> purchaseOrders)
     {
         if (purchaseOrders.Count == 0)
@@ -342,27 +373,6 @@ public class PurchaseOrderService : IPurchaseOrderService
 
         var poIds = activePos.Select(po => po.StockMainID).ToList();
 
-        var receivedLines = await _stockMainRepository.Query()
-            .AsNoTracking()
-            .Include(s => s.TransactionType)
-            .Where(s => s.TransactionType!.Code == GRN_TRANSACTION_TYPE_CODE
-                     && s.Status != "Void"
-                     && s.ReferenceStockMain_ID.HasValue
-                     && poIds.Contains(s.ReferenceStockMain_ID.Value))
-            .SelectMany(s => s.StockDetails.Select(d => new
-            {
-                PoId = s.ReferenceStockMain_ID!.Value,
-                d.Product_ID,
-                d.Quantity
-            }))
-            .ToListAsync();
-
-        var receivedLookup = receivedLines
-            .GroupBy(x => new { x.PoId, x.Product_ID })
-            .ToDictionary(
-                g => (g.Key.PoId, g.Key.Product_ID),
-                g => g.Sum(x => x.Quantity));
-
         var poPayments = await _paymentRepository.Query()
             .AsNoTracking()
             .Where(p => p.PaymentType == SupplierPaymentType
@@ -381,11 +391,6 @@ public class PurchaseOrderService : IPurchaseOrderService
 
         foreach (var po in activePos)
         {
-            var receivedForPo = (po.StockDetails ?? new List<StockDetail>())
-                .Select(d => d.Product_ID)
-                .Distinct()
-                .ToDictionary(pid => pid, pid => receivedLookup.TryGetValue((po.StockMainID, pid), out var qty) ? qty : 0m);
-            var remainingTotal = PurchaseOrderMath.RemainingTotal(po, receivedForPo);
             paymentLookup.TryGetValue(po.StockMainID, out var paidAmount);
 
             po.PaidAmount = Math.Max(0, Math.Round(paidAmount, 2));
@@ -393,18 +398,6 @@ public class PurchaseOrderService : IPurchaseOrderService
             po.PaymentStatus = po.BalanceAmount <= 0
                 ? PaymentStatus.Paid.ToString()
                 : (po.PaidAmount <= 0 ? PaymentStatus.Unpaid.ToString() : PaymentStatus.Partial.ToString());
-
-            // Auto-mark as Completed if all items are fully received; and conversely re-open a
-            // previously-Completed PO if a GRN against it was later voided or reduced so that
-            // outstanding quantity exists again (otherwise it disappears from the GRN screen).
-            if (po.Status == "Approved" && remainingTotal <= 0)
-            {
-                po.Status = "Completed";
-            }
-            else if (po.Status == "Completed" && remainingTotal > 0)
-            {
-                po.Status = "Approved";
-            }
         }
     }
 

@@ -127,7 +127,7 @@ public class PurchaseOrderController : BaseController
             }
             catch (Exception ex)
             {
-                ModelState.AddModelError("", "Error creating purchase order: " + ex.Message);
+                ModelState.AddModelError("", SafeErrorMessage(ex, "AddPurchaseOrder"));
             }
         }
 
@@ -179,7 +179,7 @@ public class PurchaseOrderController : BaseController
             }
             catch (Exception ex)
             {
-                ModelState.AddModelError("", "Error updating purchase order: " + ex.Message);
+                ModelState.AddModelError("", SafeErrorMessage(ex, "EditPurchaseOrder"));
             }
         }
 
@@ -354,7 +354,7 @@ public class PurchaseOrderController : BaseController
             }
             catch (Exception ex)
             {
-                ModelState.AddModelError("", ex.Message);
+                ModelState.AddModelError("", SafeErrorMessage(ex, "MakePayment"));
             }
         }
 

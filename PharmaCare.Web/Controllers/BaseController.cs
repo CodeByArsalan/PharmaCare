@@ -21,6 +21,16 @@ public abstract class BaseController : Controller
     [FromServices]
     public ISessionService SessionService { get; set; } = null!;
 
+    [FromServices]
+    public ILoggerFactory LoggerFactory { get; set; } = null!;
+
+    private ILogger? _logger;
+
+    /// <summary>
+    /// Logger categorised to the concrete controller, available without touching constructors.
+    /// </summary>
+    protected ILogger Logger => _logger ??= LoggerFactory.CreateLogger(GetType());
+
     protected int CurrentUserId => SessionService.GetCurrentUser()?.UserId ?? 0;
 
     /// <summary>The current user's pharmacy (tenant) id; 0 for platform admins / unauthenticated.</summary>
@@ -31,10 +41,6 @@ public abstract class BaseController : Controller
     protected string CurrentUserName => SessionService.GetCurrentUser()?.FullName ?? "Unknown";
 
     protected string CurrentUserEmail => SessionService.GetCurrentUser()?.Email ?? string.Empty;
-
-    protected int? CurrentStoreId => SessionService.GetCurrentUser()?.StoreId;
-
-    protected string? CurrentStoreName => SessionService.GetCurrentUser()?.StoreName;
 
     protected List<int> CurrentUserRoleIds => SessionService.GetCurrentUser()?.RoleIds ?? new List<int>();
 
@@ -81,6 +87,26 @@ public abstract class BaseController : Controller
         TempData["ToastMessage"] = message;
         ViewData["ToastType"] = type.ToString().ToLower();
         ViewData["ToastMessage"] = message;
+    }
+
+    /// <summary>
+    /// Logs <paramref name="ex"/> and returns a message that is safe to send to the browser.
+    /// <para>
+    /// Only the application's own validation failures (InvalidOperationException /
+    /// ArgumentException — the type every service throws for business-rule violations) carry a
+    /// message the user should see. Anything else may embed SQL text, server names, or connection
+    /// details, so it is replaced with a generic line and only the log keeps the detail.
+    /// </para>
+    /// Use this instead of returning <c>ex.Message</c> from a broad <c>catch (Exception)</c>.
+    /// </summary>
+    protected string SafeErrorMessage(Exception ex, string context)
+    {
+        Logger.LogError(ex, "{Context} failed for user {UserId} (pharmacy {PharmacyId}).",
+            context, CurrentUserId, CurrentPharmacyId);
+
+        return ex is InvalidOperationException or ArgumentException
+            ? ex.Message
+            : "An unexpected error occurred. Please try again, or contact your administrator if the problem continues.";
     }
 
     /// <summary>

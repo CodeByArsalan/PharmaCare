@@ -19,8 +19,11 @@ BEGIN
     INSERT INTO Pages (Title, Icon, Parent_ID, DisplayOrder, IsActive, IsVisible, Controller, Action, CreatedAt, CreatedBy, UpdatedAt, UpdatedBy)
     VALUES ('Customer Ledger', 'fas fa-book', @SalesParentID, 21, 1, 1, 'CustomerPayment', 'CustomerLedger', GETDATE(), 1, GETDATE(), 1);
     
-    INSERT INTO RolePages (Role_ID, Page_ID, CanView, CanCreate, CanEdit, CanDelete)
-    VALUES (1, SCOPE_IDENTITY(), 1, 1, 1, 1);
+    -- Guarded: on a database built purely from migrations no Roles exist yet, and an
+    -- unguarded insert here fails the FK and aborts the whole migration run.
+    IF EXISTS (SELECT 1 FROM Roles WHERE RoleID = 1)
+        INSERT INTO RolePages (Role_ID, Page_ID, CanView, CanCreate, CanEdit, CanDelete)
+        VALUES (1, SCOPE_IDENTITY(), 1, 1, 1, 1);
 END
 
 IF NOT EXISTS (SELECT 1 FROM Pages WHERE Title = 'Stock Adjustments')
@@ -28,8 +31,11 @@ BEGIN
     INSERT INTO Pages (Title, Icon, Parent_ID, DisplayOrder, IsActive, IsVisible, Controller, Action, CreatedAt, CreatedBy, UpdatedAt, UpdatedBy)
     VALUES ('Stock Adjustments', 'fas fa-balance-scale', @PurchaseParentID, 50, 1, 1, 'StockAdjustment', 'AdjustmentIndex', GETDATE(), 1, GETDATE(), 1);
     
-    INSERT INTO RolePages (Role_ID, Page_ID, CanView, CanCreate, CanEdit, CanDelete)
-    VALUES (1, SCOPE_IDENTITY(), 1, 1, 1, 1);
+    -- Guarded: on a database built purely from migrations no Roles exist yet, and an
+    -- unguarded insert here fails the FK and aborts the whole migration run.
+    IF EXISTS (SELECT 1 FROM Roles WHERE RoleID = 1)
+        INSERT INTO RolePages (Role_ID, Page_ID, CanView, CanCreate, CanEdit, CanDelete)
+        VALUES (1, SCOPE_IDENTITY(), 1, 1, 1, 1);
 END
 
 IF NOT EXISTS (SELECT 1 FROM Pages WHERE Title = 'Advance Receipts')
@@ -37,8 +43,11 @@ BEGIN
     INSERT INTO Pages (Title, Icon, Parent_ID, DisplayOrder, IsActive, IsVisible, Controller, Action, CreatedAt, CreatedBy, UpdatedAt, UpdatedBy)
     VALUES ('Advance Receipts', 'fas fa-money-check-alt', @SalesParentID, 22, 1, 1, 'CustomerPayment', 'AdvanceReceiptsIndex', GETDATE(), 1, GETDATE(), 1);
     
-    INSERT INTO RolePages (Role_ID, Page_ID, CanView, CanCreate, CanEdit, CanDelete)
-    VALUES (1, SCOPE_IDENTITY(), 1, 1, 1, 1);
+    -- Guarded: on a database built purely from migrations no Roles exist yet, and an
+    -- unguarded insert here fails the FK and aborts the whole migration run.
+    IF EXISTS (SELECT 1 FROM Roles WHERE RoleID = 1)
+        INSERT INTO RolePages (Role_ID, Page_ID, CanView, CanCreate, CanEdit, CanDelete)
+        VALUES (1, SCOPE_IDENTITY(), 1, 1, 1, 1);
 END
 
 IF NOT EXISTS (SELECT 1 FROM Pages WHERE Title = 'Supplier Credit Notes')
@@ -46,8 +55,11 @@ BEGIN
     INSERT INTO Pages (Title, Icon, Parent_ID, DisplayOrder, IsActive, IsVisible, Controller, Action, CreatedAt, CreatedBy, UpdatedAt, UpdatedBy)
     VALUES ('Supplier Credit Notes', 'fas fa-credit-card', @PurchaseParentID, 51, 1, 1, 'SupplierCreditNote', 'SupplierCreditNotesIndex', GETDATE(), 1, GETDATE(), 1);
     
-    INSERT INTO RolePages (Role_ID, Page_ID, CanView, CanCreate, CanEdit, CanDelete)
-    VALUES (1, SCOPE_IDENTITY(), 1, 1, 1, 1);
+    -- Guarded: on a database built purely from migrations no Roles exist yet, and an
+    -- unguarded insert here fails the FK and aborts the whole migration run.
+    IF EXISTS (SELECT 1 FROM Roles WHERE RoleID = 1)
+        INSERT INTO RolePages (Role_ID, Page_ID, CanView, CanCreate, CanEdit, CanDelete)
+        VALUES (1, SCOPE_IDENTITY(), 1, 1, 1, 1);
 END
             ");
         }
