@@ -196,6 +196,7 @@ public class StockAdjustmentService : TransactionServiceBase, IStockAdjustmentSe
             if (voucherType == null)
                 throw new InvalidOperationException($"Voucher type '{JV_VOUCHER_CODE}' not found.");
 
+            Voucher? adjustmentVoucher = null;
             if (totalAmount > 0)
             {
                 var voucher = new Voucher
@@ -214,10 +215,22 @@ public class StockAdjustmentService : TransactionServiceBase, IStockAdjustmentSe
                 };
                 await _voucherRepository.AddAsync(voucher);
                 adjustment.Voucher = voucher;
+                adjustmentVoucher = voucher;
             }
 
             await _stockMainRepository.AddAsync(adjustment);
             await _unitOfWork.SaveChangesAsync();
+
+            // SourceTable + SourceID is how a voucher is traced back to the record that caused it,
+            // and every other transaction service stamps both. The id only exists after the insert
+            // above, so stamp it here — still inside the enclosing transaction.
+            if (adjustmentVoucher != null)
+            {
+                adjustmentVoucher.SourceID = adjustment.StockMainID;
+                _voucherRepository.Update(adjustmentVoucher);
+                await _unitOfWork.SaveChangesAsync();
+            }
+
             return adjustment;
         });
     }

@@ -452,9 +452,8 @@ public class PurchaseReturnService : TransactionServiceBase, IPurchaseReturnServ
             .GroupBy(d => d.Product_ID)
             .ToDictionary(g => g.Key, g => g.Sum(x => x.Quantity));
 
-        // Math.Abs: by the time this runs, NormalizeReturnLines has already stored the
-        // quantities as negatives (stock reduction) — comparing the raw negative sum against
-        // the positive available quantity would silently pass every over-return.
+        // Math.Abs is belt-and-braces: NormalizeReturnLines has already made these positive
+        // magnitudes, but this comparison is the over-return gate and must not depend on that.
         var requestedByProduct = purchaseReturn.StockDetails
             .GroupBy(d => d.Product_ID)
             .ToDictionary(g => g.Key, g => Math.Abs(g.Sum(x => x.Quantity)));
@@ -525,9 +524,14 @@ public class PurchaseReturnService : TransactionServiceBase, IPurchaseReturnServ
             detail.UnitPrice = rate;
             detail.DiscountPercent = 0;
             detail.DiscountAmount = 0;
-            detail.Quantity = -Math.Abs(detail.Quantity); // Store as negative for stock reduction
-            detail.LineTotal = Math.Round(Math.Abs(detail.Quantity) * rate, 2);
-            detail.LineCost = Math.Round(Math.Abs(detail.Quantity) * rate, 2);
+
+            // Stored as a POSITIVE magnitude, exactly like every other transaction type. Stock on
+            // hand is derived as Quantity * TransactionType.StockDirection, and PRTN is already
+            // seeded with StockDirection = -1; negating here as well cancels the direction out and
+            // makes a purchase return ADD stock instead of removing it.
+            detail.Quantity = Math.Abs(detail.Quantity);
+            detail.LineTotal = Math.Round(detail.Quantity * rate, 2);
+            detail.LineCost = Math.Round(detail.Quantity * rate, 2);
         }
     }
 

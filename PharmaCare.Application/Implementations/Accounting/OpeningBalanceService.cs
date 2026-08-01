@@ -25,6 +25,7 @@ public class OpeningBalanceService : IOpeningBalanceService
     private readonly IRepository<AccountFamily> _accountFamilyRepository;
     private readonly IRepository<AccountType> _accountTypeRepository;
     private readonly IUnitOfWork _unitOfWork;
+    private readonly IFinancialPeriodService _financialPeriodService;
 
     public OpeningBalanceService(
         IRepository<Voucher> voucherRepository,
@@ -34,8 +35,10 @@ public class OpeningBalanceService : IOpeningBalanceService
         IRepository<AccountSubhead> accountSubheadRepository,
         IRepository<AccountFamily> accountFamilyRepository,
         IRepository<AccountType> accountTypeRepository,
-        IUnitOfWork unitOfWork)
+        IUnitOfWork unitOfWork,
+        IFinancialPeriodService financialPeriodService)
     {
+        _financialPeriodService = financialPeriodService;
         _voucherRepository = voucherRepository;
         _voucherTypeRepository = voucherTypeRepository;
         _accountRepository = accountRepository;
@@ -50,6 +53,16 @@ public class OpeningBalanceService : IOpeningBalanceService
     {
         var delta = Math.Round(party.OpeningBalance - previousBalance, 2);
         if (delta == 0 || !party.Account_ID.HasValue) return;
+
+        // The voucher below is dated NOW, so editing a party's opening balance posts into today's
+        // period. That is a general-ledger write like any other and must honour the lock — the
+        // no-op cases above are checked first so merely saving a party with an unchanged balance
+        // is never blocked.
+        if (await _financialPeriodService.IsPeriodLockedAsync(AppTime.Now))
+        {
+            throw new InvalidOperationException(
+                "The current financial period is closed. Re-open it before changing an opening balance.");
+        }
 
         var voucherType = await _voucherTypeRepository.Query()
             .FirstOrDefaultAsync(vt => vt.Code == VoucherTypeCode)

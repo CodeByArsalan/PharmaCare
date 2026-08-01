@@ -122,6 +122,7 @@ public sealed class DatabaseFixture : IAsyncLifetime
         services.AddScoped<IPaymentService, PaymentService>();
         services.AddScoped<ICustomerPaymentService, CustomerPaymentService>();
         services.AddScoped<IExpenseService, ExpenseService>();
+        services.AddScoped<ISupplierCreditNoteService, SupplierCreditNoteService>();
 
         services.AddScoped<ISalesReportService, SalesReportService>();
         services.AddScoped<IPurchaseReportService, PurchaseReportService>();
@@ -198,6 +199,14 @@ public sealed class DatabaseFixture : IAsyncLifetime
         scope.Dispose();
         return new TenantScope(_provider.CreateScope(), pharmacyId);
     }
+
+    /// <summary>
+    /// An ADDITIONAL scope bound to an already-provisioned pharmacy. Concurrency tests need one
+    /// per simulated request, because in production each request gets its own DbContext — sharing
+    /// a single one would exercise EF's change tracker instead of the database locks.
+    /// </summary>
+    public Task<TenantScope> ScopeForAsync(int pharmacyId)
+        => Task.FromResult(new TenantScope(_provider.CreateScope(), pharmacyId));
 
     public Task DisposeAsync()
     {

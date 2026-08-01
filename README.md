@@ -61,7 +61,7 @@ PharmaCare.Application     service interfaces + implementations, DTOs, view mode
 PharmaCare.Infrastructure  DbContext, repositories, unit of work, audit interceptor, reports
 PharmaCare.Web             controllers, views, filters, middleware
 PharmaCare.Tests           xUnit unit tests
-PharmaCare.AuditTests      console harness asserting financial-integrity rules (needs a database)
+PharmaCare.IntegrationTests xUnit tests against a real SQL Server, rebuilt from migrations
 PharmaCare.LoadTests       synthetic data seeder + k6 script
 ```
 
@@ -116,12 +116,22 @@ Prerequisites: .NET 8.0 SDK, SQL Server.
 
 ### Tests
 
+Unit tests — pure math and rules, no database:
+
 ```bash
 dotnet test PharmaCare.Tests/PharmaCare.Tests.csproj
 ```
 
-`PharmaCare.AuditTests` and `PharmaCare.LoadTests` are console harnesses that require a live SQL
-Server and are not part of the unit-test suite.
+Integration tests — these need a live SQL Server. They drop and rebuild two throwaway databases
+from the migrations on every run, so a broken migration fails here. Point them at a different
+server with the `PHARMACARE_TEST_SQL` environment variable:
+
+```bash
+dotnet test PharmaCare.IntegrationTests/PharmaCare.IntegrationTests.csproj
+```
+
+`PharmaCare.LoadTests` is a console harness that also requires a live SQL Server and is not part of
+either suite.
 
 ---
 

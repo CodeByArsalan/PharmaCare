@@ -39,10 +39,16 @@ public class FinancialPeriodService : IFinancialPeriodService
 
     public async Task<FinancialPeriod> CreateAsync(FinancialPeriod period, int userId)
     {
-        // Validate no overlap with existing periods (basic check)
+        if (period.StartDate > period.EndDate)
+            throw new InvalidOperationException("A financial period cannot end before it starts.");
+
+        // Standard interval intersection. Testing only whether the NEW period's start or end sits
+        // inside an existing one misses the straddling case — a period spanning the whole of an
+        // existing one has both endpoints outside it while overlapping it completely. Overlapping
+        // periods make "is this date locked?" ambiguous, since the same date can then sit in one
+        // closed period and one open one.
         var hasOverlap = await _periodRepository.Query()
-            .AnyAsync(p => (period.StartDate >= p.StartDate && period.StartDate <= p.EndDate) ||
-                           (period.EndDate >= p.StartDate && period.EndDate <= p.EndDate));
+            .AnyAsync(p => period.StartDate <= p.EndDate && period.EndDate >= p.StartDate);
 
         if (hasOverlap)
             throw new InvalidOperationException("This period overlaps with an existing financial period.");

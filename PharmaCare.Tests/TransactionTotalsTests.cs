@@ -5,8 +5,8 @@ namespace PharmaCare.Tests;
 
 /// <summary>
 /// Exercises TransactionServiceBase.CalculateTotals — the shared header-total math every
-/// transaction service uses, including the discount-spoof reset the AuditTests harness
-/// verifies end-to-end.
+/// transaction service uses, including the discount-spoof reset that PharmaCare.IntegrationTests
+/// verifies end-to-end against a real database.
 /// </summary>
 public class TransactionTotalsTests
 {

@@ -1,8 +1,10 @@
 using Microsoft.EntityFrameworkCore;
+using PharmaCare.Application.Interfaces.Accounting;
 using PharmaCare.Application.Interfaces.Configuration;
 using PharmaCare.Application.Interfaces.Transactions;
 using PharmaCare.Domain.Entities.Accounting;
 using PharmaCare.Domain.Entities.Configuration;
+using PharmaCare.Domain.Entities.Finance;
 using PharmaCare.Domain.Entities.Transactions;
 
 namespace PharmaCare.IntegrationTests;
@@ -132,6 +134,71 @@ public static class TenantData
                 }
             }
         }, TestUserId);
+
+    /// <summary>Derived stock-on-hand for one product, straight from the production service.</summary>
+    public static async Task<decimal> StockOnHandAsync(this TenantScope tenant, int productId)
+    {
+        var stock = await tenant.Get<IProductService>().GetStockStatusAsync(new List<int> { productId });
+        return stock.TryGetValue(productId, out var qty) ? qty : 0m;
+    }
+
+    /// <summary>Sells through the real SaleService, which posts the sale and receipt vouchers.</summary>
+    public static Task<StockMain> SellAsync(
+        this TenantScope tenant, TenantWorld world, decimal qty, decimal unitPrice, decimal paid,
+        bool overrideCreditLimit = false)
+        => tenant.Get<ISaleService>().CreateAsync(new StockMain
+        {
+            Party_ID = world.Customer.PartyID,
+            TransactionDate = AppTime.Now,
+            PaidAmount = paid,
+            StockDetails = new List<StockDetail>
+            {
+                new() { Product_ID = world.Product.ProductID, Quantity = qty, UnitPrice = unitPrice }
+            }
+        }, TestUserId, world.Cash.AccountID, overrideCreditLimit);
+
+    /// <summary>
+    /// Closes the financial period that provisioning created for the current year, which is the
+    /// period every test transaction falls into. Used to prove the period lock actually bites.
+    /// </summary>
+    public static async Task CloseCurrentPeriodAsync(this TenantScope tenant)
+    {
+        var db = tenant.Db;
+        var period = await db.FinancialPeriods
+            .FirstAsync(p => AppTime.Today >= p.StartDate && AppTime.Today <= p.EndDate);
+
+        await tenant.Get<IFinancialPeriodService>().ClosePeriodAsync(period.PeriodID, "locked by test", TestUserId);
+    }
+
+    /// <summary>An expense category wired to a real expense account, so expenses can post.</summary>
+    public static async Task<ExpenseCategory> SeedExpenseCategoryAsync(
+        this TenantScope tenant, string name = "Utilities")
+    {
+        var db = tenant.Db;
+        var expenseAccount = await db.Accounts.FirstAsync(a => a.Name == "Damage & Loss");
+
+        var category = new ExpenseCategory
+        {
+            Name = name,
+            DefaultExpenseAccount_ID = expenseAccount.AccountID,
+            IsActive = true,
+            CreatedAt = AppTime.Now,
+            CreatedBy = TestUserId
+        };
+        db.Set<ExpenseCategory>().Add(category);
+        await db.SaveChangesAsync();
+        return category;
+    }
+
+    /// <summary>Sums every posted, non-reversal voucher line in the tenant — the trial balance.</summary>
+    public static async Task<(decimal Debit, decimal Credit)> TrialBalanceAsync(this TenantScope tenant)
+    {
+        var lines = await tenant.Db.VoucherDetails
+            .Where(d => d.Voucher!.Status == "Posted")
+            .ToListAsync();
+
+        return (lines.Sum(l => l.DebitAmount), lines.Sum(l => l.CreditAmount));
+    }
 
     /// <summary>A tenant with a category, sub-category, product, customer and supplier ready to go.</summary>
     public static async Task<TenantWorld> SeedWorldAsync(this TenantScope tenant)

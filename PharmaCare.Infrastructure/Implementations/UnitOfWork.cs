@@ -23,21 +23,24 @@ IF @res < 0
 
     private readonly PharmaCareDBContext _context;
     private readonly ICurrentTenant _currentTenant;
-    private readonly AuditSaveChangesInterceptor? _auditInterceptor;
+    private readonly AuditSaveChangesInterceptor _auditInterceptor;
     private IDbContextTransaction? _transaction;
 
     /// <param name="auditInterceptor">
-    /// Optional ONLY to support hosts that deliberately run without auditing (the AuditTests
-    /// console harness registers no interceptor and has no HTTP context). It cannot silently
-    /// disable auditing in the web app: Program.cs resolves this same scoped instance with
-    /// GetRequiredService while building the DbContext, so a missing registration fails at
-    /// startup long before this constructor runs. When present it is that same instance, so the
-    /// buffer it fills during this transaction is the one flushed or discarded below.
+    /// Required, and deliberately so. This is the SAME scoped instance the DbContext was built
+    /// with, so the buffer it fills during this transaction is the one flushed or discarded below.
+    /// <para>
+    /// Note what a missing interceptor would actually break: auditing itself is wired onto the
+    /// DbContext, so entity changes would still be logged — what would be lost is the DEFERRAL.
+    /// Audit rows would be written per-SaveChanges and survive a later rollback, leaving the log
+    /// describing work that never happened. Making this a required dependency states that
+    /// invariant here rather than resting it on a GetRequiredService call in Program.cs.
+    /// </para>
     /// </param>
     public UnitOfWork(
         PharmaCareDBContext context,
         ICurrentTenant currentTenant,
-        AuditSaveChangesInterceptor? auditInterceptor = null)
+        AuditSaveChangesInterceptor auditInterceptor)
     {
         _context = context;
         _currentTenant = currentTenant;
@@ -56,7 +59,7 @@ IF @res < 0
         // Hold audit rows back until this transaction commits. The activity log is a separate
         // database and cannot join this transaction, so writing per-SaveChanges would leave the
         // log describing work that a later rollback undid.
-        _auditInterceptor?.BeginDeferral();
+        _auditInterceptor.BeginDeferral();
     }
 
     public async Task CommitTransactionAsync()
@@ -68,7 +71,7 @@ IF @res < 0
             _transaction = null;
 
             // Only now are the changes real, so the audit rows can be written.
-            if (_auditInterceptor != null) await _auditInterceptor.FlushDeferredAsync();
+            await _auditInterceptor.FlushDeferredAsync();
         }
     }
 
@@ -83,7 +86,7 @@ IF @res < 0
 
         // Unconditional: if BeginTransactionAsync succeeded but the transaction handle is already
         // gone, any buffered rows still describe work that did not happen.
-        _auditInterceptor?.DiscardDeferred();
+        _auditInterceptor.DiscardDeferred();
     }
 
     public bool HasActiveTransaction => _transaction != null;
@@ -126,7 +129,7 @@ IF @res < 0
         // drop any buffered audit rows rather than let them describe uncommitted work.
         if (_transaction != null)
         {
-            _auditInterceptor?.DiscardDeferred();
+            _auditInterceptor.DiscardDeferred();
         }
 
         _transaction?.Dispose();
