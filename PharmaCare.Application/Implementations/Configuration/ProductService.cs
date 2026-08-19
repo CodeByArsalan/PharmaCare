@@ -517,7 +517,12 @@ public class ProductService : IProductService
 
         var grnLineQuery = _stockDetailRepository.Query()
             .AsNoTracking()
-            .Where(sd => sd.StockMain!.Status == "Approved" && sd.StockMain.TransactionType!.Code == "GRN");
+            // Zero-cost lines (bonus / free goods) never define the authoritative cost — letting
+            // one through would disable the below-cost sale gate and zero out COGS and valuation
+            // for the whole product until the next priced GRN.
+            .Where(sd => sd.StockMain!.Status == "Approved"
+                         && sd.StockMain.TransactionType!.Code == "GRN"
+                         && sd.CostPrice > 0);
         if (idFilter != null)
         {
             grnLineQuery = grnLineQuery.Where(sd => idFilter.Contains(sd.Product_ID));

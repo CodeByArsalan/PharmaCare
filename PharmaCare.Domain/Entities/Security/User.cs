@@ -27,6 +27,13 @@ public class User : IdentityUser<int>
     /// </summary>
     public bool IsPlatformAdmin { get; set; }
 
+    /// <summary>
+    /// Forces a password change at next login. Set when the account's password is known outside
+    /// the user's head — e.g. the bootstrap platform admin created from configuration — so the
+    /// written-down credential stops working the moment the account is actually used.
+    /// </summary>
+    public bool MustChangePassword { get; set; }
+
     // Audit Trail
     public DateTime CreatedAt { get; set; }
     public int CreatedBy { get; set; }

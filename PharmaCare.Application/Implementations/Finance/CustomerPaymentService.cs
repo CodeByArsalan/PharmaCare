@@ -556,10 +556,64 @@ public class CustomerPaymentService : BaseAccountingService, ICustomerPaymentSer
 
             payment.Voucher = voucher;
             await _paymentRepository.AddAsync(payment);
+
+            await ConsumeCreditNotesForRefundAsync(payment, userId);
+
             await _unitOfWork.SaveChangesAsync();
 
             return payment;
         });
+    }
+
+    /// <summary>
+    /// A refund pays out the customer's credit, so the credit notes backing it must be consumed —
+    /// otherwise the same note could fund unlimited refunds while still being appliable to sales.
+    /// Oldest notes are drawn down first, and each draw is recorded as an allocation so a later
+    /// void of the refund can restore exactly what it consumed.
+    /// </summary>
+    private async Task ConsumeCreditNotesForRefundAsync(Payment payment, int userId)
+    {
+        var openNotes = await _creditNoteRepository.Query()
+            .Where(c => c.Party_ID == payment.Party_ID && c.Status == "Open" && c.BalanceAmount > 0)
+            .OrderBy(c => c.CreditDate)
+            .ThenBy(c => c.CreditNoteID)
+            .ToListAsync();
+
+        var remaining = payment.Amount;
+        foreach (var note in openNotes)
+        {
+            if (remaining <= 0) break;
+
+            var slice = Math.Min(note.BalanceAmount, remaining);
+            note.AppliedAmount = Math.Round(note.AppliedAmount + slice, 2);
+            note.BalanceAmount = Math.Round(Math.Max(0, note.TotalAmount - note.AppliedAmount), 2);
+            note.Status = note.BalanceAmount <= 0 ? "Applied" : "Open";
+            note.UpdatedAt = AppTime.Now;
+            note.UpdatedBy = userId;
+            _creditNoteRepository.Update(note);
+
+            if (!note.SourceStockMain_ID.HasValue)
+                throw new InvalidOperationException($"Credit note {note.CreditNoteNo} has no source transaction and cannot be refunded.");
+
+            await _paymentAllocationRepository.AddAsync(new PaymentAllocation
+            {
+                Payment = payment,
+                CreditNote_ID = note.CreditNoteID,
+                StockMain_ID = note.SourceStockMain_ID.Value,
+                Amount = slice,
+                SourceType = "Refund",
+                AllocationDate = AppTime.Now,
+                Remarks = $"Refunded {note.CreditNoteNo} via {payment.Reference}",
+                CreatedAt = AppTime.Now,
+                CreatedBy = userId
+            });
+
+            remaining = Math.Round(remaining - slice, 2);
+        }
+
+        if (remaining > 0)
+            throw new InvalidOperationException(
+                $"Insufficient credit balance. Requested refund exceeds available credit by {remaining:N2}.");
     }
 
     /// <summary>
@@ -825,6 +879,27 @@ public class CustomerPaymentService : BaseAccountingService, ICustomerPaymentSer
             refund.UpdatedAt = AppTime.Now;
             refund.UpdatedBy = userId;
             _paymentRepository.Update(refund);
+
+            // Give back exactly the credit this refund consumed.
+            var refundAllocations = await _paymentAllocationRepository.Query()
+                .Include(a => a.CreditNote)
+                .Where(a => a.Payment_ID == refund.PaymentID && a.SourceType == "Refund")
+                .ToListAsync();
+            foreach (var allocation in refundAllocations)
+            {
+                var note = allocation.CreditNote;
+                if (note == null) continue;
+                note.AppliedAmount = Math.Round(Math.Max(0, note.AppliedAmount - allocation.Amount), 2);
+                note.BalanceAmount = Math.Round(Math.Max(0, note.TotalAmount - note.AppliedAmount), 2);
+                note.Status = note.BalanceAmount > 0 ? "Open" : "Applied";
+                note.UpdatedAt = AppTime.Now;
+                note.UpdatedBy = userId;
+                _creditNoteRepository.Update(note);
+            }
+            if (refundAllocations.Count > 0)
+            {
+                _paymentAllocationRepository.RemoveRange(refundAllocations);
+            }
 
             if (refund.Voucher_ID.HasValue)
             {

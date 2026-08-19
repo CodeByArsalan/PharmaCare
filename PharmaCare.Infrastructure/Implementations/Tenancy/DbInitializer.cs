@@ -162,10 +162,13 @@ public static class DbInitializer
         {
             UserName = email,
             Email = email,
-            FullName = "Platform Administrator",
+            FullName = "Arsalan",
             IsActive = true,
             Pharmacy_ID = null,
             IsPlatformAdmin = true,
+            // The config password is bootstrap-only: it sits in plaintext config, so the first
+            // login must replace it before the account can do anything else.
+            MustChangePassword = true,
             CreatedAt = AppTime.Now,
             CreatedBy = 0
         };

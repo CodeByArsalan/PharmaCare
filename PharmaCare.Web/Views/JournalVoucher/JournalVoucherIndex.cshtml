@@ -62,13 +62,13 @@
                     }
                     @foreach (var item in Model.Items)
                     {
-                        <tr class="@(item.Status == "Reversed" ? "text-muted text-decoration-line-through" : "")">
+                        <tr class="@(item.IsReversed ? "text-muted text-decoration-line-through" : "")">
                             <td>@item.VoucherDate.ToString("dd-MM-yyyy")</td>
                             <td>@item.VoucherNo</td>
                             <td>@item.Narration</td>
                             <td class="text-end">@item.TotalDebit.ToString("N2")</td>
                             <td class="text-center">
-                                @if(item.Status == "Reversed")
+                                @if(item.IsReversed)
                                 {
                                     <span class="badge bg-danger">Voided</span>
                                 }
@@ -83,7 +83,7 @@
                                     : $"User {item.CreatedBy}")
                             </td>
                             <td class="text-center">
-                                @if (item.Status == "Posted" && item.ReversedByVoucher_ID == null && item.ReversesVoucher_ID == null)
+                                @if (item.Status == "Posted" && !item.IsReversed && item.ReversedByVoucher_ID == null && item.ReversesVoucher_ID == null)
                                 {
                                     <button type="button" class="btn btn-sm btn-outline-danger" 
                                             onclick="openVoidModal('@PharmaCare.Web.Utilities.Utility.EncryptId(item.VoucherID)', '@item.VoucherNo')">

@@ -108,6 +108,14 @@ public class AccountController : Controller
                         user.Id.ToString(),
                         description: $"User '{user.UserName}' logged in");
 
+                    // A bootstrap/temporary password must be replaced before anything else —
+                    // the global MustChangePasswordFilter backs this up on every later request.
+                    if (user.MustChangePassword)
+                    {
+                        TempData["Warning"] = "Your password was set for you and must be changed before you can continue.";
+                        return RedirectToAction("ChangePassword");
+                    }
+
                     // Platform super-admins land in the cross-pharmacy admin area.
                     if (user.IsPlatformAdmin)
                     {
@@ -176,6 +184,20 @@ public class AccountController : Controller
         if (result.Succeeded)
         {
             TempData["Success"] = "Password changed successfully!";
+
+            // A forced change is now satisfied: clear the flag and release the user into the app.
+            if (user.MustChangePassword)
+            {
+                user.MustChangePassword = false;
+                user.UpdatedAt = AppTime.Now;
+                user.UpdatedBy = user.Id;
+                await _userManager.UpdateAsync(user);
+
+                return user.IsPlatformAdmin
+                    ? RedirectToAction("Index", "Pharmacies")
+                    : RedirectToAction("Index", "Home");
+            }
+
             return RedirectToAction("ChangePassword");
         }
 

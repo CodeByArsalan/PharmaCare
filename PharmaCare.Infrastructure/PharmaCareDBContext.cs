@@ -642,7 +642,7 @@ public class PharmaCareDBContext : IdentityUserContext<User, int>
             entity.Property(e => e.SourceType).HasMaxLength(20);
             entity.ToTable(t =>
             {
-                t.HasCheckConstraint("CK_PaymentAllocations_Source_Valid", "[SourceType] IN ('Receipt','CreditNote')");
+                t.HasCheckConstraint("CK_PaymentAllocations_Source_Valid", "[SourceType] IN ('Receipt','CreditNote','Refund')");
                 t.HasCheckConstraint("CK_PaymentAllocations_Source_NotNull", "[Payment_ID] IS NOT NULL OR [CreditNote_ID] IS NOT NULL");
             });
 
@@ -734,17 +734,27 @@ public class PharmaCareDBContext : IdentityUserContext<User, int>
         {
             if (entry.State == EntityState.Added)
             {
-                if (entry.Entity.Pharmacy_ID == 0)
+                if (tenantId is > 0)
                 {
-                    if (tenantId is null or <= 0)
+                    // With a tenant in context the inbound value is NEVER trusted: a non-zero
+                    // foreign id here is an over-posted form field trying to plant a row inside
+                    // another pharmacy. Refuse loudly rather than silently re-stamping, so the
+                    // attempt is visible.
+                    if (entry.Entity.Pharmacy_ID != 0 && entry.Entity.Pharmacy_ID != tenantId.Value)
                     {
                         throw new InvalidOperationException(
-                            $"Cannot insert {entry.Entity.GetType().Name}: no current pharmacy (tenant) in context. " +
-                            "Ensure the request is authenticated, or wrap the operation in ICurrentTenant.BeginScope(pharmacyId).");
+                            $"Cannot insert {entry.Entity.GetType().Name}: its Pharmacy_ID does not match the current pharmacy.");
                     }
 
                     entry.Entity.Pharmacy_ID = tenantId.Value;
                 }
+                else if (entry.Entity.Pharmacy_ID == 0)
+                {
+                    throw new InvalidOperationException(
+                        $"Cannot insert {entry.Entity.GetType().Name}: no current pharmacy (tenant) in context. " +
+                        "Ensure the request is authenticated, or wrap the operation in ICurrentTenant.BeginScope(pharmacyId).");
+                }
+                // else: explicit Pharmacy_ID with no ambient tenant — the provisioning/seeding path.
             }
             else if (entry.State == EntityState.Modified)
             {

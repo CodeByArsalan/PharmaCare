@@ -210,7 +210,11 @@ builder.Services.AddScoped<PharmaCare.Web.Filters.PageAuthorizationFilter>();
 builder.Services.AddHttpContextAccessor();
 
 // Add services to the container
-builder.Services.AddControllersWithViews();
+builder.Services.AddControllersWithViews(options =>
+{
+    // Global: a user flagged MustChangePassword is pinned to the change-password screen.
+    options.Filters.Add<PharmaCare.Web.Filters.MustChangePasswordFilter>();
+});
 builder.Services.AddRazorPages();
 
 // Session support

@@ -47,13 +47,22 @@ public class FinancialReportService : IFinancialReportService
             .Sum(x => x.Amount);
         var netRevenue = totalRevenue - salesReturns;
 
-        var cogs = await _db.StockDetails
+        // COGS is netted the same way revenue is: returned goods bring their cost back (the SRT
+        // voucher credits COGS), so a return's LineCost subtracts. Charging the full sale cost
+        // against return-reduced revenue would understate gross profit.
+        var cogsByType = await _db.StockDetails
             .AsNoTracking()
             .Where(d => d.StockMain!.TransactionDate >= fromDate
                         && d.StockMain.TransactionDate < toDate
                         && d.StockMain.Status != "Void"
-                        && SaleCodes.Contains(d.StockMain.TransactionType!.Code))
-            .SumAsync(d => (decimal?)d.LineCost) ?? 0;
+                        && (SaleCodes.Contains(d.StockMain.TransactionType!.Code)
+                            || SaleReturnCodes.Contains(d.StockMain.TransactionType!.Code)))
+            .GroupBy(d => d.StockMain!.TransactionType!.Code)
+            .Select(g => new { Code = g.Key, Amount = g.Sum(d => d.LineCost) })
+            .ToListAsync();
+
+        var cogs = cogsByType.Where(x => SaleCodes.Contains(x.Code)).Sum(x => x.Amount)
+                   - cogsByType.Where(x => SaleReturnCodes.Contains(x.Code)).Sum(x => x.Amount);
 
         var grossProfit = netRevenue - cogs;
 
@@ -112,18 +121,28 @@ public class FinancialReportService : IFinancialReportService
 
         // Pre-aggregate payments once by day and type.
         // Voided payments never moved money — excluding them keeps cash in/out truthful.
+        // REFUNDs are real cash movements too: a customer refund pays cash out, a supplier
+        // refund brings cash back in. The party type tells the direction apart.
         var dailyPaymentTotals = await _db.Payments
             .AsNoTracking()
             .Where(p => p.PaymentDate >= fromDate
                         && p.PaymentDate < toDate
                         && !p.IsVoided
                         && p.PaymentMethod.ToUpper() != PaymentMethod.Adjustment.ToString().ToUpper()
-                        && (p.PaymentType == PaymentType.RECEIPT.ToString() || p.PaymentType == PaymentType.PAYMENT.ToString()))
-            .GroupBy(p => new { Date = p.PaymentDate.Date, p.PaymentType })
+                        && (p.PaymentType == PaymentType.RECEIPT.ToString()
+                            || p.PaymentType == PaymentType.PAYMENT.ToString()
+                            || p.PaymentType == PaymentType.REFUND.ToString()))
+            .GroupBy(p => new
+            {
+                Date = p.PaymentDate.Date,
+                p.PaymentType,
+                PartyType = p.Party != null ? p.Party.PartyType : ""
+            })
             .Select(g => new
             {
                 g.Key.Date,
                 g.Key.PaymentType,
+                g.Key.PartyType,
                 Amount = g.Sum(p => p.Amount)
             })
             .ToListAsync();
@@ -142,24 +161,36 @@ public class FinancialReportService : IFinancialReportService
             })
             .ToListAsync();
 
-        var receiptsByDate = dailyPaymentTotals
-            .Where(x => x.PaymentType == PaymentType.RECEIPT.ToString())
-            .ToDictionary(x => x.Date, x => x.Amount);
+        static Dictionary<DateTime, decimal> ByDate(IEnumerable<(DateTime Date, decimal Amount)> rows)
+            => rows.GroupBy(x => x.Date).ToDictionary(g => g.Key, g => g.Sum(x => x.Amount));
 
-        var paymentsByDate = dailyPaymentTotals
+        var receiptsByDate = ByDate(dailyPaymentTotals
+            .Where(x => x.PaymentType == PaymentType.RECEIPT.ToString())
+            .Select(x => (x.Date, x.Amount)));
+
+        var paymentsByDate = ByDate(dailyPaymentTotals
             .Where(x => x.PaymentType == PaymentType.PAYMENT.ToString())
-            .ToDictionary(x => x.Date, x => x.Amount);
+            .Select(x => (x.Date, x.Amount)));
+
+        var customerRefundsByDate = ByDate(dailyPaymentTotals
+            .Where(x => x.PaymentType == PaymentType.REFUND.ToString() && x.PartyType == "Customer")
+            .Select(x => (x.Date, x.Amount)));
+
+        var supplierRefundsByDate = ByDate(dailyPaymentTotals
+            .Where(x => x.PaymentType == PaymentType.REFUND.ToString() && x.PartyType == "Supplier")
+            .Select(x => (x.Date, x.Amount)));
 
         var expensesByDate = dailyExpenseTotals
             .ToDictionary(x => x.Date, x => x.Amount);
 
-        var totalCashIn = receiptsByDate.Values.Sum();
+        var totalCashIn = receiptsByDate.Values.Sum() + supplierRefundsByDate.Values.Sum();
         var purchasePayments = paymentsByDate.Values.Sum();
         var expensePayments = expensesByDate.Values.Sum();
-        var totalCashOut = purchasePayments + expensePayments;
+        var totalCashOut = purchasePayments + expensePayments + customerRefundsByDate.Values.Sum();
 
-        // Daily data for chart
-        var allDays = Enumerable.Range(0, (int)(filter.ToDate - filter.FromDate).TotalDays + 1)
+        // Daily data for chart. A reversed range simply yields no days — never a crash.
+        var dayCount = Math.Max(0, (int)(filter.ToDate.Date - filter.FromDate.Date).TotalDays + 1);
+        var allDays = Enumerable.Range(0, dayCount)
             .Select(i => filter.FromDate.AddDays(i))
             .ToList();
 
@@ -167,10 +198,12 @@ public class FinancialReportService : IFinancialReportService
         foreach (var day in allDays)
         {
             var dayKey = day.Date;
-            var dayIn = receiptsByDate.TryGetValue(dayKey, out var receiptAmt) ? receiptAmt : 0;
+            var dayIn = (receiptsByDate.TryGetValue(dayKey, out var receiptAmt) ? receiptAmt : 0)
+                        + (supplierRefundsByDate.TryGetValue(dayKey, out var supRefundAmt) ? supRefundAmt : 0);
             var dayPaymentOut = paymentsByDate.TryGetValue(dayKey, out var paymentAmt) ? paymentAmt : 0;
             var dayExpenseOut = expensesByDate.TryGetValue(dayKey, out var expenseAmt) ? expenseAmt : 0;
-            var dayOut = dayPaymentOut + dayExpenseOut;
+            var dayRefundOut = customerRefundsByDate.TryGetValue(dayKey, out var custRefundAmt) ? custRefundAmt : 0;
+            var dayOut = dayPaymentOut + dayExpenseOut + dayRefundOut;
 
             dailyData.Add(new DailyCashFlowData
             {

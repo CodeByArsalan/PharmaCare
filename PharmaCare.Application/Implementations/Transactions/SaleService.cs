@@ -667,6 +667,18 @@ public class SaleService : TransactionServiceBase, ISaleService
 
             await ValidatePeriodAsync(sale.TransactionDate);
 
+            // A sale with live returns cannot be voided: the sale's stock movement would vanish
+            // while the returns' re-entries (and their vouchers and credit notes) stayed behind,
+            // inflating stock with units that were never re-delivered. Void the returns first.
+            var activeReturns = await _stockMainRepository.Query()
+                .Include(s => s.TransactionType)
+                .CountAsync(s => s.ReferenceStockMain_ID == sale.StockMainID
+                                 && s.TransactionType!.Code == "SRTN"
+                                 && s.Status != TransactionStatus.Void.ToString());
+            if (activeReturns > 0)
+                throw new InvalidOperationException(
+                    $"Cannot void this sale: it has {activeReturns} active sale return(s). Void the return(s) first.");
+
             sale.Status = TransactionStatus.Void.ToString();
             sale.VoidReason = reason;
             sale.VoidedAt = AppTime.Now;
@@ -689,21 +701,29 @@ public class SaleService : TransactionServiceBase, ISaleService
         // Customer and account are required for voucher posting
         sale.Party = await ResolveCustomerPartyWithAccountAsync(sale);
 
-        // Stock Validation
+        // Stock Validation on the SUM per product, not per line — duplicate lines each within
+        // stock but jointly above it must not oversell past zero.
         var productIds = sale.StockDetails.Select(d => d.Product_ID).Distinct().ToList();
         var stockStatus = await _productService.GetStockStatusAsync(productIds);
 
-        foreach (var detail in sale.StockDetails)
+        var requestedByProduct = sale.StockDetails
+            .GroupBy(d => d.Product_ID)
+            .ToDictionary(g => g.Key, g => g.Sum(x => x.Quantity));
+
+        foreach (var (productId, requestedQty) in requestedByProduct)
         {
-            if (stockStatus.TryGetValue(detail.Product_ID, out var currentStock))
+            // A product the stock query does not know is not sellable at all.
+            if (!stockStatus.TryGetValue(productId, out var currentStock))
             {
-                if (detail.Quantity > currentStock)
-                {
-                    var product = await _productRepository.GetByIdAsync(detail.Product_ID);
-                    throw new InvalidOperationException(
-                        $"Insufficient stock for product '{product?.Name ?? "ID " + detail.Product_ID}'. " +
-                        $"Requested: {detail.Quantity}, Available: {currentStock}");
-                }
+                throw new InvalidOperationException($"Product ID {productId} was not found.");
+            }
+
+            if (requestedQty > currentStock)
+            {
+                var product = await _productRepository.GetByIdAsync(productId);
+                throw new InvalidOperationException(
+                    $"Insufficient stock for product '{product?.Name ?? "ID " + productId}'. " +
+                    $"Requested: {requestedQty}, Available: {currentStock}");
             }
         }
     }

@@ -20,9 +20,11 @@ public class FinancialPeriodService : IFinancialPeriodService
 
     public async Task<bool> IsPeriodLockedAsync(DateTime date)
     {
-        // Check if any closed period covers this date
+        // Compare calendar days, not instants: EndDate is stored at midnight while postings carry
+        // a time of day, so an instant-comparison leaves the whole of the period's last day open.
+        var day = date.Date;
         return await _periodRepository.Query()
-            .AnyAsync(p => p.IsClosed && date >= p.StartDate && date <= p.EndDate);
+            .AnyAsync(p => p.IsClosed && day >= p.StartDate.Date && day <= p.EndDate.Date);
     }
 
     public async Task<IEnumerable<FinancialPeriod>> GetAllAsync()

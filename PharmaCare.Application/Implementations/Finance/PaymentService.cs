@@ -253,6 +253,7 @@ public class PaymentService : BaseAccountingService, IPaymentService
             .Include(p => p.StockMain)
             .Where(p => p.Party_ID == supplierId
                         && p.PaymentType == SupplierPaymentType
+                        && !p.IsVoided
                         && (!p.StockMain_ID.HasValue || p.StockMain == null || p.StockMain.Status != "Void"))
             .SumAsync(p => (decimal?)p.Amount) ?? 0;
 
@@ -300,7 +301,8 @@ public class PaymentService : BaseAccountingService, IPaymentService
             {
                 stockMain.PaidAmount = await _paymentRepository.Query()
                     .Where(p => p.PaymentType == SupplierPaymentType
-                             && p.StockMain_ID == stockMain.StockMainID)
+                             && p.StockMain_ID == stockMain.StockMainID
+                             && !p.IsVoided)
                     .SumAsync(p => (decimal?)p.Amount) ?? 0;
             }
 

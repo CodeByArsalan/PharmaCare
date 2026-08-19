@@ -134,18 +134,26 @@ public class StockAdjustmentService : TransactionServiceBase, IStockAdjustmentSe
             decimal totalAmount = 0;
             var voucherDetails = new List<VoucherDetail>();
 
+            if (!isWriteIn)
+            {
+                // Write-off validation runs on the SUM per product, not per line — two duplicate
+                // lines each within stock but jointly above it must not drive stock negative.
+                var requestedByProduct = adjustment.StockDetails
+                    .GroupBy(d => d.Product_ID)
+                    .ToDictionary(g => g.Key, g => g.Sum(x => x.Quantity));
+
+                foreach (var (productId, requestedQty) in requestedByProduct)
+                {
+                    var currentStock = stockDict.TryGetValue(productId, out var s) ? s : 0;
+                    if (requestedQty > currentStock)
+                        throw new InvalidOperationException($"Insufficient stock for product ID {productId}. Current stock is {currentStock}.");
+                }
+            }
+
             foreach (var detail in adjustment.StockDetails)
             {
                 if (detail.Quantity <= 0)
                     throw new InvalidOperationException("Quantity must be greater than zero.");
-
-                if (!isWriteIn)
-                {
-                    // Write-off validation
-                    var currentStock = stockDict.ContainsKey(detail.Product_ID) ? stockDict[detail.Product_ID] : 0;
-                    if (detail.Quantity > currentStock)
-                        throw new InvalidOperationException($"Insufficient stock for product ID {detail.Product_ID}. Current stock is {currentStock}.");
-                }
 
                 // Accounting logic per detail line
                 var product = productsList.First(p => p.ProductID == detail.Product_ID);
@@ -264,11 +272,15 @@ public class StockAdjustmentService : TransactionServiceBase, IStockAdjustmentSe
                 var productIds = details.Select(d => d.Product_ID).Distinct().ToList();
                 await LockProductStockAsync(productIds); // race-safe: serialize vs concurrent sales
                 var stockDict = await _productService.GetStockStatusAsync(productIds);
-                foreach (var detail in details)
+                // Aggregate per product so duplicate lines cannot jointly drive stock negative.
+                var removalByProduct = details
+                    .GroupBy(d => d.Product_ID)
+                    .ToDictionary(g => g.Key, g => g.Sum(x => x.Quantity));
+                foreach (var (productId, removalQty) in removalByProduct)
                 {
-                    var currentStock = stockDict.ContainsKey(detail.Product_ID) ? stockDict[detail.Product_ID] : 0;
-                    if (detail.Quantity > currentStock)
-                        throw new InvalidOperationException($"Cannot void: Insufficient stock for product ID {detail.Product_ID}.");
+                    var currentStock = stockDict.TryGetValue(productId, out var s) ? s : 0;
+                    if (removalQty > currentStock)
+                        throw new InvalidOperationException($"Cannot void: Insufficient stock for product ID {productId}.");
                 }
             }
 

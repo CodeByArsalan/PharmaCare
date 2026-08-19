@@ -62,13 +62,20 @@ public class SalesReportService : ISalesReportService
             .Where(x => SaleCodes.Contains(x.Code))
             .Sum(x => x.Count);
 
-        var totalCOGS = await _db.StockDetails
+        // Netted like revenue: a return brings its cost back, so its LineCost subtracts.
+        var cogsByType = await _db.StockDetails
             .AsNoTracking()
             .Where(d => d.StockMain!.TransactionDate >= dayStart
                         && d.StockMain.TransactionDate < dayEnd
                         && d.StockMain.Status != "Void"
-                        && SaleCodes.Contains(d.StockMain.TransactionType!.Code))
-            .SumAsync(d => (decimal?)d.LineCost) ?? 0;
+                        && (SaleCodes.Contains(d.StockMain.TransactionType!.Code)
+                            || SaleReturnCodes.Contains(d.StockMain.TransactionType!.Code)))
+            .GroupBy(d => d.StockMain!.TransactionType!.Code)
+            .Select(g => new { Code = g.Key, Amount = g.Sum(d => d.LineCost) })
+            .ToListAsync();
+
+        var totalCOGS = cogsByType.Where(x => SaleCodes.Contains(x.Code)).Sum(x => x.Amount)
+                        - cogsByType.Where(x => SaleReturnCodes.Contains(x.Code)).Sum(x => x.Amount);
 
         var itemsSold = await _db.StockDetails
             .AsNoTracking()

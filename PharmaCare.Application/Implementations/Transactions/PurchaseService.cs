@@ -167,7 +167,9 @@ public class PurchaseService : TransactionServiceBase, IPurchaseService
                 await ValidateGrnAgainstPurchaseOrderAsync(purchase, referencePo);
 
                 poPaymentsToTransfer = await _paymentRepository.Query()
-                    .Where(p => p.StockMain_ID == referencePo.StockMainID && p.PaymentType == PaymentType.PAYMENT.ToString())
+                    .Where(p => p.StockMain_ID == referencePo.StockMainID
+                                && p.PaymentType == PaymentType.PAYMENT.ToString()
+                                && !p.IsVoided)
                     .ToListAsync();
             }
 
@@ -308,7 +310,9 @@ public class PurchaseService : TransactionServiceBase, IPurchaseService
         }
 
         var poPayments = await _paymentRepository.Query()
-            .Where(p => p.StockMain_ID == referencePo.StockMainID && p.PaymentType == PaymentType.PAYMENT.ToString())
+            .Where(p => p.StockMain_ID == referencePo.StockMainID
+                        && p.PaymentType == PaymentType.PAYMENT.ToString()
+                        && !p.IsVoided)
             .OrderBy(p => p.PaymentDate)
             .ThenBy(p => p.PaymentID)
             .ToListAsync();
@@ -523,6 +527,50 @@ public class PurchaseService : TransactionServiceBase, IPurchaseService
             detail.LineTotal = Math.Round(grossAmount - lineDiscount, 2);
             detail.LineCost = Math.Round(detail.Quantity * detail.CostPrice, 2);
         }
+
+        ApplyHeaderDiscountToLines(purchase);
+    }
+
+    /// <summary>
+    /// A header discount changes what the goods actually COST, so it is folded into the lines
+    /// pro-rata (remainder on the last line) and the header fields are cleared. Left on the
+    /// header, the voucher would debit stock by the line totals but credit the supplier by the
+    /// discounted total — an unbalanced voucher — and the authoritative GRN cost would ignore
+    /// the discount.
+    /// </summary>
+    private static void ApplyHeaderDiscountToLines(StockMain purchase)
+    {
+        if (purchase.DiscountPercent <= 0)
+        {
+            purchase.DiscountAmount = 0;
+            return;
+        }
+
+        var subTotal = purchase.StockDetails.Sum(d => d.LineTotal);
+        var headerDiscount = Math.Round(subTotal * purchase.DiscountPercent / 100, 2);
+        if (headerDiscount > subTotal)
+        {
+            throw new InvalidOperationException("Discount cannot exceed the goods value.");
+        }
+
+        var remaining = headerDiscount;
+        var lines = purchase.StockDetails.ToList();
+        for (var i = 0; i < lines.Count; i++)
+        {
+            var line = lines[i];
+            var share = i == lines.Count - 1 || subTotal == 0
+                ? remaining
+                : Math.Round(headerDiscount * line.LineTotal / subTotal, 2);
+
+            line.LineTotal = Math.Round(line.LineTotal - share, 2);
+            line.LineCost = line.LineTotal;
+            line.CostPrice = line.Quantity > 0 ? Math.Round(line.LineTotal / line.Quantity, 2) : line.CostPrice;
+            line.UnitPrice = line.CostPrice;
+            remaining = Math.Round(remaining - share, 2);
+        }
+
+        purchase.DiscountPercent = 0;
+        purchase.DiscountAmount = 0;
     }
 
     private async Task CreateAdjustmentVoucherAsync(StockMain purchase, int userId, decimal amount)
@@ -1194,6 +1242,7 @@ public class PurchaseService : TransactionServiceBase, IPurchaseService
             .Include(p => p.StockMain)
             .Where(p => p.Party_ID == supplierId
                         && p.PaymentType == PaymentType.PAYMENT.ToString()
+                        && !p.IsVoided
                         && (!p.StockMain_ID.HasValue || p.StockMain == null || p.StockMain.Status != "Void"));
 
         // When excluding a transaction (e.g. computing the advance available to auto-adjust a GRN

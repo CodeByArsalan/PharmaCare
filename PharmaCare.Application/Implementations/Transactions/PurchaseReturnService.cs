@@ -138,6 +138,7 @@ public class PurchaseReturnService : TransactionServiceBase, IPurchaseReturnServ
                 throw new InvalidOperationException("Supplier is required for purchase return.");
             }
 
+            await PriceReturnLinesFromGrnAsync(purchaseReturn);
             NormalizeReturnLines(purchaseReturn);
 
             // Serialize against concurrent stock movements: a purchase return removes stock,
@@ -497,6 +498,42 @@ public class PurchaseReturnService : TransactionServiceBase, IPurchaseReturnServ
                     $"exceeds current stock on hand ({onHand}). Goods that have already been " +
                     $"sold or adjusted out cannot be returned to the supplier.");
             }
+        }
+    }
+
+    /// <summary>
+    /// The money credited back by a return is set by what the GRN actually cost, never by the
+    /// posted line price — otherwise the browser controls how much the supplier account is
+    /// debited. Multiple GRN lines for one product blend to a weighted-average unit cost.
+    /// </summary>
+    private async Task PriceReturnLinesFromGrnAsync(StockMain purchaseReturn)
+    {
+        var grn = await _stockMainRepository.Query()
+            .AsNoTracking()
+            .Include(s => s.StockDetails)
+            .FirstOrDefaultAsync(s => s.StockMainID == purchaseReturn.ReferenceStockMain_ID!.Value);
+
+        if (grn == null)
+        {
+            throw new InvalidOperationException("Reference GRN not found.");
+        }
+
+        var costByProduct = grn.StockDetails
+            .GroupBy(d => d.Product_ID)
+            .Where(g => g.Sum(x => x.Quantity) > 0)
+            .ToDictionary(
+                g => g.Key,
+                g => Math.Round(g.Sum(x => x.Quantity * x.CostPrice) / g.Sum(x => x.Quantity), 2));
+
+        foreach (var detail in purchaseReturn.StockDetails ?? Enumerable.Empty<StockDetail>())
+        {
+            if (!costByProduct.TryGetValue(detail.Product_ID, out var grnCost))
+            {
+                throw new InvalidOperationException($"Product ID {detail.Product_ID} was not found in the reference GRN.");
+            }
+
+            detail.CostPrice = grnCost;
+            detail.UnitPrice = grnCost;
         }
     }
 

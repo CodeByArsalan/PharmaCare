@@ -492,6 +492,10 @@ public class SaleReturnService : TransactionServiceBase, ISaleReturnService
             throw new InvalidOperationException("At least one return line is required.");
         }
 
+        var netUnitPrices = saleReturn.ReferenceStockMain != null
+            ? EffectiveNetUnitPrices(saleReturn.ReferenceStockMain)
+            : new Dictionary<int, decimal>();
+
         foreach (var detail in saleReturn.StockDetails)
         {
             if (detail.Product_ID <= 0)
@@ -509,16 +513,13 @@ public class SaleReturnService : TransactionServiceBase, ISaleReturnService
                 throw new InvalidOperationException("Unit and cost prices cannot be negative.");
             }
 
-            // Price Enforcement: Use original sale price if available
-            if (saleReturn.ReferenceStockMain != null)
+            // Price Enforcement: credit the customer what they were actually CHARGED per unit —
+            // the line price net of line discounts, with the sale's header discount spread
+            // pro-rata. Crediting the gross price would refund discounts the customer never paid.
+            if (saleReturn.ReferenceStockMain != null &&
+                netUnitPrices.TryGetValue(detail.Product_ID, out var netUnitPrice))
             {
-                var originalDetail = saleReturn.ReferenceStockMain.StockDetails
-                    .FirstOrDefault(d => d.Product_ID == detail.Product_ID);
-                
-                if (originalDetail != null)
-                {
-                    detail.UnitPrice = originalDetail.UnitPrice;
-                }
+                detail.UnitPrice = netUnitPrice;
             }
 
             detail.DiscountPercent = 0;
@@ -526,6 +527,29 @@ public class SaleReturnService : TransactionServiceBase, ISaleReturnService
             detail.LineTotal = Math.Round(detail.Quantity * detail.UnitPrice, 2);
             detail.LineCost = Math.Round(detail.Quantity * detail.CostPrice, 2);
         }
+
+        // The return's own header discount is never client input: the discount context comes from
+        // the original sale and is already folded into the per-unit prices above. Binding it raw
+        // allowed a >100% discount to drive the return total negative.
+        saleReturn.DiscountPercent = 0;
+        saleReturn.DiscountAmount = 0;
+    }
+
+    /// <summary>
+    /// Effective per-unit price the customer paid for each product on the reference sale:
+    /// line totals (already net of line discounts) scaled by the header-discount factor, blended
+    /// across multiple lines of the same product by weighted average.
+    /// </summary>
+    private static Dictionary<int, decimal> EffectiveNetUnitPrices(StockMain sale)
+    {
+        var headerFactor = sale.SubTotal > 0 ? sale.TotalAmount / sale.SubTotal : 1m;
+
+        return sale.StockDetails
+            .GroupBy(d => d.Product_ID)
+            .Where(g => g.Sum(x => x.Quantity) > 0)
+            .ToDictionary(
+                g => g.Key,
+                g => Math.Round(g.Sum(x => x.LineTotal) * headerFactor / g.Sum(x => x.Quantity), 2));
     }
 
     private static List<decimal> AllocateNetReturnByLine(StockMain saleReturn)
