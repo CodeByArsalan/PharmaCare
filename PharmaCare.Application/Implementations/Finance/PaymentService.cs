@@ -51,7 +51,7 @@ public class PaymentService : BaseAccountingService, IPaymentService
         IUnitOfWork unitOfWork,
         IFinancialPeriodService financialPeriodService,
         IPurchaseService purchaseService)
-        : base(unitOfWork, voucherRepository)
+        : base(unitOfWork, voucherRepository, financialPeriodService)
     {
         _paymentRepository = paymentRepository;
         _stockMainRepository = stockMainRepository;
@@ -257,8 +257,18 @@ public class PaymentService : BaseAccountingService, IPaymentService
                         && (!p.StockMain_ID.HasValue || p.StockMain == null || p.StockMain.Status != "Void"))
             .SumAsync(p => (decimal?)p.Amount) ?? 0;
 
+        // Refunds received back from the supplier undo a prior payment, so they move the balance
+        // back up. Omitting them keeps reporting an advance the supplier has already returned.
+        var totalRefunds = await _paymentRepository.Query()
+            .Include(p => p.StockMain)
+            .Where(p => p.Party_ID == supplierId
+                        && p.PaymentType == PaymentType.REFUND.ToString()
+                        && !p.IsVoided
+                        && (!p.StockMain_ID.HasValue || p.StockMain == null || p.StockMain.Status != "Void"))
+            .SumAsync(p => (decimal?)p.Amount) ?? 0;
+
         // Positive = payable to supplier; Negative = supplier owes company.
-        var supplierNetPayable = supplier.OpeningBalance + totalPurchases - totalPurchaseReturns - totalPayments;
+        var supplierNetPayable = supplier.OpeningBalance + totalPurchases - totalPurchaseReturns - totalPayments + totalRefunds;
         return supplierNetPayable < 0 ? Math.Abs(supplierNetPayable) : 0;
     }
 
@@ -266,6 +276,9 @@ public class PaymentService : BaseAccountingService, IPaymentService
     {
         if (await _financialPeriodService.IsPeriodLockedAsync(payment.PaymentDate))
             throw new InvalidOperationException("The financial period for this payment date is closed.");
+
+        // Re-checked under the close lock just before commit — see BaseAccountingService.
+        TrackPeriodDate(payment.PaymentDate);
 
         return await ExecuteInTransactionAsync(async () =>
         {
@@ -322,6 +335,12 @@ public class PaymentService : BaseAccountingService, IPaymentService
 
             if (paymentAccount == null)
                 throw new InvalidOperationException("Payment account not found.");
+
+            // Money can only leave a cash or bank account. Without this the client can name any
+            // ledger account (e.g. a revenue account) and post DR Supplier / CR Revenue —
+            // fabricating income while no cash actually moves.
+            if (paymentAccount.AccountType_ID != CashAccountTypeId && paymentAccount.AccountType_ID != BankAccountTypeId)
+                throw new InvalidOperationException("Payment account must be a Cash or Bank account.");
 
             // Get supplier's linked account directly (no more name-matching)
             var supplierAccount = stockMain.Party?.Account;
@@ -509,6 +528,9 @@ public class PaymentService : BaseAccountingService, IPaymentService
         if (await _financialPeriodService.IsPeriodLockedAsync(payment.PaymentDate))
             throw new InvalidOperationException("The financial period for this refund date is closed.");
 
+        // Re-checked under the close lock just before commit — see BaseAccountingService.
+        TrackPeriodDate(payment.PaymentDate);
+
         return await ExecuteInTransactionAsync(async () =>
         {
             if (payment.Amount <= 0)
@@ -641,6 +663,36 @@ public class PaymentService : BaseAccountingService, IPaymentService
 
             if (await _financialPeriodService.IsPeriodLockedAsync(payment.PaymentDate))
                 throw new InvalidOperationException("The financial period for this payment date is closed.");
+
+            // Re-checked under the close lock just before commit — see BaseAccountingService.
+            TrackPeriodDate(payment.PaymentDate);
+
+            // A supplier can only refund money we actually paid. If this payment's cash has already
+            // been handed back as a refund, voiding it as well would reverse the same cash twice —
+            // paying the company out once through the refund and once through this reversal.
+            if (payment.PaymentType == SupplierPaymentType)
+            {
+                var remainingPayments = await _paymentRepository.Query()
+                    .Include(p => p.StockMain)
+                    .Where(p => p.Party_ID == payment.Party_ID
+                             && p.PaymentType == SupplierPaymentType
+                             && !p.IsVoided
+                             && p.PaymentID != paymentId
+                             && (!p.StockMain_ID.HasValue || p.StockMain == null || p.StockMain.Status != "Void"))
+                    .SumAsync(p => (decimal?)p.Amount) ?? 0;
+
+                var refunded = await _paymentRepository.Query()
+                    .Include(p => p.StockMain)
+                    .Where(p => p.Party_ID == payment.Party_ID
+                             && p.PaymentType == PaymentType.REFUND.ToString()
+                             && !p.IsVoided
+                             && (!p.StockMain_ID.HasValue || p.StockMain == null || p.StockMain.Status != "Void"))
+                    .SumAsync(p => (decimal?)p.Amount) ?? 0;
+
+                if (refunded > remainingPayments)
+                    throw new InvalidOperationException(
+                        "Cannot void this payment — its value has already been refunded by the supplier. Void the refund first.");
+            }
 
             // Mark payment as voided
             payment.IsVoided = true;

@@ -24,6 +24,8 @@ public class PurchaseService : TransactionServiceBase, IPurchaseService
     private readonly IRepository<Product> _productRepository;
     private readonly IRepository<Account> _accountRepository;
     private readonly IRepository<Payment> _paymentRepository;
+    private readonly IRepository<PaymentAllocation> _allocationRepository;
+    private readonly IRepository<SupplierCreditNote> _supplierCreditNoteRepository;
     private readonly IProductService _productService;
 
     private const string TRANSACTION_TYPE_CODE = "GRN";
@@ -32,6 +34,7 @@ public class PurchaseService : TransactionServiceBase, IPurchaseService
     private const string PURCHASE_VOUCHER_CODE = "PV";
     private const string CASH_PAYMENT_VOUCHER_CODE = "CP";
     private const string BANK_PAYMENT_VOUCHER_CODE = "BP";
+    private const string SupplierCreditAllocationSource = "SupplierCredit";
 
     public PurchaseService(
         IRepository<StockMain> stockMainRepository,
@@ -42,6 +45,8 @@ public class PurchaseService : TransactionServiceBase, IPurchaseService
         IRepository<Product> productRepository,
         IRepository<Account> accountRepository,
         IRepository<Payment> paymentRepository,
+        IRepository<PaymentAllocation> allocationRepository,
+        IRepository<SupplierCreditNote> supplierCreditNoteRepository,
         IProductService productService,
         IUnitOfWork unitOfWork,
         IFinancialPeriodService financialPeriodService)
@@ -53,7 +58,40 @@ public class PurchaseService : TransactionServiceBase, IPurchaseService
         _productRepository = productRepository;
         _accountRepository = accountRepository;
         _paymentRepository = paymentRepository;
+        _allocationRepository = allocationRepository;
+        _supplierCreditNoteRepository = supplierCreditNoteRepository;
         _productService = productService;
+    }
+
+    /// <summary>
+    /// Returns any supplier-credit-note value allocated to <paramref name="purchase"/> back to the
+    /// notes it came from, and retires the allocation rows. Used when a GRN is voided so the credit
+    /// stays spendable against a future purchase.
+    /// </summary>
+    private async Task RestoreSupplierCreditNotesAsync(StockMain purchase, int userId)
+    {
+        var allocations = await _allocationRepository.Query()
+            .Include(a => a.SupplierCreditNote)
+            .Where(a => a.StockMain_ID == purchase.StockMainID
+                     && a.SourceType == SupplierCreditAllocationSource
+                     && a.SupplierCreditNote_ID != null)
+            .ToListAsync();
+
+        foreach (var allocation in allocations)
+        {
+            var note = allocation.SupplierCreditNote;
+            if (note != null)
+            {
+                note.AppliedAmount -= allocation.Amount;
+                note.BalanceAmount += allocation.Amount;
+                note.Status = note.BalanceAmount > 0 ? "Open" : "Applied";
+                note.UpdatedAt = AppTime.Now;
+                note.UpdatedBy = userId;
+                _supplierCreditNoteRepository.Update(note);
+            }
+
+            _allocationRepository.Remove(allocation);
+        }
     }
 
     public async Task<IEnumerable<StockMain>> GetAllAsync()
@@ -143,6 +181,12 @@ public class PurchaseService : TransactionServiceBase, IPurchaseService
             var poPaymentsToTransfer = new List<Payment>();
             if (purchase.ReferenceStockMain_ID.HasValue)
             {
+                // Serialize every receipt against this PO. The remaining-quantity check below is
+                // read-then-write, and a GRN that does not complete the PO never stamps the PO row,
+                // so nothing else would collide: two receipts each within the remaining quantity
+                // could both commit and jointly over-receive the order.
+                await _unitOfWork.AcquireResourceLockAsync($"po:{purchase.ReferenceStockMain_ID.Value}");
+
                 referencePo = await _stockMainRepository.Query()
                     .Include(s => s.TransactionType)
                     .Include(s => s.StockDetails)
@@ -258,6 +302,15 @@ public class PurchaseService : TransactionServiceBase, IPurchaseService
 
             purchase.BalanceAmount = Math.Max(0, purchase.TotalAmount - purchase.PaidAmount);
             purchase.PaymentStatus = CalculatePaymentStatus(purchase.PaidAmount, purchase.BalanceAmount);
+
+            // The transfer above re-pointed the PO's payments at this GRN in memory only. The
+            // balance below is a database query, so without flushing first it still sees those
+            // payments sitting on the PO, reads the money we just applied here as a second free
+            // advance, and books a phantom adjustment for it. Still inside the same transaction.
+            if (transferredFromPo > 0)
+            {
+                await _unitOfWork.SaveChangesAsync();
+            }
 
             var previousBalance = await GetSupplierBalanceAsync(purchase.Party_ID ?? 0, purchase.StockMainID);
             if (previousBalance < 0)
@@ -723,6 +776,13 @@ public class PurchaseService : TransactionServiceBase, IPurchaseService
         if (cashBankAccount == null)
             throw new InvalidOperationException("Selected payment account not found.");
 
+        // Money can only leave a cash or bank account. Without this the client can name any
+        // ledger account (e.g. a revenue account) and post DR Supplier / CR Revenue —
+        // fabricating income while no cash actually moves.
+        if (cashBankAccount.AccountType_ID != AccountingConstants.CashAccountTypeId
+            && cashBankAccount.AccountType_ID != AccountingConstants.BankAccountTypeId)
+            throw new InvalidOperationException("Payment account must be a Cash or Bank account.");
+
         var isBankLikeAccount =
             string.Equals(cashBankAccount.AccountType?.Code, "BANK", StringComparison.OrdinalIgnoreCase) ||
             cashBankAccount.AccountType?.Name?.Contains("Bank", StringComparison.OrdinalIgnoreCase) == true;
@@ -938,6 +998,15 @@ public class PurchaseService : TransactionServiceBase, IPurchaseService
         if (hasDirectPayments)
             throw new InvalidOperationException("Cannot edit this purchase — payments have been made against it. Void the payments first.");
 
+        // Credit-note value settles a GRN without leaving a Payment row, so the check above cannot
+        // see it. Editing the total below what the credit already settled would strand the excess.
+        var hasAppliedCreditNotes = await _allocationRepository.Query()
+            .AnyAsync(a => a.StockMain_ID == purchase.StockMainID
+                        && a.SourceType == SupplierCreditAllocationSource);
+
+        if (hasAppliedCreditNotes)
+            throw new InvalidOperationException("Cannot edit this purchase — supplier credit notes have been applied to it. Void the purchase to release the credit first.");
+
         // Normalize and validate lines before touching the ledger.
         NormalizePurchaseLines(purchase);
 
@@ -1112,6 +1181,11 @@ public class PurchaseService : TransactionServiceBase, IPurchaseService
 
                 _paymentRepository.Update(payment);
             }
+
+            // Credit notes applied to this GRN post no voucher and leave no Payment row, so the
+            // allocation record is the only trace. Hand the credit back to the note (mirroring how
+            // cash payments become supplier advances) instead of letting the void consume it.
+            await RestoreSupplierCreditNotesAsync(purchase, userId);
 
             _stockMainRepository.Update(purchase);
             await _unitOfWork.SaveChangesAsync();

@@ -194,7 +194,8 @@ public class ProductService : IProductService
         existing.OpeningQuantity = product.OpeningQuantity;
         existing.ReorderLevel = product.ReorderLevel;
         existing.UnitsInPack = product.UnitsInPack;
-        existing.IsActive = product.IsActive;
+        // IsActive is deliberately not copied: activation is owned by ToggleStatusAsync. Editing a
+        // product must never change whether it is active.
         existing.UpdatedAt = AppTime.Now;
         existing.UpdatedBy = userId;
 

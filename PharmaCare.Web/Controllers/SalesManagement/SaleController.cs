@@ -41,6 +41,7 @@ public class SaleController : BaseController
 
     public async Task<IActionResult> SalesIndex(int? customerId, DateTime? fromDate, DateTime? toDate, string? status, int page = 1, int pageSize = 25)
     {
+        page = NormalizePage(page);
         pageSize = NormalizePageSize(pageSize);
         var pagedResult = await _saleService.GetPagedAsync(customerId, fromDate, toDate, status, page, pageSize);
 
@@ -178,7 +179,10 @@ public class SaleController : BaseController
             await _saleService.CreateAsync(sale, CurrentUserId, PaymentAccountId,
                 overrideCreditLimit && mayOverrideCreditLimit);
 
+            // Stamped with the sale it belongs to — the receipt view refuses to show a tender
+            // carried over from a different sale.
             TempData["ReceiptTenderedAmount"] = tenderedAmount.ToString();
+            TempData["ReceiptTenderedSaleId"] = sale.StockMainID;
 
             var encryptedId = Utility.EncryptId(sale.StockMainID);
             var receiptUrl = Url.Action(nameof(Receipt), new { id = encryptedId })!;
@@ -264,20 +268,22 @@ public class SaleController : BaseController
              ShowMessage(MessageType.Error, "Invalid Sale ID.");
              return RedirectToAction(nameof(SalesIndex));
         }
-        if (string.IsNullOrWhiteSpace(voidReason))
+        if (!IsVoidReasonValid(voidReason, out var reasonError))
         {
-            ShowMessage(MessageType.Error, "Void reason is required.");
+            ShowMessage(MessageType.Error, reasonError);
             return RedirectToAction(nameof(SalesIndex));
         }
 
-        var result = await _saleService.VoidAsync(saleId, voidReason, CurrentUserId);
-        if (result)
+        try
         {
-            ShowMessage(MessageType.Success, "Sale voided successfully!");
+            var result = await _saleService.VoidAsync(saleId, voidReason.Trim(), CurrentUserId);
+            ShowMessage(result ? MessageType.Success : MessageType.Error,
+                result ? "Sale voided successfully!" : "Failed to void Sale.");
         }
-        else
+        catch (Exception ex)
         {
-            ShowMessage(MessageType.Error, "Failed to void Sale.");
+            // An already-voided sale, an active return, or a closed period all throw here.
+            ShowMessage(MessageType.Error, SafeErrorMessage(ex, "Voiding sale"));
         }
 
         return RedirectToAction(nameof(SalesIndex));
@@ -388,11 +394,20 @@ public class SaleController : BaseController
             return RedirectToAction(nameof(SalesIndex));
         }
 
-        if (TempData.TryGetValue("ReceiptTenderedAmount", out var tenderedAmountObj)
+        // Read both every time so a stale pair is discarded rather than lingering for the next
+        // receipt. The tendered amount belongs to exactly one sale: TempData.Keep below re-persists
+        // it for reprints, which previously let the PREVIOUS sale's tender (and change) render on
+        // an unrelated receipt. Without a match the view falls back to this sale's own PaidAmount.
+        TempData.TryGetValue("ReceiptTenderedSaleId", out var tenderedSaleIdObj);
+        TempData.TryGetValue("ReceiptTenderedAmount", out var tenderedAmountObj);
+
+        if (int.TryParse(Convert.ToString(tenderedSaleIdObj), out var tenderedSaleId)
+            && tenderedSaleId == saleId
             && decimal.TryParse(Convert.ToString(tenderedAmountObj), out var tenderedAmount))
         {
             ViewBag.TenderedAmount = tenderedAmount;
             TempData.Keep("ReceiptTenderedAmount");
+            TempData.Keep("ReceiptTenderedSaleId");
         }
 
         return View(sale);

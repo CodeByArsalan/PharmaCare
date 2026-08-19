@@ -358,37 +358,50 @@ public class PurchaseReturnService : TransactionServiceBase, IPurchaseReturnServ
 
     public async Task<bool> VoidAsync(int id, string reason, int userId)
     {
-        var purchaseReturn = await GetByIdAsync(id);
-        if (purchaseReturn == null)
-            return false;
-
-        if (purchaseReturn.Status == "Void")
-            return false;
-
-        await ValidatePeriodAsync(purchaseReturn.TransactionDate);
-
-        purchaseReturn.Status = "Void";
-        purchaseReturn.VoidReason = reason;
-        purchaseReturn.VoidedAt = AppTime.Now;
-        purchaseReturn.VoidedBy = userId;
-
-        // Create reversal voucher if original voucher exists
-        if (purchaseReturn.Voucher_ID.HasValue)
+        // Everything below must land together. Reversing the voucher flushes its own SaveChanges,
+        // so without a wrapping transaction a failure while recalculating the GRN balance left the
+        // return voided and its voucher reversed while telling the caller the void had failed.
+        return await ExecuteInTransactionAsync(async () =>
         {
-            // Use base method to create reversal voucher
-            await CreateReversalVoucherAsync(purchaseReturn.Voucher_ID.Value, userId, reason, "StockMain", purchaseReturn.StockMainID);
-        }
+            var purchaseReturn = await GetByIdAsync(id);
+            if (purchaseReturn == null)
+                return false;
 
-        // Recalculate the reference GRN's balance/status if linked
-        if (purchaseReturn.ReferenceStockMain_ID.HasValue)
-        {
-            await RecalculateReferenceGrnBalanceAsync(purchaseReturn.ReferenceStockMain_ID.Value);
-        }
+            if (purchaseReturn.Status == "Void")
+                return false;
 
-        _stockMainRepository.Update(purchaseReturn);
-        await _unitOfWork.SaveChangesAsync();
+            await ValidatePeriodAsync(purchaseReturn.TransactionDate);
 
-        return true;
+            // Serialize against concurrent payments on the same GRN: both this void and a payment
+            // rewrite the GRN's denormalized balance from a row version read moments earlier.
+            if (purchaseReturn.ReferenceStockMain_ID.HasValue)
+            {
+                await _unitOfWork.AcquireResourceLockAsync($"grn:{purchaseReturn.ReferenceStockMain_ID.Value}");
+            }
+
+            purchaseReturn.Status = "Void";
+            purchaseReturn.VoidReason = reason;
+            purchaseReturn.VoidedAt = AppTime.Now;
+            purchaseReturn.VoidedBy = userId;
+
+            // Create reversal voucher if original voucher exists
+            if (purchaseReturn.Voucher_ID.HasValue)
+            {
+                // Use base method to create reversal voucher
+                await CreateReversalVoucherAsync(purchaseReturn.Voucher_ID.Value, userId, reason, "StockMain", purchaseReturn.StockMainID);
+            }
+
+            // Recalculate the reference GRN's balance/status if linked
+            if (purchaseReturn.ReferenceStockMain_ID.HasValue)
+            {
+                await RecalculateReferenceGrnBalanceAsync(purchaseReturn.ReferenceStockMain_ID.Value);
+            }
+
+            _stockMainRepository.Update(purchaseReturn);
+            await _unitOfWork.SaveChangesAsync();
+
+            return true;
+        });
     }
 
     /// <summary>

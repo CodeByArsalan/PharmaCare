@@ -231,10 +231,15 @@ public class FinancialReportService : IFinancialReportService
 
     public async Task<ReceivablesAgingVM> GetReceivablesAgingAsync(DateTime asOfDate)
     {
+        // "As of" means the close of that day. Rows carry a time of day, so comparing against a
+        // midnight asOfDate would exclude everything posted during the day being reported on.
+        var asOf = asOfDate.Date;
+        var cutoff = asOf.AddDays(1);
+
         var rows = await _db.StockMains
             .AsNoTracking()
             .Where(s => SaleCodes.Contains(s.TransactionType!.Code)
-                        && s.TransactionDate <= asOfDate
+                        && s.TransactionDate < cutoff
                         && s.BalanceAmount > 0
                         && s.Status != "Void"
                         && s.Party_ID != null)
@@ -243,18 +248,18 @@ public class FinancialReportService : IFinancialReportService
             {
                 PartyId = g.Key.PartyId,
                 PartyName = g.Key.PartyName,
-                Current = g.Sum(s => EF.Functions.DateDiffDay(s.TransactionDate, asOfDate) <= 30 ? s.BalanceAmount : 0),
+                Current = g.Sum(s => EF.Functions.DateDiffDay(s.TransactionDate, asOf) <= 30 ? s.BalanceAmount : 0),
                 Days31_60 = g.Sum(s =>
-                    EF.Functions.DateDiffDay(s.TransactionDate, asOfDate) > 30
-                    && EF.Functions.DateDiffDay(s.TransactionDate, asOfDate) <= 60
+                    EF.Functions.DateDiffDay(s.TransactionDate, asOf) > 30
+                    && EF.Functions.DateDiffDay(s.TransactionDate, asOf) <= 60
                         ? s.BalanceAmount
                         : 0),
                 Days61_90 = g.Sum(s =>
-                    EF.Functions.DateDiffDay(s.TransactionDate, asOfDate) > 60
-                    && EF.Functions.DateDiffDay(s.TransactionDate, asOfDate) <= 90
+                    EF.Functions.DateDiffDay(s.TransactionDate, asOf) > 60
+                    && EF.Functions.DateDiffDay(s.TransactionDate, asOf) <= 90
                         ? s.BalanceAmount
                         : 0),
-                Days90Plus = g.Sum(s => EF.Functions.DateDiffDay(s.TransactionDate, asOfDate) > 90 ? s.BalanceAmount : 0),
+                Days90Plus = g.Sum(s => EF.Functions.DateDiffDay(s.TransactionDate, asOf) > 90 ? s.BalanceAmount : 0),
                 Total = g.Sum(s => s.BalanceAmount)
             })
             .OrderByDescending(r => r.Total)
@@ -274,11 +279,15 @@ public class FinancialReportService : IFinancialReportService
 
     public async Task<PayablesAgingVM> GetPayablesAgingAsync(DateTime asOfDate)
     {
+        // "As of" means the close of that day — see GetReceivablesAgingAsync.
+        var asOf = asOfDate.Date;
+        var cutoff = asOf.AddDays(1);
+
         var purchases = await _db.StockMains
             .Include(s => s.TransactionType)
             .Include(s => s.Party)
             .Where(s => PurchaseCodes.Contains(s.TransactionType!.Code)
-                        && s.TransactionDate <= asOfDate
+                        && s.TransactionDate < cutoff
                         && s.BalanceAmount > 0
                         && s.Status != "Void"
                         && s.Party_ID != null)
@@ -296,7 +305,10 @@ public class FinancialReportService : IFinancialReportService
 
                 foreach (var s in g)
                 {
-                    var daysOld = (int)(asOfDate - s.TransactionDate).TotalDays;
+                    // Calendar-day age, matching the receivables aging's DateDiffDay. Subtracting
+                    // raw instants truncates the time of day, under-aging every invoice by up to a
+                    // day and putting it in a different bucket than an identically-aged receivable.
+                    var daysOld = (asOf - s.TransactionDate.Date).Days;
                     if (daysOld <= 30) row.Current += s.BalanceAmount;
                     else if (daysOld <= 60) row.Days31_60 += s.BalanceAmount;
                     else if (daysOld <= 90) row.Days61_90 += s.BalanceAmount;
@@ -385,9 +397,13 @@ public class FinancialReportService : IFinancialReportService
 
     public async Task<TrialBalanceVM> GetTrialBalanceAsync(DateTime asOfDate)
     {
+        // "As of" means the close of that day. Vouchers carry the posting time, so a midnight
+        // asOfDate would print a trial balance missing everything booked during the day.
+        var cutoff = asOfDate.Date.AddDays(1);
+
         var accountTotals = await _db.VoucherDetails
             .AsNoTracking()
-            .Where(vd => vd.Voucher!.VoucherDate <= asOfDate
+            .Where(vd => vd.Voucher!.VoucherDate < cutoff
                          && vd.Voucher.Status == "Posted")
             .GroupBy(vd => new
             {
@@ -508,6 +524,10 @@ public class FinancialReportService : IFinancialReportService
         var relevantSaleCodes = isCustomer ? SaleCodes : PurchaseCodes;
         var relevantReturnCodes = isCustomer ? SaleReturnCodes : PurchaseReturnCodes;
         var paymentType = isCustomer ? PaymentType.RECEIPT.ToString() : PaymentType.PAYMENT.ToString();
+        var refundType = PaymentType.REFUND.ToString();
+        // Refunds settle the credit a return created. Omitting them leaves a squared-up party
+        // showing a permanent balance on the statement they are handed.
+        var ledgerPaymentTypes = new[] { paymentType, refundType };
 
         // Opening balance: transactions before FromDate
         var priorTransactions = await _db.StockMains
@@ -524,7 +544,7 @@ public class FinancialReportService : IFinancialReportService
             .Include(p => p.StockMain)
             .Where(p => p.Party_ID == filter.PartyId.Value
                         && p.PaymentDate < filter.FromDate
-                        && p.PaymentType == paymentType
+                        && ledgerPaymentTypes.Contains(p.PaymentType)
                         && !p.IsVoided
                         && (!p.StockMain_ID.HasValue || p.StockMain == null || p.StockMain.Status != "Void"))
             .ToListAsync();
@@ -532,17 +552,21 @@ public class FinancialReportService : IFinancialReportService
         // For customer: Sale = Debit (adds to receivable), Receipt = Credit (reduces receivable)
         // For supplier: Purchase = Credit (adds to payable), Payment/Return = Debit (reduces payable)
         decimal openingBalance = party.OpeningBalance;
+        // A refund hands cash back and so reverses a settlement: it moves the balance the
+        // opposite way from an ordinary receipt/payment.
+        var priorSettled = priorPayments.Where(p => p.PaymentType != refundType).Sum(p => p.Amount)
+                         - priorPayments.Where(p => p.PaymentType == refundType).Sum(p => p.Amount);
         if (isCustomer)
         {
             openingBalance += priorTransactions.Where(s => SaleCodes.Contains(s.TransactionType!.Code)).Sum(s => s.TotalAmount);
             openingBalance -= priorTransactions.Where(s => SaleReturnCodes.Contains(s.TransactionType!.Code)).Sum(s => s.TotalAmount);
-            openingBalance -= priorPayments.Sum(p => p.Amount);
+            openingBalance -= priorSettled;
         }
         else
         {
             openingBalance += priorTransactions.Where(s => PurchaseCodes.Contains(s.TransactionType!.Code)).Sum(s => s.TotalAmount);
             openingBalance -= priorTransactions.Where(s => PurchaseReturnCodes.Contains(s.TransactionType!.Code)).Sum(s => s.TotalAmount);
-            openingBalance -= priorPayments.Sum(p => p.Amount);
+            openingBalance -= priorSettled;
         }
 
         // Period transactions
@@ -560,7 +584,7 @@ public class FinancialReportService : IFinancialReportService
             .Where(p => p.Party_ID == filter.PartyId.Value
                         && p.PaymentDate >= filter.FromDate
                         && p.PaymentDate < filter.ToDate.AddDays(1)
-                        && p.PaymentType == paymentType
+                        && ledgerPaymentTypes.Contains(p.PaymentType)
                         && !p.IsVoided
                         && (!p.StockMain_ID.HasValue || p.StockMain == null || p.StockMain.Status != "Void"))
             .ToListAsync();
@@ -588,10 +612,25 @@ public class FinancialReportService : IFinancialReportService
 
         foreach (var p in periodPayments)
         {
+            var reference = p.Reference ?? $"PMT-{p.PaymentID}";
+            var isRefund = p.PaymentType == refundType;
+
             if (isCustomer)
-                ledgerEntries.Add((p.PaymentDate, p.Reference ?? $"PMT-{p.PaymentID}", "Payment Received", 0, p.Amount));
+            {
+                // Cash refunded to the customer restores the receivable the credit had cleared.
+                if (isRefund)
+                    ledgerEntries.Add((p.PaymentDate, reference, "Refund Paid", p.Amount, 0));
+                else
+                    ledgerEntries.Add((p.PaymentDate, reference, "Payment Received", 0, p.Amount));
+            }
             else
-                ledgerEntries.Add((p.PaymentDate, p.Reference ?? $"PMT-{p.PaymentID}", "Payment Made", p.Amount, 0));
+            {
+                // Cash refunded by the supplier reverses the advance we had paid them.
+                if (isRefund)
+                    ledgerEntries.Add((p.PaymentDate, reference, "Refund Received", 0, p.Amount));
+                else
+                    ledgerEntries.Add((p.PaymentDate, reference, "Payment Made", p.Amount, 0));
+            }
         }
 
         ledgerEntries = ledgerEntries.OrderBy(e => e.Date).ToList();

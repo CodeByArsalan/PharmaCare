@@ -40,6 +40,7 @@ public class SupplierPaymentController : BaseController
     /// Displays list of GRNs with payment information.
     public async Task<IActionResult> PaymentsIndex(int? supplierId, string? paymentStatus, DateTime? fromDate, DateTime? toDate, int page = 1, int pageSize = 25)
     {
+        page = NormalizePage(page);
         pageSize = NormalizePageSize(pageSize);
         var pagedResult = await _paymentService.GetPagedPendingGrnsAsync(supplierId, fromDate, toDate, paymentStatus, page, pageSize);
 
@@ -229,7 +230,9 @@ public class SupplierPaymentController : BaseController
     /// Voids a supplier payment.
     [HttpPost]
     [ValidateAntiForgeryToken]
-    [LinkedToPage("SupplierPayment", "PaymentsIndex")]
+    // Voiding a payment reverses cash out of the ledger — gated on "delete", not the page's
+    // default "view".
+    [LinkedToPage("SupplierPayment", "PaymentsIndex", PermissionType = "delete")]
     public async Task<IActionResult> VoidPayment(string id, string reason)
     {
         int paymentId = Utility.DecryptId(id);
@@ -239,9 +242,17 @@ public class SupplierPaymentController : BaseController
             return RedirectToAction(nameof(PaymentsIndex));
         }
 
+        var voidReason = string.IsNullOrWhiteSpace(reason) ? "Voided by user" : reason.Trim();
+        if (voidReason.Length > MaxVoidReasonLength)
+        {
+            ShowMessage(MessageType.Error,
+                $"The reason is too long — please keep it to {MaxVoidReasonLength} characters or fewer.");
+            return RedirectToAction(nameof(PaymentsIndex));
+        }
+
         try
         {
-            await _paymentService.VoidPaymentAsync(paymentId, reason ?? "Voided by user", CurrentUserId);
+            await _paymentService.VoidPaymentAsync(paymentId, voidReason, CurrentUserId);
             ShowMessage(MessageType.Success, "Payment voided successfully!");
         }
         catch (Exception ex)
@@ -388,7 +399,8 @@ public class SupplierPaymentController : BaseController
 
     [HttpPost]
     [ValidateAntiForgeryToken]
-    [LinkedToPage("SupplierPayment", "PaymentsIndex")]
+    // Applying a credit note changes what is owed on a posted GRN — a write, not a view.
+    [LinkedToPage("SupplierPayment", "PaymentsIndex", PermissionType = "edit")]
     public async Task<IActionResult> ApplyCredit(string creditType, string creditId, string grnId, decimal amount)
     {
         try
@@ -414,9 +426,11 @@ public class SupplierPaymentController : BaseController
             ShowMessage(MessageType.Error, SafeErrorMessage(ex, "ApplyCredit"));
         }
 
-        // We redirect back to the page with the referrer to maintain the selected supplier
+        // Redirect back to the referring page so the selected supplier is preserved — but only if
+        // it points inside this application. The Referer header is attacker-controlled, so echoing
+        // it unchecked turns this endpoint into an open redirect.
         var referer = Request.Headers["Referer"].ToString();
-        if (!string.IsNullOrEmpty(referer))
+        if (!string.IsNullOrEmpty(referer) && Url.IsLocalUrl(referer))
             return Redirect(referer);
 
         return RedirectToAction(nameof(SupplierReconciliation));

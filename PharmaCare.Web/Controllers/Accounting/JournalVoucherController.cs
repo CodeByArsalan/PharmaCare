@@ -33,6 +33,7 @@ public class JournalVoucherController : BaseController
 
     public async Task<IActionResult> JournalVoucherIndex(string? search, string? status, int page = 1, int pageSize = 25)
     {
+        page = NormalizePage(page);
         pageSize = NormalizePageSize(pageSize);
         var vouchers = await _jvService.GetPagedJournalVouchersAsync(search, status, page, pageSize);
         var users = await _userService.GetAllUsersAsync();
@@ -69,7 +70,10 @@ public class JournalVoucherController : BaseController
     /// </summary>
     [HttpPost]
     [ValidateAntiForgeryToken]
-    [LinkedToPage("JournalVoucher", "JournalVoucherIndex")]
+    // Reversing a posted voucher unwinds the ledger — a destructive action, gated on "delete" like
+    // every other void endpoint. Without the explicit type this defaulted to "view", so anyone who
+    // could merely open the page could reverse financial vouchers.
+    [LinkedToPage("JournalVoucher", "JournalVoucherIndex", PermissionType = "delete")]
     public async Task<IActionResult> ReverseJournalVoucher(string id, string voidReason)
     {
         int voucherId = Utility.DecryptId(id);
@@ -79,20 +83,23 @@ public class JournalVoucherController : BaseController
             return RedirectToAction(nameof(JournalVoucherIndex));
         }
 
-        if (string.IsNullOrWhiteSpace(voidReason))
+        if (!IsVoidReasonValid(voidReason, out var reasonError))
         {
-            ShowMessage(MessageType.Error, "Reversal reason is required.");
+            ShowMessage(MessageType.Error, reasonError);
             return RedirectToAction(nameof(ViewJournalVoucher), new { id });
         }
 
-        var result = await _jvService.VoidVoucherAsync(voucherId, voidReason, CurrentUserId);
-        if (result)
+        try
         {
-            ShowMessage(MessageType.Success, "Journal Voucher reversed successfully!");
+            var result = await _jvService.VoidVoucherAsync(voucherId, voidReason.Trim(), CurrentUserId);
+            ShowMessage(result ? MessageType.Success : MessageType.Error,
+                result ? "Journal Voucher reversed successfully!" : "Failed to reverse voucher.");
         }
-        else
+        catch (Exception ex)
         {
-            ShowMessage(MessageType.Error, "Failed to reverse voucher.");
+            // An already-reversed voucher (double submit) and a closed period both throw here.
+            // Without this the second POST surfaces as a 500 instead of a message.
+            ShowMessage(MessageType.Error, SafeErrorMessage(ex, "Reversing journal voucher"));
         }
 
         return RedirectToAction(nameof(JournalVoucherIndex));

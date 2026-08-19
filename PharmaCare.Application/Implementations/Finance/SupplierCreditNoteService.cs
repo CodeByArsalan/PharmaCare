@@ -26,6 +26,7 @@ public class SupplierCreditNoteService : ISupplierCreditNoteService
     private readonly IRepository<Voucher> _voucherRepository;
     private readonly IRepository<VoucherType> _voucherTypeRepository;
     private readonly IRepository<StockMain> _stockMainRepository;
+    private readonly IRepository<PaymentAllocation> _allocationRepository;
     private readonly IUnitOfWork _unitOfWork;
     private readonly IFinancialPeriodService _financialPeriodService;
 
@@ -36,9 +37,11 @@ public class SupplierCreditNoteService : ISupplierCreditNoteService
         IRepository<Voucher> voucherRepository,
         IRepository<VoucherType> voucherTypeRepository,
         IRepository<StockMain> stockMainRepository,
+        IRepository<PaymentAllocation> allocationRepository,
         IUnitOfWork unitOfWork,
         IFinancialPeriodService financialPeriodService)
     {
+        _allocationRepository = allocationRepository;
         _repository = repository;
         _partyRepository = partyRepository;
         _accountRepository = accountRepository;
@@ -308,6 +311,11 @@ public class SupplierCreditNoteService : ISupplierCreditNoteService
             if (amount <= 0)
                 throw new InvalidOperationException("Amount must be greater than zero.");
 
+            // Applying a credit note changes the payment state of a posted GRN, so it is subject to
+            // the period lock exactly like creating or voiding the note.
+            if (await _financialPeriodService.IsPeriodLockedAsync(AppTime.Today))
+                throw new InvalidOperationException("The financial period for this date is closed.");
+
             var cn = await _repository.Query()
                 .FirstOrDefaultAsync(c => c.SupplierCreditNoteID == cnId && c.Status == "Open");
 
@@ -355,6 +363,21 @@ public class SupplierCreditNoteService : ISupplierCreditNoteService
             grn.UpdatedBy = userId;
 
             _stockMainRepository.Update(grn);
+
+            // Record which GRN consumed the credit. A credit-note application posts no voucher and
+            // creates no Payment row, so without this the link is unrecoverable and voiding or
+            // shrinking the GRN would silently destroy the credit.
+            await _allocationRepository.AddAsync(new PaymentAllocation
+            {
+                SupplierCreditNote_ID = cn.SupplierCreditNoteID,
+                StockMain_ID = grn.StockMainID,
+                Amount = amount,
+                AllocationDate = AppTime.Now,
+                SourceType = "SupplierCredit",
+                Remarks = $"Credit note {cn.CreditNoteNo} applied to {grn.TransactionNo}",
+                CreatedAt = AppTime.Now,
+                CreatedBy = userId
+            });
 
             await _unitOfWork.SaveChangesAsync();
             await _unitOfWork.CommitTransactionAsync();

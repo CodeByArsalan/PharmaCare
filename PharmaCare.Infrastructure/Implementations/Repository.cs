@@ -18,9 +18,29 @@ public class Repository<T> : IRepository<T> where T : class
         _dbSet = context.Set<T>();
     }
 
+    /// <summary>
+    /// Resolves an entity by primary key, honouring global query filters.
+    /// <para>
+    /// Deliberately NOT <c>DbSet.Find</c>. Find performs a keyed lookup that BYPASSES global query
+    /// filters, so on a tenant-scoped entity it returns another pharmacy's row. Services across the
+    /// app pass a client-supplied id straight into this method, which made that a cross-tenant read
+    /// (and, where the loaded entity is then written back, a cross-tenant write).
+    /// </para>
+    /// </summary>
     public virtual async Task<T?> GetByIdAsync(int id)
     {
-        return await _dbSet.FindAsync(id);
+        var primaryKey = _context.Model.FindEntityType(typeof(T))?.FindPrimaryKey();
+        var keyProperty = primaryKey?.Properties.Count == 1 ? primaryKey.Properties[0] : null;
+
+        // Composite or non-int keys have no single int column to match on; nothing tenant-scoped
+        // uses one, so falling back to Find here changes no isolation behavior.
+        if (keyProperty is null || keyProperty.ClrType != typeof(int))
+        {
+            return await _dbSet.FindAsync(id);
+        }
+
+        var keyName = keyProperty.Name;
+        return await _dbSet.FirstOrDefaultAsync(e => EF.Property<int>(e, keyName) == id);
     }
 
     public virtual async Task<IEnumerable<T>> GetAllAsync()

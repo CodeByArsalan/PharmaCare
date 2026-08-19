@@ -38,6 +38,7 @@ public class SaleReturnController : BaseController
     /// </summary>
     public async Task<IActionResult> SaleReturnsIndex(int? customerId, DateTime? fromDate, DateTime? toDate, string? status, int page = 1, int pageSize = 25)
     {
+        page = NormalizePage(page);
         pageSize = NormalizePageSize(pageSize);
         var pagedResult = await _saleReturnService.GetPagedAsync(customerId, fromDate, toDate, status, page, pageSize);
 
@@ -167,20 +168,22 @@ public class SaleReturnController : BaseController
              ShowMessage(MessageType.Error, "Invalid Sale Return ID.");
              return RedirectToAction(nameof(SaleReturnsIndex));
         }
-        if (string.IsNullOrWhiteSpace(voidReason))
+        if (!IsVoidReasonValid(voidReason, out var reasonError))
         {
-            ShowMessage(MessageType.Error, "Void reason is required.");
+            ShowMessage(MessageType.Error, reasonError);
             return RedirectToAction(nameof(SaleReturnsIndex));
         }
 
-        var result = await _saleReturnService.VoidAsync(saleReturnId, voidReason, CurrentUserId);
-        if (result)
+        try
         {
-            ShowMessage(MessageType.Success, "Sale Return voided successfully!");
+            var result = await _saleReturnService.VoidAsync(saleReturnId, voidReason.Trim(), CurrentUserId);
+            ShowMessage(result ? MessageType.Success : MessageType.Error,
+                result ? "Sale Return voided successfully!" : "Failed to void Sale Return.");
         }
-        else
+        catch (Exception ex)
         {
-            ShowMessage(MessageType.Error, "Failed to void Sale Return.");
+            // Returned goods already re-sold, and closed periods, both throw here.
+            ShowMessage(MessageType.Error, SafeErrorMessage(ex, "Voiding sale return"));
         }
 
         return RedirectToAction(nameof(SaleReturnsIndex));

@@ -21,8 +21,9 @@
             <input type="hidden" asp-for="ProductID" />
             <input type="hidden" asp-for="CreatedAt" />
             <input type="hidden" asp-for="CreatedBy" />
-            <input type="hidden" asp-for="IsActive" value="true" />
-            
+            @* No IsActive field: activation is done from the products list, and posting a
+               hardcoded "true" here reactivated any product that was merely edited. *@
+
             <div class="row g-3">
                 <div class="col-md-6">
                     <label class="form-label">Category <span class="text-danger">*</span></label>

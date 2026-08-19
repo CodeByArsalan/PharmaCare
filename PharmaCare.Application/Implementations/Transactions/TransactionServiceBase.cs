@@ -32,13 +32,45 @@ public abstract class TransactionServiceBase
     }
 
     /// <summary>
+    /// The date most recently passed to <see cref="ValidatePeriodAsync"/>, re-checked just before
+    /// the surrounding transaction commits. Scoped per request along with the service instance.
+    /// </summary>
+    private DateTime? _periodDateToRecheck;
+
+    /// <summary>
     /// Validates that the transaction date is not within a closed financial period.
+    /// <para>
+    /// The date is remembered so <see cref="ExecuteInTransactionAsync{T}"/> can re-check it under a
+    /// lock immediately before committing. This check alone is not enough: it runs before (or early
+    /// in) the transaction, so a period closed while the posting is still in flight would otherwise
+    /// let the posting land in it.
+    /// </para>
     /// </summary>
     protected async Task ValidatePeriodAsync(DateTime date)
     {
         if (await _financialPeriodService.IsPeriodLockedAsync(date))
         {
             throw new InvalidOperationException($"The date {date:dd/MM/yyyy} falls within a closed financial period. Transactions are locked.");
+        }
+
+        _periodDateToRecheck = date;
+    }
+
+    /// <summary>
+    /// Re-checks the remembered posting date immediately before commit, holding the same lock
+    /// <c>ClosePeriodAsync</c> takes. Closing therefore waits behind a posting that is already
+    /// committing, and a posting reaching this point after a close has committed rolls back.
+    /// </summary>
+    private async Task RecheckPeriodBeforeCommitAsync()
+    {
+        if (_periodDateToRecheck is not { } date) return;
+
+        await _unitOfWork.AcquireResourceLockAsync(AccountingConstants.PeriodCloseLockResource);
+
+        if (await _financialPeriodService.IsPeriodLockedAsync(date))
+        {
+            throw new InvalidOperationException(
+                $"The financial period covering {date:dd/MM/yyyy} was closed while this transaction was being saved. It has not been posted.");
         }
     }
 
@@ -51,12 +83,18 @@ public abstract class TransactionServiceBase
         try
         {
             await operation();
+            await RecheckPeriodBeforeCommitAsync();
             await _unitOfWork.CommitTransactionAsync();
         }
         catch
         {
             await _unitOfWork.RollbackTransactionAsync();
             throw;
+        }
+        finally
+        {
+            // Never let one operation's date leak into the next on this scoped instance.
+            _periodDateToRecheck = null;
         }
     }
 
@@ -69,6 +107,7 @@ public abstract class TransactionServiceBase
         try
         {
             var result = await operation();
+            await RecheckPeriodBeforeCommitAsync();
             await _unitOfWork.CommitTransactionAsync();
             return result;
         }
@@ -76,6 +115,11 @@ public abstract class TransactionServiceBase
         {
             await _unitOfWork.RollbackTransactionAsync();
             throw;
+        }
+        finally
+        {
+            // Never let one operation's date leak into the next on this scoped instance.
+            _periodDateToRecheck = null;
         }
     }
 

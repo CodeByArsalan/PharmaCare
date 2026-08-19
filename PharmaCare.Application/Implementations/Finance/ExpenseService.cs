@@ -122,6 +122,9 @@ public class ExpenseService : IExpenseService
         if (await _financialPeriodService.IsPeriodLockedAsync(expense.ExpenseDate))
             throw new InvalidOperationException("The financial period for this expense date is closed.");
 
+        // Re-checked under the close lock just before commit.
+        _periodDateToRecheck = expense.ExpenseDate;
+
         return await ExecuteInTransactionAsync(async () =>
         {
             // Fetch category to get its default expense account
@@ -188,6 +191,9 @@ public class ExpenseService : IExpenseService
             if (await _financialPeriodService.IsPeriodLockedAsync(expense.ExpenseDate))
                 throw new InvalidOperationException("The financial period for this expense date is closed.");
 
+            // Re-checked under the close lock just before commit.
+            _periodDateToRecheck = expense.ExpenseDate;
+
             // Create accounting voucher (DR: Expense, CR: Cash/Bank)
             var voucher = await CreateExpenseVoucherAsync(expense, expense.ExpenseAccount!, expense.SourceAccount!, userId);
             await _unitOfWork.SaveChangesAsync();
@@ -208,6 +214,12 @@ public class ExpenseService : IExpenseService
     {
         return await ExecuteInTransactionAsync(async () =>
         {
+            // Serialize before reading. Neither Expense nor Voucher carries a concurrency token,
+            // and the reversal is minted with a fresh voucher number, so two concurrent voids would
+            // both read Status != Void and post two reversals — overstating cash by the full
+            // amount while telling both callers they succeeded.
+            await _unitOfWork.AcquireResourceLockAsync($"expense:{expenseId}");
+
             var expense = await _expenseRepository.Query()
                 .Include(e => e.Voucher)
                     .ThenInclude(v => v!.VoucherDetails)
@@ -225,6 +237,9 @@ public class ExpenseService : IExpenseService
 
             if (await _financialPeriodService.IsPeriodLockedAsync(expense.ExpenseDate))
                 throw new InvalidOperationException("The financial period for this expense date is closed.");
+
+            // Re-checked under the close lock just before commit.
+            _periodDateToRecheck = expense.ExpenseDate;
 
             // Create reversal voucher if original voucher exists (only for Approved ones)
             if (expense.Status == TransactionStatus.Approved && expense.Voucher != null && !expense.Voucher.IsReversed)
@@ -428,12 +443,30 @@ public class ExpenseService : IExpenseService
         return await _voucherRepository.GenerateVoucherNoAsync(voucherTypeCode, _unitOfWork);
     }
 
+    /// <summary>
+    /// Posting date to re-check under the close lock just before commit. The up-front period check
+    /// runs before the transaction, so a period closed mid-flight would otherwise accept the entry.
+    /// </summary>
+    private DateTime? _periodDateToRecheck;
+
     private async Task<T> ExecuteInTransactionAsync<T>(Func<Task<T>> operation)
     {
         await _unitOfWork.BeginTransactionAsync();
         try
         {
             var result = await operation();
+
+            if (_periodDateToRecheck is { } date)
+            {
+                await _unitOfWork.AcquireResourceLockAsync(AccountingConstants.PeriodCloseLockResource);
+
+                if (await _financialPeriodService.IsPeriodLockedAsync(date))
+                {
+                    throw new InvalidOperationException(
+                        $"The financial period covering {date:dd/MM/yyyy} was closed while this transaction was being saved. It has not been posted.");
+                }
+            }
+
             await _unitOfWork.CommitTransactionAsync();
             return result;
         }
@@ -441,6 +474,11 @@ public class ExpenseService : IExpenseService
         {
             await _unitOfWork.RollbackTransactionAsync();
             throw;
+        }
+        finally
+        {
+            // Never let one operation's date leak into the next on this scoped instance.
+            _periodDateToRecheck = null;
         }
     }
 

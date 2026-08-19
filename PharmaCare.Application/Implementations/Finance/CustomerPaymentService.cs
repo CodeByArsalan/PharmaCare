@@ -52,7 +52,7 @@ public class CustomerPaymentService : BaseAccountingService, ICustomerPaymentSer
         IRepository<PaymentAllocation> paymentAllocationRepository,
         IUnitOfWork unitOfWork,
         IFinancialPeriodService financialPeriodService)
-        : base(unitOfWork, voucherRepository)
+        : base(unitOfWork, voucherRepository, financialPeriodService)
     {
         _paymentRepository = paymentRepository;
         _stockMainRepository = stockMainRepository;
@@ -262,6 +262,9 @@ public class CustomerPaymentService : BaseAccountingService, ICustomerPaymentSer
         if (await _financialPeriodService.IsPeriodLockedAsync(payment.PaymentDate))
             throw new InvalidOperationException("The financial period for this receipt date is closed.");
 
+        // Re-checked under the close lock just before commit — see BaseAccountingService.
+        TrackPeriodDate(payment.PaymentDate);
+
         return await ExecuteInTransactionAsync(async () =>
         {
             // Validate the transaction exists (include Party and their Account)
@@ -454,6 +457,9 @@ public class CustomerPaymentService : BaseAccountingService, ICustomerPaymentSer
     {
         if (await _financialPeriodService.IsPeriodLockedAsync(payment.PaymentDate))
             throw new InvalidOperationException("The financial period for this refund date is closed.");
+
+        // Re-checked under the close lock just before commit — see BaseAccountingService.
+        TrackPeriodDate(payment.PaymentDate);
 
         return await ExecuteInTransactionAsync(async () =>
         {
@@ -819,6 +825,9 @@ public class CustomerPaymentService : BaseAccountingService, ICustomerPaymentSer
             if (await _financialPeriodService.IsPeriodLockedAsync(receipt.PaymentDate))
                 throw new InvalidOperationException("The financial period for this receipt date is closed.");
 
+            // Re-checked under the close lock just before commit — see BaseAccountingService.
+            TrackPeriodDate(receipt.PaymentDate);
+
             receipt.IsVoided = true;
             receipt.VoidReason = reason.Trim();
             receipt.VoidedAt = AppTime.Now;
@@ -871,6 +880,9 @@ public class CustomerPaymentService : BaseAccountingService, ICustomerPaymentSer
 
             if (await _financialPeriodService.IsPeriodLockedAsync(refund.PaymentDate))
                 throw new InvalidOperationException("The financial period for this refund date is closed.");
+
+            // Re-checked under the close lock just before commit — see BaseAccountingService.
+            TrackPeriodDate(refund.PaymentDate);
 
             refund.IsVoided = true;
             refund.VoidReason = reason.Trim();

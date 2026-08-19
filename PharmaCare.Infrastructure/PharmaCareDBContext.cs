@@ -642,8 +642,8 @@ public class PharmaCareDBContext : IdentityUserContext<User, int>
             entity.Property(e => e.SourceType).HasMaxLength(20);
             entity.ToTable(t =>
             {
-                t.HasCheckConstraint("CK_PaymentAllocations_Source_Valid", "[SourceType] IN ('Receipt','CreditNote','Refund')");
-                t.HasCheckConstraint("CK_PaymentAllocations_Source_NotNull", "[Payment_ID] IS NOT NULL OR [CreditNote_ID] IS NOT NULL");
+                t.HasCheckConstraint("CK_PaymentAllocations_Source_Valid", "[SourceType] IN ('Receipt','CreditNote','Refund','SupplierCredit')");
+                t.HasCheckConstraint("CK_PaymentAllocations_Source_NotNull", "[Payment_ID] IS NOT NULL OR [CreditNote_ID] IS NOT NULL OR [SupplierCreditNote_ID] IS NOT NULL");
             });
 
             entity.HasOne(e => e.Payment)
@@ -654,6 +654,11 @@ public class PharmaCareDBContext : IdentityUserContext<User, int>
             entity.HasOne(e => e.CreditNote)
                 .WithMany(c => c.PaymentAllocations)
                 .HasForeignKey(e => e.CreditNote_ID)
+                .OnDelete(DeleteBehavior.Cascade);
+
+            entity.HasOne(e => e.SupplierCreditNote)
+                .WithMany()
+                .HasForeignKey(e => e.SupplierCreditNote_ID)
                 .OnDelete(DeleteBehavior.Cascade);
 
             entity.HasOne(e => e.StockMain)

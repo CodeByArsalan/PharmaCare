@@ -37,6 +37,7 @@ public class CustomerPaymentController : BaseController
     [LinkedToPage("CustomerPayment", "ReceiptsIndex")]
     public async Task<IActionResult> ReceiptsIndex(int? customerId, DateTime? fromDate, DateTime? toDate, int page = 1, int pageSize = 25)
     {
+        page = NormalizePage(page);
         pageSize = NormalizePageSize(pageSize);
         var pagedResult = await _customerPaymentService.GetPagedCustomerReceiptsAsync(customerId, fromDate, toDate, page, pageSize);
 
@@ -52,6 +53,7 @@ public class CustomerPaymentController : BaseController
     /// Shows pending sales for receipt collection.
     public async Task<IActionResult> PendingSales(int? customerId, DateTime? fromDate, DateTime? toDate, string? status, int page = 1, int pageSize = 25)
     {
+        page = NormalizePage(page);
         pageSize = NormalizePageSize(pageSize);
         var pagedResult = await _customerPaymentService.GetPagedPendingSalesAsync(customerId, fromDate, toDate, status, page, pageSize);
 

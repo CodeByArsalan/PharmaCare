@@ -41,6 +41,7 @@ public class PurchaseController : BaseController
 
     public async Task<IActionResult> PurchasesIndex(int? supplierId, DateTime? fromDate, DateTime? toDate, string? status, int page = 1, int pageSize = 25)
     {
+        page = NormalizePage(page);
         pageSize = NormalizePageSize(pageSize);
         var pagedResult = await _purchaseService.GetPagedAsync(supplierId, fromDate, toDate, status, page, pageSize);
 
@@ -157,6 +158,15 @@ public class PurchaseController : BaseController
             return RedirectToAction(nameof(PurchasesIndex));
         }
 
+        // The edit form always round-trips the row's concurrency token. A POST without one did not
+        // come from that form, and the service treats an absent token as "skip the check" — so
+        // accepting it here lets a client bypass optimistic concurrency by deleting a field.
+        if (request.RowVersion is not { Length: > 0 })
+        {
+            ShowMessage(MessageType.Error, "This form is out of date. Please reopen the purchase and try again.");
+            return RedirectToAction(nameof(PurchasesIndex));
+        }
+
         var existing = await _purchaseService.GetByIdAsync(request.StockMainID);
         if (existing == null)
         {
@@ -241,20 +251,22 @@ public class PurchaseController : BaseController
             return RedirectToAction(nameof(PurchasesIndex));
         }
 
-        if (string.IsNullOrWhiteSpace(voidReason))
+        if (!IsVoidReasonValid(voidReason, out var reasonError))
         {
-            ShowMessage(MessageType.Error, "Void reason is required.");
+            ShowMessage(MessageType.Error, reasonError);
             return RedirectToAction(nameof(PurchasesIndex));
         }
 
-        var result = await _purchaseService.VoidAsync(purchaseId, voidReason, CurrentUserId);
-        if (result)
+        try
         {
-            ShowMessage(MessageType.Success, "Purchase voided successfully!");
+            var result = await _purchaseService.VoidAsync(purchaseId, voidReason.Trim(), CurrentUserId);
+            ShowMessage(result ? MessageType.Success : MessageType.Error,
+                result ? "Purchase voided successfully!" : "Failed to void Purchase.");
         }
-        else
+        catch (Exception ex)
         {
-            ShowMessage(MessageType.Error, "Failed to void Purchase.");
+            // Stock already sold on, active returns, and closed periods all throw here.
+            ShowMessage(MessageType.Error, SafeErrorMessage(ex, "Voiding purchase"));
         }
 
         return RedirectToAction(nameof(PurchasesIndex));

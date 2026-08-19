@@ -122,7 +122,15 @@ public class RoleController : BaseController
     [ValidateAntiForgeryToken]
     public async Task<IActionResult> SavePermissions(int roleId, List<RolePagePermissionDTO> permissions)
     {
-        await _roleService.UpdatePermissionsAsync(roleId, permissions);
+        // roleId arrives raw from the form. UpdatePermissionsAsync refuses a role this pharmacy
+        // does not own, so report that outcome rather than always claiming success.
+        var saved = await _roleService.UpdatePermissionsAsync(roleId, permissions);
+        if (!saved)
+        {
+            ShowMessage(MessageType.Error, "Role not found.");
+            return RedirectToAction("RolesIndex");
+        }
+
         ShowMessage(MessageType.Success, "Permissions saved successfully!");
         return RedirectToAction("RolesIndex");
     }

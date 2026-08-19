@@ -4,6 +4,9 @@ using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
 using PharmaCare.Application.Implementations.Accounting;
+using PharmaCare.Application.Implementations.Security;
+using PharmaCare.Application.Interfaces.Security;
+using PharmaCare.Infrastructure.Implementations.Security;
 using PharmaCare.Application.Implementations.Configuration;
 using PharmaCare.Application.Implementations.Finance;
 using PharmaCare.Application.Implementations.Logging;
@@ -54,8 +57,10 @@ public sealed class DatabaseFixture : IAsyncLifetime
     {
         // Override for a different server/instance with PHARMACARE_TEST_SQL.
         var server = Environment.GetEnvironmentVariable("PHARMACARE_TEST_SQL") ?? DefaultServer;
-        ConnectionString = $"{server};Database=PharmaCareDB_IntegrationTests";
-        LogConnectionString = $"{server};Database=PharmaCareDB_IntegrationTests_Log";
+        // Optional suffix so parallel checkouts can run against separate databases.
+        var suffix = Environment.GetEnvironmentVariable("PHARMACARE_TEST_DB_SUFFIX");
+        ConnectionString = $"{server};Database=PharmaCareDB_IntegrationTests{suffix}";
+        LogConnectionString = $"{server};Database=PharmaCareDB_IntegrationTests{suffix}_Log";
     }
 
     public async Task InitializeAsync()
@@ -100,6 +105,14 @@ public sealed class DatabaseFixture : IAsyncLifetime
         services.AddScoped<IActivityLogRepository, ActivityLogRepository>();
         services.AddScoped<IActivityLogService, ActivityLogService>();
         services.AddScoped<ISessionService, TestSessionService>();
+
+        services.AddScoped<IUserManager, UserManagerAdapter>();
+        services.AddScoped<IUserRoleRepository, UserRoleRepository>();
+        services.AddScoped<IRoleRepository, RoleRepository>();
+        services.AddScoped<IRolePageRepository, RolePageRepository>();
+        services.AddScoped<IPageRepository, PageRepository>();
+        services.AddScoped<IUserService, UserService>();
+        services.AddScoped<IRoleService, RoleService>();
 
         services.AddScoped<ICategoryService, CategoryService>();
         services.AddScoped<ISubCategoryService, SubCategoryService>();

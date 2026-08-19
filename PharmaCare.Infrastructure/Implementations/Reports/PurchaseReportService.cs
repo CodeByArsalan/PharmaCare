@@ -41,7 +41,10 @@ public class PurchaseReportService : IPurchaseReportService
                 Discount = PurchaseReturnCodes.Contains(s.TransactionType!.Code) ? -s.DiscountAmount : s.DiscountAmount,
                 TotalAmount = PurchaseReturnCodes.Contains(s.TransactionType!.Code) ? -s.TotalAmount : s.TotalAmount,
                 PaidAmount = PurchaseReturnCodes.Contains(s.TransactionType!.Code) ? -s.PaidAmount : s.PaidAmount,
-                BalanceAmount = PurchaseReturnCodes.Contains(s.TransactionType!.Code) ? -s.BalanceAmount : s.BalanceAmount,
+                // A return carries no payable of its own: PurchaseReturnService already subtracts it
+                // from the referenced GRN's BalanceAmount. Negating the return's own balance here
+                // would deduct the same credit twice and understate what is still owed to suppliers.
+                BalanceAmount = PurchaseReturnCodes.Contains(s.TransactionType!.Code) ? 0m : s.BalanceAmount,
                 Status = PurchaseReturnCodes.Contains(s.TransactionType!.Code) ? "Return" : s.Status
             })
             .ToListAsync();

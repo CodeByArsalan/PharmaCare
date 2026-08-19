@@ -1,6 +1,7 @@
 using Microsoft.EntityFrameworkCore;
 using PharmaCare.Application.Interfaces;
 using PharmaCare.Application.Interfaces.Accounting;
+using PharmaCare.Application.Utilities;
 using PharmaCare.Domain.Entities.Accounting;
 
 namespace PharmaCare.Application.Implementations.Accounting;
@@ -66,19 +67,38 @@ public class FinancialPeriodService : IFinancialPeriodService
 
     public async Task<bool> ClosePeriodAsync(int periodId, string? remarks, int userId)
     {
-        var period = await _periodRepository.GetByIdAsync(periodId);
-        if (period == null) return false;
+        await _unitOfWork.BeginTransactionAsync();
+        try
+        {
+            // Postings take this same lock for the span between their final period check and their
+            // commit. Waiting on it here means a transaction already on its way to the ledger
+            // finishes first, instead of landing in a period this call has just marked closed.
+            await _unitOfWork.AcquireResourceLockAsync(AccountingConstants.PeriodCloseLockResource);
 
-        period.IsClosed = true;
-        period.ClosedAt = AppTime.Now;
-        period.ClosedBy = userId;
-        period.Remarks = remarks;
-        period.UpdatedAt = AppTime.Now;
-        period.UpdatedBy = userId;
+            var period = await _periodRepository.GetByIdAsync(periodId);
+            if (period == null)
+            {
+                await _unitOfWork.RollbackTransactionAsync();
+                return false;
+            }
 
-        _periodRepository.Update(period);
-        await _unitOfWork.SaveChangesAsync();
-        return true;
+            period.IsClosed = true;
+            period.ClosedAt = AppTime.Now;
+            period.ClosedBy = userId;
+            period.Remarks = remarks;
+            period.UpdatedAt = AppTime.Now;
+            period.UpdatedBy = userId;
+
+            _periodRepository.Update(period);
+            await _unitOfWork.SaveChangesAsync();
+            await _unitOfWork.CommitTransactionAsync();
+            return true;
+        }
+        catch
+        {
+            await _unitOfWork.RollbackTransactionAsync();
+            throw;
+        }
     }
 
     public async Task<bool> OpenPeriodAsync(int periodId, int userId)

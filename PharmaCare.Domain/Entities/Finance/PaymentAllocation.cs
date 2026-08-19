@@ -24,6 +24,14 @@ public class PaymentAllocation : BaseEntity, ITenantEntity
     public int? CreditNote_ID { get; set; }
     public CreditNote? CreditNote { get; set; }
 
+    /// <summary>
+    /// Supplier credit note consumed by this allocation. Recorded so that voiding or editing the
+    /// GRN can hand the credit back instead of destroying it.
+    /// </summary>
+    [ForeignKey("SupplierCreditNote")]
+    public int? SupplierCreditNote_ID { get; set; }
+    public SupplierCreditNote? SupplierCreditNote { get; set; }
+
     [ForeignKey("StockMain")]
     public int StockMain_ID { get; set; }
     public StockMain? StockMain { get; set; }

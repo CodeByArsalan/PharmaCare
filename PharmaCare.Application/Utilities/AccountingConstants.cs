@@ -18,4 +18,11 @@ public static class AccountingConstants
 
     /// <summary>Sanity cap on a single transaction/voucher amount (100 million).</summary>
     public const decimal MaxTransactionAmount = 100_000_000m;
+
+    /// <summary>
+    /// Lock resource shared by period closing and the pre-commit period re-check every posting
+    /// performs. Closing waits for postings that are already committing, and a posting that starts
+    /// its re-check after a close has committed sees the period as closed and rolls back.
+    /// </summary>
+    public const string PeriodCloseLockResource = "financial-period-close";
 }

@@ -128,6 +128,41 @@ public abstract class BaseController : Controller
         pageSize is 10 or 25 or 50 or 100 ? pageSize : 25;
 
     /// <summary>
+    /// Clamps a user-supplied page number to 1 or greater. Paging queries compute their offset as
+    /// (page - 1) * pageSize, so a zero or negative page reaches SQL as a negative OFFSET and the
+    /// request fails with a SqlException.
+    /// </summary>
+    protected static int NormalizePage(int page) => page < 1 ? 1 : page;
+
+    /// <summary>
+    /// Longest void/reversal reason the database can store (the columns are nvarchar(500)).
+    /// </summary>
+    protected const int MaxVoidReasonLength = 500;
+
+    /// <summary>
+    /// Validates a void/reversal reason, returning false and setting <paramref name="error"/> when
+    /// it is missing or longer than the column allows. Without the length check an over-long reason
+    /// reaches SQL Server and surfaces as a raw truncation error.
+    /// </summary>
+    protected static bool IsVoidReasonValid(string? voidReason, out string error)
+    {
+        if (string.IsNullOrWhiteSpace(voidReason))
+        {
+            error = "A reason is required.";
+            return false;
+        }
+
+        if (voidReason.Trim().Length > MaxVoidReasonLength)
+        {
+            error = $"The reason is too long — please keep it to {MaxVoidReasonLength} characters or fewer.";
+            return false;
+        }
+
+        error = string.Empty;
+        return true;
+    }
+
+    /// <summary>
     /// Gets a SelectList for parties (Suppliers, Customers, or Both).
     /// </summary>
     protected async Task<SelectList> GetPartySelectListAsync(IPartyService partyService, string partyType, int? selectedId = null)

@@ -314,3 +314,7 @@ app.MapRazorPages();
 await PharmaCare.Infrastructure.Implementations.Tenancy.DbInitializer.InitializeAsync(app.Services);
 
 app.Run();
+
+// Exposed so the in-process HTTP test harness (WebApplicationFactory<Program>) can boot this app.
+// Testability-only: adds no behavior to the running application.
+public partial class Program { }

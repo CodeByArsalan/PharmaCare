@@ -149,7 +149,10 @@ public class SalesReportService : ISalesReportService
                 Discount = s.DiscountAmount * multiplier,
                 TotalAmount = s.TotalAmount * multiplier,
                 PaidAmount = s.PaidAmount * multiplier,
-                BalanceAmount = s.BalanceAmount * multiplier,
+                // A return carries no receivable of its own: SaleReturnService already subtracts it
+                // from the referenced sale's BalanceAmount. Negating the return's own balance here
+                // would deduct the same credit twice and understate what customers still owe.
+                BalanceAmount = isReturn ? 0m : s.BalanceAmount,
                 Status = isReturn ? "Return" : s.Status
             };
         })
@@ -196,7 +199,12 @@ public class SalesReportService : ISalesReportService
                 CategoryName = g.Key.CategoryName,
                 Code = g.Key.TransactionCode,
                 Quantity = g.Sum(d => d.Quantity),
-                Revenue = g.Sum(d => d.LineTotal),
+                // LineTotal is net of line discounts but gross of the header discount, which is
+                // only ever applied at header level. Apportion it pro-rata by line value, or this
+                // report credits each product with revenue the customer never paid.
+                Revenue = g.Sum(d => d.StockMain!.SubTotal == 0
+                    ? d.LineTotal
+                    : d.LineTotal - (d.LineTotal * d.StockMain.DiscountAmount / d.StockMain.SubTotal)),
                 Cost = g.Sum(d => d.LineCost)
             })
             .ToListAsync();
@@ -286,6 +294,10 @@ public class SalesReportService : ISalesReportService
     
     public async Task<CustomerBalanceSummaryVM> GetCustomerBalanceSummaryAsync(DateTime asOfDate)
     {
+        // "As of" means the close of that day. Rows carry a time of day, so comparing against a
+        // midnight asOfDate would exclude everything transacted during the day being reported on.
+        var cutoff = asOfDate.Date.AddDays(1);
+
         var customers = await _db.Parties
             .AsNoTracking()
             .Where(p => p.PartyType == "Customer" && p.IsActive)
@@ -301,7 +313,7 @@ public class SalesReportService : ISalesReportService
         var salesByCustomer = await _db.StockMains
             .AsNoTracking()
             .Where(s => SaleCodes.Contains(s.TransactionType!.Code)
-                        && s.TransactionDate <= asOfDate
+                        && s.TransactionDate < cutoff
                         && s.Status != "Void"
                         && s.Party_ID != null)
             .GroupBy(s => s.Party_ID!.Value)
@@ -312,12 +324,28 @@ public class SalesReportService : ISalesReportService
             })
             .ToListAsync();
 
+        // Returned goods are no longer owed for. Without this the summary contradicts the
+        // receivables aging, which reads the sale's already-netted BalanceAmount.
+        var returnsByCustomer = await _db.StockMains
+            .AsNoTracking()
+            .Where(s => SaleReturnCodes.Contains(s.TransactionType!.Code)
+                        && s.TransactionDate < cutoff
+                        && s.Status != "Void"
+                        && s.Party_ID != null)
+            .GroupBy(s => s.Party_ID!.Value)
+            .Select(g => new
+            {
+                PartyId = g.Key,
+                TotalReturns = g.Sum(s => s.TotalAmount)
+            })
+            .ToListAsync();
+
         // Voided receipts were never collected — counting them would understate what the
         // customer still owes (and wrongly clear them against their credit limit).
         var receiptsByCustomer = await _db.Payments
             .AsNoTracking()
             .Where(p => p.PaymentType == PaymentType.RECEIPT.ToString()
-                        && p.PaymentDate <= asOfDate
+                        && p.PaymentDate < cutoff
                         && !p.IsVoided)
             .GroupBy(p => p.Party_ID)
             .Select(g => new
@@ -327,14 +355,36 @@ public class SalesReportService : ISalesReportService
             })
             .ToListAsync();
 
+        // Cash handed back to the customer cancels credit we owed them, so it offsets receipts.
+        var refundsByCustomer = await _db.Payments
+            .AsNoTracking()
+            .Where(p => p.PaymentType == PaymentType.REFUND.ToString()
+                        && p.PaymentDate < cutoff
+                        && !p.IsVoided)
+            .GroupBy(p => p.Party_ID)
+            .Select(g => new
+            {
+                PartyId = g.Key,
+                TotalRefunds = g.Sum(p => p.Amount)
+            })
+            .ToListAsync();
+
         var salesLookup = salesByCustomer.ToDictionary(x => x.PartyId, x => x.TotalSales);
+        var returnsLookup = returnsByCustomer.ToDictionary(x => x.PartyId, x => x.TotalReturns);
         var receiptsLookup = receiptsByCustomer.ToDictionary(x => x.PartyId, x => x.TotalReceipts);
+        var refundsLookup = refundsByCustomer.ToDictionary(x => x.PartyId, x => x.TotalRefunds);
 
         var rows = customers.Select(c =>
         {
-            var totalSales = salesLookup.TryGetValue(c.PartyID, out var salesTotal) ? salesTotal : 0;
+            var grossSales = salesLookup.TryGetValue(c.PartyID, out var salesTotal) ? salesTotal : 0;
+            var returns = returnsLookup.TryGetValue(c.PartyID, out var returnTotal) ? returnTotal : 0;
+            var totalSales = grossSales - returns;
+
             // Single source of truth for cash collections: normalized Payment events.
-            var totalReceipts = receiptsLookup.TryGetValue(c.PartyID, out var receiptTotal) ? receiptTotal : 0;
+            var receipts = receiptsLookup.TryGetValue(c.PartyID, out var receiptTotal) ? receiptTotal : 0;
+            var refunds = refundsLookup.TryGetValue(c.PartyID, out var refundTotal) ? refundTotal : 0;
+            var totalReceipts = receipts - refunds;
+
             var balance = totalSales - totalReceipts + c.OpeningBalance;
 
             return new CustomerBalanceRow

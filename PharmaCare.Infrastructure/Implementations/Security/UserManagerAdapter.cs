@@ -34,6 +34,35 @@ public class UserManagerAdapter : IUserManager
         return await _userManager.FindByIdAsync(id.ToString());
     }
 
+    public async Task<User?> FindByEmailAsync(string email)
+    {
+        return await _userManager.FindByEmailAsync(email);
+    }
+
+    public async Task<(bool Succeeded, IEnumerable<string> Errors)> SetEmailAndUserNameAsync(User user, string newEmail)
+    {
+        // Compare against the NORMALIZED column, not user.Email: callers hand us the tracked
+        // entity, whose Email property they may already have overwritten with the new address.
+        // The normalized columns are the only ones still holding what is actually persisted —
+        // and they are what login resolves against.
+        var normalizedEmail = _userManager.NormalizeEmail(newEmail);
+        if (string.Equals(user.NormalizedEmail, normalizedEmail, StringComparison.Ordinal))
+        {
+            return (true, Array.Empty<string>());
+        }
+
+        // Both setters go through Identity so the normalized columns are recomputed, and each
+        // runs the configured validators (including the unique-email rule).
+        var userNameResult = await _userManager.SetUserNameAsync(user, newEmail);
+        if (!userNameResult.Succeeded)
+        {
+            return (false, userNameResult.Errors.Select(e => e.Description));
+        }
+
+        var emailResult = await _userManager.SetEmailAsync(user, newEmail);
+        return (emailResult.Succeeded, emailResult.Errors.Select(e => e.Description));
+    }
+
     public async Task UpdateSecurityStampAsync(User user)
     {
         await _userManager.UpdateSecurityStampAsync(user);

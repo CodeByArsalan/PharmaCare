@@ -36,6 +36,7 @@ public class PurchaseOrderController : BaseController
 
     public async Task<IActionResult> PurchaseOrdersIndex(int? supplierId, string? status, int page = 1, int pageSize = 25)
     {
+        page = NormalizePage(page);
         pageSize = NormalizePageSize(pageSize);
         var pagedResult = await _purchaseOrderService.GetPagedAsync(supplierId, status, page, pageSize);
 

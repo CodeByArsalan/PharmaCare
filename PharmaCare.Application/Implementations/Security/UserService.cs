@@ -72,6 +72,9 @@ public class UserService : IUserService
             return (false, "No pharmacy in context.");
         }
 
+        if (!await RolesBelongToCurrentPharmacyAsync(roleIds))
+            return (false, "One or more selected roles do not belong to this pharmacy.");
+
         user.UserName = user.Email;
         user.CreatedAt = AppTime.Now;
         user.CreatedBy = createdBy;
@@ -106,13 +109,30 @@ public class UserService : IUserService
         if (existingUser == null || existingUser.Pharmacy_ID != _currentTenant.TenantId)
             return (false, "User not found");
 
+        if (!await RolesBelongToCurrentPharmacyAsync(roleIds))
+            return (false, "One or more selected roles do not belong to this pharmacy.");
+
         // Update user properties
         existingUser.FullName = user.FullName;
-        existingUser.Email = user.Email;
-        existingUser.UserName = user.Email;
         existingUser.PhoneNumber = user.PhoneNumber;
         existingUser.UpdatedAt = AppTime.Now;
         existingUser.UpdatedBy = updatedBy;
+
+        var newEmail = user.Email?.Trim() ?? string.Empty;
+        if (string.IsNullOrWhiteSpace(newEmail))
+            return (false, "Email is required.");
+
+        // Identity enforces unique emails on create; the same rule has to hold on edit, or two
+        // users end up sharing a login address. Resolving by email hits the normalized column, so
+        // this finds the user who actually owns the address today — including this one, unchanged.
+        var conflict = await _userManager.FindByEmailAsync(newEmail);
+        if (conflict != null && conflict.Id != existingUser.Id)
+            return (false, "That email address is already in use by another user.");
+
+        // No-ops when the address is unchanged; otherwise rewrites both normalized columns.
+        var emailResult = await _userManager.SetEmailAndUserNameAsync(existingUser, newEmail);
+        if (!emailResult.Succeeded)
+            return (false, string.Join(", ", emailResult.Errors));
 
         // Update password if provided
         if (!string.IsNullOrEmpty(newPassword))
@@ -164,6 +184,23 @@ public class UserService : IUserService
     public async Task<List<Role>> GetRolesForDropdownAsync()
     {
         return await _roleRepository.GetActiveRolesAsync();
+    }
+
+    /// <summary>
+    /// Confirms every requested role is one of this pharmacy's own. Role ids arrive from the user
+    /// form, so without this a caller can name another pharmacy's role id and have it linked to
+    /// their user.
+    /// </summary>
+    private async Task<bool> RolesBelongToCurrentPharmacyAsync(List<int> roleIds)
+    {
+        if (roleIds is null || roleIds.Count == 0)
+            return true;
+
+        var requested = roleIds.Distinct().ToList();
+        var visible = await _roleRepository.Query()
+            .CountAsync(r => requested.Contains(r.RoleID));
+
+        return visible == requested.Count;
     }
 }
 

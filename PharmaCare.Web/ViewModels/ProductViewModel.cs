@@ -15,8 +15,11 @@ public class ProductViewModel : Product
     /// </summary>
     public int OpeningStockUnits { get; set; }
     
-    // Shadows the base property so new products default to active on the Add form.
-    public new bool IsActive { get; set; } = true;
+    // No IsActive here on purpose. Shadowing it with `new` meant the model binder filled the
+    // derived property while ProductService.UpdateAsync read the inherited one — which, defaulting
+    // to true, silently reactivated every product that was edited. Active status is owned solely
+    // by the ToggleStatus endpoint; the inherited BaseEntityWithStatus.IsActive already defaults
+    // to true for new products.
 
     public List<ProductPriceDto> ProductPrices { get; set; } = new();
 }

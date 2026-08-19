@@ -1,3 +1,4 @@
+using Microsoft.EntityFrameworkCore;
 using PharmaCare.Application.DTOs.Security;
 using PharmaCare.Application.Interfaces;
 using PharmaCare.Application.Interfaces.Security;
@@ -34,7 +35,17 @@ public class RoleService : IRoleService
 
     public async Task<Role?> GetRoleByIdAsync(int id)
     {
-        return await _roleRepository.GetByIdAsync(id);
+        return await GetOwnedRoleAsync(id);
+    }
+
+    /// <summary>
+    /// Resolves a role id to one of THIS pharmacy's roles, or null. Role ids reach these methods
+    /// straight from the client with no ownership check upstream, so the lookup must stay
+    /// tenant-scoped — this states that requirement locally rather than resting on the repository.
+    /// </summary>
+    private async Task<Role?> GetOwnedRoleAsync(int id)
+    {
+        return await _roleRepository.Query().FirstOrDefaultAsync(r => r.RoleID == id);
     }
 
     public async Task<bool> CreateRoleAsync(Role role, int createdBy)
@@ -50,7 +61,7 @@ public class RoleService : IRoleService
 
     public async Task<bool> UpdateRoleAsync(Role role, int updatedBy)
     {
-        var existingRole = await _roleRepository.GetByIdAsync(role.RoleID);
+        var existingRole = await GetOwnedRoleAsync(role.RoleID);
         if (existingRole == null) return false;
 
         existingRole.Name = role.Name;
@@ -64,7 +75,7 @@ public class RoleService : IRoleService
 
     public async Task<bool> ToggleRoleStatusAsync(int id, int updatedBy)
     {
-        var role = await _roleRepository.GetByIdAsync(id);
+        var role = await GetOwnedRoleAsync(id);
         if (role == null || role.IsSystemRole) return false;
 
         role.IsActive = !role.IsActive;
@@ -114,6 +125,12 @@ public class RoleService : IRoleService
 
     public async Task<bool> UpdatePermissionsAsync(int roleId, List<RolePagePermissionDTO> permissions)
     {
+        // The role id arrives unencrypted from the permissions form with no ownership check upstream.
+        // Writing straight through would stamp RolePage rows for this pharmacy that point at another
+        // pharmacy's role.
+        if (await GetOwnedRoleAsync(roleId) is null)
+            return false;
+
         // Get existing permissions
         var existingPermissions = await _rolePageRepository.GetPermissionsByRoleIdAsync(roleId);
 
