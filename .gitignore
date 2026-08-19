@@ -33,6 +33,12 @@ bld/
 [Ll]og/
 [Ll]ogs/
 
+# ...but the LogDbContext migrations are source, not logs. The pattern above silently swallowed
+# them, so a fresh clone built an audit-log database with no tables and every write that logs
+# activity failed. Keep this exception ahead of any new migration added to that folder.
+!PharmaCare.Infrastructure/Migrations/Log/
+!PharmaCare.Infrastructure/Migrations/Log/**
+
 # Visual Studio 2015/2017 cache/options directory
 .vs/
 # Uncomment if you have tasks that create the project's static files in wwwroot

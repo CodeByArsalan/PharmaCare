@@ -28,18 +28,22 @@ namespace PharmaCare.WebTests;
 /// </summary>
 public sealed class PharmaCareWebFactory : WebApplicationFactory<Program>
 {
-    private const string SqlServer = "Server=Arsalan-NSD;Trusted_Connection=True;Encrypt=false";
+    private const string DefaultSqlServer = "Server=Arsalan-NSD;Trusted_Connection=True;Encrypt=false";
 
     public string ConnectionString { get; }
     public string LogConnectionString { get; }
 
     public PharmaCareWebFactory()
     {
+        // Same override as PharmaCare.IntegrationTests' DatabaseFixture: without it these tests only
+        // run on the machine whose server name is baked in above.
+        var sqlServer = Environment.GetEnvironmentVariable("PHARMACARE_TEST_SQL") ?? DefaultSqlServer;
+
         // Dedicated web-test databases, never the shared integration ones. A suffix keeps parallel
         // runs apart (the "web" auditor runs with PHARMACARE_TEST_DB_SUFFIX=_WEB).
         var suffix = Environment.GetEnvironmentVariable("PHARMACARE_TEST_DB_SUFFIX") ?? string.Empty;
-        ConnectionString = $"{SqlServer};Database=PharmaCareDB_WebTests{suffix}";
-        LogConnectionString = $"{SqlServer};Database=PharmaCareDB_WebTests{suffix}_Log";
+        ConnectionString = $"{sqlServer};Database=PharmaCareDB_WebTests{suffix}";
+        LogConnectionString = $"{sqlServer};Database=PharmaCareDB_WebTests{suffix}_Log";
 
         // Program.cs reads the connection strings at WebApplication.CreateBuilder time, before any
         // WebApplicationFactory ConfigureAppConfiguration hook can layer on top (appsettings.json

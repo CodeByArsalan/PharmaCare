@@ -98,10 +98,16 @@ Prerequisites: .NET 8.0 SDK, SQL Server.
    `PlatformAdmin:Email` and `PlatformAdmin:Password`. Without them it creates no account and logs
    a critical message — there are deliberately no default credentials.
 
-3. **Apply migrations:**
+3. **Apply migrations.** There are two databases, and both need their own context updated —
+   skipping the second leaves the audit log with no tables, and every write that logs activity
+   then fails with `Invalid object name 'ActivityLogs'`.
 
    ```bash
    dotnet ef database update --project PharmaCare.Infrastructure --startup-project PharmaCare.Web --context PharmaCareDBContext
+   ```
+
+   ```bash
+   dotnet ef database update --project PharmaCare.Infrastructure --startup-project PharmaCare.Web --context LogDbContext
    ```
 
 4. **Run:**
