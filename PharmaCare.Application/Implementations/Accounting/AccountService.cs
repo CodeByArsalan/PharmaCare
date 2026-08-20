@@ -3,6 +3,9 @@ using PharmaCare.Application.Interfaces;
 using PharmaCare.Application.Utilities;
 using PharmaCare.Application.Interfaces.Accounting;
 using PharmaCare.Domain.Entities.Accounting;
+using PharmaCare.Domain.Entities.Configuration;
+using PharmaCare.Domain.Entities.Finance;
+using PharmaCare.Domain.Entities.Transactions;
 
 namespace PharmaCare.Application.Implementations.Accounting;
 
@@ -12,6 +15,10 @@ public class AccountService : IAccountService
     private readonly IRepository<AccountSubhead> _subheadRepository;
     private readonly IRepository<AccountHead> _headRepository;
     private readonly IRepository<AccountType> _typeRepository;
+    private readonly IRepository<VoucherDetail> _voucherDetailRepository;
+    private readonly IRepository<Category> _categoryRepository;
+    private readonly IRepository<Party> _partyRepository;
+    private readonly IRepository<ExpenseCategory> _expenseCategoryRepository;
     private readonly IUnitOfWork _unitOfWork;
 
     public AccountService(
@@ -19,12 +26,20 @@ public class AccountService : IAccountService
         IRepository<AccountSubhead> subheadRepository,
         IRepository<AccountHead> headRepository,
         IRepository<AccountType> typeRepository,
+        IRepository<VoucherDetail> voucherDetailRepository,
+        IRepository<Category> categoryRepository,
+        IRepository<Party> partyRepository,
+        IRepository<ExpenseCategory> expenseCategoryRepository,
         IUnitOfWork unitOfWork)
     {
         _repository = repository;
         _subheadRepository = subheadRepository;
         _headRepository = headRepository;
         _typeRepository = typeRepository;
+        _voucherDetailRepository = voucherDetailRepository;
+        _categoryRepository = categoryRepository;
+        _partyRepository = partyRepository;
+        _expenseCategoryRepository = expenseCategoryRepository;
         _unitOfWork = unitOfWork;
     }
 
@@ -63,16 +78,64 @@ public class AccountService : IAccountService
         var existing = await _repository.FirstOrDefaultAsync(a => a.AccountID == account.AccountID);
         if (existing == null) return false;
 
+        // An account's CLASSIFICATION is what the rest of the system reasons about. Every
+        // "is this really cash?" gate — customer receipts, supplier payments, refunds — is a lookup
+        // on AccountType, so re-typing a receivable as CASH turns it into a valid tender account and
+        // defeats all of those at once. Its head and subhead decide where it lands on the financial
+        // statements. None of that may move once the account carries history.
+        // Read as a projection, not off `existing`: a caller that passes the tracked instance it
+        // already mutated would make the two sides of this comparison the same object, and the
+        // guard would never fire.
+        var stored = await _repository.Query()
+            .AsNoTracking()
+            .Where(a => a.AccountID == account.AccountID)
+            .Select(a => new { a.AccountType_ID, a.AccountHead_ID, a.AccountSubhead_ID, a.IsSystemAccount })
+            .FirstOrDefaultAsync();
+
+        if (stored == null) return false;
+
+        var classificationChanged =
+            stored.AccountType_ID != account.AccountType_ID ||
+            stored.AccountHead_ID != account.AccountHead_ID ||
+            stored.AccountSubhead_ID != account.AccountSubhead_ID;
+
+        if (classificationChanged)
+        {
+            if (stored.IsSystemAccount)
+            {
+                throw new InvalidOperationException(
+                    $"'{existing.Name}' is a system account. Its classification is fixed because the " +
+                    "posting engine resolves it by type.");
+            }
+
+            if (await IsPartyLedgerAccountAsync(existing.AccountID))
+            {
+                throw new InvalidOperationException(
+                    $"'{existing.Name}' is the ledger account of a customer or supplier. Its " +
+                    "classification is owned by that party's type, not by this screen.");
+            }
+
+            if (await HasPostedEntriesAsync(existing.AccountID))
+            {
+                throw new InvalidOperationException(
+                    $"'{existing.Name}' already has posted entries, so it cannot be reclassified — " +
+                    "every report covering those entries would change retrospectively. " +
+                    "Create a new account under the correct classification instead.");
+            }
+        }
 
         existing.Name = account.Name;
         existing.AccountHead_ID = account.AccountHead_ID;
         existing.AccountSubhead_ID = account.AccountSubhead_ID;
         existing.AccountType_ID = account.AccountType_ID;
-        existing.IsSystemAccount = account.IsSystemAccount;
-        // Don't update IsActive here, usually separate Toggle, but standard UI might have checkbox. 
-        // Based on CategoryService, UpdateAsync includes IsActive update.
-        existing.IsActive = account.IsActive; 
-        
+        // IsSystemAccount is RESTORED to its stored value rather than merely "not copied". It is the
+        // flag that protects the provisioned chart of accounts from exactly the edits guarded
+        // above, so the edit form must not be able to grant or revoke it. Simply omitting the
+        // assignment is not enough: when the caller hands us the tracked entity it has already
+        // written to, the change is sitting in the change tracker and SaveChanges would persist it.
+        existing.IsSystemAccount = stored.IsSystemAccount;
+        existing.IsActive = account.IsActive;
+
         existing.UpdatedAt = AppTime.Now;
         existing.UpdatedBy = userId;
 
@@ -86,6 +149,26 @@ public class AccountService : IAccountService
         var account = await _repository.FirstOrDefaultAsync(a => a.AccountID == id);
         if (account == null) return false;
 
+        // Deactivating is only ever meant to retire an account nothing points at any more. Master
+        // data still referencing it keeps right on posting — the postings do not check IsActive —
+        // so the balance stays live while disappearing from every screen that filters on it.
+        if (account.IsActive)
+        {
+            if (account.IsSystemAccount)
+            {
+                throw new InvalidOperationException(
+                    $"'{account.Name}' is a system account and cannot be deactivated.");
+            }
+
+            var user = await DescribeReferenceAsync(id);
+            if (user != null)
+            {
+                throw new InvalidOperationException(
+                    $"'{account.Name}' cannot be deactivated because {user} still posts to it. " +
+                    "Re-point that first.");
+            }
+        }
+
         account.IsActive = !account.IsActive;
         account.UpdatedAt = AppTime.Now;
         account.UpdatedBy = userId;
@@ -93,6 +176,40 @@ public class AccountService : IAccountService
         _repository.Update(account);
         await _unitOfWork.SaveChangesAsync();
         return true;
+    }
+
+    private Task<bool> HasPostedEntriesAsync(int accountId)
+        => _voucherDetailRepository.Query().AsNoTracking()
+            .AnyAsync(d => d.Account_ID == accountId);
+
+    private Task<bool> IsPartyLedgerAccountAsync(int accountId)
+        => _partyRepository.Query().AsNoTracking()
+            .AnyAsync(p => p.Account_ID == accountId);
+
+    /// <summary>
+    /// Names the master data still pointing at this account, or null when nothing does.
+    /// </summary>
+    private async Task<string?> DescribeReferenceAsync(int accountId)
+    {
+        var category = await _categoryRepository.Query().AsNoTracking()
+            .FirstOrDefaultAsync(c => c.SaleAccount_ID == accountId
+                                   || c.StockAccount_ID == accountId
+                                   || c.COGSAccount_ID == accountId
+                                   || c.DamageAccount_ID == accountId);
+        if (category != null)
+            return $"the category '{category.Name}'";
+
+        var party = await _partyRepository.Query().AsNoTracking()
+            .FirstOrDefaultAsync(p => p.Account_ID == accountId);
+        if (party != null)
+            return $"the {party.PartyType.ToLowerInvariant()} '{party.Name}'";
+
+        var expenseCategory = await _expenseCategoryRepository.Query().AsNoTracking()
+            .FirstOrDefaultAsync(e => e.DefaultExpenseAccount_ID == accountId);
+        if (expenseCategory != null)
+            return $"the expense category '{expenseCategory.Name}'";
+
+        return null;
     }
 
     public async Task<IEnumerable<AccountSubhead>> GetSubHeadsForDropdownAsync()

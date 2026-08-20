@@ -2,6 +2,7 @@ using Microsoft.EntityFrameworkCore;
 using PharmaCare.Application.Interfaces;
 using PharmaCare.Domain.Entities.Configuration;
 using PharmaCare.Domain.Entities.Accounting;
+using PharmaCare.Domain.Entities.Transactions;
 using PharmaCare.Application.Interfaces.Configuration;
 
 namespace PharmaCare.Application.Implementations.Configuration;
@@ -13,15 +14,18 @@ public class CategoryService : ICategoryService
 {
     private readonly IRepository<Category> _repository;
     private readonly IRepository<Account> _accountRepository;
+    private readonly IRepository<StockDetail> _stockDetailRepository;
     private readonly IUnitOfWork _unitOfWork;
 
     public CategoryService(
         IRepository<Category> repository,
         IRepository<Account> accountRepository,
+        IRepository<StockDetail> stockDetailRepository,
         IUnitOfWork unitOfWork)
     {
         _repository = repository;
         _accountRepository = accountRepository;
+        _stockDetailRepository = stockDetailRepository;
         _unitOfWork = unitOfWork;
     }
 
@@ -59,6 +63,35 @@ public class CategoryService : ICategoryService
         if (existing == null)
             return false;
 
+        // These four accounts ARE the category's posting instructions. Stock already received under
+        // this category was debited to the current stock account; if the account is re-pointed, the
+        // eventual sale credits a different one and the original balance is stranded on the balance
+        // sheet with no document that can ever clear it. Same argument for revenue, COGS and damage.
+        // Read as a projection, not off `existing`: a caller that passes the tracked instance it
+        // already mutated would make the two sides of this comparison the same object.
+        var stored = await _repository.Query()
+            .AsNoTracking()
+            .Where(c => c.CategoryID == category.CategoryID)
+            .Select(c => new { c.SaleAccount_ID, c.StockAccount_ID, c.COGSAccount_ID, c.DamageAccount_ID })
+            .FirstOrDefaultAsync();
+
+        if (stored == null)
+            return false;
+
+        var accountsChanged =
+            stored.SaleAccount_ID != category.SaleAccount_ID ||
+            stored.StockAccount_ID != category.StockAccount_ID ||
+            stored.COGSAccount_ID != category.COGSAccount_ID ||
+            stored.DamageAccount_ID != category.DamageAccount_ID;
+
+        if (accountsChanged && await HasPostedMovementAsync(category.CategoryID))
+        {
+            throw new InvalidOperationException(
+                $"The control accounts for '{existing.Name}' cannot be changed: its products have " +
+                "already posted to the current accounts, and re-pointing them would strand those " +
+                "balances. Create a new category for the new accounts instead.");
+        }
+
         existing.Name = category.Name;
         existing.SaleAccount_ID = category.SaleAccount_ID;
         existing.StockAccount_ID = category.StockAccount_ID;
@@ -89,6 +122,11 @@ public class CategoryService : ICategoryService
         
         return true;
     }
+
+    /// <summary>True when any product in this category has ever appeared on a stock document.</summary>
+    private Task<bool> HasPostedMovementAsync(int categoryId)
+        => _stockDetailRepository.Query().AsNoTracking()
+            .AnyAsync(sd => sd.Product!.Category_ID == categoryId);
 
     public async Task<IEnumerable<Account>> GetAccountsForDropdownAsync()
     {

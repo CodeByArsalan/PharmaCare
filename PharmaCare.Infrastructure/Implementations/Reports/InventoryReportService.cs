@@ -29,9 +29,24 @@ public class InventoryReportService : IInventoryReportService
 
     public async Task<CurrentStockReportVM> GetCurrentStockReportAsync(DateRangeFilter filter)
     {
+        // Deactivating a product is a CATALOGUE gesture — it stops the till offering it. It does
+        // not move any stock, and the general ledger still carries the value of whatever is left on
+        // the shelf. Filtering those rows out made that value vanish from the valuation while the
+        // stock control account was unchanged, so this report and the balance sheet disagreed by
+        // the whole amount. Inactive products are therefore included whenever they still hold
+        // stock, and only dropped once they are genuinely empty.
+        var productsWithMovement = _db.StockDetails
+            .AsNoTracking()
+            .Where(d => d.StockMain!.Status == "Approved"
+                        && d.StockMain.TransactionType!.AffectsStock
+                        && d.StockMain.TransactionType.IsActive)
+            .Select(d => d.Product_ID);
+
         var productsQuery = _db.Products
             .AsNoTracking()
-            .Where(p => p.IsActive);
+            .Where(p => p.IsActive
+                        || p.OpeningQuantity != 0
+                        || productsWithMovement.Contains(p.ProductID));
 
         if (filter.CategoryId.HasValue)
             productsQuery = productsQuery.Where(p => p.Category_ID == filter.CategoryId.Value);

@@ -177,6 +177,8 @@ public class PurchaseService : TransactionServiceBase, IPurchaseService
                 throw new InvalidOperationException("Supplier is required.");
             }
 
+            await ValidateSupplierAsync(purchase.Party_ID.Value);
+
             StockMain? referencePo = null;
             var poPaymentsToTransfer = new List<Payment>();
             if (purchase.ReferenceStockMain_ID.HasValue)
@@ -553,6 +555,10 @@ public class PurchaseService : TransactionServiceBase, IPurchaseService
 
         foreach (var detail in purchase.StockDetails)
         {
+            // Round to the stored precision BEFORE validating or deriving any money from it, so
+            // the arithmetic here and the row the database keeps describe the same transaction.
+            detail.Quantity = TransactionAmounts.NormalizeQuantity(detail.Quantity);
+
             if (detail.Quantity <= 0)
             {
                 throw new InvalidOperationException("Each line item must have a quantity greater than zero.");
@@ -1353,6 +1359,48 @@ public class PurchaseService : TransactionServiceBase, IPurchaseService
         var refunds = await refundsQuery.SumAsync(p => p.Amount);
 
         return balance + purchases - returns - payments + refunds;
+    }
+
+    /// <summary>
+    /// Confirms the counterparty on a goods receipt can actually BE a supplier.
+    ///
+    /// <para>
+    /// A purchase voucher CREDITS this party's ledger account. Booked against a customer, that
+    /// credit lands on a receivable — a debit-balance asset — pushing it negative, while every
+    /// payables report filters on party type and so never shows the money owed. The sale side has
+    /// always run the mirror image of this check (see SaleService.GetPartyForVoucherAsync); the
+    /// purchase side resolved the party by id alone and validated nothing.
+    /// </para>
+    /// </summary>
+    private async Task ValidateSupplierAsync(int partyId)
+    {
+        var supplier = await _partyRepository.Query()
+            .AsNoTracking()
+            .Include(p => p.Account)
+            .FirstOrDefaultAsync(p => p.PartyID == partyId);
+
+        if (supplier == null)
+            throw new InvalidOperationException("Selected supplier does not exist.");
+
+        if (!supplier.IsActive)
+            throw new InvalidOperationException($"'{supplier.Name}' is deactivated and cannot be transacted with.");
+
+        var isSupplier = supplier.PartyType.Equals("Supplier", StringComparison.OrdinalIgnoreCase)
+                      || supplier.PartyType.Equals("Both", StringComparison.OrdinalIgnoreCase);
+
+        if (!isSupplier)
+        {
+            throw new InvalidOperationException(
+                $"'{supplier.Name}' is a {supplier.PartyType.ToLowerInvariant()}, not a supplier. " +
+                "A goods receipt credits the supplier's payable account, so it cannot be booked against a customer.");
+        }
+
+        if (supplier.Account_ID == null || supplier.Account == null || !supplier.Account.IsActive)
+        {
+            throw new InvalidOperationException(
+                $"'{supplier.Name}' does not have an active linked account. " +
+                "Please update the supplier before posting purchase vouchers.");
+        }
     }
 
     private async Task ValidateGrnAgainstPurchaseOrderAsync(StockMain purchase, StockMain purchaseOrder)

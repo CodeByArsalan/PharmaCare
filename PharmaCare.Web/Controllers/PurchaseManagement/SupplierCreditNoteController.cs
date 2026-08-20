@@ -81,6 +81,7 @@ public class SupplierCreditNoteController : BaseController
 
     [HttpPost]
     [ValidateAntiForgeryToken]
+    [LinkedToPage("SupplierCreditNote", "SupplierCreditNotesIndex", PermissionType = "delete")]
     public async Task<IActionResult> Void(string id, string voidReason)
     {
         int cnId = Utility.DecryptId(id);

@@ -100,6 +100,7 @@ public class SupplierPaymentController : BaseController
     /// Processes a payment.
     [HttpPost]
     [ValidateAntiForgeryToken]
+    [LinkedToPage("SupplierPayment", "PaymentsIndex", PermissionType = "create")]
     public async Task<IActionResult> MakePayment(
         [Bind("StockMain_ID,Party_ID,Amount,PaymentDate,PaymentMethod,Account_ID,ChequeNo,ChequeDate,Remarks")] Payment payment)
     {

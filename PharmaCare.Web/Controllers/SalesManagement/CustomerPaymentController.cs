@@ -108,6 +108,7 @@ public class CustomerPaymentController : BaseController
     /// Processes a receipt.
     [HttpPost]
     [ValidateAntiForgeryToken]
+    [LinkedToPage("CustomerPayment", "ReceiptsIndex", PermissionType = "create")]
     public async Task<IActionResult> ReceivePayment(
         [Bind("StockMain_ID,Party_ID,PaymentDate,PaymentMethod,Account_ID,Amount,Remarks")] Payment payment)
     {
@@ -314,6 +315,7 @@ public class CustomerPaymentController : BaseController
     /// Processes a customer refund.
     [HttpPost]
     [ValidateAntiForgeryToken]
+    [LinkedToPage("CustomerPayment", "ReceiptsIndex", PermissionType = "create")]
     public async Task<IActionResult> Refund(
         [Bind("Party_ID,Amount,PaymentDate,PaymentMethod,Account_ID,ChequeNo,ChequeDate,Remarks")] Payment payment)
     {

@@ -50,6 +50,16 @@ public class PageAuthorizationFilter : IAsyncAuthorizationFilter
             return Task.CompletedTask;
         }
 
+        // Endpoints gated by a named authorization POLICY are not part of the tenant page-permission
+        // system at all — the platform-admin area is the case in point. The policy has already been
+        // evaluated by the authorization middleware, and these controllers deliberately have no rows
+        // in the page catalogue, so running the page check here would deny them to everyone.
+        if (endpoint?.Metadata.GetOrderedMetadata<IAuthorizeData>()
+                .Any(a => !string.IsNullOrEmpty(a.Policy)) == true)
+        {
+            return Task.CompletedTask;
+        }
+
         // Check if user is authenticated
         var user = _sessionService.GetCurrentUser();
         if (user == null)
@@ -63,23 +73,18 @@ public class PageAuthorizationFilter : IAsyncAuthorizationFilter
             .GetCustomAttributes(typeof(LinkedToPageAttribute), false)
             .FirstOrDefault() as LinkedToPageAttribute;
 
-        string resolvedController;
-        string resolvedAction;
-        string permissionType;
+        var resolvedController = linkedToPage?.Controller ?? controller;
+        var resolvedAction = linkedToPage?.Action ?? action;
 
-        if (linkedToPage != null)
+        var permissionType = ResolvePermissionType(
+            linkedToPage?.PermissionType, context.HttpContext.Request.Method, action);
+
+        // A state-changing action whose required permission could not be established is REFUSED.
+        // See ResolvePermissionType for why.
+        if (permissionType == null)
         {
-            // Use the linked page's controller/action and permission type
-            resolvedController = linkedToPage.Controller;
-            resolvedAction = linkedToPage.Action;
-            permissionType = linkedToPage.PermissionType;
-        }
-        else
-        {
-            // Standard resolution: use current controller/action
-            resolvedController = controller;
-            resolvedAction = action;
-            permissionType = DeterminePermissionType(context.HttpContext.Request.Method, action);
+            context.Result = new RedirectToActionResult("AccessDenied", "Account", null);
+            return Task.CompletedTask;
         }
 
         // Check page access
@@ -93,13 +98,36 @@ public class PageAuthorizationFilter : IAsyncAuthorizationFilter
     }
 
     /// <summary>
-    /// Determines the permission type based on HTTP method and action name.
+    /// Establishes which permission an action requires, or <c>null</c> when that cannot be
+    /// established and the request must therefore be refused.
+    ///
+    /// <para>
+    /// An explicit <see cref="LinkedToPageAttribute.PermissionType"/> always wins. Otherwise the
+    /// action NAME is consulted, which is reliable exactly when the name says what the action does
+    /// to the data — <c>AddSale</c>, <c>EditPurchase</c>, <c>ToggleStatus</c>.
+    /// </para>
+    ///
+    /// <para>
+    /// It is NOT reliable for the rest, and that used to be the hole: names like <c>Void</c>,
+    /// <c>Approve</c>, <c>Reverse</c>, <c>Open</c> and <c>SavePermissions</c> match no pattern, so a
+    /// POST fell through to "create" and every one of those destructive endpoints was reachable by
+    /// anyone holding nothing but create rights. Guessing "create" is the most permissive answer
+    /// available, which is precisely backwards for an action we have failed to identify.
+    /// </para>
+    ///
+    /// <para>
+    /// So a state-changing request with no explicit declaration and no recognised name is refused.
+    /// The cost is that a new mutating endpoint must say what it needs; the benefit is that
+    /// forgetting to do so denies the request instead of silently granting it.
+    /// </para>
     /// </summary>
-    private static string DeterminePermissionType(string httpMethod, string actionName)
+    internal static string? ResolvePermissionType(string? declared, string httpMethod, string actionName)
     {
-        var actionLower = actionName.ToLower();
+        if (!string.IsNullOrWhiteSpace(declared))
+            return declared;
 
-        // Check action name patterns first
+        var actionLower = actionName.ToLowerInvariant();
+
         if (actionLower.Contains("add") || actionLower.Contains("create"))
             return "create";
 
@@ -109,13 +137,10 @@ public class PageAuthorizationFilter : IAsyncAuthorizationFilter
         if (actionLower.Contains("delete") || actionLower.Contains("toggle"))
             return "delete";
 
-        // Fall back to HTTP method
-        return httpMethod.ToUpper() switch
-        {
-            "POST" => "create",
-            "PUT" or "PATCH" => "edit",
-            "DELETE" => "delete",
-            _ => "view"
-        };
+        // Nothing in the name. A read is safe to treat as a read; a write is not safe to guess.
+        return IsStateChanging(httpMethod) ? null : "view";
     }
+
+    internal static bool IsStateChanging(string httpMethod) =>
+        httpMethod.ToUpperInvariant() is "POST" or "PUT" or "PATCH" or "DELETE";
 }

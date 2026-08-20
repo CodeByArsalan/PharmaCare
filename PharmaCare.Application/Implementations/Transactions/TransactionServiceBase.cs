@@ -207,6 +207,11 @@ public abstract class TransactionServiceBase
 
         stockMain.TotalAmount = stockMain.SubTotal - stockMain.DiscountAmount;
         stockMain.BalanceAmount = stockMain.TotalAmount - stockMain.PaidAmount;
+
+        // One ceiling for every trading document, applied at the single point where they all
+        // arrive at a total. It used to guard expenses and journal vouchers only, which left sales,
+        // purchases and returns — the documents carrying the most value — with none at all.
+        TransactionAmounts.EnsureWithinSanityCap(stockMain.TotalAmount, "Transaction");
     }
 
     /// <summary>

@@ -186,6 +186,66 @@ public class ProductService : IProductService
         if (existing == null)
             return false;
 
+        // Compare against what is STORED, read as a projection — never against `existing`. A caller
+        // that hands us the tracked instance it already mutated (which the integration suite does,
+        // and any service-to-service call may) makes `existing` and `product` the same object, so
+        // an `existing.X != product.X` guard silently sees no change and waves the edit through.
+        // A projection is never served from the change tracker, so this reflects the database.
+        var stored = await _repository.Query()
+            .AsNoTracking()
+            .Where(p => p.ProductID == product.ProductID)
+            .Select(p => new
+            {
+                p.OpeningQuantity,
+                p.OpeningPrice,
+                p.Category_ID,
+                p.UnitsInPack
+            })
+            .FirstOrDefaultAsync();
+
+        if (stored == null)
+            return false;
+
+        // Opening figures and the category wiring are HISTORY once the product has traded, and the
+        // edit form posts them back on every save. See the guards below for why each one matters.
+        var hasTraded = await HasStockMovementAsync(product.ProductID);
+
+        if (hasTraded)
+        {
+            // OpeningQuantity feeds stock-on-hand directly (GetStockStatusAsync). Every other unit
+            // of stock in this system arrives through a document that also posts a voucher; letting
+            // this one be retyped mints or destroys inventory with no movement row and no ledger
+            // entry, and can drive derived stock below what has already been sold.
+            if (stored.OpeningQuantity != product.OpeningQuantity)
+            {
+                throw new PricingValidationException(
+                    $"Opening stock cannot be changed once {existing.Name} has movements. " +
+                    "Use a stock adjustment, which records the change and posts it to the ledger.");
+            }
+
+            // OpeningPrice is the fallback cost whenever no priced GRN exists, so it values stock
+            // and gates below-cost selling.
+            if (stored.OpeningPrice != product.OpeningPrice)
+            {
+                throw new PricingValidationException(
+                    $"Opening price cannot be changed once {existing.Name} has movements, because " +
+                    "it values stock that has already been bought and sold.");
+            }
+
+            // The category decides which stock / COGS / revenue accounts this product posts to.
+            // Re-pointing it mid-life debits one account and credits another, stranding the
+            // original balance on the balance sheet permanently.
+            if (stored.Category_ID != product.Category_ID)
+            {
+                throw new PricingValidationException(
+                    $"The category cannot be changed once {existing.Name} has movements: its stock " +
+                    "is already carried in the current category's control accounts, and later " +
+                    "movements would clear a different account.");
+            }
+        }
+
+        await ValidatePackSizeChangeAsync(existing, stored.UnitsInPack, product);
+
         existing.Name = product.Name;
         existing.ShortCode = product.ShortCode;
         existing.Category_ID = product.Category_ID;
@@ -214,6 +274,44 @@ public class ProductService : IProductService
             $"Updated product: {existing.Name} (SKU: {existing.ShortCode})");
 
         return true;
+    }
+
+    /// <summary>True when any stock document has ever named this product.</summary>
+    private Task<bool> HasStockMovementAsync(int productId)
+        => _stockDetailRepository.Query().AsNoTracking()
+            .AnyAsync(sd => sd.Product_ID == productId);
+
+    /// <summary>
+    /// The below-cost margin floor lives in <see cref="SaveProductPricesAsync"/>, which compares a
+    /// PER-UNIT price against cost. For the wholesale tier the stored price is per BOX, so the
+    /// comparison divides by UnitsInPack — which means widening the pack later lowers the per-unit
+    /// price without any price being edited, and walks straight past the floor. Re-check it here.
+    /// </summary>
+    private async Task ValidatePackSizeChangeAsync(Product existing, int storedUnitsInPack, Product incoming)
+    {
+        var newUnitsInPack = incoming.UnitsInPack < 1 ? 1 : incoming.UnitsInPack;
+        if (storedUnitsInPack == newUnitsInPack)
+            return;
+
+        var wholesale = await _productPriceRepository.Query().AsNoTracking()
+            .FirstOrDefaultAsync(pp => pp.Product_ID == existing.ProductID
+                                    && pp.PriceType_ID == AccountingConstants.WholesalePriceTypeId
+                                    && pp.IsActive);
+
+        if (wholesale == null || wholesale.SalePrice <= 0)
+            return;
+
+        var costs = await GetLastGrnCostPricesAsync(new[] { existing.ProductID });
+        var cost = costs.TryGetValue(existing.ProductID, out var c) ? c : existing.OpeningPrice;
+
+        var perUnit = wholesale.SalePrice / newUnitsInPack;
+        if (perUnit < cost)
+        {
+            throw new PricingValidationException(
+                $"A pack of {newUnitsInPack} at the current wholesale price of {wholesale.SalePrice:N2} " +
+                $"works out at {perUnit:N2} per unit, below the cost of {cost:N2}. " +
+                "Update the wholesale price first, then change the pack size.");
+        }
     }
 
     public async Task<bool> ToggleStatusAsync(int id, int userId)

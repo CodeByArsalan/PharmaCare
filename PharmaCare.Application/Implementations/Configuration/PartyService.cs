@@ -119,8 +119,38 @@ public class PartyService : IPartyService
         }
     }
 
+    /// <summary>
+    /// The only party types the system understands. Anything else falls through both branches of
+    /// the account-creation logic below, producing a party with NO ledger account: it appears in
+    /// the pickers, every posting against it fails at voucher time, and any opening balance it
+    /// carries never reaches the general ledger.
+    /// </summary>
+    private static readonly string[] KnownPartyTypes = { "Customer", "Supplier", "Both" };
+
+    private static string NormalizePartyType(string? partyType)
+    {
+        var match = KnownPartyTypes.FirstOrDefault(
+            t => t.Equals(partyType?.Trim(), StringComparison.OrdinalIgnoreCase));
+
+        if (match == null)
+        {
+            throw new InvalidOperationException(
+                $"'{partyType}' is not a valid party type. Use one of: {string.Join(", ", KnownPartyTypes)}.");
+        }
+
+        return match;
+    }
+
+    /// <summary>
+    /// Which side of the chart of accounts a party's ledger account sits on. Supplier accounts are
+    /// created under payables, customer and "Both" accounts under receivables.
+    /// </summary>
+    private static bool IsPayableSide(string partyType)
+        => partyType.Equals("Supplier", StringComparison.OrdinalIgnoreCase);
+
     private async Task<Party> CreateCoreAsync(Party party, int userId)
     {
+        party.PartyType = NormalizePartyType(party.PartyType);
         party.CreatedAt = AppTime.Now;
         party.CreatedBy = userId;
         party.IsActive = true;
@@ -211,17 +241,36 @@ public class PartyService : IPartyService
         // below: if the caller happens to hold and mutate the tracked instance, that instance
         // already carries the new value and the delta would silently compute to zero, losing the
         // ledger entry. A projection is never served from the change tracker.
-        var previousOpeningBalance = await _repository.Query()
+        // PartyType is read here for the same reason and by the same means as the opening balance.
+        var storedState = await _repository.Query()
             .AsNoTracking()
             .Where(p => p.PartyID == party.PartyID)
-            .Select(p => p.OpeningBalance)
+            .Select(p => new { p.OpeningBalance, p.PartyType })
             .FirstOrDefaultAsync();
+
+        var previousOpeningBalance = storedState?.OpeningBalance ?? 0m;
 
         var existing = await _repository.Query()
             .Include(p => p.Account)
             .FirstOrDefaultAsync(p => p.PartyID == party.PartyID);
         if (existing == null)
             return false;
+
+        var newPartyType = NormalizePartyType(party.PartyType);
+
+        // The ledger account was created under receivables or payables according to the type the
+        // party had at the time, and it does not move. Letting the type cross that divide leaves a
+        // "supplier" whose balance lives in an asset account: payables reports never see the money
+        // owed, and the balance sheet reports a liability as an asset.
+        var storedPartyType = storedState?.PartyType ?? existing.PartyType;
+
+        if (IsPayableSide(storedPartyType) != IsPayableSide(newPartyType))
+        {
+            throw new InvalidOperationException(
+                $"'{existing.Name}' cannot be changed from {storedPartyType} to {newPartyType}: " +
+                $"its ledger account sits under {(IsPayableSide(storedPartyType) ? "payables" : "receivables")} " +
+                "and its history stays there. Create a separate party for the other role.");
+        }
 
         // Sync account name if party name changed
         if (existing.Account != null && existing.Name != party.Name)
@@ -232,7 +281,7 @@ public class PartyService : IPartyService
         }
 
         existing.Name = party.Name;
-        existing.PartyType = party.PartyType;
+        existing.PartyType = newPartyType;
         existing.Phone = party.Phone;
         existing.Email = party.Email;
         existing.Address = party.Address;

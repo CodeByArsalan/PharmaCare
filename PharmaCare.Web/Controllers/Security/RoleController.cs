@@ -2,6 +2,7 @@ using Microsoft.AspNetCore.Mvc;
 using PharmaCare.Application.DTOs.Security;
 using PharmaCare.Application.Interfaces.Security;
 using PharmaCare.Domain.Entities.Security;
+using PharmaCare.Web.Filters;
 using PharmaCare.Web.Utilities;
 
 namespace PharmaCare.Web.Controllers.Security;
@@ -120,6 +121,7 @@ public class RoleController : BaseController
     /// </summary>
     [HttpPost]
     [ValidateAntiForgeryToken]
+    [LinkedToPage("Role", "RolesIndex", PermissionType = "edit")]
     public async Task<IActionResult> SavePermissions(int roleId, List<RolePagePermissionDTO> permissions)
     {
         // roleId arrives raw from the form. UpdatePermissionsAsync refuses a role this pharmacy

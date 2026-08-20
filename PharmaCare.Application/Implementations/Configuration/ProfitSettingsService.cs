@@ -49,6 +49,15 @@ public class ProfitSettingsService : IProfitSettingsService
 
     public async Task UpdateAsync(decimal retailProfitPercent, decimal wholesaleProfitPercent, decimal priceRoundingStep, int userId)
     {
+        // A negative margin is a request to sell below cost, which the pricing formula is not
+        // allowed to honour anyway (PricingService clamps the computed price up to cost). Storing
+        // it would leave the settings screen showing a policy the system does not follow.
+        if (retailProfitPercent < 0 || wholesaleProfitPercent < 0)
+        {
+            throw new InvalidOperationException(
+                "Profit margins cannot be negative — that would price stock below what it cost to buy.");
+        }
+
         var settings = await GetAsync();
 
         settings.RetailProfitPercent = retailProfitPercent;

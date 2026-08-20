@@ -802,6 +802,10 @@ public class SaleService : TransactionServiceBase, ISaleService
                 throw new InvalidOperationException("Each line must have a valid product.");
             }
 
+            // Round to the stored precision BEFORE validating or deriving any money from it, so
+            // the arithmetic here and the row the database keeps describe the same transaction.
+            detail.Quantity = TransactionAmounts.NormalizeQuantity(detail.Quantity);
+
             if (detail.Quantity <= 0)
             {
                 throw new InvalidOperationException("Line quantity must be greater than zero.");

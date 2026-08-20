@@ -69,6 +69,18 @@ public sealed class PharmaCareWebFactory : WebApplicationFactory<Program>
                 ["ConnectionStrings:PharmaCareLogDBConnectionString"] = LogConnectionString,
                 // Disable the nightly log-retention hosted job during tests.
                 ["LogRetention:Enabled"] = "false",
+                // The endpoint-crawl probes deliberately fire hundreds of requests in seconds.
+                // Against the production ceiling they exhaust the shared per-minute budget and
+                // every OTHER probe in the collection then fails with 429 — an artifact of the
+                // harness, not a finding. Raised here only; the limiter itself is still wired up
+                // and is asserted on directly by RateLimitingProbes.
+                ["RateLimiting:GlobalPermitLimit"] = "100000",
+                // TestServer gives every request the same (null) client address, so without this
+                // the rate limiters cannot tell one caller from another and the partitioning under
+                // test is untestable. TrustAllProxies mirrors a deployment that sits behind a proxy
+                // which strips inbound X-Forwarded-For; it is OFF by default in production.
+                ["ForwardedHeaders:Enabled"] = "true",
+                ["ForwardedHeaders:TrustAllProxies"] = "true",
             });
         });
     }
@@ -132,6 +144,13 @@ public sealed class WebTestFixture : IAsyncLifetime
     public string ViewOnlyEmail { get; private set; } = default!;
     public string ViewOnlyPassword { get; } = "ViewOnlyPass123";
 
+    // Deliberately restricted the other way: VIEW + CREATE only (never edit, never delete) on the
+    // Expense, SupplierCreditNote, FinancialPeriod and Role pages. This is the shape of a real
+    // data-entry account, and it is what PageAuthorizationFilter.DeterminePermissionType actually
+    // demands of any POST whose action name contains none of add/create/edit/update/delete/toggle.
+    public string CreateOnlyEmail { get; private set; } = default!;
+    public string CreateOnlyPassword { get; } = "CreateOnlyPass123";
+
     public async Task InitializeAsync()
     {
         AppTime.Initialize("Asia/Karachi");
@@ -140,6 +159,7 @@ public sealed class WebTestFixture : IAsyncLifetime
         var suffix = Guid.NewGuid().ToString("N")[..8];
         AdminEmail = $"admin-{suffix}@webtest.local";
         ViewOnlyEmail = $"viewonly-{suffix}@webtest.local";
+        CreateOnlyEmail = $"createonly-{suffix}@webtest.local";
 
         // 1. Provision the tenant through the real service — creates the admin user + role.
         PharmacyId = await Factory.RunInTenantScopeAsync(0, async sp =>
@@ -217,10 +237,69 @@ public sealed class WebTestFixture : IAsyncLifetime
             db.UserRoles_Custom.Add(new UserRole { User_ID = viewer.Id, Role_ID = role.RoleID });
             await db.SaveChangesAsync();
         });
+
+        // 3. Create a VIEW+CREATE-only role + user in the same tenant.
+        await Factory.RunInTenantScopeAsync(PharmacyId, async sp =>
+        {
+            var db = sp.GetRequiredService<PharmaCareDBContext>();
+            var userManager = sp.GetRequiredService<UserManager<User>>();
+
+            string[] pageControllers = { "Expense", "SupplierCreditNote", "FinancialPeriod", "Role" };
+
+            var role = new Role
+            {
+                Name = "Web Test Data Entry",
+                Description = "View + create only. Must not be able to void, reverse, close or re-permission anything.",
+                IsSystemRole = false,
+                IsActive = true,
+                CreatedAt = AppTime.Now,
+                CreatedBy = 0
+            };
+            db.Roles_Custom.Add(role);
+            await db.SaveChangesAsync();
+
+            var pages = await db.Pages
+                .Where(p => p.Controller != null && pageControllers.Contains(p.Controller))
+                .ToListAsync();
+
+            foreach (var page in pages)
+            {
+                db.RolePages.Add(new RolePage
+                {
+                    Role_ID = role.RoleID,
+                    Page_ID = page.PageID,
+                    CanView = true,
+                    CanCreate = true,
+                    CanEdit = false,
+                    CanDelete = false
+                });
+            }
+            await db.SaveChangesAsync();
+
+            var clerk = new User
+            {
+                UserName = CreateOnlyEmail,
+                Email = CreateOnlyEmail,
+                FullName = "Data Entry Clerk",
+                IsActive = true,
+                Pharmacy_ID = PharmacyId,
+                IsPlatformAdmin = false,
+                CreatedAt = AppTime.Now,
+                CreatedBy = 0
+            };
+            var madeClerk = await userManager.CreateAsync(clerk, CreateOnlyPassword);
+            if (!madeClerk.Succeeded)
+                throw new InvalidOperationException("Create-only user creation failed: " +
+                    string.Join("; ", madeClerk.Errors.Select(e => e.Description)));
+
+            db.UserRoles_Custom.Add(new UserRole { User_ID = clerk.Id, Role_ID = role.RoleID });
+            await db.SaveChangesAsync();
+        });
     }
 
     private HttpClient? _adminClient;
     private HttpClient? _viewOnlyClient;
+    private HttpClient? _createOnlyClient;
     private readonly SemaphoreSlim _loginGate = new(1, 1);
 
     /// <summary>A single admin session shared across probes. The login endpoint is rate-limited to
@@ -256,10 +335,26 @@ public sealed class WebTestFixture : IAsyncLifetime
         finally { _loginGate.Release(); }
     }
 
+    public async Task<HttpClient> CreateOnlyClientAsync()
+    {
+        await _loginGate.WaitAsync();
+        try
+        {
+            if (_createOnlyClient == null)
+            {
+                _createOnlyClient = Factory.CreateTestClient();
+                await HttpTestHelpers.LoginOrThrowAsync(_createOnlyClient, CreateOnlyEmail, CreateOnlyPassword);
+            }
+            return _createOnlyClient;
+        }
+        finally { _loginGate.Release(); }
+    }
+
     public Task DisposeAsync()
     {
         _adminClient?.Dispose();
         _viewOnlyClient?.Dispose();
+        _createOnlyClient?.Dispose();
         Factory.Dispose();
         return Task.CompletedTask;
     }

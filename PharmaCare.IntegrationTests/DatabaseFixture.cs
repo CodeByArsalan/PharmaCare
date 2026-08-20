@@ -121,6 +121,8 @@ public sealed class DatabaseFixture : IAsyncLifetime
         services.AddScoped<IPricingService, PricingService>();
         services.AddScoped<IProfitSettingsService, ProfitSettingsService>();
         services.AddScoped<IAccountService, AccountService>();
+        services.AddScoped<IAccountHeadService, AccountHeadService>();
+        services.AddScoped<IAccountSubHeadService, AccountSubHeadService>();
         services.AddScoped<IFinancialPeriodService, FinancialPeriodService>();
         services.AddScoped<IOpeningBalanceService, OpeningBalanceService>();
         services.AddScoped<IJournalVoucherService, JournalVoucherService>();

@@ -2,8 +2,8 @@ using Microsoft.EntityFrameworkCore;
 using PharmaCare.Application.DTOs;
 using PharmaCare.Application.Interfaces;
 using PharmaCare.Application.Interfaces.Transactions;
-using PharmaCare.Application.Utilities;
 using PharmaCare.Domain.Entities.Finance;
+using PharmaCare.Application.Utilities;
 using PharmaCare.Domain.Entities.Transactions;
 using PharmaCare.Domain.Enums;
 
@@ -17,6 +17,7 @@ public class PurchaseOrderService : IPurchaseOrderService
     private readonly IRepository<StockMain> _stockMainRepository;
     private readonly IRepository<TransactionType> _transactionTypeRepository;
     private readonly IRepository<Payment> _paymentRepository;
+    private readonly IRepository<PharmaCare.Domain.Entities.Configuration.Party> _partyRepository;
     private readonly IUnitOfWork _unitOfWork;
 
     private const string TRANSACTION_TYPE_CODE = "PO";
@@ -28,11 +29,13 @@ public class PurchaseOrderService : IPurchaseOrderService
         IRepository<StockMain> stockMainRepository,
         IRepository<TransactionType> transactionTypeRepository,
         IRepository<Payment> paymentRepository,
+        IRepository<PharmaCare.Domain.Entities.Configuration.Party> partyRepository,
         IUnitOfWork unitOfWork)
     {
         _stockMainRepository = stockMainRepository;
         _transactionTypeRepository = transactionTypeRepository;
         _paymentRepository = paymentRepository;
+        _partyRepository = partyRepository;
         _unitOfWork = unitOfWork;
     }
 
@@ -132,6 +135,11 @@ public class PurchaseOrderService : IPurchaseOrderService
 
         if (transactionType == null)
             throw new InvalidOperationException($"Transaction type '{TRANSACTION_TYPE_CODE}' not found.");
+
+        // A PO posts nothing by itself, but it can carry an advance payment and it is what the GRN
+        // is later raised against — so the counterparty has to be a supplier here too, not merely
+        // at receipt time.
+        await ValidateSupplierAsync(purchaseOrder.Party_ID);
 
         purchaseOrder.TransactionType_ID = transactionType.TransactionTypeID;
         purchaseOrder.TransactionNo = await GenerateTransactionNoAsync();
@@ -275,6 +283,36 @@ public class PurchaseOrderService : IPurchaseOrderService
             .ToListAsync();
     }
 
+    /// <summary>
+    /// Mirrors PurchaseService.ValidateSupplierAsync — see the reasoning there. Kept local rather
+    /// than shared because this service deliberately depends on nothing but its own repositories.
+    /// </summary>
+    private async Task ValidateSupplierAsync(int? partyId)
+    {
+        if (!partyId.HasValue || partyId.Value <= 0)
+            throw new InvalidOperationException("Supplier is required.");
+
+        var supplier = await _partyRepository.Query()
+            .AsNoTracking()
+            .FirstOrDefaultAsync(p => p.PartyID == partyId.Value);
+
+        if (supplier == null)
+            throw new InvalidOperationException("Selected supplier does not exist.");
+
+        if (!supplier.IsActive)
+            throw new InvalidOperationException($"'{supplier.Name}' is deactivated and cannot be transacted with.");
+
+        var isSupplier = supplier.PartyType.Equals("Supplier", StringComparison.OrdinalIgnoreCase)
+                      || supplier.PartyType.Equals("Both", StringComparison.OrdinalIgnoreCase);
+
+        if (!isSupplier)
+        {
+            throw new InvalidOperationException(
+                $"'{supplier.Name}' is a {supplier.PartyType.ToLowerInvariant()}, not a supplier. " +
+                "A purchase order cannot be raised against a customer.");
+        }
+    }
+
     private async Task<string> GenerateTransactionNoAsync()
     {
         var datePrefix = DocumentNumberSequence.DatePrefix(PREFIX);
@@ -298,6 +336,11 @@ public class PurchaseOrderService : IPurchaseOrderService
         }
 
         purchaseOrder.TotalAmount = purchaseOrder.SubTotal - purchaseOrder.DiscountAmount;
+
+        // Same ceiling TransactionServiceBase applies to every other trading document; this
+        // service does not derive from it.
+        TransactionAmounts.EnsureWithinSanityCap(purchaseOrder.TotalAmount, "Purchase order");
+
         if (purchaseOrder.PaidAmount > purchaseOrder.TotalAmount)
         {
             throw new InvalidOperationException("Paid amount cannot exceed total amount.");

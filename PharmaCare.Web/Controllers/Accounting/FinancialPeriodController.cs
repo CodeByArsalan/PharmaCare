@@ -2,6 +2,7 @@ using Microsoft.AspNetCore.Mvc;
 using PharmaCare.Application.Interfaces.Accounting;
 using PharmaCare.Domain.Entities.Accounting;
 using System.Security.Claims;
+using PharmaCare.Web.Filters;
 
 namespace PharmaCare.Web.Controllers.Accounting
 {
@@ -38,6 +39,7 @@ namespace PharmaCare.Web.Controllers.Accounting
 
         [HttpPost]
         [ValidateAntiForgeryToken]
+        [LinkedToPage("FinancialPeriod", "Index", PermissionType = "edit")]
         public async Task<IActionResult> Close(int id, string? remarks)
         {
             try
@@ -55,8 +57,11 @@ namespace PharmaCare.Web.Controllers.Accounting
             }
         }
 
+        // Re-opening a CLOSED period is the single control that lets anyone post into books that
+        // were already signed off, so it is gated on the strongest permission the page has.
         [HttpPost]
         [ValidateAntiForgeryToken]
+        [LinkedToPage("FinancialPeriod", "Index", PermissionType = "delete")]
         public async Task<IActionResult> Open(int id)
         {
             try

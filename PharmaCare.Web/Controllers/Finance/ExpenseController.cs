@@ -4,6 +4,7 @@ using Microsoft.AspNetCore.Mvc.Rendering;
 using PharmaCare.Application.Interfaces.Accounting;
 using PharmaCare.Application.Interfaces.Finance;
 using PharmaCare.Domain.Entities.Finance;
+using PharmaCare.Web.Filters;
 using PharmaCare.Web.Utilities;
 
 namespace PharmaCare.Web.Controllers.Finance;
@@ -97,8 +98,11 @@ public class ExpenseController : BaseController
         return View(expense);
     }
 
+    // Approval is what posts the expense voucher to the general ledger. Raising a draft and
+    // approving it must not be the same permission.
     [HttpPost]
     [ValidateAntiForgeryToken]
+    [LinkedToPage("Expense", "ExpensesIndex", PermissionType = "edit")]
     public async Task<IActionResult> Approve(string id)
     {
         int expenseId = Utility.DecryptId(id);
@@ -130,6 +134,7 @@ public class ExpenseController : BaseController
 
     [HttpPost]
     [ValidateAntiForgeryToken]
+    [LinkedToPage("Expense", "ExpensesIndex", PermissionType = "delete")]
     public async Task<IActionResult> Void(string id, string voidReason)
     {
         int expenseId = Utility.DecryptId(id);
@@ -320,6 +325,7 @@ public class ExpenseController : BaseController
 
     [HttpPost]
     [ValidateAntiForgeryToken]
+    [LinkedToPage("Expense", "ExpensesIndex", PermissionType = "edit")]
     public async Task<IActionResult> BudgetManagement(int year, int month, List<PharmaCare.Application.ViewModels.Report.ExpenseBudgetVM> budgets)
     {
         try

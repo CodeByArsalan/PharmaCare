@@ -1,5 +1,6 @@
 using Microsoft.AspNetCore.Identity;
 using Microsoft.AspNetCore.DataProtection;
+using Microsoft.AspNetCore.HttpOverrides;
 using Microsoft.AspNetCore.RateLimiting;
 using System.Threading.RateLimiting;
 using Microsoft.EntityFrameworkCore;
@@ -123,27 +124,84 @@ builder.Services.ConfigureApplicationCookie(options =>
 
 // Rate limiting — primary defense against brute-force on authentication endpoints,
 // with a relaxed per-IP global limiter as a safety net against abusive clients.
+// Limits are read from configuration so an operator can tune them per deployment (a busy
+// dispensary and a single-till shop do not want the same ceiling) and so the automated test host
+// can raise them without weakening what production runs with. The defaults below ARE the
+// production values — an absent configuration section changes nothing.
+// Behind a reverse proxy every request arrives from the proxy's address, so RemoteIpAddress — which
+// both rate limiters partition on — collapses to a single value for the entire user base. Enabling
+// this makes X-Forwarded-For authoritative instead. It is OFF by default and must stay off when the
+// app is directly exposed: a client can send X-Forwarded-For itself, and trusting that header
+// without a known proxy in front lets anyone forge the identity the limiter partitions on.
+builder.Services.Configure<ForwardedHeadersOptions>(options =>
+{
+    options.ForwardedHeaders = ForwardedHeaders.XForwardedFor | ForwardedHeaders.XForwardedProto;
+
+    var knownProxies = builder.Configuration
+        .GetSection("ForwardedHeaders:KnownProxies").Get<string[]>();
+
+    if (knownProxies is { Length: > 0 })
+    {
+        options.KnownProxies.Clear();
+        options.KnownNetworks.Clear();
+        foreach (var proxy in knownProxies)
+        {
+            if (System.Net.IPAddress.TryParse(proxy, out var address))
+                options.KnownProxies.Add(address);
+        }
+    }
+    else if (builder.Configuration.GetValue("ForwardedHeaders:TrustAllProxies", false))
+    {
+        // Only sane where something upstream already strips inbound X-Forwarded-For.
+        options.KnownProxies.Clear();
+        options.KnownNetworks.Clear();
+    }
+});
+
 builder.Services.AddRateLimiter(options =>
 {
+    // Read INSIDE the callback, not at CreateBuilder time. builder.Configuration is a live
+    // ConfigurationManager, so a source layered on afterwards (as a test host does) is only
+    // visible once the callback actually runs.
+    var authPermitLimit = builder.Configuration.GetValue("RateLimiting:AuthPermitLimit", 10);
+    var globalPermitLimit = builder.Configuration.GetValue("RateLimiting:GlobalPermitLimit", 300);
+
     options.RejectionStatusCode = StatusCodes.Status429TooManyRequests;
 
     // Applied to the login endpoint via [EnableRateLimiting("auth")].
-    options.AddFixedWindowLimiter("auth", limiterOptions =>
-    {
-        limiterOptions.PermitLimit = 10;
-        limiterOptions.Window = TimeSpan.FromMinutes(1);
-        limiterOptions.QueueLimit = 0;
-    });
-
-    options.GlobalLimiter = PartitionedRateLimiter.Create<HttpContext, string>(context =>
+    //
+    // PARTITIONED BY CALLER. AddFixedWindowLimiter (the previous form) creates ONE bucket for the
+    // whole process, so the budget was not "10 attempts each" but 10 attempts for the entire
+    // application: the eleventh person to sign on at shift change was refused, and any anonymous
+    // visitor could spend the budget on purpose and keep all staff out. Per-caller partitioning
+    // makes the limit do what it reads like.
+    //
+    // This is flood control only. Per-ACCOUNT brute-force protection is Identity's lockout, which
+    // AuthService already engages via PasswordSignInAsync(lockoutOnFailure: true) — the two guard
+    // different things and both are needed.
+    options.AddPolicy("auth", context =>
         RateLimitPartition.GetFixedWindowLimiter(
-            partitionKey: context.Connection.RemoteIpAddress?.ToString() ?? "unknown",
+            partitionKey: ClientPartitionKey(context),
             factory: _ => new FixedWindowRateLimiterOptions
             {
-                PermitLimit = 300,
+                PermitLimit = authPermitLimit,
                 Window = TimeSpan.FromMinutes(1),
                 QueueLimit = 0
             }));
+
+    options.GlobalLimiter = PartitionedRateLimiter.Create<HttpContext, string>(context =>
+        RateLimitPartition.GetFixedWindowLimiter(
+            partitionKey: ClientPartitionKey(context),
+            factory: _ => new FixedWindowRateLimiterOptions
+            {
+                PermitLimit = globalPermitLimit,
+                Window = TimeSpan.FromMinutes(1),
+                QueueLimit = 0
+            }));
+
+    // One definition of "who is calling", so the two limiters cannot drift apart.
+    static string ClientPartitionKey(HttpContext context) =>
+        context.Connection.RemoteIpAddress?.ToString() ?? "unknown";
 });
 
 // Core Services
@@ -274,6 +332,12 @@ app.Use(async (context, next) =>
         "object-src 'none'";
     await next();
 });
+
+// Must run before anything that reads the client address — the rate limiters partition on it.
+if (app.Configuration.GetValue("ForwardedHeaders:Enabled", false))
+{
+    app.UseForwardedHeaders();
+}
 
 // Configure the HTTP request pipeline
 if (!app.Environment.IsDevelopment())

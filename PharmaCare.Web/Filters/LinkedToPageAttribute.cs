@@ -30,9 +30,15 @@ public class LinkedToPageAttribute : Attribute
 
     /// <summary>
     /// The permission type required (view, create, edit, delete).
-    /// Defaults to "view". Override this when the action requires a specific permission.
+    ///
+    /// <para>
+    /// NULL means "not declared", NOT "view". An undeclared permission is inferred from the action
+    /// name by <c>PageAuthorizationFilter</c>, and for a state-changing request that inference must
+    /// succeed or the request is refused — see the fail-closed rule documented there. Declare this
+    /// explicitly on any action whose name does not say what it does to the data.
+    /// </para>
     /// </summary>
-    public string PermissionType { get; set; } = "view";
+    public string? PermissionType { get; set; }
 
     /// <summary>
     /// Creates a new LinkedToPageAttribute.
