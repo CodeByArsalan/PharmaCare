@@ -199,6 +199,8 @@ public class SupplierCreditNoteService : ISupplierCreditNoteService
 
             await _repository.AddAsync(creditNote);
             await _unitOfWork.SaveChangesAsync();
+            await RecheckPeriodBeforeCommitAsync(creditNote.CreditDate);
+
             await _unitOfWork.CommitTransactionAsync();
             return creditNote;
         }
@@ -275,6 +277,8 @@ public class SupplierCreditNoteService : ISupplierCreditNoteService
             }
 
             await _unitOfWork.SaveChangesAsync();
+            await RecheckPeriodBeforeCommitAsync(cn.CreditDate);
+
             await _unitOfWork.CommitTransactionAsync();
             return true;
         }
@@ -301,6 +305,22 @@ public class SupplierCreditNoteService : ISupplierCreditNoteService
     private async Task<string> GenerateVoucherNoAsync()
     {
         return await _voucherRepository.GenerateVoucherNoAsync("JV", _unitOfWork);
+    }
+
+    /// <summary>
+    /// Re-checks the posting date immediately before commit, holding the same lock
+    /// <c>ClosePeriodAsync</c> takes. The up-front check runs before the work, so on its own it
+    /// would still let a period closed mid-flight accept the posting.
+    /// </summary>
+    private async Task RecheckPeriodBeforeCommitAsync(DateTime date)
+    {
+        await _unitOfWork.AcquireResourceLockAsync(AccountingConstants.PeriodCloseLockResource);
+
+        if (await _financialPeriodService.IsPeriodLockedAsync(date))
+        {
+            throw new InvalidOperationException(
+                $"The financial period covering {date:dd/MM/yyyy} was closed while this transaction was being saved. It has not been posted.");
+        }
     }
 
     public async Task<bool> ApplyToGrnAsync(int cnId, int grnId, decimal amount, int userId)
@@ -380,6 +400,8 @@ public class SupplierCreditNoteService : ISupplierCreditNoteService
             });
 
             await _unitOfWork.SaveChangesAsync();
+            await RecheckPeriodBeforeCommitAsync(AppTime.Today);
+
             await _unitOfWork.CommitTransactionAsync();
             return true;
         }

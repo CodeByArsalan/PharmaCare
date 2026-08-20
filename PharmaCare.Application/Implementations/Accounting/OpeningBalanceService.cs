@@ -119,6 +119,18 @@ public class OpeningBalanceService : IOpeningBalanceService
         };
 
         await _voucherRepository.AddAsync(voucher);
+
+        // Re-check under the same lock ClosePeriodAsync takes. The check at the top of this method
+        // runs before the voucher is built, so without this a period closed mid-flight would still
+        // accept the posting. PartyService owns the surrounding transaction, so the lock is held
+        // until it commits.
+        await _unitOfWork.AcquireResourceLockAsync(AccountingConstants.PeriodCloseLockResource);
+
+        if (await _financialPeriodService.IsPeriodLockedAsync(AppTime.Now))
+        {
+            throw new InvalidOperationException(
+                "The current financial period was closed while this change was being saved. It has not been posted.");
+        }
     }
 
     /// <summary>

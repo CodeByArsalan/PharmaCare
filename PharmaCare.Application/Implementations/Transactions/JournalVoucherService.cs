@@ -42,6 +42,23 @@ public class JournalVoucherService : IJournalVoucherService
         }
     }
 
+    /// <summary>
+    /// Re-checks the posting date immediately before commit, holding the same lock
+    /// <c>ClosePeriodAsync</c> takes. The check above runs before the work starts, so on its own it
+    /// would still let a period closed mid-flight accept the voucher. Must be called inside a
+    /// transaction — the lock is transaction-scoped.
+    /// </summary>
+    private async Task RecheckPeriodBeforeCommitAsync(DateTime date)
+    {
+        await _unitOfWork.AcquireResourceLockAsync(AccountingConstants.PeriodCloseLockResource);
+
+        if (await _financialPeriodService.IsPeriodLockedAsync(date))
+        {
+            throw new InvalidOperationException(
+                $"The financial period covering {date:dd/MM/yyyy} was closed while this transaction was being saved. It has not been posted.");
+        }
+    }
+
     public async Task<IEnumerable<Voucher>> GetAllJournalVouchersAsync()
     {
         // "JV" is the voucher type for manual journals; every other type is machine-generated
@@ -170,9 +187,23 @@ public class JournalVoucherService : IJournalVoucherService
             });
         }
 
-        // 4. Save
-        await _voucherRepository.AddAsync(voucher);
-        await _unitOfWork.SaveChangesAsync();
+        // 4. Save. A transaction rather than a bare SaveChanges, so the period re-check below can
+        // hold the close lock until the voucher is actually committed.
+        await _unitOfWork.BeginTransactionAsync();
+        try
+        {
+            await _voucherRepository.AddAsync(voucher);
+            await _unitOfWork.SaveChangesAsync();
+
+            await RecheckPeriodBeforeCommitAsync(model.VoucherDate);
+
+            await _unitOfWork.CommitTransactionAsync();
+        }
+        catch
+        {
+            await _unitOfWork.RollbackTransactionAsync();
+            throw;
+        }
 
         return voucher;
     }
@@ -258,6 +289,9 @@ public class JournalVoucherService : IJournalVoucherService
             original.ReversedByVoucher_ID = reversal.VoucherID;
             _voucherRepository.Update(original);
             await _unitOfWork.SaveChangesAsync();
+
+            // The reversal posts at AppTime.Now, so that is the date that must still be open.
+            await RecheckPeriodBeforeCommitAsync(AppTime.Now);
 
             await _unitOfWork.CommitTransactionAsync();
             return true;
