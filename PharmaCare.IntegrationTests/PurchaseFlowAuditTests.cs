@@ -90,6 +90,10 @@ public class PurchaseFlowAuditTests
     private static Task<StockMain> ReloadAsync(TenantScope tenant, int stockMainId)
         => tenant.Db.StockMains.AsNoTracking().FirstAsync(s => s.StockMainID == stockMainId);
 
+    /// <summary>The row's current concurrency token — what a real edit form round-trips.</summary>
+    private static async Task<byte[]> RowVersionOfAsync(TenantScope tenant, int stockMainId)
+        => (await ReloadAsync(tenant, stockMainId)).RowVersion;
+
     // ---------------------------------------------------------------- 1. PO advances
 
     /// <summary>An advance against an approved PO is capped at the PO's not-yet-received value.</summary>
@@ -656,10 +660,12 @@ public class PurchaseFlowAuditTests
             .ApplyToGrnAsync(cn.SupplierCreditNoteID, grn.StockMainID, 300m, TenantData.TestUserId));
 
         // Shrink the GRN to 100 — less than the 300 already applied.
+        var rowVersion = await RowVersionOfAsync(tenant, grn.StockMainID);
         var attempt = await Record.ExceptionAsync(() =>
             tenant.Get<IPurchaseService>().UpdateAsync(new StockMain
             {
                 StockMainID = grn.StockMainID,
+                RowVersion = rowVersion,
                 Party_ID = world.Supplier.PartyID,
                 TransactionDate = AppTime.Now,
                 StockDetails = new List<StockDetail>
@@ -705,10 +711,12 @@ public class PurchaseFlowAuditTests
         var grn = await tenant.ReceiveStockAsync(world.Supplier, world.Product, 100, unitCost: 10m); // 1000
         var originalVoucherId = (await ReloadAsync(tenant, grn.StockMainID)).Voucher_ID!.Value;
 
+        var rowVersion = await RowVersionOfAsync(tenant, grn.StockMainID);
         // 80 units at 12 => 960.
         var edited = await tenant.Get<IPurchaseService>().UpdateAsync(new StockMain
         {
             StockMainID = grn.StockMainID,
+            RowVersion = rowVersion,
             Party_ID = world.Supplier.PartyID,
             TransactionDate = AppTime.Now,
             StockDetails = new List<StockDetail>
@@ -743,10 +751,12 @@ public class PurchaseFlowAuditTests
         await tenant.SellAsync(world, qty: 60, unitPrice: 20m, paid: 1200m); // 40 left on hand
 
         // Cutting the GRN to 30 removes 70 units, but only 40 remain.
+        var rowVersion = await RowVersionOfAsync(tenant, grn.StockMainID);
         await Assert.ThrowsAsync<InvalidOperationException>(() =>
             tenant.Get<IPurchaseService>().UpdateAsync(new StockMain
             {
                 StockMainID = grn.StockMainID,
+                RowVersion = rowVersion,
                 Party_ID = world.Supplier.PartyID,
                 TransactionDate = AppTime.Now,
                 StockDetails = new List<StockDetail>
@@ -756,6 +766,33 @@ public class PurchaseFlowAuditTests
             }, TenantData.TestUserId));
 
         Assert.Equal(40m, await tenant.StockOnHandAsync(world.Product.ProductID));
+    }
+
+    /// <summary>
+    /// A MISSING concurrency token is a failure in its own right. Treating absence as "no check to
+    /// run" let any caller opt out of concurrency control by simply leaving the field off.
+    /// </summary>
+    [Fact]
+    public async Task Editing_a_GRN_without_a_RowVersion_is_rejected()
+    {
+        using var tenant = await _fixture.NewTenantAsync();
+        var world = await tenant.SeedWorldAsync();
+        var grn = await tenant.ReceiveStockAsync(world.Supplier, world.Product, 100, unitCost: 10m);
+
+        await Assert.ThrowsAsync<DbUpdateConcurrencyException>(() =>
+            tenant.Get<IPurchaseService>().UpdateAsync(new StockMain
+            {
+                StockMainID = grn.StockMainID,
+                Party_ID = world.Supplier.PartyID,
+                TransactionDate = AppTime.Now,
+                StockDetails = new List<StockDetail>
+                {
+                    new() { Product_ID = world.Product.ProductID, Quantity = 90, UnitPrice = 10m, CostPrice = 10m }
+                }
+            }, TenantData.TestUserId));
+
+        // Untouched: still the original 100 units.
+        Assert.Equal(100m, await tenant.StockOnHandAsync(world.Product.ProductID));
     }
 
     [Fact]
@@ -785,9 +822,10 @@ public class PurchaseFlowAuditTests
         using var tenant = await _fixture.NewTenantAsync();
         var world = await tenant.SeedWorldAsync();
 
-        StockMain Edit(int id) => new()
+        StockMain Edit(int id, byte[] rowVersion) => new()
         {
             StockMainID = id,
+            RowVersion = rowVersion,
             Party_ID = world.Supplier.PartyID,
             TransactionDate = AppTime.Now,
             StockDetails = new List<StockDetail>
@@ -800,8 +838,9 @@ public class PurchaseFlowAuditTests
         var paidGrn = await tenant.ReceiveStockAsync(world.Supplier, world.Product, 100, unitCost: 10m);
         await tenant.Get<IPaymentService>().CreatePaymentAsync(
             Pay(world.Supplier.PartyID, paidGrn.StockMainID, world.Cash.AccountID, 100m), TenantData.TestUserId);
+        var paidGrnVersion = await RowVersionOfAsync(tenant, paidGrn.StockMainID);
         await Assert.ThrowsAsync<InvalidOperationException>(() =>
-            tenant.Get<IPurchaseService>().UpdateAsync(Edit(paidGrn.StockMainID), TenantData.TestUserId));
+            tenant.Get<IPurchaseService>().UpdateAsync(Edit(paidGrn.StockMainID, paidGrnVersion), TenantData.TestUserId));
 
         // GRN with a live purchase return.
         var returnedGrn = await tenant.ReceiveStockAsync(world.Supplier, world.Product, 100, unitCost: 10m);
@@ -815,8 +854,9 @@ public class PurchaseFlowAuditTests
                 new() { Product_ID = world.Product.ProductID, Quantity = 10, CostPrice = 10m }
             }
         }, TenantData.TestUserId);
+        var returnedGrnVersion = await RowVersionOfAsync(tenant, returnedGrn.StockMainID);
         await Assert.ThrowsAsync<InvalidOperationException>(() =>
-            tenant.Get<IPurchaseService>().UpdateAsync(Edit(returnedGrn.StockMainID), TenantData.TestUserId));
+            tenant.Get<IPurchaseService>().UpdateAsync(Edit(returnedGrn.StockMainID, returnedGrnVersion), TenantData.TestUserId));
     }
 
     [Fact]
@@ -828,10 +868,12 @@ public class PurchaseFlowAuditTests
 
         await tenant.CloseCurrentPeriodAsync();
 
+        var rowVersion = await RowVersionOfAsync(tenant, grn.StockMainID);
         await Assert.ThrowsAsync<InvalidOperationException>(() =>
             tenant.Get<IPurchaseService>().UpdateAsync(new StockMain
             {
                 StockMainID = grn.StockMainID,
+                RowVersion = rowVersion,
                 Party_ID = world.Supplier.PartyID,
                 TransactionDate = AppTime.Now,
                 StockDetails = new List<StockDetail>

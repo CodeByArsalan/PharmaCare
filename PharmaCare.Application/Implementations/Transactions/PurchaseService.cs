@@ -972,9 +972,16 @@ public class PurchaseService : TransactionServiceBase, IPurchaseService
         if (existing.Status != "Approved")
             throw new InvalidOperationException("Only approved purchases can be edited.");
 
-        // Optimistic concurrency: reject the edit if the row changed since the form was loaded.
-        if (purchase.RowVersion is { Length: > 0 }
-            && !existing.RowVersion.SequenceEqual(purchase.RowVersion))
+        // Optimistic concurrency. A MISSING token is itself a failure, not "no check to run" —
+        // treating absence as a pass let any caller opt out of concurrency control merely by
+        // leaving the field off, which is exactly what a stripped form post does.
+        if (purchase.RowVersion is not { Length: > 0 })
+        {
+            throw new DbUpdateConcurrencyException(
+                "This purchase was submitted without its concurrency token. Reload it and try again.");
+        }
+
+        if (!existing.RowVersion.SequenceEqual(purchase.RowVersion))
         {
             throw new DbUpdateConcurrencyException(
                 "This purchase was modified by another user after you opened it. Reload and try again.");

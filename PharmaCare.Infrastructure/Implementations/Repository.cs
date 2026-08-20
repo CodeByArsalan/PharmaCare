@@ -1,5 +1,6 @@
 using System.Linq.Expressions;
 using Microsoft.EntityFrameworkCore;
+using PharmaCare.Domain.Entities.Base;
 using PharmaCare.Application.Interfaces;
 
 namespace PharmaCare.Infrastructure.Implementations;
@@ -19,28 +20,37 @@ public class Repository<T> : IRepository<T> where T : class
     }
 
     /// <summary>
-    /// Resolves an entity by primary key, honouring global query filters.
+    /// Resolves an entity by primary key, honouring the tenant boundary that global query filters
+    /// enforce everywhere else.
     /// <para>
-    /// Deliberately NOT <c>DbSet.Find</c>. Find performs a keyed lookup that BYPASSES global query
-    /// filters, so on a tenant-scoped entity it returns another pharmacy's row. Services across the
-    /// app pass a client-supplied id straight into this method, which made that a cross-tenant read
-    /// (and, where the loaded entity is then written back, a cross-tenant write).
+    /// <c>Find</c> is kept for its fast path — it returns an already-tracked entity without going to
+    /// the database at all — but it BYPASSES global query filters by design. On a tenant-scoped
+    /// entity that made this a cross-tenant read (and a cross-tenant write wherever the caller saved
+    /// the entity back), on every one of the many call sites that pass a client-supplied id. The
+    /// ownership check below reproduces exactly what the query filter would have decided, including
+    /// returning nothing when there is no ambient tenant.
     /// </para>
     /// </summary>
     public virtual async Task<T?> GetByIdAsync(int id)
     {
-        var primaryKey = _context.Model.FindEntityType(typeof(T))?.FindPrimaryKey();
-        var keyProperty = primaryKey?.Properties.Count == 1 ? primaryKey.Properties[0] : null;
+        var entity = await _dbSet.FindAsync(id);
 
-        // Composite or non-int keys have no single int column to match on; nothing tenant-scoped
-        // uses one, so falling back to Find here changes no isolation behavior.
-        if (keyProperty is null || keyProperty.ClrType != typeof(int))
+        if (entity is ITenantEntity tenantEntity)
         {
-            return await _dbSet.FindAsync(id);
+            var tenantId = _context.CurrentTenantId;
+
+            // Matches the filter expression (Pharmacy_ID == TenantId): with no ambient tenant the
+            // comparison is never true in SQL, so a filtered query returns nothing and so must this.
+            if (tenantId is null || tenantEntity.Pharmacy_ID != tenantId.Value)
+            {
+                // Find has already pulled the foreign row into the change tracker. Detach it so it
+                // cannot be reached through the identity map or swept up by a later SaveChanges.
+                _context.Entry(entity).State = EntityState.Detached;
+                return null;
+            }
         }
 
-        var keyName = keyProperty.Name;
-        return await _dbSet.FirstOrDefaultAsync(e => EF.Property<int>(e, keyName) == id);
+        return entity;
     }
 
     public virtual async Task<IEnumerable<T>> GetAllAsync()

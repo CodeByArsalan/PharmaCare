@@ -29,6 +29,13 @@ public class PharmaCareDBContext : IdentityUserContext<User, int>
         _currentTenant = currentTenant ?? NullTenant.Instance;
     }
 
+    /// <summary>
+    /// The pharmacy the global query filters are currently resolving against, or null when there is
+    /// no ambient tenant. Exposed so the repository can reproduce the filter's decision on the one
+    /// read path that cannot use it — EF's Find, which bypasses query filters by design.
+    /// </summary>
+    public int? CurrentTenantId => _currentTenant.TenantId;
+
     // ========== TENANCY ==========
     public DbSet<Pharmacy> Pharmacies { get; set; } = null!;
 

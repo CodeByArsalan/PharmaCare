@@ -1,3 +1,5 @@
+using PharmaCare.Domain.Entities.Configuration;
+using PharmaCare.Application.Interfaces;
 using Microsoft.AspNetCore.Identity;
 using Microsoft.EntityFrameworkCore;
 using PharmaCare.Application.DTOs.Security;
@@ -163,5 +165,23 @@ public class SecurityAuditTests
 
         var leaked = await tenantA.Get<IUserService>().GetUserRoleIdsAsync(userB.Id);
         Assert.Empty(leaked);
+    }
+    /// <summary>
+    /// SEC-7: the generic repository resolves by primary key with EF's Find, which BYPASSES global
+    /// query filters. Dozens of services pass a client-supplied id straight in, so without an
+    /// explicit ownership check that is a cross-tenant read on every one of them — and a
+    /// cross-tenant write wherever the caller saves the entity back.
+    /// </summary>
+    [Fact]
+    public async Task The_repository_does_not_resolve_another_pharmacys_row_by_id()
+    {
+        using var tenantA = await _fixture.NewTenantAsync();
+        using var tenantB = await _fixture.NewTenantAsync();
+
+        var worldB = await tenantB.SeedWorldAsync();
+
+        var leaked = await tenantA.Get<IRepository<Product>>().GetByIdAsync(worldB.Product.ProductID);
+
+        Assert.Null(leaked);
     }
 }
