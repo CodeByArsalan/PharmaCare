@@ -39,15 +39,12 @@ public class HomeController : BaseController
             vm.CanViewSales = HasPermission("SalesReport", "SalesReportIndex", "view") || HasPermission("Sale", "SalesIndex", "view");
             vm.CanViewInventory = HasPermission("InventoryReport", "InventoryReportIndex", "view") || HasPermission("Product", "ProductsIndex", "view");
             vm.CanViewFinancials = HasPermission("FinancialReport", "FinancialReportIndex", "view") || HasPermission("JournalVoucher", "JournalVoucherIndex", "view");
-            
-            bool isAdmin = IsInRole("Admin", "Administrator") || CurrentUserRoleNames.Any(r => r.Contains("Admin", StringComparison.OrdinalIgnoreCase));
-            if (isAdmin)
-            {
-                // Admins see everything
-                vm.CanViewSales = true;
-                vm.CanViewInventory = true;
-                vm.CanViewFinancials = true;
-            }
+
+            // Deliberately NO role-name shortcut here. The old `name.Contains("Admin")` check
+            // meant a role called "Admin Assistant" — or anything else with those five letters —
+            // unlocked every financial figure on the dashboard regardless of its actual
+            // permissions. A real administrator's role GRANTS the report pages, so the permission
+            // checks above already say yes for them; the page permissions are the only authority.
 
             // 1. Fetch today's sales summary
             if (vm.CanViewSales || vm.CanViewFinancials)
@@ -153,10 +150,10 @@ public class HomeController : BaseController
         // Same gate as the chart section of Index: this endpoint returns tenant-wide
         // sales/purchase totals, which not every authenticated user may see. The Home
         // controller is exempt from the page-authorization filter, so gate it here.
+        // Page permissions only — no role-NAME shortcut (see Index). A role merely named
+        // "Admin Assistant" must not unlock tenant-wide financial totals.
         var canViewFinancials = HasPermission("FinancialReport", "FinancialReportIndex", "view")
-            || HasPermission("JournalVoucher", "JournalVoucherIndex", "view")
-            || IsInRole("Admin", "Administrator")
-            || CurrentUserRoleNames.Any(r => r.Contains("Admin", StringComparison.OrdinalIgnoreCase));
+            || HasPermission("JournalVoucher", "JournalVoucherIndex", "view");
 
         if (!canViewFinancials)
         {

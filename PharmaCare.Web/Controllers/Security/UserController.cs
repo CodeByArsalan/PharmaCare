@@ -145,8 +145,20 @@ public class UserController : BaseController
         int userId = Utility.DecryptId(id);
         if (userId == 0) return NotFound();
 
-        await _userService.ToggleUserStatusAsync(userId, CurrentUserId);
-        ShowMessage(MessageType.Success, "User status updated successfully!");
+        try
+        {
+            var changed = await _userService.ToggleUserStatusAsync(userId, CurrentUserId);
+            if (changed)
+                ShowMessage(MessageType.Success, "User status updated successfully!");
+            else
+                ShowMessage(MessageType.Error, "User not found.");
+        }
+        catch (Exception ex)
+        {
+            // The service refuses to deactivate the pharmacy's last administrator; surface that
+            // reason rather than a raw 500.
+            ShowMessage(MessageType.Error, SafeErrorMessage(ex, "Toggle user status"));
+        }
         return RedirectToAction("UsersIndex");
     }
 

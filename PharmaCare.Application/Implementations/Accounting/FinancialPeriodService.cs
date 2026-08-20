@@ -42,6 +42,12 @@ public class FinancialPeriodService : IFinancialPeriodService
 
     public async Task<FinancialPeriod> CreateAsync(FinancialPeriod period, int userId)
     {
+        // The name is the only label the period list and close screens show — a blank one leaves
+        // the user closing "     ".
+        if (string.IsNullOrWhiteSpace(period.Name))
+            throw new InvalidOperationException("A period name is required.");
+        period.Name = period.Name.Trim();
+
         if (period.StartDate > period.EndDate)
             throw new InvalidOperationException("A financial period cannot end before it starts.");
 
@@ -80,6 +86,18 @@ public class FinancialPeriodService : IFinancialPeriodService
             {
                 await _unitOfWork.RollbackTransactionAsync();
                 return false;
+            }
+
+            // Periods close in order. Closing declares a period's figures final — closing a LATER
+            // one while an earlier one is still open means the earlier books can still change
+            // after the later ones were signed off, and the two never reconcile.
+            var earlierStillOpen = await _periodRepository.Query()
+                .AnyAsync(p => !p.IsClosed && p.PeriodID != periodId && p.EndDate < period.StartDate);
+
+            if (earlierStillOpen)
+            {
+                throw new InvalidOperationException(
+                    "An earlier financial period is still open. Close periods in order, oldest first.");
             }
 
             period.IsClosed = true;

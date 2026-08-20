@@ -70,6 +70,9 @@ public sealed class DatabaseFixture : IAsyncLifetime
         var services = new ServiceCollection();
         services.AddLogging(b => b.SetMinimumLevel(LogLevel.Warning));
         services.AddSingleton<IHttpContextAccessor, HttpContextAccessor>();
+        // Identity's default token providers are DataProtector-based, so the provider they depend
+        // on has to exist before AddDefaultTokenProviders below can be resolved.
+        services.AddDataProtection();
 
         // Mirrors the registrations in PharmaCare.Web/Program.cs. Kept explicit rather than booting
         // the web host so these tests exercise services directly without HTTP or auth plumbing.
@@ -98,12 +101,21 @@ public sealed class DatabaseFixture : IAsyncLifetime
             o.Password.RequiredLength = 8;
             o.Password.RequiredUniqueChars = 1;
             o.User.RequireUniqueEmail = true;
-        }).AddEntityFrameworkStores<PharmaCareDBContext>();
+        })
+            .AddEntityFrameworkStores<PharmaCareDBContext>()
+            // Production registers these via AddDefaultIdentity. Without them any code path that
+            // mints an Identity token — UserManagerAdapter.ResetPasswordAsync generates a password
+            // reset token, which is how an administrator changes a colleague's password — throws
+            // "No IUserTwoFactorTokenProvider named 'Default' is registered" here and nowhere else.
+            .AddDefaultTokenProviders();
 
         services.AddScoped(typeof(IRepository<>), typeof(Repository<>));
         services.AddScoped<IUnitOfWork, UnitOfWork>();
         services.AddScoped<IActivityLogRepository, ActivityLogRepository>();
         services.AddScoped<IActivityLogService, ActivityLogService>();
+        // The dropdown source every Add/Edit view binds its selects to. Registered here so the
+        // choices a user is OFFERED can be asserted against the choices the services will ACCEPT.
+        services.AddScoped<PharmaCare.Infrastructure.Interfaces.IComboboxRepository, ComboboxRepository>();
         services.AddScoped<ISessionService, TestSessionService>();
 
         services.AddScoped<IUserManager, UserManagerAdapter>();

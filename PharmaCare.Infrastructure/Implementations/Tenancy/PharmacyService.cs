@@ -43,6 +43,13 @@ public class PharmacyService : IPharmacyService
 
     public async Task<bool> SetStatusAsync(int pharmacyId, string status, int userId)
     {
+        // Only the two states the platform console offers. IsOperationalAsync recognises exactly
+        // "Active", so an arbitrary string here would silently suspend the pharmacy.
+        if (status is not ("Active" or "Suspended"))
+        {
+            return false;
+        }
+
         var pharmacy = await _repository.GetByIdAsync(pharmacyId);
         if (pharmacy == null)
         {

@@ -1,8 +1,10 @@
+using System.Security.Claims;
 using System.Text.Json;
 using Microsoft.AspNetCore.Http;
 using Microsoft.EntityFrameworkCore;
 using PharmaCare.Application.DTOs.Security;
 using PharmaCare.Application.Interfaces;
+using PharmaCare.Infrastructure.Implementations.Security;
 
 namespace PharmaCare.Infrastructure.Implementations;
 
@@ -41,47 +43,12 @@ public class SessionService : ISessionService
 
         if (user == null) return;
 
-        // Fetch roles directly
-        var userRoles = await _context.UserRoles_Custom
-            .AsNoTracking()
-            .Where(ur => ur.User_ID == userId)
-            .Join(_context.Roles_Custom,
-                ur => ur.Role_ID,
-                r => r.RoleID,
-                (ur, r) => new { r.RoleID, r.Name })
-            .ToListAsync();
-
-        var roleIds = userRoles.Select(r => r.RoleID).ToList();
-
-        // Fetch accessible pages for user's roles - Optimized with Grouping and Projections
-        var pagePermissions = await _context.RolePages
-            .AsNoTracking()
-            .Where(rp => roleIds.Contains(rp.Role_ID))
-            .Select(rp => new 
-            { 
-                rp.Page_ID, 
-                rp.Page!.Controller, 
-                rp.Page.Action,
-                rp.CanView,
-                rp.CanCreate,
-                rp.CanEdit,
-                rp.CanDelete
-            })
-            .ToListAsync();
-
-        var aggregatedPermissions = pagePermissions
-            .GroupBy(p => new { p.Page_ID, p.Controller, p.Action })
-            .Select(g => new PagePermission
-            {
-                PageId = g.Key.Page_ID,
-                Controller = g.Key.Controller ?? string.Empty,
-                Action = g.Key.Action ?? string.Empty,
-                CanView = g.Any(p => p.CanView),
-                CanCreate = g.Any(p => p.CanCreate),
-                CanEdit = g.Any(p => p.CanEdit),
-                CanDelete = g.Any(p => p.CanDelete)
-            })
-            .ToList();
+        // Only ACTIVE roles grant anything; a user's grant on a page is the union across their
+        // roles; PageUrl aliases inherit the parent page. One shared implementation of those rules
+        // (PermissionResolution) serves this snapshot and AuthService alike.
+        var userRoles = await PermissionResolution.ActiveRolesAsync(_context, userId);
+        var roleIds = userRoles.Select(r => r.RoleId).ToList();
+        var aggregatedPermissions = await PermissionResolution.EffectivePermissionsAsync(_context, roleIds);
 
         // Resolve the owning pharmacy name (Pharmacies is not tenant-filtered).
         string? pharmacyName = null;
@@ -104,41 +71,11 @@ public class SessionService : ISessionService
             PharmacyName = pharmacyName,
             IsPlatformAdmin = user.IsPlatformAdmin,
             RoleIds = roleIds,
-            RoleNames = userRoles.Select(r => r.Name).ToList()
+            RoleNames = userRoles.Select(r => r.Name).ToList(),
+            // The permissions version this snapshot was built from — compared per request by
+            // SessionInitializationMiddleware; mismatch forces a rebuild.
+            PermissionsStamp = user.PermissionsStamp
         };
-
-        // Fetch PageUrls for accessible pages and add them to permissions
-        var accessiblePageIds = aggregatedPermissions.Select(p => p.PageId).ToList();
-        var pageUrls = await _context.PageUrls
-            .AsNoTracking()
-            .Where(pu => accessiblePageIds.Contains(pu.Page_ID))
-            .ToListAsync();
-
-        // Add PageUrl entries
-        foreach (var pageUrl in pageUrls)
-        {
-            var parentPermission = aggregatedPermissions.FirstOrDefault(p => p.PageId == pageUrl.Page_ID);
-            if (parentPermission != null)
-            {
-                var exists = aggregatedPermissions.Any(p =>
-                    string.Equals(p.Controller, pageUrl.Controller, StringComparison.OrdinalIgnoreCase) &&
-                    string.Equals(p.Action, pageUrl.Action, StringComparison.OrdinalIgnoreCase));
-
-                if (!exists)
-                {
-                    aggregatedPermissions.Add(new PagePermission
-                    {
-                        PageId = pageUrl.Page_ID,
-                        Controller = pageUrl.Controller,
-                        Action = pageUrl.Action,
-                        CanView = parentPermission.CanView,
-                        CanCreate = parentPermission.CanCreate,
-                        CanEdit = parentPermission.CanEdit,
-                        CanDelete = parentPermission.CanDelete
-                    });
-                }
-            }
-        }
 
         // Fetch sidebar menu items
         var sidebarPageIds = aggregatedPermissions
@@ -165,9 +102,9 @@ public class SessionService : ISessionService
     /// <inheritdoc />
     public void ClearSession()
     {
-        Session?.Remove(UserSessionKey);
-        Session?.Remove(PagePermissionsKey);
-        Session?.Remove(SidebarMenuKey);
+        // Clear EVERYTHING, not just our three keys. Removing named keys leaves the session alive
+        // under the same id, so any other state — and the id itself — survives the auth boundary.
+        Session?.Clear();
     }
 
     /// <inheritdoc />
@@ -176,12 +113,30 @@ public class SessionService : ISessionService
         var json = Session?.GetString(UserSessionKey);
         if (string.IsNullOrEmpty(json)) return null;
 
-        return JsonSerializer.Deserialize<UserSessionInfo>(json);
+        var info = JsonSerializer.Deserialize<UserSessionInfo>(json);
+        if (info == null) return null;
+
+        // The session must belong to the AUTHENTICATED principal, or it is not served at all.
+        // The session cookie is a bearer of state, not of identity: without this check a request
+        // presenting user B's auth cookie alongside user A's session cookie would run with A's
+        // permission snapshot and pharmacy — session fixation/swap turned into privilege transfer.
+        var httpUser = _httpContextAccessor.HttpContext?.User;
+        if (httpUser?.Identity?.IsAuthenticated != true) return null;
+
+        var idClaim = httpUser.FindFirst(ClaimTypes.NameIdentifier)?.Value;
+        if (!int.TryParse(idClaim, out var principalId) || principalId != info.UserId) return null;
+
+        return info;
     }
 
     /// <inheritdoc />
     public List<PagePermission> GetAccessiblePages()
     {
+        // Same principal binding as GetCurrentUser: a session that does not belong to the
+        // authenticated user grants nothing. HasPageAccess — the authorization decision — reads
+        // through here, so this is where the binding must hold.
+        if (GetCurrentUser() == null) return new List<PagePermission>();
+
         var json = Session?.GetString(PagePermissionsKey);
         if (string.IsNullOrEmpty(json)) return new List<PagePermission>();
 
@@ -213,6 +168,8 @@ public class SessionService : ISessionService
     /// <inheritdoc />
     public List<SidebarMenuItemDTO> GetSidebarMenu()
     {
+        if (GetCurrentUser() == null) return new List<SidebarMenuItemDTO>();
+
         var json = Session?.GetString(SidebarMenuKey);
         if (string.IsNullOrEmpty(json)) return new List<SidebarMenuItemDTO>();
 

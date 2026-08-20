@@ -34,6 +34,16 @@ public class User : IdentityUser<int>
     /// </summary>
     public bool MustChangePassword { get; set; }
 
+    /// <summary>
+    /// Version marker for this user's effective permissions. Rotated whenever the permissions any
+    /// of the user's roles grant change (or the user's role set changes), and compared on every
+    /// request against the copy stored in the session's permission snapshot — a mismatch forces
+    /// the snapshot to be rebuilt. Without this, the snapshot taken at sign-in outlives every
+    /// later revocation for as long as the session stays alive.
+    /// </summary>
+    [System.ComponentModel.DataAnnotations.StringLength(64)]
+    public string? PermissionsStamp { get; set; }
+
     // Audit Trail
     public DateTime CreatedAt { get; set; }
     public int CreatedBy { get; set; }

@@ -159,6 +159,9 @@ public class ProductService : IProductService
 
     public async Task<Product> CreateAsync(Product product, int userId)
     {
+        await ValidateClassificationAsync(product.Category_ID, product.SubCategory_ID);
+        await EnsureNameIsFreeAsync(product.Name, excludeId: null);
+
         product.CreatedAt = AppTime.Now;
         product.CreatedBy = userId;
         product.IsActive = true;
@@ -245,6 +248,8 @@ public class ProductService : IProductService
         }
 
         await ValidatePackSizeChangeAsync(existing, stored.UnitsInPack, product);
+        await ValidateClassificationAsync(product.Category_ID, product.SubCategory_ID);
+        await EnsureNameIsFreeAsync(product.Name, product.ProductID);
 
         existing.Name = product.Name;
         existing.ShortCode = product.ShortCode;
@@ -280,6 +285,54 @@ public class ProductService : IProductService
     private Task<bool> HasStockMovementAsync(int productId)
         => _stockDetailRepository.Query().AsNoTracking()
             .AnyAsync(sd => sd.Product_ID == productId);
+
+    /// <summary>
+    /// Two products with one name are indistinguishable on the sale screen, and which one the
+    /// cashier picks decides whose stock moves. Readable error here; the unique index on
+    /// (Pharmacy_ID, Name) is the backstop.
+    /// </summary>
+    private async Task EnsureNameIsFreeAsync(string name, int? excludeId)
+    {
+        var trimmed = (name ?? string.Empty).Trim();
+        if (trimmed.Length == 0)
+            throw new InvalidOperationException("A product name is required.");
+
+        var taken = await _repository.Query().AnyAsync(p =>
+            p.Name == trimmed && (!excludeId.HasValue || p.ProductID != excludeId.Value));
+
+        if (taken)
+            throw new InvalidOperationException($"A product named '{trimmed}' already exists.");
+    }
+
+    /// <summary>
+    /// The category and sub-category must be a real parent/child pair from THIS pharmacy. Both ids
+    /// arrive from a form: an unchecked sub-category can belong to a different category (so the
+    /// two answers to "what kind of product is this" disagree and category-then-subcategory
+    /// filtering returns nothing) or, worse, to a different pharmacy entirely — the FK carries no
+    /// Pharmacy_ID, so the database accepts the reference and the tenant filter then hides it.
+    /// </summary>
+    private async Task ValidateClassificationAsync(int? categoryId, int subCategoryId)
+    {
+        if (categoryId is null or <= 0)
+            throw new InvalidOperationException("A category is required.");
+
+        var categoryVisible = await _categoryRepository.Query().AnyAsync(c => c.CategoryID == categoryId);
+        if (!categoryVisible)
+            throw new InvalidOperationException("The selected category was not found.");
+
+        var subCategoryParent = await _subCategoryRepository.Query()
+            .AsNoTracking()
+            .Where(s => s.SubCategoryID == subCategoryId)
+            .Select(s => (int?)s.Category_ID)
+            .FirstOrDefaultAsync();
+
+        if (subCategoryParent is null)
+            throw new InvalidOperationException("The selected sub-category was not found.");
+
+        if (subCategoryParent != categoryId)
+            throw new InvalidOperationException(
+                "The selected sub-category does not belong to the selected category.");
+    }
 
     /// <summary>
     /// The below-cost margin floor lives in <see cref="SaveProductPricesAsync"/>, which compares a

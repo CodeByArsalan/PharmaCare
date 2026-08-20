@@ -1,4 +1,5 @@
 using System.ComponentModel.DataAnnotations;
+using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Identity;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.RateLimiting;
@@ -68,6 +69,7 @@ public class AccountController : Controller
                 var result = await _signInManager.PasswordSignInAsync(user, model.Password, model.RememberMe, lockoutOnFailure: true);
                 if (result.IsLockedOut)
                 {
+                    await LogFailedSignInAsync(user, model.Email, lockedOut: true);
                     ModelState.AddModelError(string.Empty, "This account is temporarily locked due to multiple failed login attempts. Please try again later.");
                     return View(model);
                 }
@@ -95,6 +97,11 @@ public class AccountController : Controller
                         // Subsequent requests resolve the tenant from the auth-cookie claim.
                         _currentTenant.SetTenant(pharmacyId);
                     }
+
+                    // Sign-in is an authentication boundary: whatever the session held before —
+                    // anonymous state, or a previous user's leftovers on a shared machine — must
+                    // not survive into the authenticated session.
+                    _sessionService.ClearSession();
 
                     // Initialize session with user data and permissions
                     await _sessionService.InitializeSessionAsync(user.Id);
@@ -124,11 +131,48 @@ public class AccountController : Controller
 
                     return RedirectToLocal(returnUrl);
                 }
+
+                // Wrong password for a real, active account.
+                await LogFailedSignInAsync(user, model.Email, lockedOut: false);
+            }
+            else
+            {
+                // Unknown address, or a deactivated account. Logged too — a guessing run that
+                // sweeps addresses is exactly what the log must be able to show. The RESPONSE
+                // stays generic below; only the log is specific.
+                await LogFailedSignInAsync(user: null, model.Email, lockedOut: false);
             }
             ModelState.AddModelError(string.Empty, "Invalid login attempt.");
         }
 
         return View(model);
+    }
+
+    /// <summary>
+    /// Records a refused sign-in attempt. Successful logins were always logged; failures were not,
+    /// which left the activity log unable to show a password-guessing run, name the account being
+    /// targeted, or explain why an account is locked out.
+    /// </summary>
+    private async Task LogFailedSignInAsync(User? user, string attemptedEmail, bool lockedOut)
+    {
+        // Attribute the entry to the account's own pharmacy where one is known, so it appears on
+        // that pharmacy's activity screen (which filters on the tenant column).
+        if (user?.Pharmacy_ID is int pharmacyId && pharmacyId > 0)
+        {
+            _currentTenant.SetTenant(pharmacyId);
+        }
+
+        var description = lockedOut
+            ? $"Sign-in refused for '{attemptedEmail}': account locked out after repeated failures"
+            : $"Failed sign-in attempt for '{attemptedEmail}'";
+
+        await _activityLogService.LogActivityAsync(
+            user?.Id ?? 0,
+            attemptedEmail,
+            ActivityType.LoginFailed,
+            "User",
+            user?.Id.ToString(),
+            description: description);
     }
 
     [HttpPost]
@@ -159,13 +203,18 @@ public class AccountController : Controller
     // so a user is always created under a specific pharmacy, never tenant-less. The old actions
     // only redirected back to Login, and the login page no longer links to them.
 
+    // [Authorize]: the rest of this controller is deliberately anonymous (it IS the login flow),
+    // but changing a password only makes sense for a signed-in user — without the attribute the
+    // form rendered for anonymous visitors too.
     [HttpGet]
+    [Authorize]
     public IActionResult ChangePassword()
     {
         return View(new ChangePasswordViewModel());
     }
 
     [HttpPost]
+    [Authorize]
     [ValidateAntiForgeryToken]
     public async Task<IActionResult> ChangePassword(ChangePasswordViewModel model)
     {

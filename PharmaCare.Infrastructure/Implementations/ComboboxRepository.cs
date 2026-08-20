@@ -1,4 +1,5 @@
 using Microsoft.AspNetCore.Mvc.Rendering;
+using PharmaCare.Application.Interfaces.Tenancy;
 using PharmaCare.Infrastructure.Interfaces;
 
 namespace PharmaCare.Infrastructure.Implementations;
@@ -7,11 +8,13 @@ public class ComboboxRepository : IComboboxRepository
 {
     private readonly PharmaCareDBContext _context;
     private readonly LogDbContext _logContext;
+    private readonly ICurrentTenant _currentTenant;
 
-    public ComboboxRepository(PharmaCareDBContext context, LogDbContext logContext)
+    public ComboboxRepository(PharmaCareDBContext context, LogDbContext logContext, ICurrentTenant currentTenant)
     {
         _context = context;
         _logContext = logContext;
+        _currentTenant = currentTenant;
     }
 
     #region Configuration Dropdowns
@@ -288,9 +291,15 @@ public class ComboboxRepository : IComboboxRepository
 
     public IEnumerable<SelectListItem> GetEntityNamesForLog(string? selectedValue = null)
     {
+        // The log database has NO global query filters, so tenancy must be applied by hand here —
+        // without it this dropdown is built from EVERY pharmacy's log, and the mere presence of an
+        // entity name leaks what other pharmacies have been doing.
+        var tenantId = _currentTenant.TenantId;
+
         // DISTINCT + ORDER BY run in SQL; only the small set of distinct entity names is
         // materialized, then mapped to SelectListItems in memory.
         var names = _logContext.ActivityLogs
+            .Where(l => l.Pharmacy_ID == tenantId)
             .Select(l => l.EntityName)
             .Distinct()
             .OrderBy(n => n)
@@ -328,8 +337,11 @@ public class ComboboxRepository : IComboboxRepository
 
     public IEnumerable<SelectListItem> GetSales(int? selectedValue = null)
     {
+        // Voided documents are not offered: a return or credit raised against one reverses a
+        // balance the void already reversed.
         return _context.StockMains
-            .Where(s => s.TransactionType != null && s.TransactionType.Code == "SALE")
+            .Where(s => s.TransactionType != null && s.TransactionType.Code == "SALE"
+                     && s.Status != "Void")
             .OrderByDescending(s => s.TransactionDate)
             .Select(s => new SelectListItem
             {
@@ -342,8 +354,10 @@ public class ComboboxRepository : IComboboxRepository
 
     public IEnumerable<SelectListItem> GetPurchases(int? selectedValue = null)
     {
+        // Voided GRNs are not offered — their payable no longer exists (see GetSales).
         return _context.StockMains
-            .Where(s => s.TransactionType != null && s.TransactionType.Code == "GRN")
+            .Where(s => s.TransactionType != null && s.TransactionType.Code == "GRN"
+                     && s.Status != "Void")
             .OrderByDescending(s => s.TransactionDate)
             .Select(s => new SelectListItem
             {

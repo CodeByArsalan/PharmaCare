@@ -198,6 +198,10 @@ public class PharmaCareDBContext : IdentityUserContext<User, int>
             entity.ToTable("Categories");
             entity.HasKey(e => e.CategoryID);
             entity.Property(e => e.Name).IsRequired().HasMaxLength(100);
+            // UNIQUE per pharmacy: two categories with one name are two different sets of posting
+            // accounts behind a single indistinguishable dropdown label. (Roles have carried the
+            // same per-tenant name index all along.)
+            entity.HasIndex(e => new { e.Pharmacy_ID, e.Name }).IsUnique();
 
             entity.HasOne(e => e.StockAccount)
                 .WithMany()
@@ -226,6 +230,9 @@ public class PharmaCareDBContext : IdentityUserContext<User, int>
             entity.ToTable("SubCategories");
             entity.HasKey(e => e.SubCategoryID);
             entity.Property(e => e.Name).IsRequired().HasMaxLength(100);
+            // UNIQUE within its category (name reuse across categories is fine: "General" can
+            // exist under both Medicines and Cosmetics).
+            entity.HasIndex(e => new { e.Pharmacy_ID, e.Category_ID, e.Name }).IsUnique();
             entity.HasOne(e => e.Category)
                 .WithMany(c => c.SubCategories)
                 .HasForeignKey(e => e.Category_ID)
@@ -241,6 +248,9 @@ public class PharmaCareDBContext : IdentityUserContext<User, int>
             entity.Property(e => e.UnitsInPack).HasDefaultValue(1);
             entity.ToTable(t => t.HasCheckConstraint("CK_Products_UnitsInPack_Positive", "[UnitsInPack] > 0"));
             entity.HasIndex(e => e.ShortCode);
+            // UNIQUE per pharmacy: same-name products are indistinguishable on the sale screen,
+            // and which one the cashier picks decides whose stock moves.
+            entity.HasIndex(e => new { e.Pharmacy_ID, e.Name }).IsUnique();
 
             entity.HasOne(e => e.Category)
                 .WithMany(s => s.Products)

@@ -14,17 +14,23 @@ public class RoleService : IRoleService
     private readonly IRoleRepository _roleRepository;
     private readonly IPageRepository _pageRepository;
     private readonly IRolePageRepository _rolePageRepository;
+    private readonly IUserRoleRepository _userRoleRepository;
+    private readonly IRepository<User> _userRepository;
     private readonly IUnitOfWork _unitOfWork;
 
     public RoleService(
         IRoleRepository roleRepository,
         IPageRepository pageRepository,
         IRolePageRepository rolePageRepository,
+        IUserRoleRepository userRoleRepository,
+        IRepository<User> userRepository,
         IUnitOfWork unitOfWork)
     {
         _roleRepository = roleRepository;
         _pageRepository = pageRepository;
         _rolePageRepository = rolePageRepository;
+        _userRoleRepository = userRoleRepository;
+        _userRepository = userRepository;
         _unitOfWork = unitOfWork;
     }
 
@@ -64,6 +70,16 @@ public class RoleService : IRoleService
         var existingRole = await GetOwnedRoleAsync(role.RoleID);
         if (existingRole == null) return false;
 
+        // A system role's NAME is part of the tenant's plumbing — provisioning created it, other
+        // code recognises it, and renaming it is how "Administrator" quietly stops meaning
+        // anything. ToggleRoleStatusAsync already refuses system roles; the same rule has to hold
+        // here or the toggle's guard is one rename away from irrelevant. Description edits are fine.
+        if (existingRole.IsSystemRole &&
+            !string.Equals(existingRole.Name, role.Name, StringComparison.Ordinal))
+        {
+            return false;
+        }
+
         existingRole.Name = role.Name;
         existingRole.Description = role.Description;
         existingRole.UpdatedAt = AppTime.Now;
@@ -81,6 +97,10 @@ public class RoleService : IRoleService
         role.IsActive = !role.IsActive;
         role.UpdatedAt = AppTime.Now;
         role.UpdatedBy = updatedBy;
+
+        // Toggling a role changes what its holders may do RIGHT NOW — permission resolution only
+        // honours active roles — so their live sessions must rebuild their snapshots.
+        await BumpHoldersPermissionsStampAsync(id);
 
         await _unitOfWork.SaveChangesAsync();
         return true;
@@ -128,14 +148,35 @@ public class RoleService : IRoleService
         // The role id arrives unencrypted from the permissions form with no ownership check upstream.
         // Writing straight through would stamp RolePage rows for this pharmacy that point at another
         // pharmacy's role.
-        if (await GetOwnedRoleAsync(roleId) is null)
+        var role = await GetOwnedRoleAsync(roleId);
+        if (role is null)
             return false;
+
+        // The system Administrator role keeps everything, always. The permissions form deletes the
+        // RolePage row for any page left unticked, so one submit with the boxes cleared removed the
+        // tenant's ONLY route back to this very screen — an unrecoverable self-lockout, because the
+        // pharmacy administers itself and nothing outside it can put the rows back.
+        if (role.IsSystemRole)
+        {
+            throw new InvalidOperationException(
+                "The system Administrator role always holds every permission; it cannot be edited.");
+        }
+
+        // Page ids arrive from the form as plain integers. An unknown id used to reach SQL and die
+        // as a foreign-key violation — a generic 500. It is either tampering or a stale form, and
+        // in both cases the row grants nothing real, so it is dropped.
+        var validPageIds = (await _pageRepository.Query()
+            .Select(p => p.PageID)
+            .ToListAsync()).ToHashSet();
 
         // Get existing permissions
         var existingPermissions = await _rolePageRepository.GetPermissionsByRoleIdAsync(roleId);
 
         foreach (var perm in permissions)
         {
+            if (!validPageIds.Contains(perm.PageId))
+                continue;
+
             var hasNewPermissions = perm.CanView || perm.CanCreate || perm.CanEdit || perm.CanDelete;
             
             // Case 1: Permission exists
@@ -178,7 +219,35 @@ public class RoleService : IRoleService
             // Case 3: Permission doesn't exist and not requested -> Do nothing
         }
 
+        // What this role grants just changed; every holder's live session must rebuild its
+        // permission snapshot rather than keep answering from the sign-in copy.
+        await BumpHoldersPermissionsStampAsync(roleId);
+
         await _unitOfWork.SaveChangesAsync();
         return true;
+    }
+
+    /// <summary>
+    /// Rotates the <see cref="User.PermissionsStamp"/> of every user holding <paramref name="roleId"/>.
+    /// SessionInitializationMiddleware compares the stamp per request, so this is what makes a
+    /// permission change reach an already-signed-in user. Saved by the caller's SaveChanges.
+    /// </summary>
+    private async Task BumpHoldersPermissionsStampAsync(int roleId)
+    {
+        var userIds = await _userRoleRepository.Query()
+            .Where(ur => ur.Role_ID == roleId)
+            .Select(ur => ur.User_ID)
+            .ToListAsync();
+
+        if (userIds.Count == 0) return;
+
+        var users = await _userRepository.Query()
+            .Where(u => userIds.Contains(u.Id))
+            .ToListAsync();
+
+        foreach (var user in users)
+        {
+            user.PermissionsStamp = Guid.NewGuid().ToString("N");
+        }
     }
 }

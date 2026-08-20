@@ -126,14 +126,22 @@ public class RoleController : BaseController
     {
         // roleId arrives raw from the form. UpdatePermissionsAsync refuses a role this pharmacy
         // does not own, so report that outcome rather than always claiming success.
-        var saved = await _roleService.UpdatePermissionsAsync(roleId, permissions);
-        if (!saved)
+        try
         {
-            ShowMessage(MessageType.Error, "Role not found.");
-            return RedirectToAction("RolesIndex");
-        }
+            var saved = await _roleService.UpdatePermissionsAsync(roleId, permissions);
+            if (!saved)
+            {
+                ShowMessage(MessageType.Error, "Role not found.");
+                return RedirectToAction("RolesIndex");
+            }
 
-        ShowMessage(MessageType.Success, "Permissions saved successfully!");
+            ShowMessage(MessageType.Success, "Permissions saved successfully!");
+        }
+        catch (Exception ex)
+        {
+            // The service refuses to edit the system Administrator role's permissions.
+            ShowMessage(MessageType.Error, SafeErrorMessage(ex, "Save role permissions"));
+        }
         return RedirectToAction("RolesIndex");
     }
 }

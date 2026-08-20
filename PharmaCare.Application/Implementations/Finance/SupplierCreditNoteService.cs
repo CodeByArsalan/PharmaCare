@@ -143,6 +143,30 @@ public class SupplierCreditNoteService : ISupplierCreditNoteService
             if (adjustmentAccount.AccountID == supplier.Account.AccountID)
                 throw new InvalidOperationException("The adjustment account must be different from the supplier account.");
 
+            // When the note names the purchase it credits, that purchase must actually exist as a
+            // live GRN of THIS supplier. A voided GRN's payable was already reversed by the void —
+            // crediting it again understates what is owed by the credit amount.
+            if (creditNote.SourceStockMain_ID is int sourceId && sourceId > 0)
+            {
+                var source = await _stockMainRepository.Query()
+                    .AsNoTracking()
+                    .Include(s => s.TransactionType)
+                    .FirstOrDefaultAsync(s => s.StockMainID == sourceId);
+
+                if (source == null)
+                    throw new InvalidOperationException("The selected purchase was not found.");
+
+                if (!string.Equals(source.TransactionType?.Code, "GRN", StringComparison.OrdinalIgnoreCase))
+                    throw new InvalidOperationException("A supplier credit note can only reference a goods receipt (GRN).");
+
+                if (string.Equals(source.Status, "Void", StringComparison.OrdinalIgnoreCase))
+                    throw new InvalidOperationException(
+                        "That goods receipt has been voided; the payable it created no longer exists.");
+
+                if (source.Party_ID != creditNote.Party_ID)
+                    throw new InvalidOperationException("The selected goods receipt belongs to a different supplier.");
+            }
+
             creditNote.CreditNoteNo = await GenerateCreditNoteNoAsync();
             creditNote.AppliedAmount = 0;
             creditNote.BalanceAmount = creditNote.TotalAmount;

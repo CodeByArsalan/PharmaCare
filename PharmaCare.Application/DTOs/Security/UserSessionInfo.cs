@@ -17,4 +17,11 @@ public class UserSessionInfo
 
     public List<int> RoleIds { get; set; } = new();
     public List<string> RoleNames { get; set; } = new();
+
+    /// <summary>
+    /// The user's <c>PermissionsStamp</c> at the moment this snapshot was built. Compared against
+    /// the database value on every request; a mismatch means permissions changed after sign-in and
+    /// the snapshot must be rebuilt.
+    /// </summary>
+    public string? PermissionsStamp { get; set; }
 }

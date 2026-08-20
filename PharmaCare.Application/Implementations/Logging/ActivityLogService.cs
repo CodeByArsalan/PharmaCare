@@ -65,8 +65,21 @@ public class ActivityLogService : IActivityLogService
         await _logRepository.SaveChangesAsync();
     }
 
+    /// <summary>
+    /// Widest page the log will serve. The audit log is the largest table in the system and the
+    /// only one holding a copy of every changed field, so an unclamped page size is both the
+    /// cheapest way to exhaust the server's memory and the cheapest way to walk off with the
+    /// entire record in one request.
+    /// </summary>
+    private const int MaxPageSize = 200;
+
     public async Task<ActivityLogPagedResult> GetLogsAsync(ActivityLogFilterDto filter)
     {
+        // Both paging values are model-bound straight from the query string. Unclamped, a
+        // hand-edited ?PageNumber=0 reached SQL as a negative OFFSET and 500'd.
+        var pageNumber = Math.Max(1, filter.PageNumber);
+        var pageSize = Math.Clamp(filter.PageSize, 1, MaxPageSize);
+
         var query = TenantScoped();
 
         // Apply filters
@@ -88,8 +101,11 @@ public class ActivityLogService : IActivityLogService
         if (filter.FromDate.HasValue)
             query = query.Where(l => l.Timestamp >= filter.FromDate.Value);
 
+        // ToDate is INCLUSIVE of its whole calendar day. Timestamp carries a time of day, so the
+        // old `<= ToDate` cut the day off at midnight — and today-to-today, the very filter this
+        // screen defaults to, returned nothing. Same `< day+1` idiom as every report service.
         if (filter.ToDate.HasValue)
-            query = query.Where(l => l.Timestamp <= filter.ToDate.Value);
+            query = query.Where(l => l.Timestamp < filter.ToDate.Value.Date.AddDays(1));
 
         // Get total count
         var totalCount = await query.CountAsync();
@@ -97,8 +113,8 @@ public class ActivityLogService : IActivityLogService
         // Apply ordering and pagination
         var items = await query
             .OrderByDescending(l => l.Timestamp)
-            .Skip((filter.PageNumber - 1) * filter.PageSize)
-            .Take(filter.PageSize)
+            .Skip((pageNumber - 1) * pageSize)
+            .Take(pageSize)
             .Select(l => MapToDto(l))
             .ToListAsync();
 
@@ -106,8 +122,8 @@ public class ActivityLogService : IActivityLogService
         {
             Items = items,
             TotalCount = totalCount,
-            PageNumber = filter.PageNumber,
-            PageSize = filter.PageSize
+            PageNumber = pageNumber,
+            PageSize = pageSize
         };
     }
 

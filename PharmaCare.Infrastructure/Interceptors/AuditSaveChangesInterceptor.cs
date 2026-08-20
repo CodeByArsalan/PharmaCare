@@ -56,7 +56,14 @@ public class AuditSaveChangesInterceptor : SaveChangesInterceptor
         "UserName",
         "NormalizedUserName",
         "AccountNumber",
-        "IBAN"
+        "IBAN",
+        // Party's contact columns. The list above covered the names Identity uses, but a
+        // CUSTOMER's phone, alternate contact and home address live in columns named Phone,
+        // ContactNumber and Address — which went into the audit database in cleartext, another
+        // copy on every edit, with no redaction path.
+        "Phone",
+        "ContactNumber",
+        "Address"
     };
 
     public AuditSaveChangesInterceptor(

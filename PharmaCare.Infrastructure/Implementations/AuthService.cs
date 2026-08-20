@@ -71,36 +71,25 @@ public class AuthService : IAuthService
 
     public async Task<bool> HasPermissionAsync(int userId, string controller, string action, string permissionType)
     {
-        // Get user's roles
-        var userRoleIds = await _context.UserRoles_Custom
-            .Where(ur => ur.User_ID == userId)
-            .Select(ur => ur.Role_ID)
-            .ToListAsync();
+        // Shared resolution (PermissionResolution) rather than a private query. The private copy
+        // this replaces had drifted from SessionService in three ways, each a real defect: it
+        // consulted only the FIRST RolePage row across the user's roles instead of the union, it
+        // ignored Role.IsActive, and it knew nothing about PageUrl aliases.
+        var pages = await Security.PermissionResolution.EffectivePermissionsAsync(_context, userId);
 
-        if (!userRoleIds.Any())
-            return false;
-
-        // Get page by controller/action
-        var page = await _context.Pages
-            .FirstOrDefaultAsync(p => p.Controller == controller && p.Action == action);
+        var page = pages.FirstOrDefault(p =>
+            string.Equals(p.Controller, controller, StringComparison.OrdinalIgnoreCase) &&
+            string.Equals(p.Action, action, StringComparison.OrdinalIgnoreCase));
 
         if (page == null)
             return false;
 
-        // Check if any role has the required permission
-        var rolePage = await _context.RolePages
-            .Where(rp => userRoleIds.Contains(rp.Role_ID) && rp.Page_ID == page.PageID)
-            .FirstOrDefaultAsync();
-
-        if (rolePage == null)
-            return false;
-
         return permissionType.ToLower() switch
         {
-            "view" => rolePage.CanView,
-            "create" => rolePage.CanCreate,
-            "edit" => rolePage.CanEdit,
-            "delete" => rolePage.CanDelete,
+            "view" => page.CanView,
+            "create" => page.CanCreate,
+            "edit" => page.CanEdit,
+            "delete" => page.CanDelete,
             _ => false
         };
     }

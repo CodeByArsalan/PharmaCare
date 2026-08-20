@@ -47,14 +47,39 @@ public class CategoryService : ICategoryService
 
     public async Task<Category> CreateAsync(Category category, int userId)
     {
+        await EnsureNameIsFreeAsync(category.Name, excludeId: null);
+
         category.CreatedAt = AppTime.Now;
         category.CreatedBy = userId;
         category.IsActive = true;
 
         await _repository.AddAsync(category);
         await _unitOfWork.SaveChangesAsync();
-        
+
         return category;
+    }
+
+    /// <summary>
+    /// Two categories with one name are two different sets of posting accounts behind a single
+    /// label — which one a product lands in decides where its stock and revenue post, and the
+    /// dropdown gives no way to tell them apart. Readable error here; the unique index on
+    /// (Pharmacy_ID, Name) is the backstop for writes that bypass this service.
+    /// </summary>
+    private async Task EnsureNameIsFreeAsync(string name, int? excludeId)
+    {
+        var trimmed = (name ?? string.Empty).Trim();
+        if (trimmed.Length == 0)
+        {
+            throw new InvalidOperationException("A category name is required.");
+        }
+
+        var taken = await _repository.Query().AnyAsync(c =>
+            c.Name == trimmed && (!excludeId.HasValue || c.CategoryID != excludeId.Value));
+
+        if (taken)
+        {
+            throw new InvalidOperationException($"A category named '{trimmed}' already exists.");
+        }
     }
 
     public async Task<bool> UpdateAsync(Category category, int userId)
@@ -91,6 +116,8 @@ public class CategoryService : ICategoryService
                 "already posted to the current accounts, and re-pointing them would strand those " +
                 "balances. Create a new category for the new accounts instead.");
         }
+
+        await EnsureNameIsFreeAsync(category.Name, category.CategoryID);
 
         existing.Name = category.Name;
         existing.SaleAccount_ID = category.SaleAccount_ID;
