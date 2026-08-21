@@ -3,6 +3,7 @@ using PharmaCare.Application.Interfaces;
 using PharmaCare.Application.Interfaces.Accounting;
 using PharmaCare.Application.Interfaces.Configuration;
 using PharmaCare.Application.Interfaces.Transactions;
+using PharmaCare.Application.Utilities;
 using PharmaCare.Domain.Entities.Accounting;
 using PharmaCare.Domain.Entities.Configuration;
 using PharmaCare.Domain.Entities.Transactions;
@@ -140,6 +141,7 @@ public class PurchaseReturnService : TransactionServiceBase, IPurchaseReturnServ
 
             await PriceReturnLinesFromGrnAsync(purchaseReturn);
             NormalizeReturnLines(purchaseReturn);
+            await CapReturnValueAtGrnValueAsync(purchaseReturn);
 
             // Serialize against concurrent stock movements: a purchase return removes stock,
             // so the availability check in ValidateReturnQuantitiesAsync must not race a sale.
@@ -550,6 +552,61 @@ public class PurchaseReturnService : TransactionServiceBase, IPurchaseReturnServ
         }
     }
 
+    /// <summary>
+    /// The weighted-average unit cost above is rounded to 2dp, so quantity × rounded rate can
+    /// exceed what the GRN actually cost for the product — cumulatively over-debiting the
+    /// supplier and leaving the stock account below zero for zero units. Cap the cumulative
+    /// returned value per product at the GRN's line value minus what prior returns already took.
+    /// </summary>
+    private async Task CapReturnValueAtGrnValueAsync(StockMain purchaseReturn)
+    {
+        var grn = await _stockMainRepository.Query()
+            .AsNoTracking()
+            .Include(s => s.StockDetails)
+            .FirstOrDefaultAsync(s => s.StockMainID == purchaseReturn.ReferenceStockMain_ID!.Value);
+
+        if (grn == null)
+            return;
+
+        var grnValueByProduct = grn.StockDetails
+            .GroupBy(d => d.Product_ID)
+            .ToDictionary(g => g.Key, g => g.Sum(x => x.LineTotal));
+
+        var priorReturned = await _stockMainRepository.Query()
+            .Include(s => s.TransactionType)
+            .Where(s => s.TransactionType!.Code == TRANSACTION_TYPE_CODE
+                     && s.ReferenceStockMain_ID == grn.StockMainID
+                     && s.StockMainID != purchaseReturn.StockMainID
+                     && s.Status != "Void")
+            .SelectMany(s => s.StockDetails)
+            .GroupBy(d => d.Product_ID)
+            .Select(g => new { ProductId = g.Key, Value = g.Sum(x => x.LineTotal) })
+            .ToDictionaryAsync(x => x.ProductId, x => x.Value);
+
+        foreach (var group in purchaseReturn.StockDetails.GroupBy(d => d.Product_ID))
+        {
+            if (!grnValueByProduct.TryGetValue(group.Key, out var grnValue))
+                continue;
+
+            priorReturned.TryGetValue(group.Key, out var prior);
+            var remaining = Math.Max(0, grnValue - prior);
+            var requested = group.Sum(d => d.LineTotal);
+            var excess = Math.Round(requested - remaining, 2);
+            if (excess <= 0)
+                continue;
+
+            foreach (var line in group.Reverse())
+            {
+                if (excess <= 0)
+                    break;
+                var cut = Math.Min(line.LineTotal, excess);
+                line.LineTotal = Math.Round(line.LineTotal - cut, 2);
+                line.LineCost = line.LineTotal;
+                excess = Math.Round(excess - cut, 2);
+            }
+        }
+    }
+
     private static void NormalizeReturnLines(StockMain purchaseReturn)
     {
         if (purchaseReturn.StockDetails == null || purchaseReturn.StockDetails.Count == 0)
@@ -559,6 +616,10 @@ public class PurchaseReturnService : TransactionServiceBase, IPurchaseReturnServ
 
         foreach (var detail in purchaseReturn.StockDetails)
         {
+            // Round to the stored precision BEFORE validating or deriving any money from it, so
+            // the arithmetic here and the row the database keeps describe the same transaction.
+            detail.Quantity = TransactionAmounts.NormalizeQuantity(detail.Quantity);
+
             if (detail.Quantity <= 0)
             {
                 throw new InvalidOperationException("Return quantity must be greater than zero.");

@@ -29,6 +29,13 @@ public interface IProductService
     
     // Price Management
     Task<IEnumerable<PriceType>> GetPriceTypesAsync();
+
+    /// <summary>Tenant's retail (per-unit) PriceType id, resolved by provisioned name. Null if missing.</summary>
+    Task<int?> GetRetailPriceTypeIdAsync();
+
+    /// <summary>Tenant's wholesale (per-box) PriceType id, resolved by provisioned name. Null if missing.</summary>
+    Task<int?> GetWholesalePriceTypeIdAsync();
+
     Task<IEnumerable<ProductPrice>> GetProductPricesAsync(int productId);
     Task SaveProductPricesAsync(int productId, List<ProductPriceDto> prices, int userId);
 

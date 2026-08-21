@@ -17,9 +17,13 @@ public static class AccountingExtensions
         var datePrefix = DocumentNumberSequence.DatePrefix(prefix);
         await DocumentNumberSequence.SerializeAsync(unitOfWork, datePrefix);
 
+        // Length before value: with a shared prefix and an all-digit suffix, a longer number is
+        // always the larger one. A plain string sort puts "…-10000" below "…-9999" and would
+        // re-issue the same number forever past 9999.
         var lastVoucher = await voucherRepository.Query()
             .Where(v => v.VoucherNo != null && v.VoucherNo.StartsWith(datePrefix))
-            .OrderByDescending(v => v.VoucherNo)
+            .OrderByDescending(v => v.VoucherNo.Length)
+            .ThenByDescending(v => v.VoucherNo)
             .FirstOrDefaultAsync();
 
         return DocumentNumberSequence.Next(datePrefix, lastVoucher?.VoucherNo);

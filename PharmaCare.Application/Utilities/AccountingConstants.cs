@@ -1,9 +1,11 @@
 namespace PharmaCare.Application.Utilities;
 
 /// <summary>
-/// Well-known ids and limits shared across services. These ids are stable because
-/// DbInitializer seeds the global AccountType/PriceType rows in a fixed order —
-/// see the seeding comment in DbInitializer.SeedAccountTypesAsync.
+/// Well-known ids, names and limits shared across services. The AccountType ids are stable
+/// because DbInitializer seeds the GLOBAL AccountType rows in a fixed order — see the seeding
+/// comment in DbInitializer.SeedAccountTypesAsync. PriceTypes, by contrast, are PER-TENANT rows
+/// with identity ids (each pharmacy gets its own pair at provisioning), so they can never be
+/// referenced by a constant id — resolve them by name via IProductService instead.
 /// </summary>
 public static class AccountingConstants
 {
@@ -13,8 +15,11 @@ public static class AccountingConstants
     /// <summary>AccountType id for Bank accounts (seeded code "BANK").</summary>
     public const int BankAccountTypeId = 2;
 
-    /// <summary>PriceType id for the wholesale price tier.</summary>
-    public const int WholesalePriceTypeId = 2;
+    /// <summary>Per-tenant PriceType name for the retail (per-unit) price tier.</summary>
+    public const string RetailPriceTypeName = "Retail";
+
+    /// <summary>Per-tenant PriceType name for the wholesale (per-box) price tier.</summary>
+    public const string WholesalePriceTypeName = "Wholesale";
 
     /// <summary>Sanity cap on a single transaction/voucher amount (100 million).</summary>
     public const decimal MaxTransactionAmount = 100_000_000m;

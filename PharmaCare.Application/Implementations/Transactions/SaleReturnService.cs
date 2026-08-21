@@ -142,9 +142,10 @@ public class SaleReturnService : TransactionServiceBase, ISaleReturnService
 
             // Server-side quantity validation against the reference sale
             await ValidateReturnQuantitiesAsync(saleReturn);
-            await PopulateMissingLineCostsFromReferenceSaleAsync(saleReturn);
+            await EnforceAuthoritativeCostsFromReferenceSaleAsync(saleReturn);
             saleReturn.ReferenceStockMain = originalSale; // Ensure reference is available for price enforcement
             NormalizeReturnLines(saleReturn);
+            await CapReturnCreditsAtChargedValueAsync(saleReturn, originalSale);
 
             // 2. Prepare StockMain
             var transactionType = await _transactionTypeRepository.Query()
@@ -423,28 +424,36 @@ public class SaleReturnService : TransactionServiceBase, ISaleReturnService
             .GroupBy(d => d.Product_ID)
             .ToDictionary(g => g.Key, g => g.Sum(x => x.Quantity));
 
+        // A sale may legitimately carry several lines of the same product; the returnable
+        // quantity is the SUM across them, not the first line's quantity.
+        var soldByProduct = sale.StockDetails
+            .GroupBy(d => d.Product_ID)
+            .ToDictionary(g => g.Key, g => g.Sum(x => x.Quantity));
+
         foreach (var (productId, requestedQty) in requested)
         {
-            var saleDetail = sale.StockDetails.FirstOrDefault(d => d.Product_ID == productId);
-            if (saleDetail == null)
+            if (!soldByProduct.TryGetValue(productId, out var soldQty))
                 throw new InvalidOperationException($"Product ID {productId} was not found in the reference sale.");
 
             var previouslyReturned = alreadyReturned.TryGetValue(productId, out var qty) ? qty : 0;
-            var availableForReturn = saleDetail.Quantity - previouslyReturned;
+            var availableForReturn = soldQty - previouslyReturned;
 
             if (requestedQty > availableForReturn)
             {
                 throw new InvalidOperationException(
                     $"Return quantity ({requestedQty}) for product ID {productId} exceeds available quantity ({availableForReturn}). " +
-                    $"Sale Qty: {saleDetail.Quantity}, Already Returned: {previouslyReturned}.");
+                    $"Sale Qty: {soldQty}, Already Returned: {previouslyReturned}.");
             }
         }
     }
 
     /// <summary>
-    /// If cost fields are missing on return lines, derive weighted average unit cost from reference sale lines.
+    /// Cost is never client input: every return line's CostPrice/LineCost is overwritten with the
+    /// weighted-average unit cost from the reference sale's lines. Honoring a posted cost would let
+    /// a caller post arbitrary DR Stock / CR COGS amounts into the ledger and steer reported profit
+    /// (the sale itself enforces authoritative costs the same way).
     /// </summary>
-    private async Task PopulateMissingLineCostsFromReferenceSaleAsync(StockMain saleReturn)
+    private async Task EnforceAuthoritativeCostsFromReferenceSaleAsync(StockMain saleReturn)
     {
         if (!saleReturn.ReferenceStockMain_ID.HasValue)
             return;
@@ -470,17 +479,12 @@ public class SaleReturnService : TransactionServiceBase, ISaleReturnService
 
         foreach (var detail in saleReturn.StockDetails)
         {
-            if (detail.CostPrice > 0 && detail.LineCost > 0)
-                continue;
-
             if (!sourceCostByProduct.TryGetValue(detail.Product_ID, out var source) || source.Quantity <= 0)
                 continue;
 
             var unitCost = Math.Round(source.LineCost / source.Quantity, 4);
 
-            if (detail.CostPrice <= 0)
-                detail.CostPrice = unitCost;
-
+            detail.CostPrice = unitCost;
             detail.LineCost = Math.Round(detail.Quantity * detail.CostPrice, 2);
         }
     }
@@ -502,6 +506,10 @@ public class SaleReturnService : TransactionServiceBase, ISaleReturnService
             {
                 throw new InvalidOperationException("Each return line must have a valid product.");
             }
+
+            // Round to the stored precision BEFORE validating or deriving any money from it, so
+            // the arithmetic here and the row the database keeps describe the same transaction.
+            detail.Quantity = TransactionAmounts.NormalizeQuantity(detail.Quantity);
 
             if (detail.Quantity <= 0)
             {
@@ -533,6 +541,54 @@ public class SaleReturnService : TransactionServiceBase, ISaleReturnService
         // allowed a >100% discount to drive the return total negative.
         saleReturn.DiscountPercent = 0;
         saleReturn.DiscountAmount = 0;
+    }
+
+    /// <summary>
+    /// The per-unit net price above is rounded to 2dp, so quantity × rounded rate can exceed what
+    /// the customer was actually charged for the product (3 × 0.34 = 1.02 against a 1.01 line) —
+    /// repeatable penny-mining that mints cash-refundable credit and drives revenue negative.
+    /// Cap the cumulative credited value per product at the charged value minus what prior
+    /// returns already credited, trimming any excess off this return's lines.
+    /// </summary>
+    private async Task CapReturnCreditsAtChargedValueAsync(StockMain saleReturn, StockMain sale)
+    {
+        var headerFactor = sale.SubTotal > 0 ? sale.TotalAmount / sale.SubTotal : 1m;
+        var chargedByProduct = sale.StockDetails
+            .GroupBy(d => d.Product_ID)
+            .ToDictionary(g => g.Key, g => Math.Round(g.Sum(x => x.LineTotal) * headerFactor, 2));
+
+        var priorCredited = await _stockMainRepository.Query()
+            .Include(s => s.TransactionType)
+            .Where(s => s.TransactionType!.Code == TRANSACTION_TYPE_CODE
+                     && s.ReferenceStockMain_ID == sale.StockMainID
+                     && s.StockMainID != saleReturn.StockMainID
+                     && s.Status != "Void")
+            .SelectMany(s => s.StockDetails)
+            .GroupBy(d => d.Product_ID)
+            .Select(g => new { ProductId = g.Key, Credited = g.Sum(x => x.LineTotal) })
+            .ToDictionaryAsync(x => x.ProductId, x => x.Credited);
+
+        foreach (var group in saleReturn.StockDetails.GroupBy(d => d.Product_ID))
+        {
+            if (!chargedByProduct.TryGetValue(group.Key, out var charged))
+                continue;
+
+            priorCredited.TryGetValue(group.Key, out var prior);
+            var remaining = Math.Max(0, charged - prior);
+            var requested = group.Sum(d => d.LineTotal);
+            var excess = Math.Round(requested - remaining, 2);
+            if (excess <= 0)
+                continue;
+
+            foreach (var line in group.Reverse())
+            {
+                if (excess <= 0)
+                    break;
+                var cut = Math.Min(line.LineTotal, excess);
+                line.LineTotal = Math.Round(line.LineTotal - cut, 2);
+                excess = Math.Round(excess - cut, 2);
+            }
+        }
     }
 
     /// <summary>
@@ -638,7 +694,9 @@ public class SaleReturnService : TransactionServiceBase, ISaleReturnService
 
         var lastCreditNote = await _creditNoteRepository.Query()
             .Where(c => c.CreditNoteNo.StartsWith(datePrefix))
-            .OrderByDescending(c => c.CreditNoteNo)
+            // Length before value — a plain string sort puts "-10000" below "-9999".
+            .OrderByDescending(c => c.CreditNoteNo.Length)
+            .ThenByDescending(c => c.CreditNoteNo)
             .FirstOrDefaultAsync();
 
         return DocumentNumberSequence.Next(datePrefix, lastCreditNote?.CreditNoteNo);

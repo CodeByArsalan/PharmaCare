@@ -159,6 +159,13 @@ public class ProductService : IProductService
 
     public async Task<Product> CreateAsync(Product product, int userId)
     {
+        // Opening figures seed derived stock and the fallback cost directly — negative values
+        // would start the product below zero on hand or give it a negative valuation.
+        if (product.OpeningQuantity < 0)
+            throw new PricingValidationException("Opening quantity cannot be negative.");
+        if (product.OpeningPrice < 0)
+            throw new PricingValidationException("Opening price cannot be negative.");
+
         await ValidateClassificationAsync(product.Category_ID, product.SubCategory_ID);
         await EnsureNameIsFreeAsync(product.Name, excludeId: null);
 
@@ -188,6 +195,13 @@ public class ProductService : IProductService
         var existing = await GetByIdAsync(product.ProductID);
         if (existing == null)
             return false;
+
+        // Same rule as CreateAsync: while opening figures are still editable (no movements yet),
+        // they must stay non-negative.
+        if (product.OpeningQuantity < 0)
+            throw new PricingValidationException("Opening quantity cannot be negative.");
+        if (product.OpeningPrice < 0)
+            throw new PricingValidationException("Opening price cannot be negative.");
 
         // Compare against what is STORED, read as a projection — never against `existing`. A caller
         // that hands us the tracked instance it already mutated (which the integration suite does,
@@ -346,9 +360,13 @@ public class ProductService : IProductService
         if (storedUnitsInPack == newUnitsInPack)
             return;
 
+        var wholesalePriceTypeId = await GetWholesalePriceTypeIdAsync();
+        if (wholesalePriceTypeId == null)
+            return;
+
         var wholesale = await _productPriceRepository.Query().AsNoTracking()
             .FirstOrDefaultAsync(pp => pp.Product_ID == existing.ProductID
-                                    && pp.PriceType_ID == AccountingConstants.WholesalePriceTypeId
+                                    && pp.PriceType_ID == wholesalePriceTypeId.Value
                                     && pp.IsActive);
 
         if (wholesale == null || wholesale.SalePrice <= 0)
@@ -428,6 +446,26 @@ public class ProductService : IProductService
             .ToListAsync();
     }
 
+    /// <summary>
+    /// PriceTypes are per-tenant rows with identity ids — pharmacy #1 happens to get ids 1/2,
+    /// every later tenant gets higher ones. Anything keyed on a literal id therefore only ever
+    /// worked for the first tenant; the tier is identified by its provisioned name instead.
+    /// </summary>
+    public async Task<int?> GetRetailPriceTypeIdAsync()
+        => await ResolvePriceTypeIdByNameAsync(AccountingConstants.RetailPriceTypeName);
+
+    public async Task<int?> GetWholesalePriceTypeIdAsync()
+        => await ResolvePriceTypeIdByNameAsync(AccountingConstants.WholesalePriceTypeName);
+
+    private async Task<int?> ResolvePriceTypeIdByNameAsync(string name)
+    {
+        return await _priceTypeRepository.Query()
+            .Where(pt => pt.PriceTypeName == name && pt.IsActive)
+            .OrderBy(pt => pt.PriceTypeID)
+            .Select(pt => (int?)pt.PriceTypeID)
+            .FirstOrDefaultAsync();
+    }
+
     public async Task<IEnumerable<ProductPrice>> GetProductPricesAsync(int productId)
     {
         return await _productPriceRepository.Query()
@@ -448,8 +486,20 @@ public class ProductService : IProductService
 
     public async Task SaveProductPricesAsync(int productId, List<ProductPriceDto> prices, int userId)
     {
-        // PriceType id 2 == Wholesale, whose SalePrice is stored per box (not per unit).
-        const int wholesalePriceTypeId = AccountingConstants.WholesalePriceTypeId;
+        // The Wholesale tier's SalePrice is stored per box (not per unit). Resolved per tenant —
+        // PriceType ids differ by pharmacy.
+        var wholesalePriceTypeId = await GetWholesalePriceTypeIdAsync();
+
+        // Posted PriceTypeIds are client input; the FK alone would accept another pharmacy's
+        // PriceType row. Only ids from this tenant's own price-type list may be written.
+        var tenantPriceTypeIds = await _priceTypeRepository.Query()
+            .Select(pt => pt.PriceTypeID)
+            .ToListAsync();
+        var foreignIds = prices.Select(p => p.PriceTypeId).Where(id => !tenantPriceTypeIds.Contains(id)).Distinct().ToList();
+        if (foreignIds.Count > 0)
+        {
+            throw new PricingValidationException("One or more price types are not valid for this pharmacy.");
+        }
 
         var product = await _repository.Query().FirstOrDefaultAsync(p => p.ProductID == productId);
         if (product == null)
@@ -566,10 +616,13 @@ public class ProductService : IProductService
             .Where(p => p.IsActive)
             .ToListAsync();
 
-        // Optimized stock calculation: Fetch IDs first to avoid heavy joins in the aggregation
+        // Optimized stock calculation: Fetch IDs first to avoid heavy joins in the aggregation.
+        // No IsActive filter: deactivating a transaction type must not erase its historical
+        // movements from displayed stock — GetStockStatusAsync (the enforcement guard) ignores
+        // IsActive, and the two must agree or the POS shows stock the guard won't sell.
         var transactionTypes = await _transactionTypeRepository.Query()
             .AsNoTracking()
-            .Where(tt => tt.AffectsStock && tt.IsActive)
+            .Where(tt => tt.AffectsStock)
             .Select(tt => new { tt.TransactionTypeID, tt.StockDirection })
             .ToListAsync();
 

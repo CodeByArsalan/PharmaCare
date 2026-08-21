@@ -38,8 +38,7 @@ public class InventoryReportService : IInventoryReportService
         var productsWithMovement = _db.StockDetails
             .AsNoTracking()
             .Where(d => d.StockMain!.Status == "Approved"
-                        && d.StockMain.TransactionType!.AffectsStock
-                        && d.StockMain.TransactionType.IsActive)
+                        && d.StockMain.TransactionType!.AffectsStock)
             .Select(d => d.Product_ID);
 
         var productsQuery = _db.Products
@@ -66,8 +65,10 @@ public class InventoryReportService : IInventoryReportService
         var productIds = products.Select(p => p.ProductID).ToList();
 
         // Status == "Approved" (not != "Void") and AffectsStock/StockDirection are the SAME rules
-        // ProductService applies for POS availability. Anything else makes this report disagree
-        // with the quantity the till will actually sell.
+        // ProductService.GetStockStatusAsync (the enforcement guard) applies. Anything else makes
+        // this report disagree with the quantity the till will actually sell — including a
+        // TransactionType.IsActive filter, which would erase a deactivated type's historical
+        // movements from the report while the guard still counts them.
         // Grouped by product + transaction type, then aggregated in memory — the same shape
         // ProductService.GetProductsWithStockAsync uses. Keeping the SQL to one simple GROUP BY
         // avoids leaning on EF to translate several conditional aggregates over one group.
@@ -75,8 +76,7 @@ public class InventoryReportService : IInventoryReportService
             .AsNoTracking()
             .Where(d => productIds.Contains(d.Product_ID)
                         && d.StockMain!.Status == "Approved"
-                        && d.StockMain.TransactionType!.AffectsStock
-                        && d.StockMain.TransactionType.IsActive)
+                        && d.StockMain.TransactionType!.AffectsStock)
             .GroupBy(d => new
             {
                 d.Product_ID,
@@ -177,7 +177,9 @@ public class InventoryReportService : IInventoryReportService
         {
             Filter = filter,
             Rows = rows,
-            TotalAlerts = rows.Count,
+            // Same split as the dashboard tile (CurrentStockReportVM.LowStockCount): low-but-in-
+            // stock and out-of-stock are separate counts, so the two screens agree.
+            TotalAlerts = rows.Count(r => r.CurrentStock > 0),
             OutOfStockCount = rows.Count(r => r.CurrentStock <= 0)
         };
     }
@@ -198,7 +200,6 @@ public class InventoryReportService : IInventoryReportService
             .Where(d => d.Product_ID == filter.ProductId.Value
                         && d.StockMain!.Status == "Approved"
                         && d.StockMain.TransactionType!.AffectsStock
-                        && d.StockMain.TransactionType.IsActive
                         && d.StockMain.TransactionDate >= filter.FromDate
                         && d.StockMain.TransactionDate < filter.ToDate.AddDays(1))
             .OrderBy(d => d.StockMain!.TransactionDate)
@@ -211,7 +212,6 @@ public class InventoryReportService : IInventoryReportService
             .Where(d => d.Product_ID == filter.ProductId.Value
                         && d.StockMain!.Status == "Approved"
                         && d.StockMain.TransactionType!.AffectsStock
-                        && d.StockMain.TransactionType.IsActive
                         && d.StockMain.TransactionDate < filter.FromDate)
             .ToListAsync();
 

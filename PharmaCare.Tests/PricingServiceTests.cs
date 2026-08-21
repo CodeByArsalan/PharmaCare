@@ -1,5 +1,4 @@
 using PharmaCare.Application.Implementations.Configuration;
-using PharmaCare.Application.Utilities;
 using PharmaCare.Domain.Entities.Configuration;
 using PharmaCare.Domain.Enums;
 
@@ -7,8 +6,9 @@ namespace PharmaCare.Tests;
 
 public class PricingServiceTests
 {
-    private const int Retail = 1;
-    private const int Wholesale = AccountingConstants.WholesalePriceTypeId;
+    // The resolver takes the tier as a flag — PriceType ids are per-tenant and never constant.
+    private const bool Retail = false;
+    private const bool Wholesale = true;
 
     private readonly PricingService _sut = new();
 

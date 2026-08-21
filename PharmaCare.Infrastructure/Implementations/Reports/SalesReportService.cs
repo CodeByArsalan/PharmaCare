@@ -34,7 +34,6 @@ public class SalesReportService : ISalesReportService
                 Code = g.Key,
                 TotalAmount = g.Sum(s => s.TotalAmount),
                 TotalDiscount = g.Sum(s => s.DiscountAmount),
-                TotalPaid = g.Sum(s => s.PaidAmount),
                 TotalBalance = g.Sum(s => s.BalanceAmount),
                 Count = g.Count()
             })
@@ -50,9 +49,27 @@ public class SalesReportService : ISalesReportService
 
         var totalDiscounts = dailyTotalsByType.Sum(x => x.TotalDiscount);
 
-        var cashCollected = dailyTotalsByType
-            .Where(x => SaleCodes.Contains(x.Code))
-            .Sum(x => x.TotalPaid);
+        // Cash actually received during the day, from normalized Payment events (the canonical
+        // source for collections). Invoice PaidAmount is invoice-dated and rewritten by later
+        // receipts, so summing it misses cash received today against older invoices, retroactively
+        // changes past days' summaries, and counts non-cash credit-note applications as cash.
+        // Receipts count in, customer refunds count out; Adjustment-method rows are bookkeeping,
+        // not cash (same convention as the cash flow report).
+        var customerPaymentTotals = await _db.Payments
+            .AsNoTracking()
+            .Where(p => p.PaymentDate >= dayStart
+                        && p.PaymentDate < dayEnd
+                        && !p.IsVoided
+                        && p.PaymentMethod.ToUpper() != PaymentMethod.Adjustment.ToString().ToUpper()
+                        && p.Party!.PartyType == "Customer"
+                        && (p.PaymentType == PaymentType.RECEIPT.ToString()
+                            || p.PaymentType == PaymentType.REFUND.ToString()))
+            .GroupBy(p => p.PaymentType)
+            .Select(g => new { Type = g.Key, Amount = g.Sum(p => p.Amount) })
+            .ToListAsync();
+
+        var cashCollected = customerPaymentTotals.Where(x => x.Type == PaymentType.RECEIPT.ToString()).Sum(x => x.Amount)
+                            - customerPaymentTotals.Where(x => x.Type == PaymentType.REFUND.ToString()).Sum(x => x.Amount);
 
         var outstanding = dailyTotalsByType
             .Where(x => SaleCodes.Contains(x.Code))
@@ -266,7 +283,10 @@ public class SalesReportService : ISalesReportService
             {
                 var totalSales = g.Sum(s => SaleReturnCodes.Contains(s.TransactionType!.Code) ? -s.TotalAmount : s.TotalAmount);
                 var totalPaid = g.Sum(s => SaleReturnCodes.Contains(s.TransactionType!.Code) ? -s.PaidAmount : s.PaidAmount);
-                var balanceDue = g.Sum(s => SaleReturnCodes.Contains(s.TransactionType!.Code) ? -s.BalanceAmount : s.BalanceAmount);
+                // A return carries no receivable of its own: SaleReturnService already subtracts it
+                // from the referenced sale's BalanceAmount. Negating the return's own balance here
+                // would deduct the same credit twice and understate what the customer still owes.
+                var balanceDue = g.Sum(s => SaleReturnCodes.Contains(s.TransactionType!.Code) ? 0m : s.BalanceAmount);
 
                 return new SalesByCustomerRow
                 {
@@ -298,15 +318,20 @@ public class SalesReportService : ISalesReportService
         // midnight asOfDate would exclude everything transacted during the day being reported on.
         var cutoff = asOfDate.Date.AddDays(1);
 
+        // Deactivating a customer must not erase what they owe: the receivables aging carries
+        // no IsActive filter, so dropping inactive debtors here would make the two reports
+        // disagree by the whole outstanding balance. Inactive customers are kept and surfaced
+        // below whenever their balance is non-zero (same rule as inactive products holding stock).
         var customers = await _db.Parties
             .AsNoTracking()
-            .Where(p => p.PartyType == "Customer" && p.IsActive)
+            .Where(p => p.PartyType == "Customer")
             .Select(p => new
             {
                 p.PartyID,
                 p.Name,
                 p.OpeningBalance,
-                p.CreditLimit
+                p.CreditLimit,
+                p.IsActive
             })
             .ToListAsync();
 
@@ -387,18 +412,23 @@ public class SalesReportService : ISalesReportService
 
             var balance = totalSales - totalReceipts + c.OpeningBalance;
 
-            return new CustomerBalanceRow
+            return new
             {
-                PartyId = c.PartyID,
-                CustomerName = c.Name,
-                TotalSales = totalSales,
-                TotalReceipts = totalReceipts,
-                BalanceDue = balance,
-                CreditLimit = c.CreditLimit,
-                IsOverLimit = c.CreditLimit > 0 && balance > c.CreditLimit
+                c.IsActive,
+                Row = new CustomerBalanceRow
+                {
+                    PartyId = c.PartyID,
+                    CustomerName = c.Name,
+                    TotalSales = totalSales,
+                    TotalReceipts = totalReceipts,
+                    BalanceDue = balance,
+                    CreditLimit = c.CreditLimit,
+                    IsOverLimit = c.CreditLimit > 0 && balance > c.CreditLimit
+                }
             };
         })
-        .Where(r => r.TotalSales > 0 || r.BalanceDue != 0)
+        .Where(x => x.Row.BalanceDue != 0 || (x.IsActive && x.Row.TotalSales > 0))
+        .Select(x => x.Row)
         .OrderByDescending(r => r.BalanceDue)
         .ToList();
 

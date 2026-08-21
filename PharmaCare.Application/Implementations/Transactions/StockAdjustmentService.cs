@@ -4,6 +4,7 @@ using PharmaCare.Application.Interfaces;
 using PharmaCare.Application.Interfaces.Accounting;
 using PharmaCare.Application.Interfaces.Configuration;
 using PharmaCare.Application.Interfaces.Transactions;
+using PharmaCare.Application.Utilities;
 using PharmaCare.Domain.Entities.Accounting;
 using PharmaCare.Domain.Entities.Configuration;
 using PharmaCare.Domain.Entities.Transactions;
@@ -79,13 +80,18 @@ public class StockAdjustmentService : TransactionServiceBase, IStockAdjustmentSe
 
     public async Task<StockMain?> GetByIdAsync(int id)
     {
+        // Restrict to adjustment rows. Without the type filter this service would accept any
+        // StockMain id (sale, GRN, return) — and VoidAsync below would then void it while
+        // skipping that document type's own guards (negative-stock, active-return, advance
+        // conversion), corrupting stock and the ledger.
         return await _stockMainRepository.Query()
             .Include(m => m.TransactionType)
             .Include(m => m.Voucher)
                 .ThenInclude(v => v!.VoucherDetails)
             .Include(m => m.StockDetails)
                 .ThenInclude(d => d.Product)
-            .FirstOrDefaultAsync(m => m.StockMainID == id);
+            .FirstOrDefaultAsync(m => m.StockMainID == id
+                && (m.TransactionType!.Code == TRAN_TYPE_IN || m.TransactionType.Code == TRAN_TYPE_OUT));
     }
 
     public async Task<StockMain> CreateAsync(StockMain adjustment, int userId)
@@ -152,6 +158,10 @@ public class StockAdjustmentService : TransactionServiceBase, IStockAdjustmentSe
 
             foreach (var detail in adjustment.StockDetails)
             {
+                // Round to the stored precision BEFORE validating or deriving any money from it —
+                // a sub-precision quantity would post a voucher for stock the stored row never moves.
+                detail.Quantity = TransactionAmounts.NormalizeQuantity(detail.Quantity);
+
                 if (detail.Quantity <= 0)
                     throw new InvalidOperationException("Quantity must be greater than zero.");
 
@@ -170,7 +180,10 @@ public class StockAdjustmentService : TransactionServiceBase, IStockAdjustmentSe
                     throw new InvalidOperationException(
                         $"Cannot value '{product.Name}': no GRN cost or opening price is set. Enter a cost before adjusting.");
 
-                var lineTotal = cost * detail.Quantity;
+                // Rounded per line in C#: the voucher header and each per-account detail are
+                // summed from these values, and SQL Server would otherwise round each stored
+                // decimal(18,2) column independently — letting header and details drift by a cent.
+                var lineTotal = Math.Round(cost * detail.Quantity, 2);
                 detail.CostPrice = cost;
                 detail.LineCost = lineTotal;
                 detail.LineTotal = lineTotal; // Used as valuation representation
@@ -250,10 +263,14 @@ public class StockAdjustmentService : TransactionServiceBase, IStockAdjustmentSe
             if (string.IsNullOrWhiteSpace(reason))
                 throw new InvalidOperationException("Void reason is required.");
 
+            // Only adjustments may be voided here. Other document types (sale, GRN, return)
+            // have their own VoidAsync with type-specific guards; accepting their ids would
+            // let a caller bypass those guards entirely.
             var adj = await _stockMainRepository.Query()
                 .Include(m => m.Voucher)
                     .ThenInclude(v => v!.VoucherDetails)
-                .FirstOrDefaultAsync(m => m.StockMainID == id);
+                .FirstOrDefaultAsync(m => m.StockMainID == id
+                    && (m.TransactionType!.Code == TRAN_TYPE_IN || m.TransactionType.Code == TRAN_TYPE_OUT));
 
             if (adj == null || adj.Status == "Void")
                 return false;

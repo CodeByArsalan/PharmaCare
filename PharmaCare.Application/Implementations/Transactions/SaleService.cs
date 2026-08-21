@@ -688,6 +688,7 @@ public class SaleService : TransactionServiceBase, ISaleService
             await CreateReversalVouchersForSourceAsync("StockMain", sale.StockMainID, userId, reason);
             await CreateReversalVouchersForLinkedReceiptsAsync(sale.StockMainID, userId, reason);
             await VoidLinkedReceiptsAsync(sale.StockMainID, userId, reason);
+            await RestoreCustomerCreditNotesAsync(sale.StockMainID, userId);
 
             _stockMainRepository.Update(sale);
             await _unitOfWork.SaveChangesAsync();
@@ -704,6 +705,17 @@ public class SaleService : TransactionServiceBase, ISaleService
         // Stock Validation on the SUM per product, not per line — duplicate lines each within
         // stock but jointly above it must not oversell past zero.
         var productIds = sale.StockDetails.Select(d => d.Product_ID).Distinct().ToList();
+
+        // The POS only offers active products, but the service is the authoritative gate for
+        // every caller — a raw POST must not be able to sell a deactivated product.
+        var inactiveProducts = await _productRepository.Query()
+            .Where(p => productIds.Contains(p.ProductID) && !p.IsActive)
+            .Select(p => p.Name)
+            .ToListAsync();
+        if (inactiveProducts.Count > 0)
+            throw new InvalidOperationException(
+                $"Inactive product(s) cannot be sold: {string.Join(", ", inactiveProducts)}.");
+
         var stockStatus = await _productService.GetStockStatusAsync(productIds);
 
         var requestedByProduct = sale.StockDetails
@@ -742,6 +754,11 @@ public class SaleService : TransactionServiceBase, ISaleService
 
         var customer = sale.Party ?? await _partyRepository.GetByIdAsync(sale.Party_ID.Value);
         if (customer == null || customer.CreditLimit <= 0) return;
+
+        // Read-then-insert: without serialization, two parallel credit sales each within the
+        // limit both read the same outstanding figure and both commit past it. Serialize per
+        // customer, only when a limit actually applies.
+        await _unitOfWork.AcquireResourceLockAsync($"credit:{sale.Party_ID.Value}");
 
         var (currentOutstanding, _) = await GetCustomerOutstandingSummaryAsync(sale.Party_ID.Value);
 
@@ -784,6 +801,21 @@ public class SaleService : TransactionServiceBase, ISaleService
                 throw new InvalidOperationException(
                     $"Sale price ({detail.UnitPrice:N2}) for '{product?.Name ?? "ID " + detail.Product_ID}' " +
                     $"is below its cost ({cost:N2}). Below-cost sales are not allowed.");
+            }
+
+            // The unit-price check alone is bypassable: a line or header discount can pull the
+            // realized amount under cost while UnitPrice stays at or above it. Compare what the
+            // customer will actually pay for the line (LineTotal is already net of the line
+            // discount; the header discount percent scales it further) against its cost.
+            var headerFactor = sale.DiscountPercent > 0 ? 1 - sale.DiscountPercent / 100m : 1m;
+            var effectiveLineRevenue = Math.Round(detail.LineTotal * headerFactor, 2);
+            if (effectiveLineRevenue < detail.LineCost)
+            {
+                var product = await _productRepository.GetByIdAsync(detail.Product_ID);
+                throw new InvalidOperationException(
+                    $"After discounts, the amount charged ({effectiveLineRevenue:N2}) for " +
+                    $"'{product?.Name ?? "ID " + detail.Product_ID}' is below its cost ({detail.LineCost:N2}). " +
+                    "Below-cost sales are not allowed.");
             }
         }
     }
@@ -883,6 +915,37 @@ public class SaleService : TransactionServiceBase, ISaleService
         if (allocations.Count > 0)
         {
             _paymentAllocationRepository.RemoveRange(allocations);
+        }
+    }
+
+    /// <summary>
+    /// Returns any customer-credit-note value applied to <paramref name="saleId"/> back to the
+    /// notes it came from and retires the allocation rows. Used when a sale is voided so the
+    /// customer's credit stays spendable — otherwise the note stays consumed by a void document
+    /// (the purchase side has the same rule in RestoreSupplierCreditNotesAsync).
+    /// </summary>
+    private async Task RestoreCustomerCreditNotesAsync(int saleId, int userId)
+    {
+        var allocations = await _paymentAllocationRepository.Query()
+            .Include(a => a.CreditNote)
+            .Where(a => a.StockMain_ID == saleId
+                     && a.SourceType == "CreditNote"
+                     && a.CreditNote_ID != null)
+            .ToListAsync();
+
+        foreach (var allocation in allocations)
+        {
+            var note = allocation.CreditNote;
+            if (note != null)
+            {
+                note.AppliedAmount = Math.Round(Math.Max(0, note.AppliedAmount - allocation.Amount), 2);
+                note.BalanceAmount = Math.Round(note.TotalAmount - note.AppliedAmount, 2);
+                note.Status = note.BalanceAmount > 0 ? "Open" : "Applied";
+                note.UpdatedAt = AppTime.Now;
+                note.UpdatedBy = userId;
+            }
+
+            _paymentAllocationRepository.Remove(allocation);
         }
     }
 }

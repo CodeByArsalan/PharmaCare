@@ -828,6 +828,46 @@ public class CustomerPaymentService : BaseAccountingService, ICustomerPaymentSer
             // Re-checked under the close lock just before commit — see BaseAccountingService.
             TrackPeriodDate(receipt.PaymentDate);
 
+            // Credit notes minted from this sale's returns are funded by its overpayment — which
+            // this receipt is part of. If voiding the receipt would leave more minted credit than
+            // the remaining overpayment covers, that credit becomes phantom value: already spent
+            // (refunded or applied to another sale) or still spendable, but no longer backed by
+            // cash. Void the returns/refunds first, then the receipt. (Supplier payments have the
+            // same rule in PaymentService.VoidPaymentAsync.)
+            if (receipt.StockMain != null
+                && string.Equals(receipt.StockMain.TransactionType?.Code, SALE_TRANSACTION_TYPE_CODE, StringComparison.OrdinalIgnoreCase))
+            {
+                var saleReturns = await _stockMainRepository.Query()
+                    .Include(s => s.TransactionType)
+                    .Where(s => s.ReferenceStockMain_ID == receipt.StockMain.StockMainID
+                             && s.TransactionType!.Code == "SRTN"
+                             && s.Status != "Void")
+                    .Select(s => new { s.StockMainID, s.TotalAmount })
+                    .ToListAsync();
+
+                if (saleReturns.Count > 0)
+                {
+                    var returnIds = saleReturns.Select(r => r.StockMainID).ToList();
+                    var mintedCredit = await _creditNoteRepository.Query()
+                        .Where(c => c.SourceStockMain_ID.HasValue
+                                 && returnIds.Contains(c.SourceStockMain_ID.Value)
+                                 && c.Status != "Void")
+                        .SumAsync(c => (decimal?)c.TotalAmount) ?? 0;
+
+                    if (mintedCredit > 0)
+                    {
+                        var totalReturns = saleReturns.Sum(r => r.TotalAmount);
+                        var overpaymentAfterVoid = Math.Max(0,
+                            receipt.StockMain.PaidAmount - receipt.Amount + totalReturns - receipt.StockMain.TotalAmount);
+
+                        if (mintedCredit > overpaymentAfterVoid)
+                            throw new InvalidOperationException(
+                                "Cannot void this receipt — credit notes funded by its overpayment exist. " +
+                                "Void the related sale return(s) (and any refunds of that credit) first.");
+                    }
+                }
+            }
+
             receipt.IsVoided = true;
             receipt.VoidReason = reason.Trim();
             receipt.VoidedAt = AppTime.Now;

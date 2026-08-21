@@ -66,9 +66,14 @@ public class FinancialReportService : IFinancialReportService
 
         var grossProfit = netRevenue - cogs;
 
+        // Budgets are monthly rows, but the report range can span several months (the default
+        // filter always does). Compare actuals against the SUM of the budgets for every month
+        // the range touches — one month's budget against a multi-month actual reads as a
+        // variance that never happened.
+        var budgetMonths = MonthKeysInRange(fromDate, toDate);
         var budgetEntries = await _db.ExpenseBudgets
             .AsNoTracking()
-            .Where(b => b.Year == fromDate.Year && b.Month == fromDate.Month)
+            .Where(b => budgetMonths.Contains(b.Year * 100 + b.Month))
             .ToListAsync();
 
         // Only APPROVED expenses hit the P&L: Draft rows are not yet incurred and Void rows have
@@ -91,10 +96,36 @@ public class FinancialReportService : IFinancialReportService
             CategoryID = g.CategoryID,
             CategoryName = g.CategoryName,
             Amount = g.Amount,
-            BudgetAmount = budgetEntries.FirstOrDefault(b => b.ExpenseCategory_ID == g.CategoryID)?.BudgetAmount ?? 0
+            BudgetAmount = budgetEntries.Where(b => b.ExpenseCategory_ID == g.CategoryID).Sum(b => b.BudgetAmount)
         })
         .OrderByDescending(e => e.Amount)
         .ToList();
+
+        // Stock write-offs post DR Damage & Loss in the GL but live in StockMains, not the
+        // Expenses table — without this line a pharmacy's routine expiry/damage disposals never
+        // reduce reported Net Profit, and the P&L disagrees with the trial balance by the whole
+        // amount. Write-ins (recovered stock) offset the same line.
+        var adjustmentTotals = await _db.StockMains
+            .AsNoTracking()
+            .Where(s => s.TransactionDate >= fromDate && s.TransactionDate < toDate
+                        && s.Status != "Void"
+                        && (s.TransactionType!.Code == "SADJ-" || s.TransactionType.Code == "SADJ+"))
+            .GroupBy(s => s.TransactionType!.Code)
+            .Select(g => new { Code = g.Key, Amount = g.Sum(s => s.TotalAmount) })
+            .ToListAsync();
+
+        var netWriteOffs = adjustmentTotals.Where(x => x.Code == "SADJ-").Sum(x => x.Amount)
+                           - adjustmentTotals.Where(x => x.Code == "SADJ+").Sum(x => x.Amount);
+        if (netWriteOffs != 0)
+        {
+            expensesByCategory.Add(new ExpenseCategoryTotal
+            {
+                CategoryID = 0,
+                CategoryName = "Stock Write-offs (net)",
+                Amount = netWriteOffs,
+                BudgetAmount = 0
+            });
+        }
 
         var totalExpenses = expensesByCategory.Sum(e => e.Amount);
 
@@ -361,9 +392,11 @@ public class FinancialReportService : IFinancialReportService
             Reference = e.Reference
         }).ToList();
 
+        // Sum the budgets for every month the range touches — same rule as the P&L above.
+        var budgetMonths = MonthKeysInRange(filter.FromDate, filter.ToDate.AddDays(1));
         var budgetEntries = await _db.ExpenseBudgets
             .AsNoTracking()
-            .Where(b => b.Year == filter.FromDate.Year && b.Month == filter.FromDate.Month)
+            .Where(b => budgetMonths.Contains(b.Year * 100 + b.Month))
             .ToListAsync();
 
         var categoryTotalsQuery = rows
@@ -381,7 +414,7 @@ public class FinancialReportService : IFinancialReportService
                 CategoryID = g.CategoryId,
                 CategoryName = g.CategoryName,
                 Amount = g.Amount,
-                BudgetAmount = budgetEntries.FirstOrDefault(b => b.ExpenseCategory_ID == g.CategoryId)?.BudgetAmount ?? 0
+                BudgetAmount = budgetEntries.Where(b => b.ExpenseCategory_ID == g.CategoryId).Sum(b => b.BudgetAmount)
             })
             .OrderByDescending(c => c.Amount)
             .ToList();
@@ -393,6 +426,22 @@ public class FinancialReportService : IFinancialReportService
             CategoryTotals = categoryTotals,
             GrandTotal = rows.Sum(r => r.Amount)
         };
+    }
+
+    /// <summary>
+    /// Year*100+Month keys for every calendar month intersecting [fromDate, toDateExclusive) —
+    /// the months whose budgets a ranged expense comparison must sum.
+    /// </summary>
+    private static List<int> MonthKeysInRange(DateTime fromDate, DateTime toDateExclusive)
+    {
+        var keys = new List<int>();
+        var cursor = new DateTime(fromDate.Year, fromDate.Month, 1);
+        while (cursor < toDateExclusive)
+        {
+            keys.Add(cursor.Year * 100 + cursor.Month);
+            cursor = cursor.AddMonths(1);
+        }
+        return keys;
     }
 
     public async Task<TrialBalanceVM> GetTrialBalanceAsync(DateTime asOfDate)

@@ -32,10 +32,12 @@ public abstract class TransactionServiceBase
     }
 
     /// <summary>
-    /// The date most recently passed to <see cref="ValidatePeriodAsync"/>, re-checked just before
-    /// the surrounding transaction commits. Scoped per request along with the service instance.
+    /// EVERY date passed to <see cref="ValidatePeriodAsync"/> during the operation, re-checked just
+    /// before the surrounding transaction commits. A set, not a single slot: an edit validates both
+    /// the original date (whose voucher is being reversed) and the new date, and a period closing
+    /// concurrently over either must abort the commit. Scoped per request with the service instance.
     /// </summary>
-    private DateTime? _periodDateToRecheck;
+    private readonly HashSet<DateTime> _periodDatesToRecheck = new();
 
     /// <summary>
     /// Validates that the transaction date is not within a closed financial period.
@@ -48,29 +50,40 @@ public abstract class TransactionServiceBase
     /// </summary>
     protected async Task ValidatePeriodAsync(DateTime date)
     {
+        // Trading documents record what has happened. A date beyond today posts into a period
+        // that cannot be closed ahead of it and skews every date-ranged report; nothing here is
+        // legitimately dated in the future (post-dated cheques carry their own guard).
+        if (date.Date > AppTime.Now.Date)
+        {
+            throw new InvalidOperationException("The transaction date cannot be in the future.");
+        }
+
         if (await _financialPeriodService.IsPeriodLockedAsync(date))
         {
             throw new InvalidOperationException($"The date {date:dd/MM/yyyy} falls within a closed financial period. Transactions are locked.");
         }
 
-        _periodDateToRecheck = date;
+        _periodDatesToRecheck.Add(date.Date);
     }
 
     /// <summary>
-    /// Re-checks the remembered posting date immediately before commit, holding the same lock
+    /// Re-checks every remembered posting date immediately before commit, holding the same lock
     /// <c>ClosePeriodAsync</c> takes. Closing therefore waits behind a posting that is already
     /// committing, and a posting reaching this point after a close has committed rolls back.
     /// </summary>
     private async Task RecheckPeriodBeforeCommitAsync()
     {
-        if (_periodDateToRecheck is not { } date) return;
+        if (_periodDatesToRecheck.Count == 0) return;
 
         await _unitOfWork.AcquireResourceLockAsync(AccountingConstants.PeriodCloseLockResource);
 
-        if (await _financialPeriodService.IsPeriodLockedAsync(date))
+        foreach (var date in _periodDatesToRecheck)
         {
-            throw new InvalidOperationException(
-                $"The financial period covering {date:dd/MM/yyyy} was closed while this transaction was being saved. It has not been posted.");
+            if (await _financialPeriodService.IsPeriodLockedAsync(date))
+            {
+                throw new InvalidOperationException(
+                    $"The financial period covering {date:dd/MM/yyyy} was closed while this transaction was being saved. It has not been posted.");
+            }
         }
     }
 
@@ -94,7 +107,7 @@ public abstract class TransactionServiceBase
         finally
         {
             // Never let one operation's date leak into the next on this scoped instance.
-            _periodDateToRecheck = null;
+            _periodDatesToRecheck.Clear();
         }
     }
 
@@ -119,7 +132,7 @@ public abstract class TransactionServiceBase
         finally
         {
             // Never let one operation's date leak into the next on this scoped instance.
-            _periodDateToRecheck = null;
+            _periodDatesToRecheck.Clear();
         }
     }
 
@@ -174,7 +187,9 @@ public abstract class TransactionServiceBase
 
         var lastTransaction = await _stockMainRepository.Query()
             .Where(s => s.TransactionNo.StartsWith(datePrefix))
-            .OrderByDescending(s => s.TransactionNo)
+            // Length before value — a plain string sort puts "-10000" below "-9999".
+            .OrderByDescending(s => s.TransactionNo.Length)
+            .ThenByDescending(s => s.TransactionNo)
             .FirstOrDefaultAsync();
 
         return DocumentNumberSequence.Next(datePrefix, lastTransaction?.TransactionNo);
@@ -193,6 +208,12 @@ public abstract class TransactionServiceBase
     /// </summary>
     protected void CalculateTotals(StockMain stockMain)
     {
+        // The web VM range-checks this, but the service is the authoritative gate for every
+        // caller: a percent outside 0–100 would drive TotalAmount (and then PaidAmount via the
+        // tendered-amount cap) negative and post an inverted voucher.
+        if (stockMain.DiscountPercent < 0 || stockMain.DiscountPercent > 100)
+            throw new InvalidOperationException("Discount percent must be between 0 and 100.");
+
         stockMain.SubTotal = stockMain.StockDetails.Sum(d => d.LineTotal);
 
         if (stockMain.DiscountPercent > 0)

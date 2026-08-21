@@ -118,6 +118,9 @@ public class SupplierCreditNoteService : ISupplierCreditNoteService
             if (creditNote.Party_ID <= 0)
                 throw new InvalidOperationException("Supplier is required.");
 
+            if (creditNote.CreditDate.Date > AppTime.Now.Date)
+                throw new InvalidOperationException("The credit note date cannot be in the future.");
+
             if (await _financialPeriodService.IsPeriodLockedAsync(creditNote.CreditDate))
                 throw new InvalidOperationException("The financial period for this credit note date is closed.");
 
@@ -320,7 +323,9 @@ public class SupplierCreditNoteService : ISupplierCreditNoteService
 
         var last = await _repository.Query()
             .Where(c => c.CreditNoteNo.StartsWith(datePrefix))
-            .OrderByDescending(c => c.CreditNoteNo)
+            // Length before value — a plain string sort puts "-10000" below "-9999".
+            .OrderByDescending(c => c.CreditNoteNo.Length)
+            .ThenByDescending(c => c.CreditNoteNo)
             .FirstOrDefaultAsync();
 
         return DocumentNumberSequence.Next(datePrefix, last?.CreditNoteNo);

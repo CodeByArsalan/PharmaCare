@@ -241,12 +241,12 @@ public class PurchaseFlowAuditTests
             GrnDoc(world, 10, 10m, paid: 25m, poId: po.StockMainID),
             TenantData.TestUserId, paymentAccountId: null, transferredAdvanceAmount: 25m);
 
-        // 25 is transferred off the PO; the 15 still sitting with the supplier is a free advance,
-        // which the standing auto-adjust rule sweeps onto this GRN (same rule asserted by
-        // A_converted_advance_is_auto_applied_to_the_next_GRN_exactly_once). Only 40 ever left
-        // cash, so the GRN shows 40 paid and 60 owed — asserted below.
-        Assert.Equal(40m, grn.PaidAmount);
-        Assert.Equal(60m, grn.BalanceAmount);
+        // 25 is transferred off the PO; the 15 the user chose NOT to transfer stays reserved on
+        // the PO. It is deliberately invisible to the auto-adjust rule: sweeping it here as
+        // "free advance" while the payment row stayed transferable let a later GRN move the
+        // same money again — two GRNs each showing paid from a single 40 advance.
+        Assert.Equal(25m, grn.PaidAmount);
+        Assert.Equal(75m, grn.BalanceAmount);
 
         var supplierPayments = await tenant.Db.Payments.AsNoTracking()
             .Where(p => p.Party_ID == world.Supplier.PartyID && !p.IsVoided && p.PaymentType == "PAYMENT")

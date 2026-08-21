@@ -148,11 +148,24 @@ public class ExpenseService : IExpenseService
             if (sourceAccount == null)
                 throw new InvalidOperationException("Source account not found.");
 
+            // The source account is client input and the voucher CREDITS it. Restricted to an
+            // active Cash/Bank account for the same reason PaymentService restricts payment
+            // accounts: allowed to name any ledger account, an "expense" could credit revenue —
+            // fabricating income with no cash movement.
+            if (!sourceAccount.IsActive)
+                throw new InvalidOperationException($"Source account '{sourceAccount.Name}' is inactive.");
+            if (sourceAccount.AccountType_ID != AccountingConstants.CashAccountTypeId
+                && sourceAccount.AccountType_ID != AccountingConstants.BankAccountTypeId)
+                throw new InvalidOperationException("Expense source account must be a Cash or Bank account.");
+
             var expenseAccount = await _accountRepository.Query()
                 .FirstOrDefaultAsync(a => a.AccountID == expense.ExpenseAccount_ID);
 
             if (expenseAccount == null)
                 throw new InvalidOperationException("Expense account not found.");
+
+            if (!expenseAccount.IsActive)
+                throw new InvalidOperationException($"Expense account '{expenseAccount.Name}' is inactive.");
 
             if (expense.Amount <= 0)
                 throw new InvalidOperationException("Expense amount must be greater than zero.");
@@ -176,6 +189,11 @@ public class ExpenseService : IExpenseService
     {
         return await ExecuteInTransactionAsync(async () =>
         {
+            // Serialize before reading, same as VoidAsync below: Expense has no concurrency
+            // token, so two concurrent approvals would both read Draft and both post a voucher —
+            // doubling the GL expense.
+            await _unitOfWork.AcquireResourceLockAsync($"expense:{expenseId}");
+
             var expense = await _expenseRepository.Query()
                 .Include(e => e.ExpenseCategory)
                 .Include(e => e.SourceAccount)
@@ -289,6 +307,8 @@ public class ExpenseService : IExpenseService
 
     public async Task<ExpenseCategory> CreateCategoryAsync(ExpenseCategory category, int userId)
     {
+        await ValidateDefaultExpenseAccountAsync(category.DefaultExpenseAccount_ID);
+
         category.CreatedAt = AppTime.Now;
         category.CreatedBy = userId;
         category.IsActive = true;
@@ -298,10 +318,26 @@ public class ExpenseService : IExpenseService
         return category;
     }
 
+    /// <summary>
+    /// The default expense account id is client input; the FK alone accepts another pharmacy's
+    /// AccountID. It must resolve through the tenant-filtered account repository.
+    /// </summary>
+    private async Task ValidateDefaultExpenseAccountAsync(int? accountId)
+    {
+        if (accountId is null or <= 0)
+            return;
+
+        var exists = await _accountRepository.Query().AnyAsync(a => a.AccountID == accountId.Value);
+        if (!exists)
+            throw new InvalidOperationException("The selected default expense account was not found in this pharmacy's chart of accounts.");
+    }
+
     public async Task<bool> UpdateCategoryAsync(ExpenseCategory category, int userId)
     {
         var existing = await _categoryRepository.GetByIdAsync(category.ExpenseCategoryID);
         if (existing == null) return false;
+
+        await ValidateDefaultExpenseAccountAsync(category.DefaultExpenseAccount_ID);
 
         existing.Name = category.Name;
         existing.Parent_ID = category.Parent_ID;

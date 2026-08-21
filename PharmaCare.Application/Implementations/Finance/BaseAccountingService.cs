@@ -36,8 +36,19 @@ public abstract class BaseAccountingService
     /// Records a posting date that has just passed its period check, so
     /// <see cref="ExecuteInTransactionAsync{T}"/> re-checks it under the close lock before
     /// committing. Without the second check a period closed mid-flight still accepts the posting.
+    /// Also rejects future dates outright: finance documents record what has happened, and a
+    /// date beyond today posts into a period that can never be closed ahead of it (post-dated
+    /// cheques carry their own dedicated guard).
     /// </summary>
-    protected void TrackPeriodDate(DateTime date) => _periodDateToRecheck = date;
+    protected void TrackPeriodDate(DateTime date)
+    {
+        if (date.Date > AppTime.Now.Date)
+        {
+            throw new InvalidOperationException("The document date cannot be in the future.");
+        }
+
+        _periodDateToRecheck = date;
+    }
 
     private async Task RecheckPeriodBeforeCommitAsync()
     {
@@ -63,7 +74,9 @@ public abstract class BaseAccountingService
 
         var lastPayment = await paymentRepository.Query()
             .Where(p => p.Reference != null && p.Reference.StartsWith(datePrefix))
-            .OrderByDescending(p => p.Reference)
+            // Length before value — a plain string sort puts "-10000" below "-9999".
+            .OrderByDescending(p => p.Reference!.Length)
+            .ThenByDescending(p => p.Reference)
             .FirstOrDefaultAsync();
 
         return DocumentNumberSequence.Next(datePrefix, lastPayment?.Reference);

@@ -5,6 +5,7 @@ using PharmaCare.Application.Interfaces;
 using PharmaCare.Application.Interfaces.Accounting;
 using PharmaCare.Application.Interfaces.Transactions;
 using PharmaCare.Application.Utilities;
+using PharmaCare.Domain.Entities.Accounting;
 using PharmaCare.Domain.Entities.Transactions;
 
 namespace PharmaCare.Application.Implementations.Transactions;
@@ -13,17 +14,20 @@ public class JournalVoucherService : IJournalVoucherService
 {
     private readonly IRepository<Voucher> _voucherRepository;
     private readonly IRepository<VoucherType> _voucherTypeRepository;
+    private readonly IRepository<Account> _accountRepository;
     private readonly IUnitOfWork _unitOfWork;
     private readonly IFinancialPeriodService _financialPeriodService;
 
     public JournalVoucherService(
         IRepository<Voucher> voucherRepository,
         IRepository<VoucherType> voucherTypeRepository,
+        IRepository<Account> accountRepository,
         IUnitOfWork unitOfWork,
         IFinancialPeriodService financialPeriodService)
     {
         _voucherRepository = voucherRepository;
         _voucherTypeRepository = voucherTypeRepository;
+        _accountRepository = accountRepository;
         _unitOfWork = unitOfWork;
         _financialPeriodService = financialPeriodService;
     }
@@ -35,6 +39,13 @@ public class JournalVoucherService : IJournalVoucherService
     /// </summary>
     private async Task ValidatePeriodAsync(DateTime date)
     {
+        // Same rule as every other posting path: the ledger records what has happened, and a
+        // voucher dated beyond today lands in a period that can never be closed ahead of it.
+        if (date.Date > AppTime.Now.Date)
+        {
+            throw new InvalidOperationException("The voucher date cannot be in the future.");
+        }
+
         if (await _financialPeriodService.IsPeriodLockedAsync(date))
         {
             throw new InvalidOperationException(
@@ -159,6 +170,26 @@ public class JournalVoucherService : IJournalVoucherService
         // SANITY CHECK: Prevent nonsensical amounts
         if (calculatedTotalDebit > AccountingConstants.MaxTransactionAmount)
              throw new InvalidOperationException("Voucher amount exceeds sanity limit (100 Million).");
+
+        // Line accounts are client input and must resolve through the tenant-filtered repository:
+        // a raw POST can name any AccountID platform-wide, and the FK alone accepts another
+        // pharmacy's account — the line would then vanish from this tenant's account-grouped
+        // reports while its counter-line remains, leaving the trial balance silently unbalanced.
+        // Every machine posting path validates its accounts this way; the manual JV must too.
+        var requestedAccountIds = model.VoucherDetails.Select(d => d.Account_ID).Distinct().ToList();
+        var knownAccounts = await _accountRepository.Query()
+            .Where(a => requestedAccountIds.Contains(a.AccountID))
+            .Select(a => new { a.AccountID, a.IsActive, a.Name })
+            .ToListAsync();
+
+        foreach (var accountId in requestedAccountIds)
+        {
+            var account = knownAccounts.FirstOrDefault(a => a.AccountID == accountId);
+            if (account == null)
+                throw new InvalidOperationException($"Account ID {accountId} was not found in the chart of accounts.");
+            if (!account.IsActive)
+                throw new InvalidOperationException($"Account '{account.Name}' is inactive and cannot be posted to.");
+        }
 
         // 2. Map ViewModel to Entity
         var voucher = new Voucher

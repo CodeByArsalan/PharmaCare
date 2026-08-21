@@ -54,8 +54,13 @@ public class SaleController : BaseController
         return View(pagedResult);
     }
 
-    public IActionResult AddSale()
+    public async Task<IActionResult> AddSale()
     {
+        // PriceType ids are per-tenant (identity-seeded at provisioning) — the POS must be told
+        // THIS pharmacy's Retail/Wholesale ids rather than assuming the first tenant's 1/2.
+        ViewBag.RetailPriceTypeId = await _productService.GetRetailPriceTypeIdAsync();
+        ViewBag.WholesalePriceTypeId = await _productService.GetWholesalePriceTypeIdAsync();
+
         return View(new StockMain
         {
             TransactionDate = AppTime.Now
@@ -111,14 +116,15 @@ public class SaleController : BaseController
             var settings = await _profitSettingsService.GetAsync();
             var wholesaleCosts = await _productService.GetLastGrnCostPricesAsync(
                 sale.StockDetails.Select(d => d.Product_ID));
-            var productsWithStock = await _productService.GetProductsWithStockAsync(priceTypeId: _pricingService.WholesalePriceTypeId);
+            var wholesalePriceTypeId = await _productService.GetWholesalePriceTypeIdAsync();
+            var productsWithStock = await _productService.GetProductsWithStockAsync(priceTypeId: wholesalePriceTypeId);
             var productLookup = productsWithStock.ToDictionary(
                 ps => ps.Product.ProductID,
                 ps =>
                 {
                     var cost = wholesaleCosts.TryGetValue(ps.Product.ProductID, out var wc) ? wc : ps.Product.OpeningPrice;
                     var resolved = _pricingService.Resolve(
-                        _pricingService.WholesalePriceTypeId, cost, ps.Product.UnitsInPack, ps.SpecificPrice, settings);
+                        isWholesale: true, cost, ps.Product.UnitsInPack, ps.SpecificPrice, settings);
                     return new { resolved, ps.Product.UnitsInPack };
                 });
 
@@ -159,7 +165,7 @@ public class SaleController : BaseController
                 var errors = ModelState.Values.SelectMany(v => v.Errors).Select(e => e.ErrorMessage);
                 return Json(new { success = false, message = string.Join(" ", errors) });
             }
-            SetSaleFormState(request, PaymentAccountId);
+            await SetSaleFormStateAsync(request, PaymentAccountId);
             return View(sale);
         }
 
@@ -214,7 +220,7 @@ public class SaleController : BaseController
 
             ModelState.AddModelError(string.Empty, ex.Message);
             ShowMessage(MessageType.Warning, ex.Message);
-            SetSaleFormState(request, PaymentAccountId);
+            await SetSaleFormStateAsync(request, PaymentAccountId);
             return View(sale);
         }
         catch (Exception ex)
@@ -234,7 +240,7 @@ public class SaleController : BaseController
             ShowMessage(MessageType.Error, errorMessage);
         }
 
-        SetSaleFormState(request, PaymentAccountId);
+        await SetSaleFormStateAsync(request, PaymentAccountId);
         return View(sale);
     }
 
@@ -295,20 +301,26 @@ public class SaleController : BaseController
     {
         try
         {
-            var productsWithStock = await _productService.GetProductsWithStockAsync(priceTypeId);
+            // PriceType ids are per-tenant; resolve this pharmacy's tiers by name. Default to
+            // retail when the caller names no price type, and ignore ids that are not this
+            // tenant's (an over-posted foreign id must not select wholesale semantics).
+            var retailId = await _productService.GetRetailPriceTypeIdAsync();
+            var wholesaleId = await _productService.GetWholesalePriceTypeIdAsync();
+            var effectivePriceTypeId = priceTypeId ?? retailId;
+            var isWholesale = wholesaleId.HasValue && effectivePriceTypeId == wholesaleId;
+
+            var productsWithStock = await _productService.GetProductsWithStockAsync(effectivePriceTypeId);
             var lastGrnCosts = await _productService.GetLastGrnCostPricesAsync(
                 productsWithStock.Select(ps => ps.Product.ProductID));
             var profitSettings = await _profitSettingsService.GetAsync();
 
-            // Default to retail (1) when no price type is specified.
-            var priceType = priceTypeId ?? 1;
             var result = productsWithStock
                 .Select(ps =>
                 {
                     var costPrice = lastGrnCosts.TryGetValue(ps.Product.ProductID, out var c) ? c : ps.Product.OpeningPrice;
 
                     // Single canonical resolver: explicit price ?? cost+margin formula (rounded, never below cost).
-                    var resolved = _pricingService.Resolve(priceType, costPrice, ps.Product.UnitsInPack, ps.SpecificPrice, profitSettings);
+                    var resolved = _pricingService.Resolve(isWholesale, costPrice, ps.Product.UnitsInPack, ps.SpecificPrice, profitSettings);
 
                     return new
                     {
@@ -462,11 +474,14 @@ public class SaleController : BaseController
         return normalized == "walk-in" || normalized == "walk in" || normalized == "walkin";
     }
 
-    private void SetSaleFormState(SaleCreateRequest request, int? paymentAccountId)
+    private async Task SetSaleFormStateAsync(SaleCreateRequest request, int? paymentAccountId)
     {
         ViewBag.TenderedAmount = request.TenderedAmount ?? request.PaidAmount;
         ViewBag.WalkInCustomerName = request.WalkInCustomerName;
         ViewBag.SelectedPaymentAccountId = paymentAccountId;
         ViewBag.SelectedPriceTypeId = request.PriceTypeId;
+        // The form's price-type JS needs this tenant's real Retail/Wholesale ids on redisplay too.
+        ViewBag.RetailPriceTypeId = await _productService.GetRetailPriceTypeIdAsync();
+        ViewBag.WholesalePriceTypeId = await _productService.GetWholesalePriceTypeIdAsync();
     }
 }

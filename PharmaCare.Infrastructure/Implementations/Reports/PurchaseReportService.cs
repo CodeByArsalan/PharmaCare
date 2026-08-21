@@ -82,7 +82,10 @@ public class PurchaseReportService : IPurchaseReportService
                 PurchaseCount = g.Sum(s => PurchaseCodes.Contains(s.TransactionType!.Code) ? 1 : 0),
                 TotalPurchases = g.Sum(s => PurchaseReturnCodes.Contains(s.TransactionType!.Code) ? -s.TotalAmount : s.TotalAmount),
                 TotalPaid = g.Sum(s => PurchaseReturnCodes.Contains(s.TransactionType!.Code) ? -s.PaidAmount : s.PaidAmount),
-                BalanceDue = g.Sum(s => PurchaseReturnCodes.Contains(s.TransactionType!.Code) ? -s.BalanceAmount : s.BalanceAmount),
+                // A return carries no payable of its own: PurchaseReturnService already subtracts it
+                // from the referenced GRN's BalanceAmount. Negating the return's own balance here
+                // would deduct the same credit twice and understate what is still owed to the supplier.
+                BalanceDue = g.Sum(s => PurchaseReturnCodes.Contains(s.TransactionType!.Code) ? 0m : s.BalanceAmount),
                 // MAX over purchase rows only (returns map to NULL and are ignored by MAX).
                 LastPurchaseDate = g.Max(s => PurchaseCodes.Contains(s.TransactionType!.Code) ? (DateTime?)s.TransactionDate : null)
             })

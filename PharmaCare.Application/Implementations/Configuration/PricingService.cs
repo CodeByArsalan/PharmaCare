@@ -10,9 +10,7 @@ namespace PharmaCare.Application.Implementations.Configuration;
 /// <inheritdoc cref="IPricingService"/>
 public class PricingService : IPricingService
 {
-    public int WholesalePriceTypeId => AccountingConstants.WholesalePriceTypeId;
-
-    public ResolvedPrice Resolve(int priceTypeId, decimal cost, int unitsInPack, decimal? explicitPrice, ProfitSettings settings)
+    public ResolvedPrice Resolve(bool isWholesale, decimal cost, int unitsInPack, decimal? explicitPrice, ProfitSettings settings)
     {
         if (unitsInPack < 1)
         {
@@ -25,7 +23,7 @@ public class PricingService : IPricingService
         decimal unitPrice;
         decimal boxPrice;
 
-        if (priceTypeId == WholesalePriceTypeId)
+        if (isWholesale)
         {
             if (hasExplicit)
             {

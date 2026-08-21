@@ -48,6 +48,7 @@ public class CategoryService : ICategoryService
     public async Task<Category> CreateAsync(Category category, int userId)
     {
         await EnsureNameIsFreeAsync(category.Name, excludeId: null);
+        await ValidateAccountOwnershipAsync(category);
 
         category.CreatedAt = AppTime.Now;
         category.CreatedBy = userId;
@@ -57,6 +58,36 @@ public class CategoryService : ICategoryService
         await _unitOfWork.SaveChangesAsync();
 
         return category;
+    }
+
+    /// <summary>
+    /// The four control-account ids are client input and every sale/adjustment voucher of this
+    /// category posts to them verbatim. The FK alone accepts another pharmacy's AccountID, which
+    /// would route this tenant's postings onto accounts its own reports cannot resolve — so each
+    /// id must resolve through the tenant-filtered account repository.
+    /// </summary>
+    private async Task ValidateAccountOwnershipAsync(Category category)
+    {
+        var requestedIds = new[]
+            {
+                category.SaleAccount_ID, category.StockAccount_ID,
+                category.COGSAccount_ID, category.DamageAccount_ID
+            }
+            .Where(id => id.HasValue && id.Value > 0)
+            .Select(id => id!.Value)
+            .Distinct()
+            .ToList();
+
+        if (requestedIds.Count == 0)
+            return;
+
+        var known = await _accountRepository.Query()
+            .Where(a => requestedIds.Contains(a.AccountID))
+            .Select(a => a.AccountID)
+            .ToListAsync();
+
+        if (requestedIds.Any(id => !known.Contains(id)))
+            throw new InvalidOperationException("One or more selected accounts were not found in this pharmacy's chart of accounts.");
     }
 
     /// <summary>
@@ -118,6 +149,7 @@ public class CategoryService : ICategoryService
         }
 
         await EnsureNameIsFreeAsync(category.Name, category.CategoryID);
+        await ValidateAccountOwnershipAsync(category);
 
         existing.Name = category.Name;
         existing.SaleAccount_ID = category.SaleAccount_ID;

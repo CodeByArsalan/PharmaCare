@@ -320,7 +320,9 @@ public class PurchaseOrderService : IPurchaseOrderService
 
         var lastTransaction = await _stockMainRepository.Query()
             .Where(s => s.TransactionNo.StartsWith(datePrefix))
-            .OrderByDescending(s => s.TransactionNo)
+            // Length before value — a plain string sort puts "-10000" below "-9999".
+            .OrderByDescending(s => s.TransactionNo.Length)
+            .ThenByDescending(s => s.TransactionNo)
             .FirstOrDefaultAsync();
 
         return DocumentNumberSequence.Next(datePrefix, lastTransaction?.TransactionNo);
@@ -328,11 +330,22 @@ public class PurchaseOrderService : IPurchaseOrderService
 
     private void CalculateTotals(StockMain purchaseOrder)
     {
+        // Same guard as the base CalculateTotals: the percent is the only discount input honored,
+        // and it must be a sane percentage.
+        if (purchaseOrder.DiscountPercent < 0 || purchaseOrder.DiscountPercent > 100)
+            throw new InvalidOperationException("Discount percent must be between 0 and 100.");
+
         purchaseOrder.SubTotal = purchaseOrder.StockDetails.Sum(d => d.LineTotal);
-        
+
         if (purchaseOrder.DiscountPercent > 0)
         {
             purchaseOrder.DiscountAmount = Math.Round(purchaseOrder.SubTotal * purchaseOrder.DiscountPercent / 100, 2);
+        }
+        else
+        {
+            // Reset discount amount if percent is 0 to prevent spoofing (mirrors the base
+            // CalculateTotals — a caller-supplied amount with no percent must not reduce the total).
+            purchaseOrder.DiscountAmount = 0;
         }
 
         purchaseOrder.TotalAmount = purchaseOrder.SubTotal - purchaseOrder.DiscountAmount;

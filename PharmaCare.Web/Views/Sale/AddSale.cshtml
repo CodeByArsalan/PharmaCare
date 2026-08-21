@@ -4,6 +4,9 @@
     ViewData["Title"] = "Add Sale";
     var selectedPaymentAccountId = ViewBag.SelectedPaymentAccountId as int?;
     var selectedPriceTypeId = ViewBag.SelectedPriceTypeId as int?;
+    // Per-tenant PriceType ids resolved by the controller — never assume the first tenant's 1/2.
+    var retailPriceTypeId = ViewBag.RetailPriceTypeId as int?;
+    var wholesalePriceTypeId = ViewBag.WholesalePriceTypeId as int?;
     var tenderedAmountValue = ViewBag.TenderedAmount != null
         ? Convert.ToDecimal(ViewBag.TenderedAmount)
         : Model.PaidAmount;
@@ -100,8 +103,8 @@
                 </div>
                 <div class="col-md-3">
                     <label class="form-label">Price Type</label>
-                    <input type="text" id="priceTypeDisplay" class="form-control" value="@(selectedPriceTypeId == 2 ? "Whole Sale" : "Retail Sale")" readonly />
-                    <input type="hidden" name="PriceTypeId" id="priceTypeHidden" value="@(selectedPriceTypeId ?? 1)" />
+                    <input type="text" id="priceTypeDisplay" class="form-control" value="@(selectedPriceTypeId.HasValue && selectedPriceTypeId == wholesalePriceTypeId ? "Whole Sale" : "Retail Sale")" readonly />
+                    <input type="hidden" name="PriceTypeId" id="priceTypeHidden" value="@(selectedPriceTypeId ?? retailPriceTypeId ?? 0)" />
                 </div>
                 <div class="col-md-3">
                     <label class="form-label">Remarks</label>
@@ -468,6 +471,12 @@
             }
         }
 
+        // This tenant's PriceType ids, resolved server-side — PriceTypes are per-tenant rows,
+        // so hardcoded 1/2 would silently select nothing (or the wrong tier) for any pharmacy
+        // provisioned after the first.
+        const RETAIL_PRICE_TYPE_ID = '@(retailPriceTypeId ?? 0)';
+        const WHOLESALE_PRICE_TYPE_ID = '@(wholesalePriceTypeId ?? 0)';
+
         async function fetchCustomerInfo() {
             const customerId = parseInt(document.getElementById('customerSelect').value || '0', 10);
             const priceTypeDisplay = document.getElementById('priceTypeDisplay');
@@ -477,7 +486,7 @@
             if (!customerId) {
                 isWholeSaleCustomer = false;
                 priceTypeDisplay.value = 'Retail Price';
-                priceTypeHidden.value = '1';
+                priceTypeHidden.value = RETAIL_PRICE_TYPE_ID;
                 cue.textContent = 'No customer selected';
                 fetchProducts();
                 return;
@@ -488,7 +497,7 @@
                 if (!response.ok) {
                     isWholeSaleCustomer = false;
                     priceTypeDisplay.value = 'Retail Price';
-                    priceTypeHidden.value = '1';
+                    priceTypeHidden.value = RETAIL_PRICE_TYPE_ID;
                     cue.textContent = 'Unavailable';
                     fetchProducts();
                     return;
@@ -500,10 +509,10 @@
                 isWholeSaleCustomer = result.isWholeSale === true;
                 if (isWholeSaleCustomer) {
                     priceTypeDisplay.value = 'Whole Sale';
-                    priceTypeHidden.value = '2';
+                    priceTypeHidden.value = WHOLESALE_PRICE_TYPE_ID;
                 } else {
                     priceTypeDisplay.value = 'Retail Price';
-                    priceTypeHidden.value = '1';
+                    priceTypeHidden.value = RETAIL_PRICE_TYPE_ID;
                 }
 
                 // Credit status
@@ -520,7 +529,7 @@
                 console.error('Failed to load customer info', error);
                 isWholeSaleCustomer = false;
                 priceTypeDisplay.value = 'Retail Price';
-                priceTypeHidden.value = '1';
+                priceTypeHidden.value = RETAIL_PRICE_TYPE_ID;
                 cue.textContent = 'Unavailable';
                 fetchProducts();
             }

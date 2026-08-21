@@ -23,6 +23,7 @@ public class PaymentService : BaseAccountingService, IPaymentService
     private readonly IRepository<VoucherType> _voucherTypeRepository;
     private readonly IRepository<Party> _partyRepository;
     private readonly IRepository<Account> _accountRepository;
+    private readonly IRepository<SupplierCreditNote> _supplierCreditNoteRepository;
     private readonly IFinancialPeriodService _financialPeriodService;
 
     private const string GRN_TRANSACTION_TYPE_CODE = "GRN";
@@ -48,6 +49,7 @@ public class PaymentService : BaseAccountingService, IPaymentService
         IRepository<VoucherType> voucherTypeRepository,
         IRepository<Party> partyRepository,
         IRepository<Account> accountRepository,
+        IRepository<SupplierCreditNote> supplierCreditNoteRepository,
         IUnitOfWork unitOfWork,
         IFinancialPeriodService financialPeriodService,
         IPurchaseService purchaseService)
@@ -59,6 +61,7 @@ public class PaymentService : BaseAccountingService, IPaymentService
         _voucherTypeRepository = voucherTypeRepository;
         _partyRepository = partyRepository;
         _accountRepository = accountRepository;
+        _supplierCreditNoteRepository = supplierCreditNoteRepository;
         _financialPeriodService = financialPeriodService;
         _purchaseService = purchaseService;
     }
@@ -267,8 +270,14 @@ public class PaymentService : BaseAccountingService, IPaymentService
                         && (!p.StockMain_ID.HasValue || p.StockMain == null || p.StockMain.Status != "Void"))
             .SumAsync(p => (decimal?)p.Amount) ?? 0;
 
+        // Supplier credit notes debit the supplier in the GL at issuance — same rule as
+        // PurchaseService.GetSupplierBalanceAsync, or the two formulas drift apart.
+        var totalCreditNotes = await _supplierCreditNoteRepository.Query()
+            .Where(c => c.Party_ID == supplierId && c.Status != "Void")
+            .SumAsync(c => (decimal?)c.TotalAmount) ?? 0;
+
         // Positive = payable to supplier; Negative = supplier owes company.
-        var supplierNetPayable = supplier.OpeningBalance + totalPurchases - totalPurchaseReturns - totalPayments + totalRefunds;
+        var supplierNetPayable = supplier.OpeningBalance + totalPurchases - totalPurchaseReturns - totalPayments + totalRefunds - totalCreditNotes;
         return supplierNetPayable < 0 ? Math.Abs(supplierNetPayable) : 0;
     }
 
@@ -653,6 +662,7 @@ public class PaymentService : BaseAccountingService, IPaymentService
                 .Include(p => p.Voucher)
                     .ThenInclude(v => v!.VoucherDetails)
                 .Include(p => p.StockMain)
+                    .ThenInclude(s => s!.TransactionType)
                 .FirstOrDefaultAsync(p => p.PaymentID == paymentId);
 
             if (payment == null)
@@ -718,7 +728,12 @@ public class PaymentService : BaseAccountingService, IPaymentService
                     .SumAsync(p => p.Amount);
 
                 stockMain.PaidAmount = Math.Max(0, Math.Round(totalPaid, 2));
-                stockMain.BalanceAmount = Math.Max(0, Math.Round(stockMain.TotalAmount - stockMain.PaidAmount, 2));
+                // Outstanding must be computed by the same rules as everywhere else — for a GRN
+                // that means net of purchase returns. The naive Total − Paid formula resurrects
+                // already-returned value into BalanceAmount, which credit-note application then
+                // trusts and over-applies against.
+                stockMain.BalanceAmount = Math.Round(
+                    await CalculateOutstandingAmountAsync(stockMain, stockMain.PaidAmount), 2);
                 stockMain.PaymentStatus = stockMain.BalanceAmount <= 0
                     ? PaymentStatus.Paid.ToString()
                     : (stockMain.PaidAmount <= 0 ? PaymentStatus.Unpaid.ToString() : PaymentStatus.Partial.ToString());

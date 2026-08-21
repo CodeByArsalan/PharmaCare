@@ -124,6 +124,18 @@ public class FinancialPeriodService : IFinancialPeriodService
         var period = await _periodRepository.GetByIdAsync(periodId);
         if (period == null) return false;
 
+        // Mirror of the close-in-order rule above: reopening an EARLIER period while a later one
+        // stays closed lets the earlier books change underneath figures already signed off — the
+        // exact state the close ordering exists to prevent. Reopen newest first.
+        var laterStillClosed = await _periodRepository.Query()
+            .AnyAsync(p => p.IsClosed && p.PeriodID != periodId && p.StartDate > period.EndDate);
+
+        if (laterStillClosed)
+        {
+            throw new InvalidOperationException(
+                "A later financial period is still closed. Reopen periods in order, newest first.");
+        }
+
         period.IsClosed = false;
         period.ClosedAt = null;
         period.ClosedBy = null;

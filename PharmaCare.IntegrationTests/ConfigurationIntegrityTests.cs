@@ -391,11 +391,14 @@ public class ConfigurationIntegrityTests
         product!.UnitsInPack = 10;
         await productService.UpdateAsync(product, TenantData.TestUserId);
 
+        var wholesalePriceTypeId = await productService.GetWholesalePriceTypeIdAsync();
+        Assert.NotNull(wholesalePriceTypeId);
+
         await productService.SaveProductPricesAsync(world.Product.ProductID, new List<ProductPriceDto>
         {
             new()
             {
-                PriceTypeId = AccountingConstants.WholesalePriceTypeId,
+                PriceTypeId = wholesalePriceTypeId!.Value,
                 PriceTypeName = "Wholesale",
                 Price = 150m
             }
@@ -418,7 +421,7 @@ public class ConfigurationIntegrityTests
 
         var stored = await tenant.Db.ProductPrices.AsNoTracking()
             .FirstAsync(p => p.Product_ID == world.Product.ProductID
-                          && p.PriceType_ID == AccountingConstants.WholesalePriceTypeId);
+                          && p.PriceType_ID == wholesalePriceTypeId.Value);
 
         var perUnit = stored.SalePrice / 30m;
         Assert.True(perUnit >= 10m,

@@ -233,6 +233,7 @@ public class PurchaseService : TransactionServiceBase, IPurchaseService
             }
 
             NormalizePurchaseLines(purchase);
+            await ValidateProductsActiveAsync(purchase);
 
             purchase.TransactionType_ID = transactionType.TransactionTypeID;
             purchase.TransactionNo = await GenerateTransactionNoAsync(PREFIX);
@@ -314,7 +315,11 @@ public class PurchaseService : TransactionServiceBase, IPurchaseService
                 await _unitOfWork.SaveChangesAsync();
             }
 
-            var previousBalance = await GetSupplierBalanceAsync(purchase.Party_ID ?? 0, purchase.StockMainID);
+            // PO-linked advances and supplier credit notes are deliberately invisible here
+            // (excludeReservedCredit): each is consumed only through its own explicit mechanism
+            // (advance transfer / credit-note application), so the auto-adjust rule can never
+            // spend the same value a later operation will claim again.
+            var previousBalance = await GetSupplierBalanceAsync(purchase.Party_ID ?? 0, purchase.StockMainID, excludeReservedCredit: true);
             if (previousBalance < 0)
             {
                 var advanceAvailable = Math.Abs(previousBalance);
@@ -546,6 +551,24 @@ public class PurchaseService : TransactionServiceBase, IPurchaseService
         return transferredVoucher.VoucherID;
     }
 
+    /// <summary>
+    /// The purchase form only offers active products, but the service is the authoritative gate
+    /// for every caller — a raw POST must not receive stock for a deactivated product. (Returns
+    /// and write-offs deliberately skip this: existing stock of an inactive product must still be
+    /// returnable and disposable.)
+    /// </summary>
+    private async Task ValidateProductsActiveAsync(StockMain purchase)
+    {
+        var productIds = purchase.StockDetails.Select(d => d.Product_ID).Distinct().ToList();
+        var inactiveProducts = await _productRepository.Query()
+            .Where(p => productIds.Contains(p.ProductID) && !p.IsActive)
+            .Select(p => p.Name)
+            .ToListAsync();
+        if (inactiveProducts.Count > 0)
+            throw new InvalidOperationException(
+                $"Inactive product(s) cannot be purchased: {string.Join(", ", inactiveProducts)}.");
+    }
+
     private static void NormalizePurchaseLines(StockMain purchase)
     {
         if (purchase.StockDetails == null || purchase.StockDetails.Count == 0)
@@ -580,11 +603,17 @@ public class PurchaseService : TransactionServiceBase, IPurchaseService
                 throw new InvalidOperationException("Line discount cannot exceed line amount.");
             }
 
-            detail.CostPrice = unitRate;
-            detail.UnitPrice = unitRate;
             detail.DiscountAmount = lineDiscount;
             detail.LineTotal = Math.Round(grossAmount - lineDiscount, 2);
-            detail.LineCost = Math.Round(detail.Quantity * detail.CostPrice, 2);
+
+            // A line discount changes what the goods actually COST, exactly like the header
+            // discount handled below: fold it into CostPrice/LineCost. Left gross, purchase
+            // returns would credit stock and debit the supplier at a price never paid, and the
+            // authoritative GRN cost (sale COGS, below-cost gate, adjustment valuation) would
+            // overstate cost by the discount.
+            detail.LineCost = detail.LineTotal;
+            detail.CostPrice = detail.Quantity > 0 ? Math.Round(detail.LineTotal / detail.Quantity, 2) : unitRate;
+            detail.UnitPrice = detail.CostPrice;
         }
 
         ApplyHeaderDiscountToLines(purchase);
@@ -870,7 +899,9 @@ public class PurchaseService : TransactionServiceBase, IPurchaseService
 
         var lastPayment = await _paymentRepository.Query()
             .Where(p => p.Reference != null && p.Reference.StartsWith(datePrefix))
-            .OrderByDescending(p => p.Reference)
+            // Length before value — a plain string sort puts "-10000" below "-9999".
+            .OrderByDescending(p => p.Reference!.Length)
+            .ThenByDescending(p => p.Reference)
             .FirstOrDefaultAsync();
 
         return DocumentNumberSequence.Next(datePrefix, lastPayment?.Reference);
@@ -1022,6 +1053,7 @@ public class PurchaseService : TransactionServiceBase, IPurchaseService
 
         // Normalize and validate lines before touching the ledger.
         NormalizePurchaseLines(purchase);
+        await ValidateProductsActiveAsync(purchase);
 
         // A closed financial period must block the edit for BOTH the original date
         // (the ledger we are about to reverse) and the new date (what we re-post to).
@@ -1049,6 +1081,13 @@ public class PurchaseService : TransactionServiceBase, IPurchaseService
                 .ToDictionary(x => x.pid, x => x.reduction);
             await EnsureRemovalLeavesNonNegativeStockAsync(_productService, reductionByProduct, "reduce this purchase's received quantity");
 
+            // An edit re-points the reposted purchase voucher at the (possibly new) party's
+            // account, so it must pass the same supplier validation creation enforces —
+            // otherwise a GRN could be re-pointed at a customer or deactivated party.
+            if (!purchase.Party_ID.HasValue || purchase.Party_ID.Value <= 0)
+                throw new InvalidOperationException("Supplier is required.");
+            await ValidateSupplierAsync(purchase.Party_ID.Value);
+
             // Update header fields
             existing.Party_ID = purchase.Party_ID;
             existing.TransactionDate = purchase.TransactionDate;
@@ -1058,6 +1097,11 @@ public class PurchaseService : TransactionServiceBase, IPurchaseService
 
             if (existing.ReferenceStockMain_ID.HasValue)
             {
+                // Same serialization as CreateAsync: the over-receive check below is
+                // read-then-write, so an edit racing a concurrent receipt against the same PO
+                // could jointly over-receive the order without this lock.
+                await _unitOfWork.AcquireResourceLockAsync($"po:{existing.ReferenceStockMain_ID.Value}");
+
                 var po = await _stockMainRepository.Query()
                     .Include(s => s.TransactionType)
                     .Include(s => s.StockDetails)
@@ -1066,7 +1110,12 @@ public class PurchaseService : TransactionServiceBase, IPurchaseService
 
                 if (po != null)
                 {
-                    await ValidateGrnAgainstPurchaseOrderAsync(purchase, po);
+                    if (po.Party_ID != purchase.Party_ID)
+                        throw new InvalidOperationException("Selected Purchase Order belongs to a different supplier.");
+
+                    // Exclude this GRN's own persisted lines from "already received":
+                    // the requested quantities replace them, they don't stack on top.
+                    await ValidateGrnAgainstPurchaseOrderAsync(purchase, po, existing.StockMainID);
                 }
             }
 
@@ -1291,11 +1340,14 @@ public class PurchaseService : TransactionServiceBase, IPurchaseService
     /// </summary>
     public async Task<decimal> GetSupplierAdvanceAsync(int supplierId)
     {
-        var balance = await GetSupplierBalanceAsync(supplierId);
+        // includeCreditNotes: false — credit-note value is not refundable cash; it is consumed
+        // only by applying the note to a GRN. Counting it here would let a note be refunded in
+        // cash AND still applied to a purchase.
+        var balance = await GetSupplierBalanceAsync(supplierId, includeCreditNotes: false);
         return Math.Max(0, -balance);
     }
 
-    private async Task<decimal> GetSupplierBalanceAsync(int supplierId, int? excludeTransactionId = null)
+    private async Task<decimal> GetSupplierBalanceAsync(int supplierId, int? excludeTransactionId = null, bool excludeReservedCredit = false, bool includeCreditNotes = true)
     {
         var supplier = await _partyRepository.GetByIdAsync(supplierId);
         if (supplier == null) return 0;
@@ -1340,6 +1392,18 @@ public class PurchaseService : TransactionServiceBase, IPurchaseService
             paymentsQuery = paymentsQuery.Where(p => p.StockMain_ID != excludeTransactionId.Value);
         }
 
+        // A payment sitting on a purchase order is reserved for that PO: it is consumed via the
+        // explicit advance-transfer when its GRNs are received. Counting it here as free advance
+        // as well lets the auto-adjust rule book the SAME money against one GRN while the transfer
+        // hands it to another — two GRNs each showing paid from a single advance.
+        if (excludeReservedCredit)
+        {
+            paymentsQuery = paymentsQuery.Where(p =>
+                !p.StockMain_ID.HasValue
+                || p.StockMain == null
+                || p.StockMain.TransactionType!.Code != PO_TRANSACTION_TYPE_CODE);
+        }
+
         var payments = await paymentsQuery.SumAsync(p => p.Amount);
 
         // Refunds received back from the supplier (e.g. an advance refunded) undo a prior payment,
@@ -1358,7 +1422,21 @@ public class PurchaseService : TransactionServiceBase, IPurchaseService
 
         var refunds = await refundsQuery.SumAsync(p => p.Amount);
 
-        return balance + purchases - returns - payments + refunds;
+        // A supplier credit note's voucher already debits the supplier in the GL at issuance, so
+        // it must reduce this formula too — otherwise the supplier balance permanently overstates
+        // the payable by every credit granted. EXCEPT for two callers that pass
+        // includeCreditNotes=false: the auto-adjust rule and the refund bound — note value is
+        // consumed exclusively through ApplyToGrnAsync, so spending it as free advance or paying
+        // it out as cash would let the same credit settle a GRN a second time.
+        var creditNotes = 0m;
+        if (includeCreditNotes && !excludeReservedCredit)
+        {
+            creditNotes = await _supplierCreditNoteRepository.Query()
+                .Where(c => c.Party_ID == supplierId && c.Status != "Void")
+                .SumAsync(c => (decimal?)c.TotalAmount) ?? 0;
+        }
+
+        return balance + purchases - returns - payments + refunds - creditNotes;
     }
 
     /// <summary>
@@ -1403,7 +1481,7 @@ public class PurchaseService : TransactionServiceBase, IPurchaseService
         }
     }
 
-    private async Task ValidateGrnAgainstPurchaseOrderAsync(StockMain purchase, StockMain purchaseOrder)
+    private async Task ValidateGrnAgainstPurchaseOrderAsync(StockMain purchase, StockMain purchaseOrder, int? excludeStockMainId = null)
     {
         if (purchase.StockDetails == null || purchase.StockDetails.Count == 0)
         {
@@ -1427,11 +1505,15 @@ public class PurchaseService : TransactionServiceBase, IPurchaseService
             throw new InvalidOperationException("GRN contains item(s) that are not present in the selected Purchase Order.");
         }
 
+        // When validating an EDIT, the GRN's own persisted lines must not count as "already
+        // received" — the requested quantities replace them. Counting them doubles the GRN
+        // against the PO and rejects every legitimate re-save.
         var receivedLines = await _stockMainRepository.Query()
             .Include(s => s.TransactionType)
             .Where(s => s.TransactionType!.Code == TRANSACTION_TYPE_CODE
                      && s.Status != "Void"
-                     && s.ReferenceStockMain_ID == purchaseOrder.StockMainID)
+                     && s.ReferenceStockMain_ID == purchaseOrder.StockMainID
+                     && (excludeStockMainId == null || s.StockMainID != excludeStockMainId.Value))
             .SelectMany(s => s.StockDetails.Select(d => new
             {
                 d.Product_ID,

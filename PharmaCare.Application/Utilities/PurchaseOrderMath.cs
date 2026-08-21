@@ -32,8 +32,11 @@ public static class PurchaseOrderMath
                 continue;
             }
 
-            var sourceLine = detailGroup.First();
-            var unitRate = sourceLine.Quantity > 0 ? (sourceLine.LineTotal / sourceLine.Quantity) : sourceLine.UnitPrice;
+            // Weighted-average rate across ALL lines of the product — a PO may carry several
+            // lines of the same product at different rates, and pricing the remainder at the
+            // first line's rate would misvalue the advance cap.
+            var groupTotal = detailGroup.Sum(d => d.LineTotal);
+            var unitRate = orderedQty > 0 ? (groupTotal / orderedQty) : detailGroup.First().UnitPrice;
             remainingTotal += Math.Round(remainingQty * unitRate, 2);
         }
 
